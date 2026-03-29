@@ -21,7 +21,7 @@ class Location(BaseModel):
     maps_url: str = ""
 
     @classmethod
-    def from_drive_state(cls, data: dict) -> "Location":
+    def from_drive_state(cls, data: dict) -> Location:
         lat = data.get("latitude", 0.0)
         lon = data.get("longitude", 0.0)
         heading = data.get("heading", 0)

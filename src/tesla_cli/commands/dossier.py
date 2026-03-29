@@ -193,6 +193,7 @@ def dossier_build() -> None:
 def dossier_show() -> None:
     """Show the current saved dossier (without fetching new data)."""
     from pathlib import Path
+
     from rich.panel import Panel
 
     backend = DossierBackend()

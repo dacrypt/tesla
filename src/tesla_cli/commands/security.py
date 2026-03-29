@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.output import render_success
 
 security_app = typer.Typer(name="security", help="Security, sentry, and access controls.")
@@ -21,7 +18,7 @@ def _vin(vin: str | None) -> str:
 
 
 @security_app.command("lock")
-def security_lock(vin: Optional[str] = VinOption) -> None:
+def security_lock(vin: str | None = VinOption) -> None:
     """Lock the vehicle."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "door_lock"), v)
@@ -29,7 +26,7 @@ def security_lock(vin: Optional[str] = VinOption) -> None:
 
 
 @security_app.command("unlock")
-def security_unlock(vin: Optional[str] = VinOption) -> None:
+def security_unlock(vin: str | None = VinOption) -> None:
     """Unlock the vehicle."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "door_unlock"), v)
@@ -39,7 +36,7 @@ def security_unlock(vin: Optional[str] = VinOption) -> None:
 @security_app.command("sentry")
 def sentry(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Sentry Mode."""
     v = _vin(vin)
@@ -51,8 +48,8 @@ def sentry(
 @security_app.command("valet")
 def valet(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="4-digit PIN"),
-    vin: Optional[str] = VinOption,
+    password: str | None = typer.Option(None, "--password", "-p", help="4-digit PIN"),
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Valet Mode."""
     v = _vin(vin)
@@ -67,9 +64,9 @@ def valet(
 @security_app.command("speed-limit")
 def speed_limit(
     action: str = typer.Argument(..., help="activate | deactivate | set"),
-    pin: Optional[str] = typer.Option(None, "--pin", help="4-digit PIN"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Speed limit in mph (for 'set')"),
-    vin: Optional[str] = VinOption,
+    pin: str | None = typer.Option(None, "--pin", help="4-digit PIN"),
+    limit: int | None = typer.Option(None, "--limit", "-l", help="Speed limit in mph (for 'set')"),
+    vin: str | None = VinOption,
 ) -> None:
     """Manage speed limit mode."""
     v = _vin(vin)
@@ -101,8 +98,8 @@ def speed_limit(
 @security_app.command("pin-to-drive")
 def pin_to_drive(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="PIN"),
-    vin: Optional[str] = VinOption,
+    password: str | None = typer.Option(None, "--password", "-p", help="PIN"),
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle PIN to Drive."""
     v = _vin(vin)
@@ -117,7 +114,7 @@ def pin_to_drive(
 @security_app.command("guest-mode")
 def guest_mode(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Guest Mode."""
     v = _vin(vin)

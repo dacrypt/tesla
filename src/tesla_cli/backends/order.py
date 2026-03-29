@@ -23,7 +23,7 @@ import jwt
 
 from tesla_cli.auth import tokens
 from tesla_cli.auth.oauth import refresh_access_token
-from tesla_cli.exceptions import AuthenticationError, ApiError, OrderNotFoundError
+from tesla_cli.exceptions import ApiError, AuthenticationError, OrderNotFoundError
 from tesla_cli.models.order import (
     DeliveryAppointment,
     OrderChange,

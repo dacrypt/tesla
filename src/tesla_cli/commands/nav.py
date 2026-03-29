@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import typer
 
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.output import render_success
 
 nav_app = typer.Typer(name="nav", help="Navigation and destination controls.")
@@ -23,7 +22,7 @@ def _vin(vin: str | None) -> str:
 @nav_app.command("send")
 def nav_send(
     destination: str = typer.Argument(..., help="Address or place name"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Send a destination to the vehicle."""
     v = _vin(vin)
@@ -43,7 +42,7 @@ def nav_send(
 
 
 @nav_app.command("supercharger")
-def nav_supercharger(vin: Optional[str] = VinOption) -> None:
+def nav_supercharger(vin: str | None = VinOption) -> None:
     """Navigate to nearest Supercharger."""
     v = _vin(vin)
     _with_wake(
@@ -53,7 +52,7 @@ def nav_supercharger(vin: Optional[str] = VinOption) -> None:
 
 
 @nav_app.command("home")
-def nav_home(vin: Optional[str] = VinOption) -> None:
+def nav_home(vin: str | None = VinOption) -> None:
     """Navigate home."""
     v = _vin(vin)
     ts = str(int(time.time() * 1000))
@@ -72,7 +71,7 @@ def nav_home(vin: Optional[str] = VinOption) -> None:
 
 
 @nav_app.command("work")
-def nav_work(vin: Optional[str] = VinOption) -> None:
+def nav_work(vin: str | None = VinOption) -> None:
     """Navigate to work."""
     v = _vin(vin)
     ts = str(int(time.time() * 1000))

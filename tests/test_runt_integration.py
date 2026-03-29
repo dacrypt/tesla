@@ -9,7 +9,7 @@ import io
 
 import pytest
 
-from tesla_cli.backends.runt import RuntBackend, RuntError
+from tesla_cli.backends.runt import RuntBackend
 from tesla_cli.models.dossier import RuntData
 
 # Mark all tests in this module as integration

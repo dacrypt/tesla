@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import os
 
-from typing import Optional
-
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -22,8 +20,8 @@ DEFAULT_CEDULA = os.environ.get("TESLA_OWNER_CEDULA", "")
 
 def _resolve_cedula() -> str:
     """Try to get cédula from Tesla tasks data, fallback to default."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     # Try dossier file for owner info
     dossier_file = Path.home() / ".tesla-cli" / "dossier" / "dossier.json"
@@ -56,8 +54,8 @@ def _resolve_cedula() -> str:
 
 @simit_app.command("query")
 def simit_query(
-    cedula: Optional[str] = CedulaOption,
-    placa: Optional[str] = PlacaOption,
+    cedula: str | None = CedulaOption,
+    placa: str | None = PlacaOption,
 ) -> None:
     """Query SIMIT for traffic fines by cédula or plate."""
     from tesla_cli.backends.simit import SimitBackend, SimitError

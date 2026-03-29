@@ -60,4 +60,11 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "E402",    # module-level import not at top (intentional in dossier backend)
+    "E701",    # multiple statements on one line (compact style in dossier commands)
+    "B904",    # raise-from in except (pre-existing pattern, revisit later)
+    "SIM105",  # contextlib.suppress (pre-existing pattern)
+    "E731",    # lambda expressions used as closures capturing local variables
+]

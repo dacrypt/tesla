@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.models.climate import ClimateState
 from tesla_cli.output import render_model, render_success
 
@@ -22,7 +19,7 @@ def _vin(vin: str | None) -> str:
 
 
 @climate_app.command("status")
-def climate_status(vin: Optional[str] = VinOption) -> None:
+def climate_status(vin: str | None = VinOption) -> None:
     """Show climate state."""
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_climate_state(v), v)
@@ -31,7 +28,7 @@ def climate_status(vin: Optional[str] = VinOption) -> None:
 
 
 @climate_app.command("on")
-def climate_on(vin: Optional[str] = VinOption) -> None:
+def climate_on(vin: str | None = VinOption) -> None:
     """Turn climate/AC on."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "auto_conditioning_start"), v)
@@ -39,7 +36,7 @@ def climate_on(vin: Optional[str] = VinOption) -> None:
 
 
 @climate_app.command("off")
-def climate_off(vin: Optional[str] = VinOption) -> None:
+def climate_off(vin: str | None = VinOption) -> None:
     """Turn climate/AC off."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "auto_conditioning_stop"), v)
@@ -49,8 +46,8 @@ def climate_off(vin: Optional[str] = VinOption) -> None:
 @climate_app.command("temp")
 def climate_temp(
     driver: float = typer.Argument(..., help="Driver temp in °C"),
-    passenger: Optional[float] = typer.Argument(None, help="Passenger temp (defaults to driver)"),
-    vin: Optional[str] = VinOption,
+    passenger: float | None = typer.Argument(None, help="Passenger temp (defaults to driver)"),
+    vin: str | None = VinOption,
 ) -> None:
     """Set temperature."""
     v = _vin(vin)
@@ -66,7 +63,7 @@ def climate_temp(
 def seat_heater(
     seat: int = typer.Argument(..., help="Seat (0=driver, 1=passenger, 2=rear-left, 4=rear-center, 5=rear-right)"),
     level: int = typer.Argument(..., help="Level (0=off, 1=low, 2=med, 3=high)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Set seat heater level."""
     v = _vin(vin)
@@ -80,7 +77,7 @@ def seat_heater(
 @climate_app.command("steering-heater")
 def steering_heater(
     on: bool = typer.Argument(..., help="Turn on (true) or off (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle steering wheel heater."""
     v = _vin(vin)
@@ -94,7 +91,7 @@ def steering_heater(
 @climate_app.command("dog-mode")
 def dog_mode(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Dog Mode."""
     v = _vin(vin)
@@ -110,7 +107,7 @@ def dog_mode(
 @climate_app.command("camp-mode")
 def camp_mode(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Camp Mode."""
     v = _vin(vin)
@@ -126,7 +123,7 @@ def camp_mode(
 @climate_app.command("bioweapon")
 def bioweapon(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle Bioweapon Defense Mode."""
     v = _vin(vin)
@@ -141,7 +138,7 @@ def bioweapon(
 @climate_app.command("defrost")
 def defrost(
     on: bool = typer.Argument(True, help="Enable (true) or disable (false)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Toggle max defrost (preconditioning max)."""
     v = _vin(vin)

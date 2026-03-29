@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from tesla_cli.backends import get_vehicle_backend
@@ -24,7 +22,7 @@ def _vin(vin: str | None) -> str:
 
 
 @sharing_app.command("invite")
-def sharing_invite(vin: Optional[str] = VinOption) -> None:
+def sharing_invite(vin: str | None = VinOption) -> None:
     """Create a new driver invitation link."""
     v = _vin(vin)
     backend = _backend()
@@ -33,7 +31,7 @@ def sharing_invite(vin: Optional[str] = VinOption) -> None:
 
 
 @sharing_app.command("list")
-def sharing_list(vin: Optional[str] = VinOption) -> None:
+def sharing_list(vin: str | None = VinOption) -> None:
     """List current driver invitations."""
     v = _vin(vin)
     backend = _backend()
@@ -51,7 +49,7 @@ def sharing_list(vin: Optional[str] = VinOption) -> None:
 @sharing_app.command("revoke")
 def sharing_revoke(
     invitation_id: str = typer.Argument(..., help="Invitation ID to revoke"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Revoke a driver invitation."""
     v = _vin(vin)

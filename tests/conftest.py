@@ -8,7 +8,6 @@ import pytest
 
 from tesla_cli.backends.fleet import FleetBackend
 
-
 MOCK_VIN = "5YJ3E1EA1PF000001"
 
 MOCK_VEHICLE_DATA = {

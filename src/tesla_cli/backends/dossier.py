@@ -15,6 +15,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+
 import httpx
 
 from tesla_cli.config import load_config
@@ -28,7 +29,6 @@ from tesla_cli.models.dossier import (
     OrderTimeline,
     RealStatus,
     Recall,
-    RuntData,
     ShipPosition,
     ShipTracking,
     TeslaAccount,
@@ -557,7 +557,7 @@ class DossierBackend:
         # Load delivery appointment from cache
         console.print("[dim]Loading delivery appointment data...[/dim]")
         try:
-            from tesla_cli.backends.order import OrderBackend, DELIVERY_CACHE_FILE
+            from tesla_cli.backends.order import DELIVERY_CACHE_FILE, OrderBackend
             if DELIVERY_CACHE_FILE.exists():
                 order_be = OrderBackend()
                 appt = order_be.get_delivery_appointment(rn)

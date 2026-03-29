@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 import typer
 from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.output import console, is_json_mode
 
 dashboard_app = typer.Typer(name="dashboard", help="Unified vehicle status dashboard.")
@@ -43,7 +41,7 @@ def _make_battery_bar(level: int) -> str:
 
 
 @dashboard_app.command("show")
-def dashboard_show(vin: Optional[str] = VinOption) -> None:
+def dashboard_show(vin: str | None = VinOption) -> None:
     """Show unified vehicle dashboard."""
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
@@ -133,7 +131,7 @@ def dashboard_show(vin: Optional[str] = VinOption) -> None:
 @dashboard_app.callback(invoke_without_command=True)
 def dashboard_default(
     ctx: typer.Context,
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Show unified vehicle dashboard."""
     if ctx.invoked_subcommand is None:

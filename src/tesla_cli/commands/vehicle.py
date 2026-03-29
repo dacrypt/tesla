@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -14,7 +13,14 @@ from tesla_cli.exceptions import VehicleAsleepError
 from tesla_cli.models.charge import ChargeState
 from tesla_cli.models.climate import ClimateState
 from tesla_cli.models.drive import Location
-from tesla_cli.output import console, is_json_mode, render_dict, render_model, render_success, render_table
+from tesla_cli.output import (
+    console,
+    is_json_mode,
+    render_dict,
+    render_model,
+    render_success,
+    render_table,
+)
 
 vehicle_app = typer.Typer(name="vehicle", help="Tesla vehicle data and control.")
 
@@ -64,7 +70,7 @@ def vehicle_list() -> None:
 
 
 @vehicle_app.command("info")
-def vehicle_info(vin: Optional[str] = VinOption) -> None:
+def vehicle_info(vin: str | None = VinOption) -> None:
     """Show complete vehicle data."""
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
@@ -72,7 +78,7 @@ def vehicle_info(vin: Optional[str] = VinOption) -> None:
 
 
 @vehicle_app.command("location")
-def vehicle_location(vin: Optional[str] = VinOption) -> None:
+def vehicle_location(vin: str | None = VinOption) -> None:
     """Show vehicle GPS location with Google Maps link."""
     v = _vin(vin)
     drive = _with_wake(lambda b, v: b.get_drive_state(v), v)
@@ -82,8 +88,8 @@ def vehicle_location(vin: Optional[str] = VinOption) -> None:
 
 @vehicle_app.command("charge")
 def vehicle_charge(
-    vin: Optional[str] = VinOption,
-    action: Optional[str] = typer.Argument(None, help="start | stop (omit to show status)"),
+    vin: str | None = VinOption,
+    action: str | None = typer.Argument(None, help="start | stop (omit to show status)"),
 ) -> None:
     """Show charge state or start/stop charging."""
     v = _vin(vin)
@@ -102,8 +108,8 @@ def vehicle_charge(
 
 @vehicle_app.command("climate")
 def vehicle_climate(
-    vin: Optional[str] = VinOption,
-    action: Optional[str] = typer.Argument(None, help="on | off (omit to show status)"),
+    vin: str | None = VinOption,
+    action: str | None = typer.Argument(None, help="on | off (omit to show status)"),
 ) -> None:
     """Show climate state or turn HVAC on/off."""
     v = _vin(vin)
@@ -121,7 +127,7 @@ def vehicle_climate(
 
 
 @vehicle_app.command("lock")
-def vehicle_lock(vin: Optional[str] = VinOption) -> None:
+def vehicle_lock(vin: str | None = VinOption) -> None:
     """Lock the vehicle."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "door_lock"), v)
@@ -129,7 +135,7 @@ def vehicle_lock(vin: Optional[str] = VinOption) -> None:
 
 
 @vehicle_app.command("unlock")
-def vehicle_unlock(vin: Optional[str] = VinOption) -> None:
+def vehicle_unlock(vin: str | None = VinOption) -> None:
     """Unlock the vehicle."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "door_unlock"), v)
@@ -137,7 +143,7 @@ def vehicle_unlock(vin: Optional[str] = VinOption) -> None:
 
 
 @vehicle_app.command("horn")
-def vehicle_horn(vin: Optional[str] = VinOption) -> None:
+def vehicle_horn(vin: str | None = VinOption) -> None:
     """Honk the horn."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "honk_horn"), v)
@@ -145,7 +151,7 @@ def vehicle_horn(vin: Optional[str] = VinOption) -> None:
 
 
 @vehicle_app.command("flash")
-def vehicle_flash(vin: Optional[str] = VinOption) -> None:
+def vehicle_flash(vin: str | None = VinOption) -> None:
     """Flash the lights."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "flash_lights"), v)
@@ -153,7 +159,7 @@ def vehicle_flash(vin: Optional[str] = VinOption) -> None:
 
 
 @vehicle_app.command("wake")
-def vehicle_wake(vin: Optional[str] = VinOption) -> None:
+def vehicle_wake(vin: str | None = VinOption) -> None:
     """Wake up the vehicle."""
     v = _vin(vin)
     backend = _backend()
@@ -171,7 +177,7 @@ def vehicle_wake(vin: Optional[str] = VinOption) -> None:
 @vehicle_app.command("trunk")
 def vehicle_trunk(
     which: str = typer.Argument("rear", help="rear | front (frunk)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Open trunk or frunk."""
     v = _vin(vin)

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from typing import Optional
-
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -20,8 +17,8 @@ PlateOption = typer.Option(None, "--placa", "-p", help="License plate to query")
 
 @runt_app.command("query")
 def runt_query(
-    vin: Optional[str] = VinOption,
-    placa: Optional[str] = PlateOption,
+    vin: str | None = VinOption,
+    placa: str | None = PlateOption,
 ) -> None:
     """Query RUNT for vehicle data by VIN or plate."""
     from tesla_cli.backends.runt import RuntBackend, RuntError

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.output import render_success
 
 media_app = typer.Typer(name="media", help="Media playback controls.")
@@ -20,7 +18,7 @@ def _vin(vin: str | None) -> str:
 
 
 @media_app.command("play")
-def media_play(vin: Optional[str] = VinOption) -> None:
+def media_play(vin: str | None = VinOption) -> None:
     """Toggle play/pause."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "media_toggle_playback"), v)
@@ -28,7 +26,7 @@ def media_play(vin: Optional[str] = VinOption) -> None:
 
 
 @media_app.command("pause")
-def media_pause(vin: Optional[str] = VinOption) -> None:
+def media_pause(vin: str | None = VinOption) -> None:
     """Pause playback (same as play toggle)."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "media_toggle_playback"), v)
@@ -36,7 +34,7 @@ def media_pause(vin: Optional[str] = VinOption) -> None:
 
 
 @media_app.command("next")
-def media_next(vin: Optional[str] = VinOption) -> None:
+def media_next(vin: str | None = VinOption) -> None:
     """Next track."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "media_next_track"), v)
@@ -44,7 +42,7 @@ def media_next(vin: Optional[str] = VinOption) -> None:
 
 
 @media_app.command("prev")
-def media_prev(vin: Optional[str] = VinOption) -> None:
+def media_prev(vin: str | None = VinOption) -> None:
     """Previous track."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "media_prev_track"), v)
@@ -53,9 +51,9 @@ def media_prev(vin: Optional[str] = VinOption) -> None:
 
 @media_app.command("volume")
 def media_volume(
-    level: Optional[float] = typer.Argument(None, help="Volume level 0.0-11.0 (omit to step up)"),
+    level: float | None = typer.Argument(None, help="Volume level 0.0-11.0 (omit to step up)"),
     down: bool = typer.Option(False, "--down", "-d", help="Step volume down instead of up"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Set volume or step up/down."""
     v = _vin(vin)
@@ -73,7 +71,7 @@ def media_volume(
 @media_app.command("fav")
 def media_fav(
     direction: str = typer.Argument("next", help="next | prev"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Switch to next/previous favorite."""
     v = _vin(vin)

@@ -23,7 +23,7 @@ class TestSolveCaptcha:
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
-        except (OSError, IOError):
+        except OSError:
             font = ImageFont.load_default()
         draw.text((20, 10), "AB12C", fill="black", font=font)
 

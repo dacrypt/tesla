@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.commands.vehicle import _with_wake
+from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.models.charge import ChargeState
 from tesla_cli.output import render_dict, render_model, render_success, render_table
 
@@ -26,7 +24,7 @@ def _vin(vin: str | None) -> str:
 
 
 @charge_app.command("status")
-def charge_status(vin: Optional[str] = VinOption) -> None:
+def charge_status(vin: str | None = VinOption) -> None:
     """Show current charge state."""
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_charge_state(v), v)
@@ -35,7 +33,7 @@ def charge_status(vin: Optional[str] = VinOption) -> None:
 
 
 @charge_app.command("start")
-def charge_start(vin: Optional[str] = VinOption) -> None:
+def charge_start(vin: str | None = VinOption) -> None:
     """Start charging."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "charge_start"), v)
@@ -43,7 +41,7 @@ def charge_start(vin: Optional[str] = VinOption) -> None:
 
 
 @charge_app.command("stop")
-def charge_stop(vin: Optional[str] = VinOption) -> None:
+def charge_stop(vin: str | None = VinOption) -> None:
     """Stop charging."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "charge_stop"), v)
@@ -53,7 +51,7 @@ def charge_stop(vin: Optional[str] = VinOption) -> None:
 @charge_app.command("limit")
 def charge_limit(
     percent: int = typer.Argument(..., help="Charge limit percentage (50-100)"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Set charge limit percentage."""
     v = _vin(vin)
@@ -64,7 +62,7 @@ def charge_limit(
 @charge_app.command("amps")
 def charge_amps(
     amps: int = typer.Argument(..., help="Charging amps"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Set charging amperage."""
     v = _vin(vin)
@@ -73,7 +71,7 @@ def charge_amps(
 
 
 @charge_app.command("port-open")
-def charge_port_open(vin: Optional[str] = VinOption) -> None:
+def charge_port_open(vin: str | None = VinOption) -> None:
     """Open charge port door."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "charge_port_door_open"), v)
@@ -81,7 +79,7 @@ def charge_port_open(vin: Optional[str] = VinOption) -> None:
 
 
 @charge_app.command("port-close")
-def charge_port_close(vin: Optional[str] = VinOption) -> None:
+def charge_port_close(vin: str | None = VinOption) -> None:
     """Close charge port door."""
     v = _vin(vin)
     _with_wake(lambda b, v: b.command(v, "charge_port_door_close"), v)
@@ -92,7 +90,7 @@ def charge_port_close(vin: Optional[str] = VinOption) -> None:
 def charge_schedule(
     enable: bool = typer.Argument(..., help="Enable or disable scheduled charging"),
     time: int = typer.Option(0, "--time", "-t", help="Minutes after midnight to start charging"),
-    vin: Optional[str] = VinOption,
+    vin: str | None = VinOption,
 ) -> None:
     """Enable/disable scheduled charging."""
     v = _vin(vin)
@@ -104,7 +102,7 @@ def charge_schedule(
 
 
 @charge_app.command("history")
-def charge_history(vin: Optional[str] = VinOption) -> None:
+def charge_history(vin: str | None = VinOption) -> None:
     """Show charging history."""
     backend = _backend()
     data = backend.get_charge_history()

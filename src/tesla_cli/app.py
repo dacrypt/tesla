@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from tesla_cli import __version__
@@ -31,7 +29,7 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None, "--version", "-V", callback=_version_callback, is_eager=True
     ),
 ) -> None:
@@ -57,10 +55,10 @@ def _register_commands() -> None:
     from tesla_cli.commands.media import media_app
     from tesla_cli.commands.nav import nav_app
     from tesla_cli.commands.order import order_app
-    from tesla_cli.commands.security import security_app
     from tesla_cli.commands.runt_cmd import runt_app
-    from tesla_cli.commands.simit_cmd import simit_app
+    from tesla_cli.commands.security import security_app
     from tesla_cli.commands.sharing import sharing_app
+    from tesla_cli.commands.simit_cmd import simit_app
     from tesla_cli.commands.stream import stream_app
     from tesla_cli.commands.vehicle import vehicle_app
 

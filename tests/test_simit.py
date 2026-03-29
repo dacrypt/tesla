@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
-import pytest
-
-from tesla_cli.backends.simit import SimitBackend, SimitError
+from tesla_cli.backends.simit import SimitBackend
 from tesla_cli.models.dossier import SimitData
 
 

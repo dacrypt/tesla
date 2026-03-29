@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from tesla_cli.app import app
 from tesla_cli.backends.fleet import FleetBackend
-from tesla_cli.exceptions import AuthenticationError, VehicleAsleepError
-
-from tests.conftest import MOCK_VIN, MOCK_VEHICLE_DATA, MOCK_COMMAND_OK
+from tests.conftest import MOCK_VIN
 
 runner = CliRunner()
 
@@ -22,7 +20,6 @@ _BACKEND_MODULES = [
     "tesla_cli.commands.vehicle",
     "tesla_cli.commands.charge",
     "tesla_cli.commands.sharing",
-    "tesla_cli.commands.dashboard",
 ]
 
 _CONFIG_MODULES = [

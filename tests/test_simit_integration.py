@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from tesla_cli.backends.simit import SimitBackend, SimitError
+from tesla_cli.backends.simit import SimitBackend
 from tesla_cli.models.dossier import SimitData
 
 # Mark all tests in this module as integration

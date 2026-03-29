@@ -5,11 +5,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
-
 # Import from change-detector.py (it's a script, not a package)
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from importlib.util import spec_from_file_location, module_from_spec
+from importlib.util import module_from_spec, spec_from_file_location
 
 _spec = spec_from_file_location("change_detector", Path(__file__).parent.parent / "change-detector.py")
 cd = module_from_spec(_spec)

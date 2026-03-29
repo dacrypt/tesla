@@ -9,7 +9,15 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from tesla_cli.backends.order import OrderBackend
 from tesla_cli.config import load_config
-from tesla_cli.output import console, is_json_mode, render_dict, render_model, render_success, render_table, render_warning
+from tesla_cli.output import (
+    console,
+    is_json_mode,
+    render_dict,
+    render_model,
+    render_success,
+    render_table,
+    render_warning,
+)
 
 order_app = typer.Typer(name="order", help="Tesla order tracking.")
 
@@ -104,7 +112,7 @@ def order_delivery(
         render_success(f"Delivery data imported from {path}")
         render_model(appointment, title=f"Delivery Appointment - {rn}")
         if changes:
-            console.print(f"\n[bold yellow]Changes detected:[/bold yellow]")
+            console.print("\n[bold yellow]Changes detected:[/bold yellow]")
             for c in changes:
                 console.print(f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]")
         return
@@ -137,7 +145,7 @@ def order_delivery(
                 appointment, changes = backend.import_delivery_data(auto_path)
                 render_model(appointment, title=f"Delivery Appointment - {rn}")
                 if changes:
-                    console.print(f"\n[bold yellow]Changes detected:[/bold yellow]")
+                    console.print("\n[bold yellow]Changes detected:[/bold yellow]")
                     for c in changes:
                         console.print(f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]")
                 return
