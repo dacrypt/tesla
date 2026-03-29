@@ -1,0 +1,36 @@
+"""Exception hierarchy for tesla-cli."""
+
+
+class TeslaCliError(Exception):
+    """Base exception for all tesla-cli errors."""
+
+
+class AuthenticationError(TeslaCliError):
+    """Token expired, invalid, or missing."""
+
+
+class ConfigurationError(TeslaCliError):
+    """Missing or invalid configuration."""
+
+
+class VehicleAsleepError(TeslaCliError):
+    """Vehicle is asleep; wake it first."""
+
+
+class ApiError(TeslaCliError):
+    """HTTP error from Tesla/Tessie API."""
+
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        super().__init__(f"HTTP {status_code}: {message}")
+
+
+class RateLimitError(ApiError):
+    """429 Too Many Requests."""
+
+    def __init__(self, message: str = "Rate limited, try again later"):
+        super().__init__(429, message)
+
+
+class OrderNotFoundError(TeslaCliError):
+    """Order RN not found or API endpoint broken."""

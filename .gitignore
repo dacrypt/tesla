@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & tokens (NEVER commit)
+.tesla-cli/
+mitm-captures/
+*.flow
+
+# Large data files (generated, not source)
+references/
+nhtsa-complaints.json
+nhtsa-investigations.json
+public-api-data.json
+activity-log.json
+mission-control-data.json
+history/
+*.pdf
+
+# Personal automation scripts
+refresh-mission-control.py
+change-detector.py
+build-activity-log.sh
+mitm-tesla-capture.py
+
+# Generated reports and data exports
+dossier-report.html
+design-studio-co.json
+specs-sources.json
+tesla-ssr-data.json
+IMPLEMENTATION-PLAN.md
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/
+
+# Temp
+fix-live-sources.py
+superchargers-co.json

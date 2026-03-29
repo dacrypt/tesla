@@ -1,0 +1,35 @@
+"""Backend factory."""
+
+from __future__ import annotations
+
+from tesla_cli.config import Config
+
+
+def get_vehicle_backend(config: Config):
+    """Return the configured vehicle backend."""
+    if config.general.backend == "tessie":
+        from tesla_cli.auth.tokens import TESSIE_TOKEN, get_token
+        from tesla_cli.backends.tessie import TessieBackend
+        from tesla_cli.exceptions import AuthenticationError
+
+        token = get_token(TESSIE_TOKEN)
+        if not token:
+            raise AuthenticationError("Tessie not configured. Run: tesla config auth tessie")
+        return TessieBackend(token=token)
+
+    elif config.general.backend == "fleet":
+        from tesla_cli.auth.tokens import FLEET_ACCESS_TOKEN, get_token
+        from tesla_cli.backends.fleet import FleetBackend
+        from tesla_cli.exceptions import AuthenticationError
+
+        token = get_token(FLEET_ACCESS_TOKEN)
+        if not token:
+            raise AuthenticationError("Fleet API not configured. Run: tesla config auth fleet")
+        return FleetBackend(access_token=token, region=config.fleet.region)
+
+    else:
+        from tesla_cli.exceptions import ConfigurationError
+
+        raise ConfigurationError(
+            f"Unknown backend: {config.general.backend}. Use 'tessie' or 'fleet'."
+        )
