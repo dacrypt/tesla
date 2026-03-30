@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`tesla dossier estimate`** — community-sourced delivery date estimation; shows optimistic / typical / conservative delivery window from current phase; falls back to confirmed date if set via `set-delivery`; full JSON mode support
 - **`tesla vehicle windows`** — vent or close all windows (`tesla vehicle windows vent` / `close`)
 - **`tesla vehicle charge-port`** — open, close, or stop the charging port (`tesla vehicle charge-port open|close|stop`)
+- **`tesla vehicle software`** — show current software version, pending update status (available / downloading / scheduled / installing), download %, estimated install duration, scheduled time; `--install` flag triggers the update
+- **`tesla notify list/add/remove/test`** — full Apprise notification management; `list` shows configured channels with masked tokens; `add <url>` appends and auto-enables; `remove <N>` removes by index; `test` fires a live test notification to all channels with per-channel success/failure reporting
 
 ### Tests
 
-- 164 unit tests passing (15 new tests for estimate, windows, charge-port)
+- 178 unit tests passing (14 new tests for software, notify list/add/remove/test)
 
 ---
 

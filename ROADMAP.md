@@ -78,7 +78,7 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **Token encryption at rest** | enoch85 | 🔲 Keyring handles OS-level encryption; AES-256 for headless servers is future |
 | **Multi-language UI** | TOST | ✅ `--lang es` / `TESLA_LANG=es` — Spanish built-in, fallback to English |
 | **TeslaMate integration** | — | ✅ `tesla teslaMate connect/status/trips/charging/updates` |
-| **Community delivery estimation** | GewoonJaap | 🔲 Crowdsourced avg days from status to delivery |
+| **Community delivery estimation** | GewoonJaap | ✅ `tesla dossier estimate` — optimistic/typical/conservative window from phase |
 
 ---
 
@@ -122,6 +122,8 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla dossier estimate` — community-sourced delivery date estimation (optimistic/typical/conservative)
 - [x] `tesla vehicle windows` — vent / close all windows
 - [x] `tesla vehicle charge-port` — open / close / stop charging port
-- [x] 164 tests, ruff clean
-- [ ] Tag v1.0.0 and push to trigger PyPI publish
+- [x] `tesla vehicle software` — current SW version + pending update status + `--install`
+- [x] `tesla notify list/add/remove/test` — full Apprise notification management
+- [x] 178 tests, ruff clean
+- [x] Tagged v1.0.0, pushed to GitHub → PyPI publish triggered
 - [ ] Submit Homebrew formula to tap

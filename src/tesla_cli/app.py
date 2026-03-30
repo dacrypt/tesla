@@ -68,6 +68,7 @@ def _register_commands() -> None:
     from tesla_cli.commands.dossier import dossier_app
     from tesla_cli.commands.media import media_app
     from tesla_cli.commands.nav import nav_app
+    from tesla_cli.commands.notify import notify_app
     from tesla_cli.commands.order import order_app
     from tesla_cli.commands.runt_cmd import runt_app
     from tesla_cli.commands.security import security_app
@@ -87,6 +88,7 @@ def _register_commands() -> None:
     app.add_typer(nav_app, name="nav")
     app.add_typer(sharing_app, name="sharing")
     app.add_typer(dashboard_app, name="dashboard")
+    app.add_typer(notify_app, name="notify")
     app.add_typer(runt_app, name="runt")
     app.add_typer(simit_app, name="simit")
 
