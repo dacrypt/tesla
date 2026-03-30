@@ -1128,3 +1128,342 @@ class TestOrderTimeline:
                 assert isinstance(data, list)
                 assert data[0]["order_status"] == "BOOKED"
                 assert "changes" in data[0]
+
+
+# ── Vehicle Nearby ────────────────────────────────────────────────────────────
+
+
+class TestVehicleNearby:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_nearby_help(self):
+        result = _run("vehicle", "nearby", "--help")
+        assert result.exit_code == 0
+        assert "supercharger" in result.output.lower() or "charging" in result.output.lower()
+
+    def test_nearby_empty(self, mock_fleet_backend):
+        mock_fleet_backend.get_nearby_charging_sites.return_value = {
+            "superchargers": [],
+            "destination_charging": [],
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "nearby")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "No nearby" in result.output or "not found" in result.output.lower()
+
+    def test_nearby_with_superchargers(self, mock_fleet_backend):
+        mock_fleet_backend.get_nearby_charging_sites.return_value = {
+            "superchargers": [
+                {
+                    "name": "Tesla Supercharger Bogotá",
+                    "distance_miles": 2.4,
+                    "available_stalls": 6,
+                    "total_stalls": 12,
+                    "type": "V3",
+                },
+            ],
+            "destination_charging": [],
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "nearby")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "Bogotá" in result.output or "Supercharger" in result.output
+
+    def test_nearby_with_destination(self, mock_fleet_backend):
+        mock_fleet_backend.get_nearby_charging_sites.return_value = {
+            "superchargers": [],
+            "destination_charging": [
+                {
+                    "name": "Hotel Example",
+                    "distance_miles": 0.8,
+                    "total_stalls": 4,
+                },
+            ],
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "nearby")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "Hotel" in result.output or "Destination" in result.output
+
+    def test_nearby_json(self, mock_fleet_backend):
+        mock_fleet_backend.get_nearby_charging_sites.return_value = {
+            "superchargers": [
+                {
+                    "name": "Test SC",
+                    "distance_miles": 1.5,
+                    "available_stalls": 3,
+                    "total_stalls": 8,
+                    "type": "V2",
+                },
+            ],
+            "destination_charging": [],
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "nearby")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "superchargers" in data
+        assert "destination_charging" in data
+        assert data["superchargers"][0]["name"] == "Test SC"
+
+    def test_nearby_availability_color_logic(self, mock_fleet_backend):
+        """Green > 3, yellow > 0, red = 0 — verify no crash with all cases."""
+        mock_fleet_backend.get_nearby_charging_sites.return_value = {
+            "superchargers": [
+                {"name": "SC Green", "distance_miles": 1.0, "available_stalls": 8, "total_stalls": 12, "type": "V3"},
+                {"name": "SC Yellow", "distance_miles": 2.0, "available_stalls": 1, "total_stalls": 12, "type": "V3"},
+                {"name": "SC Red", "distance_miles": 3.0, "available_stalls": 0, "total_stalls": 12, "type": "V3"},
+            ],
+            "destination_charging": [],
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "nearby")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "SC Green" in result.output
+
+
+# ── TeslaMate Efficiency ──────────────────────────────────────────────────────
+
+
+class TestTeslaMatEfficiency:
+    def _patched_backend(self, trips):
+        cfg = MagicMock()
+        cfg.teslaMate.database_url = "postgresql://user:pass@localhost:5432/teslaMate"
+        cfg.teslaMate.car_id = 1
+
+        mock_backend = MagicMock()
+        mock_backend.get_efficiency.return_value = trips
+
+        return (
+            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=mock_backend),
+            mock_backend,
+        )
+
+    def test_efficiency_help(self):
+        result = _run("teslaMate", "efficiency", "--help")
+        assert result.exit_code == 0
+        assert "--limit" in result.output
+
+    def test_efficiency_app_registered(self):
+        result = _run("teslaMate", "--help")
+        assert result.exit_code == 0
+        assert "efficiency" in result.output
+
+    def test_efficiency_empty(self):
+        patch_cfg, patch_backend, _ = self._patched_backend([])
+        with patch_cfg, patch_backend:
+            result = _run("teslaMate", "efficiency")
+        assert result.exit_code == 0
+        assert "No trip" in result.output or "not found" in result.output.lower()
+
+    def test_efficiency_with_trips(self):
+        trips = [
+            {
+                "start_date": "2026-03-01T08:00:00",
+                "distance_km": 42.0,
+                "energy_kwh": 6.3,
+                "wh_per_km": 150.0,
+                "kwh_per_100mi": 24.1,
+                "start_battery_level": 80,
+                "end_battery_level": 68,
+                "start_address": "Home",
+                "end_address": "Office",
+            }
+        ]
+        patch_cfg, patch_backend, _ = self._patched_backend(trips)
+        with patch_cfg, patch_backend:
+            result = _run("teslaMate", "efficiency")
+        assert result.exit_code == 0
+        assert "42" in result.output or "Home" in result.output or "Office" in result.output
+
+    def test_efficiency_json(self):
+        trips = [
+            {
+                "start_date": "2026-03-01T08:00:00",
+                "distance_km": 42.0,
+                "energy_kwh": 6.3,
+                "wh_per_km": 150.0,
+                "kwh_per_100mi": 24.1,
+                "start_battery_level": 80,
+                "end_battery_level": 68,
+                "start_address": "Home",
+                "end_address": "Office",
+            }
+        ]
+        patch_cfg, patch_backend, _ = self._patched_backend(trips)
+        with patch_cfg, patch_backend:
+            result = _run("--json", "teslaMate", "efficiency")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["wh_per_km"] == 150.0
+        assert data[0]["kwh_per_100mi"] == 24.1
+
+    def test_efficiency_limit_passed(self):
+        patch_cfg, patch_backend, mock_bk = self._patched_backend([])
+        with patch_cfg, patch_backend:
+            _run("teslaMate", "efficiency", "--limit", "50")
+        mock_bk.get_efficiency.assert_called_once_with(limit=50)
+
+    def test_efficiency_summary_line(self):
+        trips = [
+            {
+                "start_date": "2026-03-01",
+                "distance_km": 100.0,
+                "energy_kwh": 15.0,
+                "wh_per_km": 150.0,
+                "kwh_per_100mi": 24.1,
+                "start_battery_level": 90,
+                "end_battery_level": 75,
+                "start_address": "A",
+                "end_address": "B",
+            },
+            {
+                "start_date": "2026-03-02",
+                "distance_km": 50.0,
+                "energy_kwh": 8.0,
+                "wh_per_km": 160.0,
+                "kwh_per_100mi": 25.7,
+                "start_battery_level": 80,
+                "end_battery_level": 70,
+                "start_address": "B",
+                "end_address": "C",
+            },
+        ]
+        patch_cfg, patch_backend, _ = self._patched_backend(trips)
+        with patch_cfg, patch_backend:
+            result = _run("teslaMate", "efficiency")
+        assert result.exit_code == 0
+        # Should contain a summary line with avg efficiency
+        assert "150" in result.output or "avg" in result.output.lower() or "Wh/km" in result.output
+
+
+# ── Portuguese i18n ───────────────────────────────────────────────────────────
+
+
+class TestPortugueseI18n:
+    def setup_method(self):
+        """Reset language to English before each test."""
+        from tesla_cli.i18n import set_lang
+        set_lang("en")
+
+    def teardown_method(self):
+        """Reset language to English after each test."""
+        from tesla_cli.i18n import set_lang
+        set_lang("en")
+
+    def test_pt_order_no_rn(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        text = t("order.no_rn")
+        assert "reserva" in text.lower() or "Número" in text
+
+    def test_pt_order_watching(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        text = t("order.watching", rn="RN123", interval="5")
+        assert "RN123" in text
+        assert "5" in text
+        assert "Monitorando" in text or "pedido" in text
+
+    def test_pt_vehicle_locked(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        assert t("vehicle.locked") == "Veículo trancado"
+
+    def test_pt_vehicle_unlocked(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        assert t("vehicle.unlocked") == "Veículo destrancado"
+
+    def test_pt_charge_started(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        assert "Carregamento" in t("charge.started")
+
+    def test_pt_climate_on(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        assert "LIGADO" in t("climate.on") or "Clima" in t("climate.on")
+
+    def test_pt_dossier_not_found(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        text = t("dossier.not_found")
+        assert "dossier" in text.lower() or "Nenhum" in text
+
+    def test_pt_fallback_to_english_for_unknown_key(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        # Unknown key should return the key itself (no crash)
+        result = t("nonexistent.key.xyz")
+        assert result == "nonexistent.key.xyz"
+
+    def test_pt_teslaMate_not_configured(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        text = t("teslaMate.not_configured")
+        assert "TeslaMate" in text and ("não" in text or "Nenhum" in text or "configurado" in text)
+
+    def test_pt_config_saved_is_defined(self):
+        from tesla_cli.i18n import _STRINGS
+        assert "pt" in _STRINGS
+        pt = _STRINGS["pt"]
+        assert "config.saved" in pt
+        # Template should include format placeholders for key and value
+        assert "{value}" in pt["config.saved"]
+
+    def test_pt_order_no_changes_with_time(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("pt")
+        text = t("order.no_changes", time="12:00")
+        assert "12:00" in text
+        assert "Sem" in text or "alterações" in text
+
+    def test_pt_language_isolation(self):
+        """Switching back to 'en' from 'pt' restores English strings."""
+        from tesla_cli.i18n import get_lang, set_lang, t
+        set_lang("pt")
+        pt_text = t("vehicle.locked")
+        set_lang("en")
+        en_text = t("vehicle.locked")
+        assert pt_text != en_text
+        assert en_text == "Vehicle locked"
+        assert get_lang() == "en"
+
+    def test_lang_flag_via_env(self, monkeypatch):
+        """TESLA_LANG env var drives i18n at module import — test set_lang directly."""
+        from tesla_cli.i18n import set_lang, t
+        monkeypatch.setenv("TESLA_LANG", "pt")
+        set_lang("pt")
+        assert "Veículo" in t("vehicle.locked") or t("vehicle.locked") == "Veículo trancado"

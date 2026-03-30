@@ -409,3 +409,90 @@ def vehicle_software(
         render_success(f"Software update to {update_version} scheduled")
     elif install:
         console.print(f"  [yellow]Cannot schedule install — current status: {update_status}[/yellow]")
+
+
+@vehicle_app.command("nearby")
+def vehicle_nearby(
+    vin: str | None = VinOption,
+) -> None:
+    """Show nearby Superchargers and destination chargers.
+
+    tesla vehicle nearby
+    tesla -j vehicle nearby | jq '.superchargers[] | select(.available_stalls > 0)'
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    v = _vin(vin)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Fetching nearby charging sites...", total=None)
+        data = _with_wake(lambda b, v: b.get_nearby_charging_sites(v), v)
+
+    superchargers = data.get("superchargers", [])
+    destination = data.get("destination_charging", [])
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "superchargers": superchargers,
+            "destination_charging": destination,
+        }, indent=2, default=str))
+        return
+
+    if not superchargers and not destination:
+        console.print("[yellow]No nearby charging sites found.[/yellow]")
+        return
+
+    if superchargers:
+        table = Table(
+            title=f"Nearby Superchargers ({len(superchargers)})",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Name", width=32)
+        table.add_column("Dist", justify="right", width=8)
+        table.add_column("Avail", justify="right", width=6)
+        table.add_column("Total", justify="right", width=6)
+        table.add_column("Type", width=8)
+
+        for sc in superchargers:
+            name = (sc.get("name") or "")[:31]
+            dist_m = sc.get("distance_miles") or sc.get("distance_km") or 0
+            dist_unit = "mi" if "distance_miles" in sc else "km"
+            avail = sc.get("available_stalls", "?")
+            total = sc.get("total_stalls", "?")
+            sc_type = sc.get("type", "SC")
+            avail_color = "green" if isinstance(avail, int) and avail > 3 else "yellow" if isinstance(avail, int) and avail > 0 else "red"
+            table.add_row(
+                name,
+                f"{dist_m:.1f} {dist_unit}" if isinstance(dist_m, (int, float)) else str(dist_m),
+                f"[{avail_color}]{avail}[/{avail_color}]",
+                str(total),
+                str(sc_type),
+            )
+        console.print()
+        console.print(table)
+
+    if destination:
+        dtable = Table(
+            title=f"Destination Chargers ({len(destination)})",
+            show_header=True,
+            header_style="bold blue",
+        )
+        dtable.add_column("Name", width=32)
+        dtable.add_column("Dist", justify="right", width=8)
+        dtable.add_column("Stalls", justify="right", width=7)
+
+        for dc in destination:
+            name = (dc.get("name") or "")[:31]
+            dist_m = dc.get("distance_miles") or dc.get("distance_km") or 0
+            dist_unit = "mi" if "distance_miles" in dc else "km"
+            stalls = dc.get("total_stalls", "?")
+            dtable.add_row(
+                name,
+                f"{dist_m:.1f} {dist_unit}" if isinstance(dist_m, (int, float)) else str(dist_m),
+                str(stalls),
+            )
+        console.print()
+        console.print(dtable)

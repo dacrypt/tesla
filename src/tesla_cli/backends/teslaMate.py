@@ -120,6 +120,35 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, limit))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_efficiency(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Per-trip energy efficiency (kWh/100 km and Wh/mi)."""
+        sql = """
+            SELECT
+                d.start_date,
+                ROUND(d.distance::numeric, 1)                        AS distance_km,
+                ROUND(d.energy_used::numeric, 2)                     AS energy_kwh,
+                ROUND((d.energy_used / NULLIF(d.distance, 0) * 100)::numeric, 1)
+                                                                     AS wh_per_km,
+                ROUND((d.energy_used / NULLIF(d.distance * 1.60934, 0) * 100)::numeric, 1)
+                                                                     AS kwh_per_100mi,
+                d.start_battery_level,
+                d.end_battery_level,
+                a1.display_name                                      AS start_address,
+                a2.display_name                                      AS end_address
+            FROM drives d
+            LEFT JOIN addresses a1 ON a1.id = d.start_address_id
+            LEFT JOIN addresses a2 ON a2.id = d.end_address_id
+            WHERE d.car_id = %s
+              AND d.distance > 0
+              AND d.energy_used > 0
+            ORDER BY d.start_date DESC
+            LIMIT %s
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, limit))
+            rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
     def get_charging_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
         """Recent charging sessions sorted by date descending."""
         sql = """

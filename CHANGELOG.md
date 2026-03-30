@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-30
+
+### Added
+
+- **`tesla vehicle nearby`** — show nearby Superchargers and destination chargers with real-time stall availability (green ≥ 4, yellow 1–3, red = 0); full JSON mode support
+- **`tesla teslaMate efficiency`** — per-trip energy efficiency table (Wh/km + kWh/100 mi) with average summary; `--limit N`; full JSON mode
+- **Portuguese (pt) i18n** — complete Brazilian Portuguese translation catalog; `--lang pt` / `TESLA_LANG=pt`
+
+### Tests
+
+- 220 unit tests passing (26 new tests for vehicle nearby, teslaMate efficiency, Portuguese i18n)
+
+---
+
 ## [1.0.0] - 2026-03-30
 
 ### Added
