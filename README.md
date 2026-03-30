@@ -17,37 +17,23 @@ tesla vehicle lock       → lock doors
 
 ## Installation
 
+### Requirements
+
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv)
+
+### Quick Start
+
 ```bash
 git clone https://github.com/dacrypt/tesla.git
 cd tesla
 uv tool install -e .
+tesla setup
 ```
 
-This installs the `tesla` command globally. Works from any directory.
+`tesla setup` is an interactive wizard that handles everything: Tesla OAuth2 authentication, auto-discovery of your VIN and order number, optional vehicle control backend (Tessie or Fleet API), and builds your first dossier from all sources.
 
-Verify:
-
-```bash
-tesla --version
-tesla config show
-```
-
-### Requirements
-
-- macOS, Linux, or Windows (macOS recommended — uses Keychain for tokens)
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) as package manager
-
----
-
-## Quick Start
-
-Configure your VIN and order number:
-
-```bash
-tesla config set default-vin YOUR_VIN_HERE
-tesla config set reservation-number RNXXXXXXXXX
-```
+Run `tesla setup --force` to re-configure at any time, or use the individual `tesla config` sub-commands for manual control.
 
 Config is stored at `~/.tesla-cli/config.toml`.
 Tokens are stored in the system keyring (macOS Keychain / Linux Secret Service) — **never in plain text files**.

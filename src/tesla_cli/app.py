@@ -76,5 +76,8 @@ def _register_commands() -> None:
     app.add_typer(runt_app, name="runt")
     app.add_typer(simit_app, name="simit")
 
+    from tesla_cli.commands.setup import setup_wizard
+    app.command("setup")(setup_wizard)
+
 
 _register_commands()
