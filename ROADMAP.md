@@ -22,13 +22,14 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **Free vehicle backend (Owner API)** | ✅ | — | — | — | — | — |
 | **Secure token storage (system keyring)** | ✅ | — | partial | — | — | — |
 | **Multi-vehicle support (aliases)** | ✅ | — | — | — | — | ✅ |
-| **Multi-language UI** | — | ✅ (5 langs) | — | — | — | — |
-| **Share / anonymize mode** | — | ✅ | — | — | — | — |
+| **Multi-language UI** | ✅ (en+es) | ✅ (5 langs) | — | — | — | — |
+| **Share / anonymize mode** | ✅ | ✅ | — | — | — | — |
 | **Token encryption at rest (AES-256-GCM)** | — | — | ✅ | — | — | — |
-| **Offline option-code catalog** | — | — | ✅ | — | — | — |
-| **Color-coded recursive diff (change display)** | — | — | — | — | ✅ | — |
-| **Delivery checklist** | — | — | — | — | — | ✅ (12 items) |
-| **Delivery gates / milestones tracker** | — | — | — | — | — | ✅ (13 gates) |
+| **Offline option-code catalog** | ✅ (140+) | — | ✅ | — | — | — |
+| **Color-coded recursive diff (change display)** | ✅ | — | — | — | ✅ | — |
+| **Delivery checklist** | ✅ (34 items) | — | — | — | — | ✅ (12 items) |
+| **Delivery gates / milestones tracker** | ✅ (13 gates) | — | — | — | — | ✅ (13 gates) |
+| **TeslaMate integration (trips/charging/OTA)** | ✅ | — | — | — | — | — |
 | **Community delivery estimation** | — | — | — | — | — | ✅ |
 | **Web UI** | — | — | — | — | — | ✅ |
 | **Store location DB (200+ EU locations)** | — | — | — | — | ✅ | — |
@@ -75,8 +76,8 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **`tesla vehicle sentry`** | — | ✅ Status + `--on`/`--off` toggle |
 | **`tesla vehicle trips`** | — | ✅ Drive state + TeslaMate pointer |
 | **Token encryption at rest** | enoch85 | 🔲 Keyring handles OS-level encryption; AES-256 for headless servers is future |
-| **Multi-language UI** | TOST | 🔲 Spanish UI first, then Portuguese / French |
-| **TeslaMate integration** | — | 🔲 Import trip history, charging sessions, software OTA log |
+| **Multi-language UI** | TOST | ✅ `--lang es` / `TESLA_LANG=es` — Spanish built-in, fallback to English |
+| **TeslaMate integration** | — | ✅ `tesla teslaMate connect/status/trips/charging/updates` |
 | **Community delivery estimation** | GewoonJaap | 🔲 Crowdsourced avg days from status to delivery |
 
 ---
@@ -87,10 +88,11 @@ No competing tool combines all of these in one CLI:
 
 1. **Dossier** — aggregated vehicle file with 10+ data sources, historical snapshots, and `jq`-friendly JSON
 2. **Free vehicle control** — Owner API backend, zero cost, zero registration
-3. **Deepest integration** — NHTSA recalls, RUNT (Colombia), SIMIT (Colombia), VIN decode, ship tracking
+3. **Deepest integration** — NHTSA recalls, RUNT (Colombia), SIMIT (Colombia), VIN decode, ship tracking, TeslaMate
 4. **`tesla setup` wizard** — single command from clone to full configuration
 5. **JSON mode everywhere** — scriptable output on every command, composable with `jq`
 6. **Three backends** — Owner API, Tessie, Fleet API — pick your tradeoff
+7. **Privacy-first** — `--anon` flag masks all PII; tokens always in system keyring, never plain text
 
 ---
 
@@ -109,9 +111,14 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla vehicle trips` — drive state + TeslaMate pointer
 - [x] Shell autocompletion via `tesla --install-completion`
 
-### v1.0.0 — Stable release
-- [ ] TeslaMate integration — trip history, charging sessions, OTA log
-- [ ] Multi-language UI (Spanish first)
-- [ ] Published to PyPI (`pip install tesla-cli`)
-- [ ] Homebrew formula
-- [ ] Full test coverage (unit + integration)
+### v0.4.0 — v1.0.0 Milestone Complete ✅ SHIPPED
+- [x] TeslaMate integration — trip history, charging sessions, OTA log
+- [x] Multi-language UI — `--lang es` / `TESLA_LANG=es` (Spanish built-in)
+- [x] PyPI Trusted Publishing workflow (`.github/workflows/publish.yml`)
+- [x] Homebrew formula (`Formula/tesla-cli.rb`)
+- [x] 149 tests passing, ruff lint clean
+
+### v1.0.0 — Publish
+- [ ] Tag v1.0.0 and push to trigger PyPI publish
+- [ ] Submit Homebrew formula to tap
+- [ ] Community delivery estimation (crowdsourced avg days per status)
