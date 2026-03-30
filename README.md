@@ -108,20 +108,16 @@ nohup tesla order watch -i 5 > /dev/null 2>&1 &
 
 Tesla CLI uses [Apprise](https://github.com/caronc/apprise) for notifications. Supports 100+ services: Telegram, Slack, Discord, Email, ntfy, Pushover, etc.
 
-### Configure
-
 ```bash
+# Manage notification channels
+tesla notify add tgram://BOT_TOKEN/CHAT_ID      # add Telegram
+tesla notify add discord://webhook_id/token     # add Discord
+tesla notify list                               # show configured channels
+tesla notify test                               # send a live test to all channels
+tesla notify remove 1                           # remove channel #1
+
+# Still works via config too
 tesla config set notifications-enabled true
-```
-
-Then edit `~/.tesla-cli/config.toml`:
-
-```toml
-[notifications]
-enabled = true
-apprise_urls = [
-    "tgram://BOT_TOKEN/CHAT_ID",        # Telegram
-]
 ```
 
 ### Supported services (examples)
@@ -209,6 +205,17 @@ tesla security unlock          # unlock doors
 tesla vehicle sentry           # show status
 tesla vehicle sentry --on      # enable
 tesla vehicle sentry --off     # disable
+
+# Windows & Charge Port
+tesla vehicle windows vent         # vent all windows
+tesla vehicle windows close        # close all windows
+tesla vehicle charge-port open     # open charge port door
+tesla vehicle charge-port close    # close charge port door
+tesla vehicle charge-port stop     # stop charging + unlock port
+
+# Software updates
+tesla vehicle software             # current version + pending update
+tesla vehicle software --install   # schedule pending update
 
 # Other
 tesla vehicle horn             # honk horn
@@ -490,8 +497,9 @@ src/tesla_cli/
 │   ├── charge.py         # tesla charge status/start/stop
 │   ├── climate.py        # tesla climate status/on/off
 │   ├── security.py       # tesla security lock/unlock/trunk
-│   ├── dossier.py        # tesla dossier build/show/vin/diff/checklist/gates
+│   ├── dossier.py        # tesla dossier build/show/vin/diff/checklist/gates/estimate
 │   ├── stream.py         # tesla stream live (real-time Rich dashboard)
+│   ├── notify.py         # tesla notify list/add/remove/test (Apprise management)
 │   └── teslaMate.py      # tesla teslaMate connect/status/trips/charging/updates
 │
 └── models/               # Data models (Pydantic)
@@ -591,9 +599,11 @@ Just add the Apprise URL to `~/.tesla-cli/config.toml`. No code changes needed.
 - [x] `tesla dossier estimate` — community-sourced delivery date estimation
 - [x] `tesla vehicle windows` — vent / close all windows
 - [x] `tesla vehicle charge-port` — open / close / stop charging port
+- [x] `tesla vehicle software` — version check + `--install` trigger
+- [x] `tesla notify list/add/remove/test` — full notification management
 - [x] PyPI Trusted Publishing workflow (`.github/workflows/publish.yml`)
 - [x] Homebrew formula (`Formula/tesla-cli.rb`)
-- [x] 164 tests passing
+- [x] 178 tests passing
 
 ---
 

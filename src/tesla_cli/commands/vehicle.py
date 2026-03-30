@@ -324,3 +324,88 @@ def vehicle_charge_port(
     _with_wake(lambda b, v: b.command(v, CMD_MAP[action]), v)
     labels = {"open": "Charge port opened", "close": "Charge port closed", "stop": "Charging stopped"}
     render_success(labels[action])
+
+
+@vehicle_app.command("software")
+def vehicle_software(
+    vin: str | None = VinOption,
+    install: bool = typer.Option(False, "--install", help="Schedule the pending software update"),
+) -> None:
+    """Show software version and pending update status.
+
+    tesla vehicle software              → current version + any pending update
+    tesla vehicle software --install    → schedule the pending update to install
+    tesla -j vehicle software | jq .current_version
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Fetching software info...", total=None)
+        data = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
+
+    current = data.get("car_version", "unknown")
+    sw_update = data.get("software_update", {}) or {}
+    update_status = sw_update.get("status", "")
+    update_version = sw_update.get("version", "")
+    download_pct = sw_update.get("download_percentage", 0)
+    install_pct = sw_update.get("install_percentage", 0)
+    expected_sec = sw_update.get("expected_duration_sec", 0)
+    scheduled_ms = sw_update.get("scheduled_time_ms", 0)
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "current_version": current,
+            "update_status": update_status,
+            "update_version": update_version or None,
+            "download_percentage": download_pct,
+            "install_percentage": install_pct,
+            "expected_duration_min": round(expected_sec / 60) if expected_sec else None,
+            "scheduled_time_ms": scheduled_ms or None,
+        }, indent=2))
+        return
+
+    from rich.table import Table
+
+    console.print()
+    console.print(f"  [bold]Software version:[/bold]  [cyan]{current}[/cyan]")
+
+    if not update_status or update_status == "":
+        console.print("  [dim]No pending software update.[/dim]")
+        return
+
+    status_color = {
+        "available":    "yellow",
+        "scheduled":    "cyan",
+        "downloading":  "blue",
+        "installing":   "green",
+        "wifi_wait":    "dim",
+        "appinstalled": "green",
+    }.get(update_status, "white")
+
+    console.print(f"\n  [bold]Update available:[/bold]  [{status_color}]{update_version}[/{status_color}]  "
+                  f"[dim]({update_status})[/dim]")
+
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column("k", style="dim", width=22)
+    table.add_column("v")
+
+    if download_pct:
+        table.add_row("Download", f"{download_pct}%")
+    if install_pct:
+        table.add_row("Install progress", f"{install_pct}%")
+    if expected_sec:
+        table.add_row("Estimated duration", f"{round(expected_sec / 60)} min")
+    if scheduled_ms:
+        from datetime import UTC, datetime
+        sched_dt = datetime.fromtimestamp(scheduled_ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+        table.add_row("Scheduled for", sched_dt)
+
+    console.print(table)
+
+    if install and update_status in ("available", "wifi_wait"):
+        _with_wake(lambda b, v: b.command(v, "schedule_software_update", offset_sec=0), v)
+        render_success(f"Software update to {update_version} scheduled")
+    elif install:
+        console.print(f"  [yellow]Cannot schedule install — current status: {update_status}[/yellow]")

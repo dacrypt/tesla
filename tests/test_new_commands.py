@@ -800,3 +800,171 @@ class TestVehicleWindowsChargePort:
         result = _run("vehicle", "charge-port", "--help")
         assert result.exit_code == 0
         assert "open" in result.output.lower()
+
+
+# ── Vehicle Software ──────────────────────────────────────────────────────────
+
+
+class TestVehicleSoftware:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_software_help(self):
+        result = _run("vehicle", "software", "--help")
+        assert result.exit_code == 0
+        assert "--install" in result.output
+
+    def test_software_no_update(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {
+            "car_version": "2025.2.6",
+            "software_update": {},
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "software")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "2025.2.6" in result.output
+
+    def test_software_json(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {
+            "car_version": "2025.2.6",
+            "software_update": {"status": "available", "version": "2025.6.1"},
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "software")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["current_version"] == "2025.2.6"
+        assert data["update_version"] == "2025.6.1"
+        assert data["update_status"] == "available"
+
+    def test_software_update_available(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {
+            "car_version": "2025.2.6",
+            "software_update": {
+                "status": "available",
+                "version": "2025.6.1",
+                "download_percentage": 100,
+                "expected_duration_sec": 3600,
+            },
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "software")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "2025.6.1" in result.output
+
+
+# ── Notify Commands ───────────────────────────────────────────────────────────
+
+
+class TestNotifyCommands:
+    def test_notify_list_help(self):
+        result = _run("notify", "list", "--help")
+        assert result.exit_code == 0
+
+    def test_notify_test_help(self):
+        result = _run("notify", "test", "--help")
+        assert result.exit_code == 0
+        assert "--body" in result.output or "--title" in result.output
+
+    def test_notify_list_empty(self):
+        with patch("tesla_cli.commands.notify.load_config") as mock_cfg:
+            mock_cfg.return_value.notifications.apprise_urls = []
+            mock_cfg.return_value.notifications.enabled = False
+            result = _run("notify", "list")
+            assert result.exit_code == 0
+            assert "No notification" in result.output or "notify add" in result.output
+
+    def test_notify_list_json_empty(self):
+        with patch("tesla_cli.commands.notify.load_config") as mock_cfg:
+            mock_cfg.return_value.notifications.apprise_urls = []
+            mock_cfg.return_value.notifications.enabled = False
+            result = _run("--json", "notify", "list")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["urls"] == []
+            assert data["enabled"] is False
+
+    def test_notify_list_with_urls(self):
+        with patch("tesla_cli.commands.notify.load_config") as mock_cfg:
+            mock_cfg.return_value.notifications.apprise_urls = [
+                "tgram://BOTTOKEN/CHATID",
+                "slack://a/b/c/channel",
+            ]
+            mock_cfg.return_value.notifications.enabled = True
+            result = _run("notify", "list")
+            assert result.exit_code == 0
+            assert "tgram" in result.output
+            assert "slack" in result.output
+
+    def test_notify_test_no_urls(self):
+        with patch("tesla_cli.commands.notify.load_config") as mock_cfg:
+            mock_cfg.return_value.notifications.apprise_urls = []
+            result = _run("notify", "test")
+            assert result.exit_code == 1
+            assert "No notification" in result.output or "notify add" in result.output
+
+    def test_notify_test_sends(self):
+        with (
+            patch("tesla_cli.commands.notify.load_config") as mock_cfg,
+            patch("apprise.Apprise") as mock_apprise_cls,
+        ):
+            mock_cfg.return_value.notifications.apprise_urls = ["tgram://TOKEN/CHATID"]
+            mock_apobj = MagicMock()
+            mock_apobj.notify.return_value = True
+            mock_apprise_cls.return_value = mock_apobj
+            result = _run("notify", "test")
+            assert result.exit_code == 0
+            mock_apobj.notify.assert_called_once()
+
+    def test_notify_test_json(self):
+        with (
+            patch("tesla_cli.commands.notify.load_config") as mock_cfg,
+            patch("apprise.Apprise") as mock_apprise_cls,
+        ):
+            mock_cfg.return_value.notifications.apprise_urls = ["tgram://TOKEN/CHATID"]
+            mock_apobj = MagicMock()
+            mock_apobj.notify.return_value = True
+            mock_apprise_cls.return_value = mock_apobj
+            result = _run("--json", "notify", "test")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert isinstance(data, list)
+            assert data[0]["success"] is True
+
+    def test_notify_add(self):
+        with (
+            patch("tesla_cli.commands.notify.load_config") as mock_cfg,
+            patch("tesla_cli.commands.notify.save_config") as mock_save,
+        ):
+            cfg = MagicMock()
+            cfg.notifications.apprise_urls = []
+            mock_cfg.return_value = cfg
+            result = _run("notify", "add", "tgram://TOKEN/CHATID")
+            assert result.exit_code == 0
+            mock_save.assert_called_once()
+
+    def test_notify_remove_out_of_range(self):
+        with patch("tesla_cli.commands.notify.load_config") as mock_cfg:
+            mock_cfg.return_value.notifications.apprise_urls = ["tgram://TOKEN/CHATID"]
+            result = _run("notify", "remove", "5")
+            assert result.exit_code == 1
