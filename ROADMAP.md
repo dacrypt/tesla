@@ -39,6 +39,9 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **Tessie proxy support** | ✅ | — | — | — | — | — |
 | **Historical snapshot archive** | ✅ | — | — | — | — | — |
 | **Real-time telemetry (WebSocket stream)** | partial | — | — | — | — | — |
+| **Nearby Supercharger availability** | ✅ | — | — | — | — | partial |
+| **Energy efficiency per trip** | ✅ | — | — | — | — | — |
+| **Portuguese (pt) i18n** | ✅ (en+es+pt) | ✅ (5 langs) | — | — | — | — |
 
 ---
 

@@ -183,4 +183,78 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.vehicle_not_found": "Vehículo {vin} no encontrado en esta cuenta",
         "error.api": "Error de API {code}: {message}",
     },
+
+    "pt": {
+        # pedido
+        "order.no_rn": "Número de reserva não configurado.\nExecute: tesla config set reservation-number RNXXXXXXXXX",
+        "order.watching": "Monitorando pedido {rn} (a cada {interval} min, Ctrl+C para parar)",
+        "order.changes_at": "● Alterações detectadas às {time}",
+        "order.no_changes": "{time} Sem alterações",
+        "order.stopped": "Monitoramento parado.",
+        "order.notif_failed": "Falha ao enviar notificação: {error}",
+
+        # veículo
+        "vehicle.asleep_waking": "Veículo dormindo, acordando…",
+        "vehicle.awake": "Veículo acordado",
+        "vehicle.wake_sent": "Comando de ativação enviado. O veículo pode demorar um momento.",
+        "vehicle.locked": "Veículo trancado",
+        "vehicle.unlocked": "Veículo destrancado",
+        "vehicle.horn": "Buzina ativada",
+        "vehicle.flash": "Luzes piscadas",
+        "vehicle.sentry_on": "Modo Sentinela ativado",
+        "vehicle.sentry_off": "Modo Sentinela desativado",
+        "vehicle.sentry_unavailable": "Nota: Modo Sentinela não disponível (veículo pode não estar estacionado)",
+        "vehicle.trunk_opened": "{which} aberto",
+
+        # carga
+        "charge.started": "Carregamento iniciado",
+        "charge.stopped": "Carregamento parado",
+        "charge.limit_set": "Limite de carga definido em {limit}%",
+        "charge.amps_set": "Amperes de carregamento definidos em {amps}A",
+
+        # clima
+        "climate.on": "Clima LIGADO",
+        "climate.off": "Clima DESLIGADO",
+        "climate.temp_set": "Temperatura definida em {temp}°C",
+
+        # dossier
+        "dossier.not_found": "Nenhum dossier encontrado. Execute: tesla dossier build",
+        "dossier.building": "Construindo dossier de todas as fontes…",
+        "dossier.diff_need_two": "São necessárias pelo menos 2 capturas. Execute: tesla dossier build",
+        "dossier.diff_no_changes": "Nenhuma diferença encontrada entre as duas capturas.",
+        "dossier.checklist_reset": "Lista de verificação reiniciada.",
+        "dossier.checklist_complete": "Todos os itens verificados! Aproveite seu Tesla! ⚡",
+        "dossier.checklist_hint": "Execute: tesla dossier checklist --mark <N> para marcar o item N",
+        "dossier.gates_no_dossier": "Nenhum dossier encontrado. Execute: tesla dossier build para dados reais.",
+        "dossier.delivery_set": "Data de entrega definida: {date}",
+
+        # stream
+        "stream.starting": "Iniciando transmissão ao vivo… pressione Ctrl+C para parar.",
+        "stream.stopped": "Transmissão parada.",
+        "stream.asleep": "Veículo dormindo (dados do último estado conhecido)",
+
+        # configuração
+        "config.saved": "{key} = {value}",
+        "config.unknown_key": "Chave desconhecida: {key}",
+        "config.alias_set": "Alias '{name}' -> {vin}",
+
+        # teslaMate
+        "teslaMate.not_configured": "TeslaMate não configurado.\nExecute: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
+        "teslaMate.connected": "Conectado ao TeslaMate ({url})",
+        "teslaMate.no_trips": "Nenhuma viagem encontrada no TeslaMate.",
+        "teslaMate.no_charging": "Nenhuma sessão de carregamento encontrada no TeslaMate.",
+        "teslaMate.no_updates": "Nenhum histórico de atualizações encontrado no TeslaMate.",
+
+        # erros
+        "error.auth": "Não autenticado. Execute: tesla config auth order",
+        "error.no_vin": "VIN não configurado. Execute: tesla config set default-vin <VIN>",
+        "error.token_expired": "Token expirado. Execute: tesla config auth order",
+        "error.vehicle_not_found": "Veículo {vin} não encontrado nesta conta",
+        "error.api": "Erro de API {code}: {message}",
+
+        # setup
+        "setup.welcome": "Assistente de Configuração do Tesla CLI",
+        "setup.done": "Configuração concluída!",
+        "setup.skip": "Já configurado. Use --force para reconfigurar.",
+    },
 }

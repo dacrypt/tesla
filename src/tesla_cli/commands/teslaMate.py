@@ -302,6 +302,69 @@ def teslaMate_updates() -> None:
     console.print(table)
 
 
+@teslaMate_app.command("efficiency")
+def teslaMate_efficiency(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of trips to analyze"),
+) -> None:
+    """Show per-trip energy efficiency from TeslaMate.
+
+    tesla teslaMate efficiency
+    tesla teslaMate efficiency --limit 50
+    tesla -j teslaMate efficiency | jq '[.[] | .wh_per_km] | add / length'
+    """
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Calculating efficiency for last {limit} trips...", total=None)
+        trips = backend.get_efficiency(limit=limit)
+
+    if is_json_mode():
+        console.print_json(json.dumps(trips, indent=2, default=str))
+        return
+
+    if not trips:
+        console.print("[yellow]No trip data found in TeslaMate.[/yellow]")
+        return
+
+    table = Table(
+        title=f"Energy Efficiency — Last {len(trips)} Trips (TeslaMate)",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Date", width=17)
+    table.add_column("From→To", width=28)
+    table.add_column("km", justify="right", width=7)
+    table.add_column("kWh", justify="right", width=7)
+    table.add_column("Wh/km", justify="right", width=7)
+    table.add_column("kWh/100mi", justify="right", width=10)
+
+    total_km = 0.0
+    total_kwh = 0.0
+
+    for i, t in enumerate(trips, 1):
+        date = str(t.get("start_date") or "")[:16]
+        frm = (t.get("start_address") or "")[:13]
+        to = (t.get("end_address") or "")[:13]
+        route = f"{frm}→{to}" if frm or to else "—"
+        km = float(t.get("distance_km") or 0)
+        kwh = float(t.get("energy_kwh") or 0)
+        wh_km = str(t.get("wh_per_km") or "—")
+        kwh_100mi = str(t.get("kwh_per_100mi") or "—")
+        total_km += km
+        total_kwh += kwh
+        table.add_row(str(i), date, route[:27], f"{km:.1f}", f"{kwh:.2f}", wh_km, kwh_100mi)
+
+    console.print(table)
+
+    avg_wh_km = (total_kwh * 1000 / total_km) if total_km else 0
+    avg_kwh_100mi = (total_kwh / (total_km / 160.934) * 100) if total_km else 0
+    console.print(
+        f"\n  [dim]{len(trips)} trips │ {total_km:.0f} km │ {total_kwh:.1f} kWh │ "
+        f"avg {avg_wh_km:.0f} Wh/km │ avg {avg_kwh_100mi:.1f} kWh/100mi[/dim]"
+    )
+
+
 # ── helpers ──
 
 def _kv(rows: list[tuple[str, str]]) -> None:
