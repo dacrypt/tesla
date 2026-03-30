@@ -30,12 +30,16 @@ def _version_callback(value: bool) -> None:
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     anon: bool = typer.Option(False, "--anon", help="Anonymize PII (VIN, email, name) in output"),
+    lang: str = typer.Option("", "--lang", help="Language: en (default) or es"),
     version: bool | None = typer.Option(
         None, "--version", "-V", callback=_version_callback, is_eager=True
     ),
 ) -> None:
     """Tesla CLI - Order tracking and vehicle control."""
     set_json_mode(json_output)
+    if lang:
+        from tesla_cli.i18n import set_lang
+        set_lang(lang)
     if anon:
         from tesla_cli.config import load_config
         from tesla_cli.output import set_anon_mode
@@ -87,7 +91,9 @@ def _register_commands() -> None:
     app.add_typer(simit_app, name="simit")
 
     from tesla_cli.commands.setup import setup_wizard
+    from tesla_cli.commands.teslaMate import teslaMate_app
     app.command("setup")(setup_wizard)
+    app.add_typer(teslaMate_app, name="teslaMate")
 
 
 _register_commands()

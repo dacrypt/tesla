@@ -1,6 +1,6 @@
 [project]
 name = "tesla-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "CLI tool for Tesla order tracking and vehicle control"
 readme = "README.md"
 license = { text = "MIT" }
@@ -31,6 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 fleet = ["tesla-fleet-api>=1.0"]
+teslaMate = ["psycopg2-binary>=2.9"]
 dev = ["pytest>=8", "pytest-httpx>=0.35", "ruff>=0.9"]
 
 [project.scripts]
