@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-03-30
+
+### Added
+
+- **`tesla dossier estimate`** — community-sourced delivery date estimation; shows optimistic / typical / conservative delivery window from current phase; falls back to confirmed date if set via `set-delivery`; full JSON mode support
+- **`tesla vehicle windows`** — vent or close all windows (`tesla vehicle windows vent` / `close`)
+- **`tesla vehicle charge-port`** — open, close, or stop the charging port (`tesla vehicle charge-port open|close|stop`)
+
+### Tests
+
+- 164 unit tests passing (15 new tests for estimate, windows, charge-port)
+
+---
+
 ## [0.4.0] - 2026-03-30
 
 ### Added

@@ -118,7 +118,10 @@ No competing tool combines all of these in one CLI:
 - [x] Homebrew formula (`Formula/tesla-cli.rb`)
 - [x] 149 tests passing, ruff lint clean
 
-### v1.0.0 — Publish
+### v1.0.0 — Stable Release ✅ SHIPPED
+- [x] `tesla dossier estimate` — community-sourced delivery date estimation (optimistic/typical/conservative)
+- [x] `tesla vehicle windows` — vent / close all windows
+- [x] `tesla vehicle charge-port` — open / close / stop charging port
+- [x] 164 tests, ruff clean
 - [ ] Tag v1.0.0 and push to trigger PyPI publish
 - [ ] Submit Homebrew formula to tap
-- [ ] Community delivery estimation (crowdsourced avg days per status)

@@ -278,3 +278,49 @@ def vehicle_trips(
         "\n[dim]Tip: For full trip history with route maps, energy usage, and stats,\n"
         "     connect TeslaMate: https://docs.teslamate.org[/dim]"
     )
+
+
+@vehicle_app.command("windows")
+def vehicle_windows(
+    action: str = typer.Argument("vent", help="Action: vent or close"),
+    vin: str | None = VinOption,
+) -> None:
+    """Vent or close all windows.
+
+    tesla vehicle windows vent    → vent all windows ~4 cm
+    tesla vehicle windows close   → close all windows
+    """
+    v = _vin(vin)
+    action = action.lower()
+    if action not in ("vent", "close"):
+        console.print("[red]Action must be 'vent' or 'close'.[/red]")
+        raise typer.Exit(1)
+    # command: window_control, params: command="vent"|"close", lat=0, lon=0
+    _with_wake(lambda b, v: b.command(v, "window_control", command=action, lat=0, lon=0), v)
+    render_success(f"Windows {'vented' if action == 'vent' else 'closed'}")
+
+
+@vehicle_app.command("charge-port")
+def vehicle_charge_port(
+    action: str = typer.Argument("open", help="Action: open, close, or stop"),
+    vin: str | None = VinOption,
+) -> None:
+    """Control the charging port door.
+
+    tesla vehicle charge-port open    → open the charge port door
+    tesla vehicle charge-port close   → close the charge port door
+    tesla vehicle charge-port stop    → stop charging (unlocks port)
+    """
+    v = _vin(vin)
+    action = action.lower()
+    CMD_MAP = {
+        "open":  "charge_port_door_open",
+        "close": "charge_port_door_close",
+        "stop":  "charge_stop",
+    }
+    if action not in CMD_MAP:
+        console.print("[red]Action must be 'open', 'close', or 'stop'.[/red]")
+        raise typer.Exit(1)
+    _with_wake(lambda b, v: b.command(v, CMD_MAP[action]), v)
+    labels = {"open": "Charge port opened", "close": "Charge port closed", "stop": "Charging stopped"}
+    render_success(labels[action])

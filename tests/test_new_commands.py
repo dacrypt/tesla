@@ -646,3 +646,157 @@ class TestOwnerApiAutoWake:
 
         with patch("tesla_cli.backends.owner._time.sleep"), pytest.raises(VehicleAsleepError):
             backend.command(MOCK_VIN, "door_lock")
+
+
+# ── Dossier Estimate ──────────────────────────────────────────────────────────
+
+
+class TestDossierEstimate:
+    def test_estimate_help(self):
+        result = _run("dossier", "estimate", "--help")
+        assert result.exit_code == 0
+        assert "estimate" in result.output.lower() or "delivery" in result.output.lower()
+
+    def test_estimate_no_dossier(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_cls.return_value._load_dossier.return_value = None
+            result = _run("dossier", "estimate")
+            assert result.exit_code == 0
+
+    def test_estimate_json_no_dossier(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_cls.return_value._load_dossier.return_value = None
+            result = _run("--json", "dossier", "estimate")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert "current_phase" in data
+            assert data["current_phase"] == "ordered"
+            assert "estimated_delivery_range" in data
+            rng = data["estimated_delivery_range"]
+            assert "optimistic" in rng
+            assert "typical" in rng
+            assert "conservative" in rng
+
+    def test_estimate_json_with_phase(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.real_status.phase = "shipped"
+            mock_dossier.real_status.delivery_date = None
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("--json", "dossier", "estimate")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["current_phase"] == "shipped"
+            assert data["optimistic_days"] < data["typical_days"]
+            assert data["typical_days"] < data["conservative_days"]
+
+    def test_estimate_delivered_phase(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.real_status.phase = "delivered"
+            mock_dossier.real_status.delivery_date = None
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("dossier", "estimate")
+            assert result.exit_code == 0
+            assert "Delivered" in result.output or "delivered" in result.output.lower()
+
+    def test_estimate_confirmed_delivery(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.real_status.phase = "delivery_scheduled"
+            mock_dossier.real_status.delivery_date = "2026-04-15"
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("dossier", "estimate")
+            assert result.exit_code == 0
+            assert "2026-04-15" in result.output
+
+
+# ── Vehicle Windows + Charge Port ────────────────────────────────────────────
+
+
+class TestVehicleWindowsChargePort:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_windows_vent(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "windows", "vent")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.command.assert_called()
+
+    def test_windows_close(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "windows", "close")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+
+    def test_windows_invalid_action(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "windows", "explode")
+        for p in patches:
+            p.stop()
+        assert result.exit_code != 0
+
+    def test_charge_port_open(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "charge-port", "open")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.command.assert_called()
+
+    def test_charge_port_close(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "charge-port", "close")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+
+    def test_charge_port_stop(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "charge-port", "stop")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+
+    def test_charge_port_invalid_action(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "charge-port", "explode")
+        for p in patches:
+            p.stop()
+        assert result.exit_code != 0
+
+    def test_windows_help(self):
+        result = _run("vehicle", "windows", "--help")
+        assert result.exit_code == 0
+        assert "vent" in result.output.lower()
+
+    def test_charge_port_help(self):
+        result = _run("vehicle", "charge-port", "--help")
+        assert result.exit_code == 0
+        assert "open" in result.output.lower()

@@ -3,7 +3,7 @@ class TeslaCli < Formula
 
   desc "Tesla CLI — order tracking, vehicle control, dossier, and live telemetry"
   homepage "https://github.com/dacrypt/tesla"
-  url "https://files.pythonhosted.org/packages/source/t/tesla-cli/tesla_cli-0.4.0.tar.gz"
+  url "https://files.pythonhosted.org/packages/source/t/tesla-cli/tesla_cli-1.0.0.tar.gz"
   # sha256 will be filled in automatically after PyPI release
   license "MIT"
 

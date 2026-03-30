@@ -588,9 +588,12 @@ Just add the Apprise URL to `~/.tesla-cli/config.toml`. No code changes needed.
 - [x] 140+ option codes embedded offline
 - [x] `tesla teslaMate connect/status/trips/charging/updates` — PostgreSQL integration
 - [x] Multi-language UI — `--lang es` / `TESLA_LANG=es` (Spanish built-in)
+- [x] `tesla dossier estimate` — community-sourced delivery date estimation
+- [x] `tesla vehicle windows` — vent / close all windows
+- [x] `tesla vehicle charge-port` — open / close / stop charging port
 - [x] PyPI Trusted Publishing workflow (`.github/workflows/publish.yml`)
 - [x] Homebrew formula (`Formula/tesla-cli.rb`)
-- [x] 149 tests passing
+- [x] 164 tests passing
 
 ---
 
