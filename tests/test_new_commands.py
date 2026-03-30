@@ -968,3 +968,163 @@ class TestNotifyCommands:
             mock_cfg.return_value.notifications.apprise_urls = ["tgram://TOKEN/CHATID"]
             result = _run("notify", "remove", "5")
             assert result.exit_code == 1
+
+
+# ── Config Export / Import ────────────────────────────────────────────────────
+
+
+class TestConfigExportImport:
+    def test_export_help(self):
+        result = _run("config", "export", "--help")
+        assert result.exit_code == 0
+        assert "--output" in result.output
+
+    def test_import_help(self):
+        result = _run("config", "import", "--help")
+        assert result.exit_code == 0
+        assert "--merge" in result.output or "--replace" in result.output
+
+    def test_export_no_config(self):
+        with patch("tesla_cli.config.CONFIG_FILE") as mock_file:
+            mock_file.exists.return_value = False
+            result = _run("config", "export")
+            assert result.exit_code == 1
+
+    def test_export_stdout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg_path = Path(tmpdir) / "config.toml"
+            cfg_path.write_text('[general]\ndefault_vin = "5YJ3E1EA1PF000001"\n')
+            with patch("tesla_cli.config.CONFIG_FILE", cfg_path):
+                result = _run("config", "export")
+                assert result.exit_code == 0
+                assert "default_vin" in result.output
+
+    def test_export_to_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg_path = Path(tmpdir) / "config.toml"
+            cfg_path.write_text('[general]\ndefault_vin = "5YJ3E1EA1PF000001"\n')
+            out_path = Path(tmpdir) / "backup.toml"
+            with patch("tesla_cli.config.CONFIG_FILE", cfg_path):
+                result = _run("config", "export", "-o", str(out_path))
+                assert result.exit_code == 0
+                assert out_path.exists()
+                assert "default_vin" in out_path.read_text()
+
+    def test_import_file_not_found(self):
+        result = _run("config", "import", "/nonexistent/path/config.toml")
+        assert result.exit_code == 1
+
+    def test_import_valid_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = Path(tmpdir) / "import.toml"
+            src.write_text('[general]\ndefault_vin = "5YJ3E1EA1PF999999"\n')
+            with (
+                patch("tesla_cli.config.CONFIG_FILE") as mock_cfile,
+                patch("tesla_cli.commands.config_cmd.save_config") as mock_save,
+            ):
+                mock_cfile.exists.return_value = False
+                result = _run("config", "import", str(src))
+                assert result.exit_code == 0
+                mock_save.assert_called_once()
+
+
+# ── Dossier Option Codes ──────────────────────────────────────────────────────
+
+
+class TestDossierOptionCodes:
+    def test_option_codes_help(self):
+        result = _run("dossier", "option-codes", "--help")
+        assert result.exit_code == 0
+
+    def test_option_codes_no_dossier(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_cls.return_value._load_dossier.return_value = None
+            result = _run("dossier", "option-codes")
+            assert result.exit_code == 1
+
+    def test_option_codes_with_dossier(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.option_codes.raw_string = "PPSW,APF2,MDL3"
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("dossier", "option-codes")
+            assert result.exit_code == 0
+            assert "PPSW" in result.output or "Pearl White" in result.output
+
+    def test_option_codes_json(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.option_codes.raw_string = "PPSW,APF2"
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("--json", "dossier", "option-codes")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert isinstance(data, list)
+            codes = {item["code"] for item in data}
+            assert "PPSW" in codes
+            assert "APF2" in codes
+
+    def test_option_codes_json_structure(self):
+        with patch("tesla_cli.commands.dossier.DossierBackend") as mock_cls:
+            mock_dossier = MagicMock()
+            mock_dossier.option_codes.raw_string = "PPSW"
+            mock_cls.return_value._load_dossier.return_value = mock_dossier
+            result = _run("--json", "dossier", "option-codes")
+            data = json.loads(result.output)
+            assert all("code" in item and "category" in item and "description" in item for item in data)
+
+
+# ── Order Timeline ────────────────────────────────────────────────────────────
+
+
+class TestOrderTimeline:
+    def test_timeline_help(self):
+        result = _run("order", "timeline", "--help")
+        assert result.exit_code == 0
+
+    def test_timeline_no_history(self):
+        with patch("tesla_cli.backends.dossier.DossierBackend") as mock_cls:
+            mock_cls.return_value.get_history.return_value = []
+            result = _run("order", "timeline")
+            assert result.exit_code == 1
+            assert "history" in result.output.lower() or "found" in result.output.lower()
+
+    def test_timeline_with_history(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap = Path(tmpdir) / "snap.json"
+            snap.write_text(json.dumps({
+                "vin": MOCK_VIN,
+                "order": {"current": {"orderStatus": "BOOKED"}},
+                "real_status": {"delivery_date": None, "in_runt": False, "has_placa": False},
+                "runt": {"estado": ""},
+            }))
+            history = [
+                {"timestamp": "2026-01-01T00:00:00", "file": str(snap), "order_status": "BOOKED"},
+                {"timestamp": "2026-01-10T00:00:00", "file": str(snap), "order_status": "BOOKED"},
+            ]
+            with patch("tesla_cli.backends.dossier.DossierBackend") as mock_cls:
+                mock_cls.return_value.get_history.return_value = history
+                result = _run("order", "timeline")
+                assert result.exit_code == 0
+                assert "Timeline" in result.output or "snapshot" in result.output.lower()
+
+    def test_timeline_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap = Path(tmpdir) / "snap.json"
+            snap.write_text(json.dumps({
+                "vin": MOCK_VIN,
+                "order": {"current": {"orderStatus": "BOOKED"}},
+                "real_status": {"delivery_date": None, "in_runt": False, "has_placa": False},
+                "runt": {"estado": ""},
+            }))
+            history = [
+                {"timestamp": "2026-01-01T00:00:00", "file": str(snap), "order_status": "BOOKED"},
+            ]
+            with patch("tesla_cli.backends.dossier.DossierBackend") as mock_cls:
+                mock_cls.return_value.get_history.return_value = history
+                result = _run("--json", "order", "timeline")
+                assert result.exit_code == 0
+                data = json.loads(result.output)
+                assert isinstance(data, list)
+                assert data[0]["order_status"] == "BOOKED"
+                assert "changes" in data[0]

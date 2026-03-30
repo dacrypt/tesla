@@ -1322,6 +1322,79 @@ def dossier_estimate() -> None:
         console.print("\n[yellow]No dossier found — estimates based on 'ordered' phase. Run: tesla dossier build[/yellow]")
 
 
+@dossier_app.command("option-codes")
+def dossier_option_codes() -> None:
+    """Decode and display all option codes from the current dossier.
+
+    tesla dossier option-codes
+    tesla -j dossier option-codes | jq '.[] | select(.category == "autopilot")'
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    from tesla_cli.backends.dossier import decode_option_codes
+
+    backend = DossierBackend()
+    dossier = backend._load_dossier()
+
+    if not dossier:
+        console.print("[yellow]No dossier found. Run: tesla dossier build[/yellow]")
+        raise typer.Exit(1)
+
+    raw = dossier.option_codes.raw_string if dossier.option_codes else ""
+    if not raw:
+        # Try to find option codes in raw order data
+        try:
+            raw = dossier.order.current.get("mktOptions", "") or ""
+        except Exception:
+            raw = ""
+
+    if not raw:
+        console.print("[yellow]No option codes found in dossier. Try rebuilding: tesla dossier build[/yellow]")
+        raise typer.Exit(1)
+
+    decoded = decode_option_codes(raw)
+
+    if is_json_mode():
+        out = [
+            {"code": c.code, "category": c.category, "description": c.description}
+            for c in decoded.codes
+        ]
+        console.print_json(_json.dumps(out, indent=2))
+        return
+
+    # Group by category
+    from collections import defaultdict
+    by_cat: dict[str, list] = defaultdict(list)
+    for c in decoded.codes:
+        by_cat[c.category].append(c)
+
+    # Category display order
+    CAT_ORDER = ["model", "motor", "paint", "interior", "wheels", "seats", "autopilot",
+                 "charging", "connectivity", "features", "hardware", "unknown"]
+
+    total = len(decoded.codes)
+    known = sum(1 for c in decoded.codes if c.category != "unknown")
+
+    console.print()
+    console.print(f"  [dim]Raw:[/dim] [cyan]{raw}[/cyan]")
+    console.print(f"  [dim]{total} codes · {known} decoded · {total - known} unknown[/dim]\n")
+
+    for cat in CAT_ORDER:
+        codes = by_cat.get(cat, [])
+        if not codes:
+            continue
+        console.print(f"[bold underline]{cat.title()}[/bold underline]")
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Code", style="bold cyan", width=8)
+        table.add_column("Description")
+        for c in codes:
+            table.add_row(c.code, c.description)
+        console.print(table)
+        console.print()
+
+
 # ── Helpers ──
 
 
