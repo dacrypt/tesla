@@ -293,3 +293,105 @@ def _send_notification(changes: list) -> None:
         )
     except Exception as e:
         render_warning(f"Failed to send notification: {e}")
+
+
+@order_app.command("timeline")
+def order_timeline() -> None:
+    """Show a timeline of order status changes from all saved dossier snapshots.
+
+    tesla order timeline
+    tesla -j order timeline | jq '.[] | select(.changes | length > 0)'
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    from tesla_cli.backends.dossier import DossierBackend
+
+    backend = DossierBackend()
+    history = backend.get_history()
+
+    if not history:
+        console.print("[yellow]No dossier history found. Run: tesla dossier build[/yellow]")
+        raise typer.Exit(1)
+
+    # Build timeline: compare consecutive snapshots
+    TRACK_FIELDS = [
+        "order_status", "vin", "delivery_date", "delivery_window_display",
+        "runt_status", "in_runt", "has_placa",
+    ]
+
+    timeline: list[dict] = []
+    prev_snap: dict = {}
+
+    for entry in history:
+        snap_file = entry.get("file", "")
+        ts = str(entry.get("timestamp", ""))[:19]
+        status = entry.get("order_status", "")
+
+        # Load snapshot data
+        snap: dict = {}
+        try:
+            from pathlib import Path
+            snap = _json.loads(Path(snap_file).read_text()) if snap_file else {}
+        except Exception:
+            pass
+
+        # Flatten relevant fields from nested snapshot
+        def _extract(data: dict) -> dict:
+            flat: dict = {}
+            order = data.get("order", {}).get("current", {})
+            real = data.get("real_status", {})
+            flat["order_status"] = order.get("orderStatus", "")
+            flat["vin"] = data.get("vin", "")
+            flat["delivery_date"] = real.get("delivery_date", "")
+            flat["runt_status"] = data.get("runt", {}).get("estado", "")
+            flat["in_runt"] = real.get("in_runt", False)
+            flat["has_placa"] = real.get("has_placa", False)
+            return flat
+
+        current = _extract(snap) if snap else {"order_status": status}
+        changes: list[dict] = []
+        for field in TRACK_FIELDS:
+            old = prev_snap.get(field)
+            new = current.get(field)
+            if old is not None and old != new:
+                changes.append({"field": field, "old": str(old), "new": str(new)})
+
+        timeline.append({
+            "timestamp": ts,
+            "order_status": status,
+            "changes": changes,
+        })
+        prev_snap = current
+
+    if is_json_mode():
+        console.print_json(_json.dumps(timeline, indent=2))
+        return
+
+    table = Table(
+        title=f"Order Timeline — {len(history)} snapshots",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Timestamp", width=19)
+    table.add_column("Status", width=22)
+    table.add_column("Changes")
+
+    for entry in timeline:
+        ts = entry["timestamp"]
+        status = entry["order_status"] or "[dim]—[/dim]"
+        changes = entry["changes"]
+        if changes:
+            change_str = "  ".join(
+                f"[yellow]{c['field']}[/yellow]: [dim]{c['old'] or '∅'}[/dim] → [green]{c['new'] or '∅'}[/green]"
+                for c in changes
+            )
+        else:
+            change_str = "[dim](no changes)[/dim]"
+        table.add_row(ts, status, change_str)
+
+    console.print()
+    console.print(table)
+    total_changes = sum(len(e["changes"]) for e in timeline)
+    console.print(f"\n  [dim]{len(history)} snapshots · {total_changes} total field changes[/dim]")

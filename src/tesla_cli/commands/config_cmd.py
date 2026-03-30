@@ -80,6 +80,77 @@ def config_alias(
     render_success(f"Alias '{name}' -> {vin}")
 
 
+@config_app.command("export")
+def config_export(
+    output: str = typer.Option(None, "--output", "-o", help="Write to file instead of stdout"),
+) -> None:
+    """Export current configuration to TOML (safe to share — tokens not included).
+
+    tesla config export                    → print to stdout
+    tesla config export -o backup.toml    → write to file
+    """
+
+    from tesla_cli.config import CONFIG_FILE
+
+    if not CONFIG_FILE.exists():
+        console.print("[yellow]No config file found. Run[/yellow] [bold]tesla setup[/bold] [yellow]first.[/yellow]")
+        raise typer.Exit(1)
+
+    content = CONFIG_FILE.read_text()
+
+    if output:
+        from pathlib import Path
+        Path(output).write_text(content)
+        render_success(f"Config exported to {output}  (tokens NOT included — those live in keyring)")
+    else:
+        console.print(content)
+
+
+@config_app.command("import")
+def config_import(
+    source: str = typer.Argument(..., help="TOML config file to import"),
+    merge: bool = typer.Option(True, "--merge/--replace", help="Merge with existing config (default) or replace"),
+) -> None:
+    """Import configuration from a TOML file.
+
+    tesla config import backup.toml           → merge into existing config
+    tesla config import backup.toml --replace → replace entire config
+    """
+    from pathlib import Path
+
+    from tesla_cli.config import CONFIG_FILE, Config
+
+    src = Path(source)
+    if not src.exists():
+        console.print(f"[red]File not found:[/red] {source}")
+        raise typer.Exit(1)
+
+    try:
+        import tomllib
+        imported = tomllib.loads(src.read_text())
+        imported_cfg = Config.model_validate(imported)
+    except Exception as e:
+        console.print(f"[red]Failed to parse config:[/red] {e}")
+        raise typer.Exit(1)
+
+    if merge and CONFIG_FILE.exists():
+        existing = load_config()
+        # Merge: imported values overwrite existing non-default values
+        merged = existing.model_dump()
+        for section, values in imported_cfg.model_dump().items():
+            if isinstance(values, dict):
+                merged[section].update({k: v for k, v in values.items() if v})
+            else:
+                if values:
+                    merged[section] = values
+        final = Config.model_validate(merged)
+    else:
+        final = imported_cfg
+
+    save_config(final)
+    render_success(f"Config imported from {source}" + (" (merged)" if merge else " (replaced)"))
+
+
 @config_app.command("auth")
 def config_auth(
     backend: str = typer.Argument(help="Backend to authenticate: order, tessie, fleet"),
