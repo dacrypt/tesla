@@ -343,7 +343,32 @@ Tracks the 13-gate journey from order placed to keys in hand, with the current g
 
 ---
 
-## 5. Live Telemetry Stream
+## 5. TeslaMate Integration
+
+Connect tesla-cli to your [TeslaMate](https://github.com/adriankumpf/teslamate) PostgreSQL database for post-delivery analytics.
+
+```bash
+# One-time setup
+tesla teslaMate connect postgresql://user:pass@localhost:5432/teslaMate
+
+# Explore your data
+tesla teslaMate status               # lifetime stats + connection info
+tesla teslaMate trips                # last 20 trips
+tesla teslaMate trips --limit 100    # last 100 trips
+tesla teslaMate charging             # last 20 charging sessions
+tesla teslaMate updates              # OTA update history
+
+# JSON mode for scripting
+tesla -j teslaMate trips | jq '.[0]'
+tesla -j teslaMate charging | jq '.[] | select(.cost != null)'
+tesla -j teslaMate updates | jq '.[].version'
+```
+
+Requires the `teslaMate` extra: `uv tool install -e ".[teslaMate]"` (adds `psycopg2-binary`).
+
+---
+
+## 6. Live Telemetry Stream
 
 ```bash
 tesla stream live                    # refresh every 5s (default)
@@ -355,7 +380,18 @@ Real-time dashboard showing battery %, charge rate, inside/outside temperature, 
 
 ---
 
-## 6. Privacy — Anonymize Mode
+## 7. Multi-Language UI
+
+```bash
+tesla --lang es order status     # Spanish output
+TESLA_LANG=es tesla order watch  # via environment variable
+```
+
+Supported languages: `en` (default), `es` (Spanish). Falls back to English for any untranslated string.
+
+---
+
+## 8. Privacy — Anonymize Mode
 
 ```bash
 tesla --anon order status           # VIN and RN masked
@@ -367,7 +403,7 @@ The `--anon` flag masks your VIN (`5YJ3***XX***123`), reservation number, and em
 
 ---
 
-## 7. JSON mode
+## 9. JSON mode
 
 All commands support `-j` / `--json` for script integration:
 
@@ -428,7 +464,8 @@ tesla -j order status > ~/tesla-order-$(date +%Y%m%d).json
 src/tesla_cli/
 ├── app.py                # Entry point. Registers commands with Typer
 ├── config.py             # Config manager (~/.tesla-cli/config.toml)
-├── output.py             # Rendering: Rich tables + JSON mode
+├── output.py             # Rendering: Rich tables + JSON mode + anonymize
+├── i18n.py               # Internationalization: t(key) — en + es built-in
 ├── exceptions.py         # Custom errors (AuthenticationError, ApiError, etc.)
 │
 ├── auth/                 # Authentication
@@ -440,18 +477,22 @@ src/tesla_cli/
 │   ├── base.py           # ABC VehicleBackend (abstract interface)
 │   ├── fleet.py          # Tesla Fleet API direct (NA/EU/CN)
 │   ├── tessie.py         # Tessie as Fleet API proxy
+│   ├── owner.py          # Tesla Owner API (free, unofficial, auto-wake retry)
 │   ├── order.py          # Order tracking (reverse-engineered endpoints)
-│   └── dossier.py        # Dossier aggregator (NHTSA, ships, VIN decode, archive)
+│   ├── dossier.py        # Dossier aggregator (NHTSA, ships, VIN decode, 140+ option codes)
+│   └── teslaMate.py      # TeslaMate PostgreSQL read-only backend (optional)
 │
 ├── commands/             # CLI commands (Typer)
 │   ├── config_cmd.py     # tesla config show/set/alias/auth
+│   ├── setup.py          # tesla setup — onboarding wizard
 │   ├── order.py          # tesla order status/details/watch
-│   ├── vehicle.py        # tesla vehicle info/wake/...
+│   ├── vehicle.py        # tesla vehicle info/wake/sentry/trips/...
 │   ├── charge.py         # tesla charge status/start/stop
 │   ├── climate.py        # tesla climate status/on/off
 │   ├── security.py       # tesla security lock/unlock/trunk
-│   ├── dossier.py        # tesla dossier build/show/vin/ships/history
-│   └── stream.py         # tesla stream (real-time telemetry)
+│   ├── dossier.py        # tesla dossier build/show/vin/diff/checklist/gates
+│   ├── stream.py         # tesla stream live (real-time Rich dashboard)
+│   └── teslaMate.py      # tesla teslaMate connect/status/trips/charging/updates
 │
 └── models/               # Data models (Pydantic)
     ├── order.py          # OrderStatus, OrderTask, OrderDetails, OrderChange
@@ -486,6 +527,7 @@ User → CLI (Typer) → Command → Backend → Tesla API
 | **NHTSA vPIC** (government) | `vpic.nhtsa.dot.gov/api` | None (free) | VIN decode, recalls |
 | **NHTSA Recalls** | `api.nhtsa.gov` | None (free) | Recalls by model/year |
 | **Ship Tracking** | `shipinfo.net` | None | Tesla ship positions |
+| **TeslaMate DB** (self-hosted) | PostgreSQL | Connection string | Trip history, charging, OTA |
 
 ---
 
@@ -544,9 +586,11 @@ Just add the Apprise URL to `~/.tesla-cli/config.toml`. No code changes needed.
 - [x] Shell autocompletion (`tesla --install-completion`)
 - [x] Auto-wake + retry in Owner API backend
 - [x] 140+ option codes embedded offline
-- [ ] TeslaMate integration for post-delivery data
-- [ ] Multi-language UI (Spanish first)
-- [ ] Published to PyPI (`pip install tesla-cli`)
+- [x] `tesla teslaMate connect/status/trips/charging/updates` — PostgreSQL integration
+- [x] Multi-language UI — `--lang es` / `TESLA_LANG=es` (Spanish built-in)
+- [x] PyPI Trusted Publishing workflow (`.github/workflows/publish.yml`)
+- [x] Homebrew formula (`Formula/tesla-cli.rb`)
+- [x] 149 tests passing
 
 ---
 

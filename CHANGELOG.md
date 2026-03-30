@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-30
+
+### Added
+
+- **`tesla teslaMate connect/status/trips/charging/updates`** — read-only TeslaMate PostgreSQL integration; trip history, charging sessions, OTA update log, lifetime stats; optional `psycopg2-binary` dependency
+- **`--lang` global flag / `TESLA_LANG` env var** — multi-language UI; Spanish (`es`) built-in with ~40 translated keys, falls back to English for any untranslated string
+- **PyPI Trusted Publishing workflow** — `.github/workflows/publish.yml` publishes to PyPI on git tag push using OIDC (no API token required)
+- **Homebrew formula** — `Formula/tesla-cli.rb` with `Language::Python::Virtualenv` pattern for all dependencies
+
+### Fixed
+
+- `tesla dossier checklist` — Rich markup error `[/]` when a checklist item is not done (empty style string generated invalid closing tag)
+- `tesla stream live` — suppress "Starting live stream…" banner when `--json` flag is active (output was not valid JSON)
+
+### Tests
+
+- 149 unit tests passing, 0 failures
+- Added `tests/test_new_commands.py` with 57 tests covering VIN decoder, option codes, anonymize mode, i18n, checklist, gates, diff, sentry, trips, stream, TeslaMate config, order change display, and Owner API auto-wake
+
+---
+
 ## [0.3.0] - 2026-03-30
 
 ### Added
