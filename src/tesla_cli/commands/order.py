@@ -236,16 +236,35 @@ def order_watch(
 
 def _show_changes(changes: list, notify: bool) -> None:
     """Display changes and optionally send notifications."""
+    from rich.table import Table
+
     from tesla_cli.models.order import OrderChange
 
-    console.print(f"\n[bold yellow]Changes detected at {time.strftime('%H:%M:%S')}:[/bold yellow]")
+    console.print(f"\n[bold yellow]● Changes detected at {time.strftime('%H:%M:%S')}[/bold yellow]")
+
+    table = Table(show_header=False, box=None, padding=(0, 1))
+    table.add_column("sym", width=3, no_wrap=True)
+    table.add_column("field", style="cyan", width=28, no_wrap=True)
+    table.add_column("old", style="red", width=30)
+    table.add_column("arr", width=2, no_wrap=True)
+    table.add_column("new", style="green")
+
     for change in changes:
         if isinstance(change, OrderChange):
-            console.print(
-                f"  [cyan]{change.field}[/cyan]: "
-                f"[red]{change.old_value or '(empty)'}[/red] -> "
-                f"[green]{change.new_value}[/green]"
-            )
+            old = change.old_value or ""
+            new = change.new_value or ""
+            if not old and new:
+                sym = "[bold green]+[/bold green]"  # added
+                arrow = "→"
+            elif old and not new:
+                sym = "[bold red]−[/bold red]"  # removed
+                arrow = "→"
+            else:
+                sym = "[bold yellow]≠[/bold yellow]"  # changed
+                arrow = "→"
+            table.add_row(sym, change.field, old or "[dim](empty)[/dim]", arrow, new or "[dim](empty)[/dim]")
+
+    console.print(table)
 
     if notify:
         _send_notification(changes)

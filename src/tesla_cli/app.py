@@ -29,12 +29,22 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+    anon: bool = typer.Option(False, "--anon", help="Anonymize PII (VIN, email, name) in output"),
     version: bool | None = typer.Option(
         None, "--version", "-V", callback=_version_callback, is_eager=True
     ),
 ) -> None:
     """Tesla CLI - Order tracking and vehicle control."""
     set_json_mode(json_output)
+    if anon:
+        from tesla_cli.config import load_config
+        from tesla_cli.output import set_anon_mode
+        cfg = load_config()
+        set_anon_mode(
+            True,
+            vin=cfg.general.default_vin,
+            rn=cfg.order.reservation_number,
+        )
 
 
 def main() -> None:

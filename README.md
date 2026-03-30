@@ -205,6 +205,11 @@ tesla climate off              # turn off
 tesla security lock            # lock doors
 tesla security unlock          # unlock doors
 
+# Sentry Mode
+tesla vehicle sentry           # show status
+tesla vehicle sentry --on      # enable
+tesla vehicle sentry --off     # disable
+
 # Other
 tesla vehicle horn             # honk horn
 tesla vehicle flash            # flash lights
@@ -213,7 +218,7 @@ tesla security trunk rear      # open trunk
 tesla security trunk front     # open frunk
 ```
 
-> If the car is asleep, commands wake it automatically (with retries).
+> If the car is asleep, commands wake it automatically (3 retries with 8s back-off).
 
 ### Multi-vehicle
 
@@ -281,6 +286,34 @@ tesla dossier history
 
 Each `tesla dossier build` saves a timestamped snapshot. Compare changes over time.
 
+### Compare two snapshots
+
+```bash
+tesla dossier diff              # compare last two snapshots
+tesla dossier diff 1 3          # compare snapshot #1 vs #3
+tesla -j dossier diff | jq .    # JSON output of all differences
+```
+
+Shows a recursive +/−/≠ diff of every field that changed between builds.
+
+### Delivery inspection checklist
+
+```bash
+tesla dossier checklist         # show all 34 items
+tesla dossier checklist --mark 5,12,18   # check items off
+tesla dossier checklist --reset # start over
+```
+
+34-item inspection covering exterior, interior, mechanicals, and electronics. Progress persists between runs.
+
+### Delivery journey gates
+
+```bash
+tesla dossier gates
+```
+
+Tracks the 13-gate journey from order placed to keys in hand, with the current gate highlighted based on your dossier phase.
+
 ### Dossier structure
 
 ```
@@ -310,7 +343,31 @@ Each `tesla dossier build` saves a timestamped snapshot. Compare changes over ti
 
 ---
 
-## 5. JSON mode
+## 5. Live Telemetry Stream
+
+```bash
+tesla stream live                    # refresh every 5s (default)
+tesla stream live --interval 10      # every 10s
+tesla stream live --count 20         # stop after 20 refreshes
+```
+
+Real-time dashboard showing battery %, charge rate, inside/outside temperature, GPS location, door lock state, Sentry Mode, software version, and odometer. Press `Ctrl+C` to stop.
+
+---
+
+## 6. Privacy — Anonymize Mode
+
+```bash
+tesla --anon order status           # VIN and RN masked
+tesla --anon dossier show           # safe to screenshot and share
+tesla --anon -j order status        # JSON with PII stripped
+```
+
+The `--anon` flag masks your VIN (`5YJ3***XX***123`), reservation number, and email in all output — safe for pasting in forums or filing bug reports.
+
+---
+
+## 7. JSON mode
 
 All commands support `-j` / `--json` for script integration:
 
@@ -477,12 +534,19 @@ Just add the Apprise URL to `~/.tesla-cli/config.toml`. No code changes needed.
 - [x] NHTSA recalls integration
 - [x] Historical snapshots archive
 - [x] Telegram notifications
-- [ ] `tesla stream` — Real-time telemetry (WebSocket)
-- [ ] `tesla vehicle sentry` — View Sentry Mode events
-- [ ] `tesla vehicle trips` — Trip history
-- [ ] `tesla dossier diff` — Compare two snapshots
-- [ ] Shell autocompletion (bash/zsh/fish)
+- [x] `tesla stream live` — Real-time telemetry dashboard
+- [x] `tesla vehicle sentry` — Sentry Mode status + toggle
+- [x] `tesla vehicle trips` — Drive state + odometer
+- [x] `tesla dossier diff` — Compare two snapshots with colored +/−/≠ diff
+- [x] `tesla dossier checklist` — 34-item delivery inspection checklist
+- [x] `tesla dossier gates` — 13-gate delivery journey tracker
+- [x] `tesla --anon` — Anonymize PII in any command output
+- [x] Shell autocompletion (`tesla --install-completion`)
+- [x] Auto-wake + retry in Owner API backend
+- [x] 140+ option codes embedded offline
 - [ ] TeslaMate integration for post-delivery data
+- [ ] Multi-language UI (Spanish first)
+- [ ] Published to PyPI (`pip install tesla-cli`)
 
 ---
 

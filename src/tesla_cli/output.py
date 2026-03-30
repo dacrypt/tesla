@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from pydantic import BaseModel
@@ -16,6 +17,10 @@ error_console = Console(stderr=True)
 # Global flag toggled by --json
 _json_mode = False
 
+# Global flag toggled by --anon (anonymize PII in output)
+_anon_mode = False
+_anon_targets: list[tuple[str, str]] = []  # (pattern, replacement)
+
 
 def set_json_mode(enabled: bool) -> None:
     global _json_mode
@@ -24,6 +29,44 @@ def set_json_mode(enabled: bool) -> None:
 
 def is_json_mode() -> bool:
     return _json_mode
+
+
+def set_anon_mode(enabled: bool, vin: str = "", rn: str = "", email: str = "", name: str = "") -> None:
+    """Enable anonymization mode, masking PII in all output."""
+    global _anon_mode, _anon_targets
+    _anon_mode = enabled
+    if enabled:
+        _anon_targets = []
+        if vin and len(vin) >= 8:
+            # Keep first 4 and last 3 chars, mask the rest
+            masked_vin = vin[:4] + "*" * (len(vin) - 7) + vin[-3:]
+            _anon_targets.append((re.escape(vin), masked_vin))
+        if rn:
+            masked_rn = rn[:2] + "*" * max(0, len(rn) - 5) + rn[-3:] if len(rn) > 5 else rn[:2] + "***"
+            _anon_targets.append((re.escape(rn), masked_rn))
+        if email and "@" in email:
+            local, domain = email.split("@", 1)
+            masked_email = local[0] + "***@" + domain[0] + "***." + domain.split(".")[-1]
+            _anon_targets.append((re.escape(email), masked_email))
+        if name:
+            parts = name.split()
+            masked_name = " ".join(p[0] + "***" for p in parts)
+            _anon_targets.append((re.escape(name), masked_name))
+
+
+def is_anon_mode() -> bool:
+    return _anon_mode
+
+
+def anonymize(text: str) -> str:
+    """Replace known PII patterns with masked versions."""
+    if not _anon_mode or not text:
+        return text
+    for pattern, replacement in _anon_targets:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    # Also mask generic VIN-like patterns (17 alphanum) not already caught
+    text = re.sub(r'\b[A-HJ-NPR-Z0-9]{17}\b', lambda m: m.group(0)[:4] + "***" + m.group(0)[-3:], text)
+    return text
 
 
 def render_model(data: BaseModel, title: str = "") -> None:

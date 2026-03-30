@@ -860,6 +860,351 @@ def dossier_vin(
     console.print(f"\n  [dim]Country: {decoded.plant_country} | Battery: {decoded.battery_chemistry}[/dim]")
 
 
+@dossier_app.command("diff")
+def dossier_diff(
+    snap_a: str = typer.Argument(None, help="Snapshot A: index (1-based) or filename. Default: second-to-last"),
+    snap_b: str = typer.Argument(None, help="Snapshot B: index or filename. Default: latest"),
+) -> None:
+    """Compare two dossier snapshots side by side.
+
+    tesla dossier diff              → compare last two snapshots
+    tesla dossier diff 1 2          → compare snapshot #1 vs #2
+    tesla dossier diff snapshot_... snapshot_...  → by filename
+    """
+    import json as _json
+
+    from rich.panel import Panel
+
+    backend = DossierBackend()
+    history = backend.get_history()
+
+    if len(history) < 2:
+        console.print("[yellow]Need at least 2 snapshots. Run: tesla dossier build[/yellow]")
+        raise typer.Exit(1)
+
+    def _resolve_snap(ref: str | None, default_idx: int) -> tuple[dict, str]:
+        if ref is None:
+            entry = history[default_idx]
+        elif ref.isdigit():
+            idx = int(ref) - 1
+            if idx < 0 or idx >= len(history):
+                console.print(f"[red]Snapshot #{ref} not found. There are {len(history)} snapshots.[/red]")
+                raise typer.Exit(1)
+            entry = history[idx]
+        else:
+            matches = [h for h in history if ref in h["file"]]
+            if not matches:
+                console.print(f"[red]No snapshot matching '{ref}'[/red]")
+                raise typer.Exit(1)
+            entry = matches[0]
+
+        from pathlib import Path
+        path = Path(entry["file"])
+        try:
+            data = _json.loads(path.read_text())
+        except Exception as exc:
+            console.print(f"[red]Cannot read {path}: {exc}[/red]")
+            raise typer.Exit(1)
+        return data, entry["timestamp"]
+
+    data_a, ts_a = _resolve_snap(snap_a, -2)
+    data_b, ts_b = _resolve_snap(snap_b, -1)
+
+    if is_json_mode():
+        diff_result = _compute_diff(data_a, data_b)
+        console.print_json(_json.dumps(diff_result, indent=2, default=str))
+        return
+
+    console.print()
+    console.print(Panel(
+        f"[dim]A:[/dim] [cyan]{ts_a[:19]}[/cyan]  vs  [dim]B:[/dim] [cyan]{ts_b[:19]}[/cyan]",
+        title="[bold]Dossier Diff[/bold]",
+        border_style="cyan",
+    ))
+
+    changes = _compute_diff(data_a, data_b)
+    if not changes:
+        console.print("  [green]No differences found between the two snapshots.[/green]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan", box=None, padding=(0, 2))
+    table.add_column("Symbol", width=3, no_wrap=True)
+    table.add_column("Field", width=40, no_wrap=True)
+    table.add_column("A (old)", style="red", width=35)
+    table.add_column("B (new)", style="green")
+
+    added = changed = removed = 0
+    for item in changes:
+        sym_str = item["symbol"]
+        if sym_str == "+":
+            sym = "[bold green]+[/bold green]"
+            added += 1
+        elif sym_str == "−":
+            sym = "[bold red]−[/bold red]"
+            removed += 1
+        else:
+            sym = "[bold yellow]≠[/bold yellow]"
+            changed += 1
+        table.add_row(sym, item["path"], str(item.get("old", ""))[:35], str(item.get("new", ""))[:50])
+
+    console.print(table)
+    console.print(
+        f"\n  [green]+{added} added[/green]  [yellow]≠{changed} changed[/yellow]  [red]−{removed} removed[/red]"
+        f"  │  [dim]{len(changes)} total differences[/dim]"
+    )
+
+
+def _compute_diff(a: dict, b: dict, path: str = "") -> list[dict]:
+    """Recursively compute differences between two dicts."""
+    changes: list[dict] = []
+    all_keys = set(a) | set(b)
+    SKIP_KEYS = {"last_updated", "created_at", "update_count", "dossier_version", "queried_at"}
+
+    for key in sorted(all_keys):
+        if key in SKIP_KEYS:
+            continue
+        full_path = f"{path}.{key}" if path else key
+        val_a = a.get(key)
+        val_b = b.get(key)
+
+        if val_a == val_b:
+            continue
+
+        if isinstance(val_a, dict) and isinstance(val_b, dict):
+            changes.extend(_compute_diff(val_a, val_b, full_path))
+        elif val_a is None and val_b is not None:
+            changes.append({"symbol": "+", "path": full_path, "old": None, "new": val_b})
+        elif val_a is not None and val_b is None:
+            changes.append({"symbol": "−", "path": full_path, "old": val_a, "new": None})
+        elif (isinstance(val_a, (list, dict)) or isinstance(val_b, (list, dict))) and (len(str(val_a)) > 200 or len(str(val_b)) > 200):
+            changes.append({"symbol": "≠", "path": full_path, "old": f"[{type(val_a).__name__}]", "new": f"[{type(val_b).__name__}]"})
+        else:
+            changes.append({"symbol": "≠", "path": full_path, "old": val_a, "new": val_b})
+
+    return changes
+
+
+@dossier_app.command("checklist")
+def dossier_checklist(
+    mark: str = typer.Option(None, "--mark", "-m", help="Mark an item by number as done (e.g. --mark 3)"),
+    reset: bool = typer.Option(False, "--reset", help="Reset all items to unchecked"),
+) -> None:
+    """Interactive Tesla delivery inspection checklist.
+
+    tesla dossier checklist             → show checklist
+    tesla dossier checklist --mark 3    → check off item #3
+    tesla dossier checklist --reset     → uncheck everything
+    """
+    import json as _json
+    from pathlib import Path
+
+    CHECKLIST_FILE = Path.home() / ".tesla-cli" / "delivery_checklist.json"
+
+    ITEMS = [
+        ("Exterior", [
+            "Panel gaps: check all doors, hood, trunk, frunk are even",
+            "Paint: no chips, scratches, swirl marks, or clear-coat bubbles",
+            "Glass: no cracks or chips on windshield, rear window, sunroof, side windows",
+            "Lights: all headlights, taillights, turn signals, DRL operational",
+            "Wheels & tires: no curb rash, correct PSI, no sidewall damage",
+            "Body trim: all chrome/plastic trim flush and undamaged",
+            "Cameras: Autopilot cameras clean and correctly positioned",
+            "Door seals: all door and trunk seals present and seated",
+        ]),
+        ("Interior", [
+            "Seats: no tears, stains, or misalignment (front + rear)",
+            "Dashboard & trim: no cracks, loose panels, or scratches",
+            "Touchscreen: no dead pixels, scratches, or touch issues",
+            "Rear screen (if equipped): functional",
+            "Climate vents: all open/close correctly",
+            "Speaker grilles: all intact, no rattles",
+            "Steering wheel: no scratches or play beyond spec",
+            "Center console: all compartments open/close smoothly",
+        ]),
+        ("Mechanicals", [
+            "Frunk: opens/closes properly, latch secure",
+            "Trunk/liftgate: opens/closes, auto-close working",
+            "Charging port: opens/closes, correct connector (NACS/CCS)",
+            "Charge cable (if included): no damage",
+            "Under-frunk storage: present and clean",
+            "12V outlet / USB ports: functional",
+            "Door handles: all present and functional (auto-present if equipped)",
+            "Key cards (2): both work, tap to unlock",
+        ]),
+        ("Electronics & Software", [
+            "VIN on door jamb matches registration documents",
+            "Software version: check Settings > Software",
+            "Mobile app: vehicle appears and can be controlled",
+            "Autopilot cameras: all visible in Autopilot settings",
+            "Sentry Mode: can be enabled",
+            "Music / Media: streaming works over LTE",
+            "Navigation: GPS accurate",
+        ]),
+        ("Final", [
+            "Battery state of charge at delivery (note %)",
+            "Walk-around video recorded",
+            "All documents received: registration, window sticker, owner's manual",
+        ]),
+    ]
+
+    # Load/init state
+    if CHECKLIST_FILE.exists() and not reset:
+        try:
+            state: dict = _json.loads(CHECKLIST_FILE.read_text())
+        except Exception:
+            state = {}
+    else:
+        state = {}
+
+    if reset:
+        state = {}
+        CHECKLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CHECKLIST_FILE.write_text(_json.dumps(state))
+        console.print("[green]Checklist reset.[/green]")
+
+    # Flatten items with global index
+    flat: list[tuple[str, int, str]] = []  # (section, local_idx, text)
+    global_idx = 1
+    for section, items in ITEMS:
+        for item in items:
+            flat.append((section, global_idx, item))
+            global_idx += 1
+
+    # Apply mark
+    if mark:
+        nums = [int(x.strip()) for x in mark.split(",") if x.strip().isdigit()]
+        for n in nums:
+            if 1 <= n <= len(flat):
+                state[str(n)] = not state.get(str(n), False)
+        CHECKLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CHECKLIST_FILE.write_text(_json.dumps(state))
+
+    if is_json_mode():
+        result = [
+            {"index": f[1], "section": f[0], "item": f[2], "done": state.get(str(f[1]), False)}
+            for f in flat
+        ]
+        console.print_json(_json.dumps(result, indent=2))
+        return
+
+    # Render
+    from rich.panel import Panel
+    done_count = sum(1 for i in range(1, len(flat) + 1) if state.get(str(i), False))
+    total = len(flat)
+
+    console.print()
+    console.print(Panel(
+        f"[dim]Progress: [bold]{done_count}/{total}[/bold] items checked "
+        f"({'[green]COMPLETE[/green]' if done_count == total else f'[yellow]{total - done_count} remaining[/yellow]'})\n"
+        f"[dim]Use [bold]--mark N[/bold] to check/uncheck an item, [bold]--reset[/bold] to start over[/dim]",
+        title="[bold]🚗 Tesla Delivery Inspection Checklist[/bold]",
+        border_style="cyan",
+    ))
+
+    current_section = ""
+    for section, idx, text in flat:
+        if section != current_section:
+            console.print(f"\n[bold underline]{section}[/bold underline]")
+            current_section = section
+        done = state.get(str(idx), False)
+        checkbox = "[bold green]✅[/bold green]" if done else "[dim]☐[/dim]"
+        style = "dim" if done else ""
+        console.print(f"  {checkbox} [{style}]{idx:2d}. {text}[/{style}]")
+
+    if done_count == total:
+        console.print("\n  [bold green]All items checked! Enjoy your Tesla! ⚡[/bold green]")
+    else:
+        console.print("\n  [dim]Run: tesla dossier checklist --mark <N> to check item N[/dim]")
+
+
+@dossier_app.command("gates")
+def dossier_gates() -> None:
+    """Show the 13-gate delivery journey from order to keys.
+
+    Maps each gate to the current dossier phase and highlights where you are.
+    """
+    import json as _json
+
+    from rich.panel import Panel
+
+    backend = DossierBackend()
+    dossier = backend._load_dossier()
+
+    # Gate definitions: (id, label, phase_trigger)
+    GATES = [
+        ("01", "Order Placed",              "ordered"),
+        ("02", "VIN Assigned",              "produced"),
+        ("03", "Production Started",        "produced"),
+        ("04", "Quality Control / Exit",    "produced"),
+        ("05", "Ready for Transport",       "shipped"),
+        ("06", "Departed Factory",          "shipped"),
+        ("07", "At Origin Port",            "shipped"),
+        ("08", "Departed Origin Port",      "shipped"),
+        ("09", "In Transit (ocean)",        "shipped"),
+        ("10", "Arrived Destination Port",  "in_country"),
+        ("11", "Customs Clearance",         "in_country"),
+        ("12", "In Transit to Delivery",    "delivery_scheduled"),
+        ("13", "Delivered 🎉",             "delivered"),
+    ]
+
+    PHASE_ORDER = [
+        "ordered", "produced", "shipped", "in_country",
+        "registered", "delivery_scheduled", "delivered",
+    ]
+
+    if dossier:
+        current_phase = dossier.real_status.phase
+        current_idx = PHASE_ORDER.index(current_phase) if current_phase in PHASE_ORDER else 0
+    else:
+        current_phase = "ordered"
+        current_idx = 0
+
+    def _gate_phase_idx(trigger: str) -> int:
+        return PHASE_ORDER.index(trigger) if trigger in PHASE_ORDER else 0
+
+    if is_json_mode():
+        gates_out = []
+        for gid, label, trigger in GATES:
+            phase_i = _gate_phase_idx(trigger)
+            status = "complete" if phase_i < current_idx else ("current" if phase_i == current_idx else "pending")
+            gates_out.append({"gate": gid, "label": label, "status": status})
+        console.print_json(_json.dumps(gates_out, indent=2))
+        return
+
+    vin = dossier.vin if dossier else "(no dossier)"
+    phase_label = current_phase.replace("_", " ").title() if current_phase else "Unknown"
+
+    console.print()
+    console.print(Panel(
+        f"[dim]VIN:[/dim] [cyan]{vin}[/cyan]  │  [dim]Current phase:[/dim] [bold]{phase_label}[/bold]",
+        title="[bold]🚀 Delivery Journey — 13 Gates[/bold]",
+        border_style="cyan",
+    ))
+    console.print()
+
+    for gid, label, trigger in GATES:
+        phase_i = _gate_phase_idx(trigger)
+
+        if phase_i < current_idx:
+            icon = "✅"
+            style = "dim"
+            badge = "[dim](done)[/dim]"
+        elif phase_i == current_idx:
+            icon = "▶"
+            style = "bold cyan"
+            badge = "[bold cyan]← YOU ARE HERE[/bold cyan]"
+        else:
+            icon = "○"
+            style = "dim"
+            badge = ""
+
+        console.print(f"  [{style}]{icon}  Gate {gid}: {label}[/{style}]  {badge}")
+
+    console.print()
+    if not dossier:
+        console.print("[yellow]No dossier found. Run: tesla dossier build for real data.[/yellow]")
+
+
 # ── Helpers ──
 
 
