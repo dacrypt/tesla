@@ -1,0 +1,186 @@
+"""Internationalization — minimal i18n for tesla-cli.
+
+Usage:
+    from tesla_cli.i18n import t
+    console.print(t("order.watching", rn="RN123"))
+
+Supported languages: en (default), es
+Set via `tesla --lang es <command>` or TESLA_LANG env var.
+"""
+
+from __future__ import annotations
+
+import os
+
+# Global language, changed by --lang flag
+_lang: str = os.environ.get("TESLA_LANG", "en").lower()
+
+
+def set_lang(lang: str) -> None:
+    global _lang
+    _lang = lang.lower()
+
+
+def get_lang() -> str:
+    return _lang
+
+
+def t(key: str, **kwargs: str) -> str:
+    """Return translated string for key. Falls back to English if not found."""
+    strings = _STRINGS.get(_lang, _STRINGS["en"])
+    text = strings.get(key) or _STRINGS["en"].get(key) or key
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except KeyError:
+            pass
+    return text
+
+
+# ── String Catalog ───────────────────────────────────────────────────────────
+
+_STRINGS: dict[str, dict[str, str]] = {
+
+    "en": {
+        # order
+        "order.no_rn": "No reservation number configured.\nRun: tesla config set reservation-number RNXXXXXXXXX",
+        "order.watching": "Watching order {rn} (every {interval} min, Ctrl+C to stop)",
+        "order.changes_at": "● Changes detected at {time}",
+        "order.no_changes": "{time} No changes",
+        "order.stopped": "Stopped watching.",
+        "order.notif_failed": "Failed to send notification: {error}",
+
+        # vehicle
+        "vehicle.asleep_waking": "Vehicle asleep, waking up…",
+        "vehicle.awake": "Vehicle is awake",
+        "vehicle.wake_sent": "Wake command sent. Vehicle may take a moment to respond.",
+        "vehicle.locked": "Vehicle locked",
+        "vehicle.unlocked": "Vehicle unlocked",
+        "vehicle.horn": "Horn honked",
+        "vehicle.flash": "Lights flashed",
+        "vehicle.sentry_on": "Sentry Mode enabled",
+        "vehicle.sentry_off": "Sentry Mode disabled",
+        "vehicle.sentry_unavailable": "Note: Sentry Mode not available (vehicle may not be parked)",
+        "vehicle.trunk_opened": "{which} trunk opened",
+
+        # charge
+        "charge.started": "Charging started",
+        "charge.stopped": "Charging stopped",
+        "charge.limit_set": "Charge limit set to {limit}%",
+        "charge.amps_set": "Charging amps set to {amps}A",
+
+        # climate
+        "climate.on": "Climate ON",
+        "climate.off": "Climate OFF",
+        "climate.temp_set": "Temperature set to {temp}°C",
+
+        # dossier
+        "dossier.not_found": "No dossier found. Run: tesla dossier build",
+        "dossier.building": "Building dossier from all sources…",
+        "dossier.diff_need_two": "Need at least 2 snapshots. Run: tesla dossier build",
+        "dossier.diff_no_changes": "No differences found between the two snapshots.",
+        "dossier.checklist_reset": "Checklist reset.",
+        "dossier.checklist_complete": "All items checked! Enjoy your Tesla! ⚡",
+        "dossier.checklist_hint": "Run: tesla dossier checklist --mark <N> to check item N",
+        "dossier.gates_no_dossier": "No dossier found. Run: tesla dossier build for real data.",
+        "dossier.delivery_set": "Delivery date set: {date}",
+
+        # stream
+        "stream.starting": "Starting live stream… press Ctrl+C to stop.",
+        "stream.stopped": "Stream stopped.",
+        "stream.asleep": "Vehicle is asleep (data from last known state)",
+
+        # setup
+        "setup.welcome": "Tesla CLI Setup Wizard",
+        "setup.done": "Setup complete!",
+        "setup.skip": "Already configured. Use --force to reconfigure.",
+
+        # config
+        "config.saved": "{key} = {value}",
+        "config.unknown_key": "Unknown key: {key}",
+        "config.alias_set": "Alias '{name}' -> {vin}",
+
+        # teslaMate
+        "teslaMate.not_configured": "TeslaMate not configured.\nRun: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
+        "teslaMate.connected": "Connected to TeslaMate ({url})",
+        "teslaMate.no_trips": "No trips found in TeslaMate.",
+        "teslaMate.no_charging": "No charging sessions found in TeslaMate.",
+        "teslaMate.no_updates": "No OTA updates found in TeslaMate.",
+
+        # errors
+        "error.auth": "Not authenticated. Run: tesla config auth order",
+        "error.no_vin": "No VIN configured. Run: tesla config set default-vin <VIN>",
+        "error.token_expired": "Token expired. Run: tesla config auth order",
+        "error.vehicle_not_found": "Vehicle {vin} not found on this account",
+        "error.api": "API error {code}: {message}",
+    },
+
+    "es": {
+        # orden
+        "order.no_rn": "No hay número de reserva configurado.\nEjecuta: tesla config set reservation-number RNXXXXXXXXX",
+        "order.watching": "Monitoreando orden {rn} (cada {interval} min, Ctrl+C para detener)",
+        "order.changes_at": "● Cambios detectados a las {time}",
+        "order.no_changes": "{time} Sin cambios",
+        "order.stopped": "Monitoreo detenido.",
+        "order.notif_failed": "Error al enviar notificación: {error}",
+
+        # vehículo
+        "vehicle.asleep_waking": "Vehículo dormido, activando…",
+        "vehicle.awake": "Vehículo activo",
+        "vehicle.wake_sent": "Comando de activación enviado. El vehículo puede tardar un momento.",
+        "vehicle.locked": "Vehículo asegurado",
+        "vehicle.unlocked": "Vehículo desbloqueado",
+        "vehicle.horn": "Bocina activada",
+        "vehicle.flash": "Luces destelladas",
+        "vehicle.sentry_on": "Modo Centinela activado",
+        "vehicle.sentry_off": "Modo Centinela desactivado",
+        "vehicle.sentry_unavailable": "Nota: Modo Centinela no disponible (vehículo puede no estar estacionado)",
+        "vehicle.trunk_opened": "{which} abierto",
+
+        # carga
+        "charge.started": "Carga iniciada",
+        "charge.stopped": "Carga detenida",
+        "charge.limit_set": "Límite de carga establecido en {limit}%",
+        "charge.amps_set": "Amperios de carga establecidos en {amps}A",
+
+        # clima
+        "climate.on": "Clima ENCENDIDO",
+        "climate.off": "Clima APAGADO",
+        "climate.temp_set": "Temperatura establecida en {temp}°C",
+
+        # dossier
+        "dossier.not_found": "No se encontró el dossier. Ejecuta: tesla dossier build",
+        "dossier.building": "Construyendo dossier desde todas las fuentes…",
+        "dossier.diff_need_two": "Se necesitan al menos 2 instantáneas. Ejecuta: tesla dossier build",
+        "dossier.diff_no_changes": "No se encontraron diferencias entre las dos instantáneas.",
+        "dossier.checklist_reset": "Lista de verificación reiniciada.",
+        "dossier.checklist_complete": "¡Todos los elementos verificados! ¡Disfruta tu Tesla! ⚡",
+        "dossier.checklist_hint": "Ejecuta: tesla dossier checklist --mark <N> para marcar el elemento N",
+        "dossier.gates_no_dossier": "No se encontró el dossier. Ejecuta: tesla dossier build para datos reales.",
+        "dossier.delivery_set": "Fecha de entrega establecida: {date}",
+
+        # stream
+        "stream.starting": "Iniciando transmisión en vivo… presiona Ctrl+C para detener.",
+        "stream.stopped": "Transmisión detenida.",
+        "stream.asleep": "Vehículo dormido (datos del último estado conocido)",
+
+        # configuración
+        "config.saved": "{key} = {value}",
+        "config.unknown_key": "Clave desconocida: {key}",
+        "config.alias_set": "Alias '{name}' -> {vin}",
+
+        # teslaMate
+        "teslaMate.not_configured": "TeslaMate no configurado.\nEjecuta: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
+        "teslaMate.connected": "Conectado a TeslaMate ({url})",
+        "teslaMate.no_trips": "No se encontraron viajes en TeslaMate.",
+        "teslaMate.no_charging": "No se encontraron sesiones de carga en TeslaMate.",
+        "teslaMate.no_updates": "No se encontró historial de actualizaciones en TeslaMate.",
+
+        # errores
+        "error.auth": "No autenticado. Ejecuta: tesla config auth order",
+        "error.no_vin": "VIN no configurado. Ejecuta: tesla config set default-vin <VIN>",
+        "error.token_expired": "Token expirado. Ejecuta: tesla config auth order",
+        "error.vehicle_not_found": "Vehículo {vin} no encontrado en esta cuenta",
+        "error.api": "Error de API {code}: {message}",
+    },
+}

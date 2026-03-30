@@ -1108,8 +1108,10 @@ def dossier_checklist(
             current_section = section
         done = state.get(str(idx), False)
         checkbox = "[bold green]✅[/bold green]" if done else "[dim]☐[/dim]"
-        style = "dim" if done else ""
-        console.print(f"  {checkbox} [{style}]{idx:2d}. {text}[/{style}]")
+        if done:
+            console.print(f"  {checkbox} [dim]{idx:2d}. {text}[/dim]")
+        else:
+            console.print(f"  {checkbox} {idx:2d}. {text}")
 
     if done_count == total:
         console.print("\n  [bold green]All items checked! Enjoy your Tesla! ⚡[/bold green]")

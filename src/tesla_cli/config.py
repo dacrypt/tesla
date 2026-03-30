@@ -47,6 +47,11 @@ class VehiclesConfig(BaseModel):
     aliases: dict[str, str] = Field(default_factory=dict)
 
 
+class TeslamateConfig(BaseModel):
+    database_url: str = ""  # postgresql://user:pass@host:5432/teslaMate
+    car_id: int = 1  # TeslaMate car ID (1-based)
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -54,6 +59,7 @@ class Config(BaseModel):
     fleet: FleetConfig = Field(default_factory=FleetConfig)
     notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
     vehicles: VehiclesConfig = Field(default_factory=VehiclesConfig)
+    teslaMate: TeslamateConfig = Field(default_factory=TeslamateConfig)
 
 
 def load_config() -> Config:

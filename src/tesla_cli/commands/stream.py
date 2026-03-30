@@ -142,7 +142,8 @@ def stream_live(
             border_style="cyan",
         )
 
-    console.print("[dim]Starting live stream… press Ctrl+C to stop.[/dim]\n")
+    if not is_json_mode():
+        console.print("[dim]Starting live stream… press Ctrl+C to stop.[/dim]\n")
     try:
         with Live(console=console, refresh_per_second=1, screen=False) as live:
             while True:
