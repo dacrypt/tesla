@@ -27,9 +27,20 @@ def get_vehicle_backend(config: Config):
             raise AuthenticationError("Fleet API not configured. Run: tesla config auth fleet")
         return FleetBackend(access_token=token, region=config.fleet.region)
 
+    elif config.general.backend == "owner":
+        from tesla_cli.auth.tokens import ORDER_REFRESH_TOKEN, get_token
+        from tesla_cli.backends.owner import OwnerApiVehicleBackend
+        from tesla_cli.exceptions import AuthenticationError
+
+        if not get_token(ORDER_REFRESH_TOKEN):
+            raise AuthenticationError(
+                "Owner API not configured. Run: tesla config auth order"
+            )
+        return OwnerApiVehicleBackend()
+
     else:
         from tesla_cli.exceptions import ConfigurationError
 
         raise ConfigurationError(
-            f"Unknown backend: {config.general.backend}. Use 'tessie' or 'fleet'."
+            f"Unknown backend: {config.general.backend}. Use 'owner', 'tessie', or 'fleet'."
         )

@@ -22,7 +22,7 @@ CONFIG_FILE = CONFIG_DIR / "config.toml"
 
 class GeneralConfig(BaseModel):
     default_vin: str = ""
-    backend: str = "tessie"  # "tessie" | "fleet"
+    backend: str = "owner"  # "owner" | "tessie" | "fleet"
 
 
 class OrderConfig(BaseModel):

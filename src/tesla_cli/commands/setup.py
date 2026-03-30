@@ -149,40 +149,49 @@ def setup_wizard(
 
     console.print()
 
-    # ── Step 3: Vehicle control (optional) ─────────────────────────────────────
+    # ── Step 3: Vehicle control ─────────────────────────────────────────────────
     console.print(Panel.fit(
-        "[bold]Step 3 / 4[/bold] — Vehicle Control [dim](optional)[/dim]\n\n"
-        "[dim]Only needed for live commands: lock, climate, charge control, etc.\n"
-        "Order tracking and dossier work without this.[/dim]",
+        "[bold]Step 3 / 4[/bold] — Vehicle Control\n\n"
+        "  [bold green]owner[/bold green]   Free — uses your existing Tesla account token (recommended)\n"
+        "  [dim]tessie  Paid proxy service (tessie.com, ~$10/month)[/dim]\n"
+        "  [dim]fleet   Tesla developer API (requires app registration)[/dim]",
         border_style="blue",
     ))
     console.print()
 
+    cfg = load_config()
+    already_owner = cfg.general.backend == "owner" and tokens.has_token(tokens.ORDER_REFRESH_TOKEN)
     tessie_ok = tokens.has_token(tokens.TESSIE_TOKEN)
     fleet_ok = tokens.has_token(tokens.FLEET_ACCESS_TOKEN)
-    if (tessie_ok or fleet_ok) and not force:
-        backend_name = "tessie" if tessie_ok else "fleet"
+
+    if (already_owner or tessie_ok or fleet_ok) and not force:
+        backend_name = cfg.general.backend if already_owner else ("tessie" if tessie_ok else "fleet")
         console.print(f"[green]✓ Vehicle backend already configured ({backend_name}) — skipping.[/green]")
     else:
         choice = Prompt.ask(
-            "Configure vehicle backend",
-            choices=["tessie", "fleet", "skip"],
-            default="skip",
+            "Vehicle backend",
+            choices=["owner", "tessie", "fleet", "skip"],
+            default="owner",
         )
-        if choice == "tessie":
+        if choice == "owner":
+            # Owner API uses the order tracking token — already set up in Step 1
+            cfg.general.backend = "owner"
+            save_config(cfg)
+            console.print("[green]✓ Vehicle backend set to 'owner' — no extra setup needed.[/green]")
+        elif choice == "tessie":
             try:
                 from tesla_cli.commands.config_cmd import _auth_tessie
                 _auth_tessie()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
-                console.print("[yellow]Skipping vehicle backend — configure later with[/yellow] [bold]tesla config auth tessie[/bold]")
+                console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth tessie[/bold]")
         elif choice == "fleet":
             try:
                 from tesla_cli.commands.config_cmd import _auth_fleet
                 _auth_fleet()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
-                console.print("[yellow]Skipping vehicle backend — configure later with[/yellow] [bold]tesla config auth fleet[/bold]")
+                console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth fleet[/bold]")
         else:
-            console.print("[dim]Skipped — run [bold]tesla config auth tessie[/bold] when ready.[/dim]")
+            console.print("[dim]Skipped — run [bold]tesla config set backend owner[/bold] when ready.[/dim]")
 
     console.print()
 

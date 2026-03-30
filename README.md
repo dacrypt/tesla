@@ -143,14 +143,27 @@ apprise_urls = [
 
 ### Available backends
 
-| Backend | Pros | Cons |
-|---------|------|------|
-| **Tessie** (recommended) | Easy setup, stable API, auto-wake | Third-party service, monthly cost |
-| **Fleet API** | Direct with Tesla, free* | Complex setup, requires registered app |
+| Backend | Setup | Cost | Notes |
+|---------|-------|------|-------|
+| **Owner API** (recommended) | Zero — reuses your Tesla account token | Free | Same credentials as order tracking |
+| **Tessie** | Tessie account + API token | ~$10/month | Third-party proxy |
+| **Fleet API** | Register app at developer.tesla.com | Free* | Requires public domain for OAuth callback |
 
 *Fleet API is free up to a certain volume; then charges per request.
 
-### Option A: Tessie (recommended)
+### Option A: Owner API (recommended, free)
+
+No extra setup — uses the same token from `tesla setup` / `tesla config auth order`.
+
+```bash
+tesla config set backend owner
+```
+
+That's it. The Owner API (`owner-api.teslamotors.com`) is the same endpoint used by TeslaPy,
+TeslaMate, and other community projects. Tesla has soft-deprecated it in favour of the Fleet API
+but it continues to work for personal use.
+
+### Option B: Tessie
 
 1. Create account at [tessie.com](https://tessie.com) and link your Tesla
 2. Go to [my.tessie.com/settings/api](https://my.tessie.com/settings/api) and copy your token
@@ -158,10 +171,9 @@ apprise_urls = [
 
 ```bash
 tesla config auth tessie
-# Paste your token when prompted
 ```
 
-### Option B: Fleet API direct
+### Option C: Fleet API direct
 
 1. Register app at [developer.tesla.com](https://developer.tesla.com)
 2. Configure:
@@ -169,7 +181,6 @@ tesla config auth tessie
 ```bash
 tesla config set client-id YOUR_CLIENT_ID
 tesla config auth fleet
-# Browser opens for OAuth
 ```
 
 ### Commands
@@ -326,7 +337,7 @@ tesla -j order status > ~/tesla-order-$(date +%Y%m%d).json
 | Key | Description | Values |
 |-----|-------------|--------|
 | `default-vin` | Default vehicle VIN | `YOUR_VIN_HERE` |
-| `backend` | Vehicle backend | `tessie`, `fleet` |
+| `backend` | Vehicle backend | `owner`, `tessie`, `fleet` |
 | `reservation-number` | Order number | `RNXXXXXXXXX` |
 | `region` | Fleet API region | `na`, `eu`, `cn` |
 | `client-id` | Fleet API client ID | (your app ID) |
