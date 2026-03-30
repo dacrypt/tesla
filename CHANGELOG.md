@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-30
+
+### Added
+
+- **`tesla setup` wizard** — single command onboarding: OAuth2 auth, auto-discovers VIN and
+  reservation number from the Tesla API, optional vehicle backend setup, builds first dossier
+- **Owner API vehicle backend** — free vehicle control with zero extra setup; reuses the
+  existing order-tracking token (`owner-api.teslamotors.com`), same API used by TeslaPy and
+  TeslaMate; no developer app registration or third-party service required
+  (`tesla config set backend owner`)
+
+### Changed
+
+- Default vehicle backend changed from `tessie` to `owner`
+- `tesla setup` Step 3 now presents `owner` as the recommended free option
+
+---
+
 ## [0.1.0] - 2026-03-29
 
 ### Added
