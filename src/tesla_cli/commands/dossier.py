@@ -1207,6 +1207,121 @@ def dossier_gates() -> None:
         console.print("[yellow]No dossier found. Run: tesla dossier build for real data.[/yellow]")
 
 
+@dossier_app.command("estimate")
+def dossier_estimate() -> None:
+    """Estimate delivery date based on current phase and community timing data.
+
+    tesla dossier estimate
+    tesla -j dossier estimate | jq .estimated_delivery_range
+    """
+    import json as _json
+    from datetime import UTC, datetime, timedelta
+
+    from rich.panel import Panel
+
+    # Community-sourced avg calendar days remaining until delivery, by phase.
+    # Format: phase → (optimistic_days, typical_days, conservative_days, note)
+    PHASE_ESTIMATES: dict[str, tuple[int, int, int, str]] = {
+        "ordered":              (45,  120, 240, "Highly variable — depends on allocation, market, and model"),
+        "produced":             (20,   35,  55, "Vehicle built, waiting for transport slot"),
+        "shipped":              (12,   22,  35, "On a carrier ship — varies by origin port and route"),
+        "in_country":           ( 5,   12,  21, "Cleared customs, in local logistics"),
+        "registered":           ( 3,    7,  14, "Registration in progress, delivery center prep"),
+        "delivery_scheduled":   ( 0,    2,   5, "Delivery appointment set"),
+        "delivered":            ( 0,    0,   0, "Already delivered 🎉"),
+    }
+
+    backend = DossierBackend()
+    dossier = backend._load_dossier()
+
+    phase = dossier.real_status.phase if dossier else "ordered"
+
+    estimates = PHASE_ESTIMATES.get(phase, PHASE_ESTIMATES["ordered"])
+    optimistic, typical, conservative, note = estimates
+
+    now = datetime.now(tz=UTC).replace(tzinfo=None)
+    opt_date = now + timedelta(days=optimistic)
+    typ_date = now + timedelta(days=typical)
+    con_date = now + timedelta(days=conservative)
+
+    confirmed_delivery = ""
+    if dossier and dossier.real_status.delivery_date:
+        confirmed_delivery = str(dossier.real_status.delivery_date)[:10]
+
+    result = {
+        "current_phase": phase,
+        "optimistic_days": optimistic,
+        "typical_days": typical,
+        "conservative_days": conservative,
+        "estimated_delivery_range": {
+            "optimistic":    opt_date.strftime("%Y-%m-%d"),
+            "typical":       typ_date.strftime("%Y-%m-%d"),
+            "conservative":  con_date.strftime("%Y-%m-%d"),
+        },
+        "confirmed_delivery_date": confirmed_delivery or None,
+        "note": note,
+        "data_source": "community-sourced estimates — actual dates vary",
+    }
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, indent=2))
+        return
+
+    phase_label = phase.replace("_", " ").title()
+
+    # If already delivered
+    if phase == "delivered":
+        console.print(Panel.fit(
+            "[bold green]🎉 Delivered![/bold green]\n\n"
+            "Your vehicle has been delivered.\n"
+            "Run [bold]tesla dossier show[/bold] for full details.",
+            border_style="green",
+        ))
+        return
+
+    if confirmed_delivery:
+        console.print()
+        console.print(Panel(
+            f"[bold green]📅 Confirmed delivery date: {confirmed_delivery}[/bold green]\n"
+            f"[dim]Phase: {phase_label} · Set with: tesla dossier set-delivery {confirmed_delivery}[/dim]",
+            title="[bold]Delivery Estimate[/bold]",
+            border_style="green",
+        ))
+        return
+
+    # Phase progress bar  (7 phases)
+    PHASE_ORDER = ["ordered", "produced", "shipped", "in_country", "registered", "delivery_scheduled", "delivered"]
+    phase_idx = PHASE_ORDER.index(phase) if phase in PHASE_ORDER else 0
+    progress_bar = ""
+    for i, _p in enumerate(PHASE_ORDER):
+        if i < phase_idx:
+            progress_bar += "[dim]●[/dim]"
+        elif i == phase_idx:
+            progress_bar += "[bold cyan]●[/bold cyan]"
+        else:
+            progress_bar += "[dim]○[/dim]"
+
+    body = (
+        f"Phase:  [bold cyan]{phase_label}[/bold cyan]  {progress_bar}\n\n"
+        f"  Optimistic:    [green]{opt_date.strftime('%Y-%m-%d')}[/green]  [dim](+{optimistic}d)[/dim]\n"
+        f"  Typical:       [yellow]{typ_date.strftime('%Y-%m-%d')}[/yellow]  [dim](+{typical}d)[/dim]\n"
+        f"  Conservative:  [red]{con_date.strftime('%Y-%m-%d')}[/red]  [dim](+{conservative}d)[/dim]\n\n"
+        f"[dim]{note}[/dim]\n\n"
+        "[dim]Set confirmed date: [bold]tesla dossier set-delivery YYYY-MM-DD[/bold][/dim]"
+    )
+
+    console.print()
+    console.print(Panel(
+        body,
+        title="[bold]📅 Delivery Estimate[/bold]",
+        border_style="cyan",
+        subtitle="[dim]community-sourced data — varies by market[/dim]",
+    ))
+
+    if not dossier:
+        console.print("\n[yellow]No dossier found — estimates based on 'ordered' phase. Run: tesla dossier build[/yellow]")
+
+
 # ── Helpers ──
 
 
