@@ -633,3 +633,194 @@ def order_stores(
     console.print()
     console.print(t)
     console.print(f"\n  [dim]{len(_STORES)} total locations in database[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# ETA estimation — typical phase durations (community-sourced, conservative)
+# Values are (best_days, typical_days, worst_days) after entering each phase.
+# ---------------------------------------------------------------------------
+_PHASE_DURATIONS: dict[str, tuple[int, int, int]] = {
+    "ordered":              (30,  60, 180),   # factory queue
+    "produced":             ( 7,  21,  45),   # pre-shipment inspection
+    "shipped":              (25,  40,  60),   # ocean freight
+    "in_country":           ( 7,  21,  45),   # customs + domestic transit
+    "registered":           ( 3,  10,  21),   # RUNT/SIMIT registration + delivery prep
+    "delivery_scheduled":   ( 1,   5,  14),   # final delivery logistics
+    "delivered":            ( 0,   0,   0),
+}
+
+_PHASE_LABELS = {
+    "ordered":            "Waiting in factory queue",
+    "produced":           "Produced — pre-shipment inspection",
+    "shipped":            "On the ocean",
+    "in_country":         "Arrived — customs / inland transit",
+    "registered":         "Registered — delivery prep",
+    "delivery_scheduled": "Delivery scheduled",
+    "delivered":          "Delivered",
+}
+
+_PHASE_ORDER = list(_PHASE_DURATIONS.keys())
+
+
+@order_app.command("eta")
+def order_eta() -> None:
+    """Estimate delivery ETA based on current order phase and community data.
+
+    Shows best-case / typical / worst-case windows for each remaining phase,
+    with a total estimated range from today.
+
+    tesla order eta
+    tesla -j order eta
+    """
+    import json as _json
+    from datetime import date, timedelta
+
+    # ── Load current phase from latest dossier snapshot ─────────────────────
+    phase = "ordered"
+    phase_since: str | None = None
+
+    try:
+        import json as _j
+
+        from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+        if SNAPSHOTS_DIR.exists():
+            snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+            if snaps:
+                snap = _j.loads(snaps[-1].read_text())
+                rs = snap.get("real_status") or {}
+                phase = rs.get("phase") or "ordered"
+                phase_since = rs.get("phase_since") or rs.get("last_updated") or None
+    except Exception:
+        pass
+
+    # Fallback: load from live Tesla API
+    if phase == "ordered":
+        try:
+            cfg = load_config()
+            rn = cfg.order.reservation_number
+            if rn:
+                from tesla_cli.backends.order import OrderBackend
+                status = OrderBackend().get_order_status(rn)
+                raw_phase = (getattr(status, "order_status", None) or "").lower()
+                # Map Tesla order status → our phase vocabulary
+                if "complet" in raw_phase or "deliver" in raw_phase:
+                    phase = "delivered"
+                elif "payment" in raw_phase or "schedule" in raw_phase:
+                    phase = "delivery_scheduled"
+                elif "transit" in raw_phase or "in_country" in raw_phase:
+                    phase = "in_country"
+                elif "ship" in raw_phase:
+                    phase = "shipped"
+                elif "produc" in raw_phase or "manufactur" in raw_phase:
+                    phase = "produced"
+        except Exception:
+            pass
+
+    today = date.today()
+    phase_norm = phase.lower().replace(" ", "_")
+    if phase_norm not in _PHASE_DURATIONS:
+        phase_norm = "ordered"
+
+    # Compute cumulative remaining days for each remaining phase
+    start_idx = _PHASE_ORDER.index(phase_norm) if phase_norm in _PHASE_ORDER else 0
+    remaining_phases = _PHASE_ORDER[start_idx:]
+
+    total_best     = sum(_PHASE_DURATIONS[p][0] for p in remaining_phases)
+    total_typical  = sum(_PHASE_DURATIONS[p][1] for p in remaining_phases)
+    total_worst    = sum(_PHASE_DURATIONS[p][2] for p in remaining_phases)
+
+    eta_best    = today + timedelta(days=total_best)
+    eta_typical = today + timedelta(days=total_typical)
+    eta_worst   = today + timedelta(days=total_worst)
+
+    # Build per-phase breakdown
+    breakdown: list[dict] = []
+    running_best    = 0
+    running_typical = 0
+    running_worst   = 0
+    for p in _PHASE_ORDER:
+        b, t, w = _PHASE_DURATIONS[p]
+        is_current = (p == phase_norm)
+        is_past    = (_PHASE_ORDER.index(p) < start_idx)
+        running_best    += b
+        running_typical += t
+        running_worst   += w
+        breakdown.append({
+            "phase":        p,
+            "label":        _PHASE_LABELS.get(p, p),
+            "status":       "past" if is_past else "current" if is_current else "future",
+            "best_days":    b,
+            "typical_days": t,
+            "worst_days":   w,
+        })
+
+    result = {
+        "current_phase":    phase_norm,
+        "phase_since":      phase_since,
+        "today":            str(today),
+        "eta_best":         str(eta_best),
+        "eta_typical":      str(eta_typical),
+        "eta_worst":        str(eta_worst),
+        "total_days_best":  total_best,
+        "total_days_typical": total_typical,
+        "total_days_worst": total_worst,
+        "breakdown":        breakdown,
+        "note": "Estimates based on community-reported delivery patterns. Actual times vary significantly.",
+    }
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, indent=2))
+        return
+
+    from rich.panel import Panel
+    from rich.table import Table
+
+    # Header panel
+    phase_label = _PHASE_LABELS.get(phase_norm, phase_norm)
+    ph_color = {
+        "ordered": "dim", "produced": "yellow", "shipped": "blue",
+        "in_country": "cyan", "registered": "green",
+        "delivery_scheduled": "bold green", "delivered": "bold green",
+    }.get(phase_norm, "white")
+
+    console.print()
+    console.print(Panel(
+        f"  Current phase: [{ph_color}][bold]{phase_label}[/bold][/{ph_color}]\n"
+        f"  [dim]Phase since:[/dim]  {phase_since or '(unknown)'}\n\n"
+        f"  [bold green]Best case:[/bold green]    {eta_best}  [dim](+{total_best} days)[/dim]\n"
+        f"  [bold yellow]Typical:[/bold yellow]      {eta_typical}  [dim](+{total_typical} days)[/dim]\n"
+        f"  [bold red]Worst case:[/bold red]   {eta_worst}  [dim](+{total_worst} days)[/dim]",
+        title="[bold]Delivery ETA Estimate[/bold]",
+        border_style="cyan",
+    ))
+
+    # Phase breakdown table
+    t = Table(show_header=True, header_style="bold dim", box=None, padding=(0, 2))
+    t.add_column("Phase",   width=22)
+    t.add_column("Status",  width=10)
+    t.add_column("Best",    width=7, justify="right")
+    t.add_column("Typical", width=9, justify="right")
+    t.add_column("Worst",   width=7, justify="right")
+
+    for row in breakdown:
+        st = row["status"]
+        if st == "past":
+            style = "dim"
+            status_str = "[dim]✓ done[/dim]"
+        elif st == "current":
+            style = "bold"
+            status_str = f"[{ph_color}]◀ now[/{ph_color}]"
+        else:
+            style = "dim"
+            status_str = "[dim]pending[/dim]"
+
+        t.add_row(
+            f"[{style}]{row['label']}[/{style}]",
+            status_str,
+            f"[dim]{row['best_days']}d[/dim]",
+            f"[dim]{row['typical_days']}d[/dim]",
+            f"[dim]{row['worst_days']}d[/dim]",
+        )
+
+    console.print(t)
+    console.print(f"\n  [dim]{result['note']}[/dim]\n")

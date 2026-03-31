@@ -315,6 +315,24 @@ class TeslaMateBacked:
             "charging": charge_row,
         }
 
+    def get_daily_energy(self, days: int = 30) -> list[dict[str, Any]]:
+        """Per-day kWh added from charging sessions over the last N days."""
+        sql = """
+            SELECT
+                DATE(cp.start_date)                             AS day,
+                ROUND(SUM(cp.charge_energy_added)::numeric, 1) AS kwh_added,
+                COUNT(*)                                        AS sessions,
+                ROUND(SUM(cp.cost)::numeric, 2)                 AS total_cost
+            FROM charging_processes cp
+            WHERE cp.car_id = %s
+              AND cp.start_date >= NOW() - (%s || ' days')::interval
+            GROUP BY DATE(cp.start_date)
+            ORDER BY day ASC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, str(days)))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

@@ -5130,3 +5130,259 @@ class TestVehicleCabinProtection:
     def test_cabin_protection_in_help(self):
         result = _run("vehicle", "--help")
         assert "cabin-protection" in result.output
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.9.0 — teslaMate daily-chart, order eta, config doctor
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ── teslaMate daily-chart ────────────────────────────────────────────────────
+
+
+MOCK_DAILY_ENERGY = [
+    {"day": "2026-03-01", "kwh_added": 42.1, "sessions": 1, "total_cost": 8.42},
+    {"day": "2026-03-05", "kwh_added": 8.5,  "sessions": 2, "total_cost": 1.70},
+    {"day": "2026-03-10", "kwh_added": 0.0,  "sessions": 1, "total_cost": None},
+]
+
+
+class TestTeslaMateDailyChart:
+    """Tests for tesla teslaMate daily-chart."""
+
+    def _patched(self, rows=None):
+        if rows is None:
+            rows = MOCK_DAILY_ENERGY
+        mock_backend = MagicMock()
+        mock_backend.get_daily_energy.return_value = rows
+        return patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend)
+
+    def test_daily_chart_renders_bars(self):
+        with self._patched():
+            result = _run("teslaMate", "daily-chart")
+        assert result.exit_code == 0
+        assert "█" in result.output
+        assert "kWh" in result.output
+
+    def test_daily_chart_shows_date(self):
+        with self._patched():
+            result = _run("teslaMate", "daily-chart")
+        assert "2026-03-01" in result.output
+
+    def test_daily_chart_json(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "daily-chart")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["kwh_added"] == 42.1
+
+    def test_daily_chart_empty(self):
+        with self._patched(rows=[]):
+            result = _run("teslaMate", "daily-chart")
+        assert result.exit_code == 0
+        assert "No charging data" in result.output
+
+    def test_daily_chart_zero_kwh_no_crash(self):
+        with self._patched(rows=[MOCK_DAILY_ENERGY[2]]):
+            result = _run("teslaMate", "daily-chart")
+        assert result.exit_code == 0
+
+    def test_daily_chart_days_flag(self):
+        mock_backend = MagicMock()
+        mock_backend.get_daily_energy.return_value = MOCK_DAILY_ENERGY
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend):
+            result = _run("teslaMate", "daily-chart", "--days", "60")
+        assert result.exit_code == 0
+        mock_backend.get_daily_energy.assert_called_once_with(days=60)
+
+    def test_daily_chart_footer_totals(self):
+        with self._patched():
+            result = _run("teslaMate", "daily-chart")
+        assert "total" in result.output.lower() or "kWh" in result.output
+
+    def test_daily_chart_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "daily-chart" in result.output
+
+
+# ── order eta ─────────────────────────────────────────────────────────────────
+
+
+class TestOrderEta:
+    """Tests for tesla order eta."""
+
+    def test_eta_renders(self):
+        with (
+            patch("tesla_cli.commands.order.load_config") as mock_lc,
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR") as mock_dir,
+        ):
+            mock_lc.return_value.order.reservation_number = ""
+            mock_dir.exists.return_value = False
+            result = _run("order", "eta")
+        assert result.exit_code == 0
+        assert "ETA" in result.output or "estimate" in result.output.lower() or "Best" in result.output
+
+    def test_eta_json_structure(self):
+        with (
+            patch("tesla_cli.commands.order.load_config") as mock_lc,
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR") as mock_dir,
+        ):
+            mock_lc.return_value.order.reservation_number = ""
+            mock_dir.exists.return_value = False
+            result = _run("-j", "order", "eta")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "current_phase" in data
+        assert "eta_best" in data
+        assert "eta_typical" in data
+        assert "eta_worst" in data
+        assert "breakdown" in data
+
+    def test_eta_json_eta_worst_after_typical(self):
+        with (
+            patch("tesla_cli.commands.order.load_config") as mock_lc,
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR") as mock_dir,
+        ):
+            mock_lc.return_value.order.reservation_number = ""
+            mock_dir.exists.return_value = False
+            result = _run("-j", "order", "eta")
+        data = json.loads(result.output)
+        from datetime import date
+        best    = date.fromisoformat(data["eta_best"])
+        typical = date.fromisoformat(data["eta_typical"])
+        worst   = date.fromisoformat(data["eta_worst"])
+        assert best <= typical <= worst
+
+    def test_eta_json_breakdown_has_all_phases(self):
+        with (
+            patch("tesla_cli.commands.order.load_config") as mock_lc,
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR") as mock_dir,
+        ):
+            mock_lc.return_value.order.reservation_number = ""
+            mock_dir.exists.return_value = False
+            result = _run("-j", "order", "eta")
+        data = json.loads(result.output)
+        phases = [r["phase"] for r in data["breakdown"]]
+        assert "ordered" in phases
+        assert "shipped" in phases
+        assert "delivered" in phases
+
+    def test_eta_json_delivered_phase_zero_days(self):
+        """When phase is 'delivered', all remaining days should be 0."""
+        with (
+            patch("tesla_cli.commands.order.load_config") as mock_lc,
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR") as mock_dir,
+        ):
+            mock_lc.return_value.order.reservation_number = ""
+            # Simulate delivered snapshot
+            import json as _j
+            snap = {"real_status": {"phase": "delivered", "phase_since": "2026-03-28"}}
+            mock_dir.exists.return_value = True
+            mock_dir.glob.return_value = [MagicMock(read_text=lambda: _j.dumps(snap))]
+            result = _run("-j", "order", "eta")
+        data = json.loads(result.output)
+        assert data["total_days_best"] == 0
+        assert data["total_days_typical"] == 0
+
+    def test_eta_in_help(self):
+        result = _run("order", "--help")
+        assert "eta" in result.output
+
+
+# ── config doctor ─────────────────────────────────────────────────────────────
+
+
+class TestConfigDoctor:
+    """Tests for tesla config doctor."""
+
+    def _base_cfg(self, vin=MOCK_VIN, rn="RN126460939", backend="fleet"):
+        cfg = MagicMock()
+        cfg.general.default_vin = vin
+        cfg.general.backend = backend
+        cfg.order.reservation_number = rn
+        cfg.teslaMate.database_url = ""
+        cfg.teslaMate.car_id = 1
+        return cfg
+
+    def test_doctor_all_ok(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=True),
+        ):
+            result = _run("config", "doctor")
+        assert result.exit_code == 0
+        assert "ok" in result.output.lower() or "✅" in result.output
+
+    def test_doctor_json_structure(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=True),
+        ):
+            result = _run("-j", "config", "doctor")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "ok" in data
+        assert "warn" in data
+        assert "fail" in data
+        assert "checks" in data
+        assert isinstance(data["checks"], list)
+
+    def test_doctor_json_check_keys(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=True),
+        ):
+            result = _run("-j", "config", "doctor")
+        data = json.loads(result.output)
+        for c in data["checks"]:
+            assert "name" in c
+            assert "status" in c
+            assert "detail" in c
+
+    def test_doctor_no_vin_is_warn(self):
+        cfg = self._base_cfg(vin="")
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=True),
+        ):
+            result = _run("-j", "config", "doctor")
+        data = json.loads(result.output)
+        vin_check = next((c for c in data["checks"] if "VIN" in c["name"]), None)
+        assert vin_check is not None
+        assert vin_check["status"] == "warn"
+
+    def test_doctor_no_token_is_fail(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=False),
+        ):
+            result = _run("-j", "config", "doctor")
+        data = json.loads(result.output)
+        # At least one fail (order auth token)
+        assert data["fail"] >= 1
+
+    def test_doctor_fail_exits_1(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=False),
+        ):
+            result = _run("config", "doctor")
+        assert result.exit_code == 1
+
+    def test_doctor_shows_fix_hint(self):
+        cfg = self._base_cfg()
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.auth.tokens.has_token", return_value=False),
+        ):
+            result = _run("config", "doctor")
+        assert "config auth" in result.output or "tesla config" in result.output
+
+    def test_doctor_in_help(self):
+        result = _run("config", "--help")
+        assert "doctor" in result.output
