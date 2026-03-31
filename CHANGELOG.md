@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-03-30
+
+### Added
+
+- **`tesla dossier export-pdf`** — generate a full formatted PDF report from the latest dossier snapshot; sections: Vehicle Identity, Battery/Charging, Order Status, NHTSA Recalls, Snapshot History; dark header bar, grey section dividers, footer; install with `uv pip install fpdf2`
+- **`tesla config backup`** — export full configuration to a JSON file; all token/secret/key/password fields automatically redacted; includes `_meta` version block
+- **`tesla config restore FILE`** — restore configuration from a JSON backup; skips `[REDACTED]` entries; prompts for confirmation (bypass with `--force`)
+- **`tesla teslaMate report`** — monthly driving + charging summary from TeslaMate DB; trips, total km, avg efficiency (Wh/km), sessions, total kWh, total cost, DC fast vs AC session breakdown; `--month YYYY-MM` (default: current month); full JSON mode
+- **`tesla vehicle sentry-events`** — filter recent vehicle alerts to sentry-triggered events (detection, camera, tampering); `--limit N`; Fleet API only with graceful `BackendNotSupportedError` on other backends; full JSON mode
+
+### Dependencies
+
+- `fpdf2>=2.7` added as optional dependency (`uv pip install tesla-cli[pdf]`)
+
+### Tests
+
+- 413 unit tests passing, 2 skipped (fpdf2 optional dep), ruff clean
+
+---
+
 ## [1.4.0] - 2026-03-30
 
 ### Added
