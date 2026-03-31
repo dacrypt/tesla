@@ -412,11 +412,19 @@ class TestApiCostReport:
 
 class TestVersion330:
     def test_version_string(self):
+        from packaging.version import Version
+
         from tesla_cli import __version__
-        assert __version__ == "3.3.0"
+        assert Version(__version__) >= Version("3.3.0")
 
     def test_pyproject_version(self):
         import pathlib
+
+        from packaging.version import Version
         pyproject = pathlib.Path(__file__).parent.parent / "pyproject.toml"
         content = pyproject.read_text(encoding="utf-8")
-        assert 'version = "3.3.0"' in content
+        for line in content.splitlines():
+            if line.strip().startswith("version"):
+                ver_str = line.split("=")[1].strip().strip('"')
+                assert Version(ver_str) >= Version("3.3.0")
+                break

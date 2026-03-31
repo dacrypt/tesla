@@ -1701,3 +1701,117 @@ def vehicle_schedule_update(
     else:
         console.print("[red]Failed to schedule software update.[/red]")
         raise typer.Exit(1)
+
+
+@vehicle_app.command("health-check")
+def vehicle_health_check(vin: str | None = VinOption) -> None:
+    """Comprehensive vehicle health summary: battery, firmware, tyres, alerts, sentry.
+
+    \b
+    tesla vehicle health-check
+    tesla -j vehicle health-check
+    """
+    import json as _json
+
+    cfg = load_config()
+    v   = resolve_vin(cfg, vin)
+    b   = get_vehicle_backend(cfg)
+
+    results: dict = {"vin": v, "checks": []}
+
+    def _check(name: str, status: str, value: str, detail: str = "") -> None:
+        results["checks"].append({"name": name, "status": status, "value": value, "detail": detail})
+
+    # Fetch all states in one call
+    try:
+        data = b.get_vehicle_data(v)
+    except VehicleAsleepError:
+        console.print("[yellow]Vehicle is asleep — wake it first.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as exc:
+        console.print(f"[red]Failed to fetch vehicle data:[/red] {exc}")
+        raise typer.Exit(1)
+
+    cs = data.get("charge_state") or {}
+    vs = data.get("vehicle_state") or {}
+
+    # Battery
+    level = cs.get("battery_level")
+    if level is not None:
+        st = "ok" if level >= 20 else "warn" if level >= 10 else "error"
+        _check("Battery level", st, f"{level}%")
+    else:
+        _check("Battery level", "unknown", "—")
+
+    # Charge limit
+    limit = cs.get("charge_limit_soc")
+    if limit is not None:
+        st = "ok" if 70 <= limit <= 90 else "warn"
+        _check("Charge limit", st, f"{limit}%",
+               "" if 70 <= (limit or 0) <= 90 else "Limit outside 70–90% range")
+
+    # Firmware
+    sw = vs.get("car_version") or "—"
+    pending = vs.get("software_update", {})
+    has_update = bool(pending.get("status") not in (None, "", "available") and pending.get("version"))
+    sw_status = "warn" if has_update else "ok"
+    sw_detail = f"Update available: {pending.get('version', '')}" if has_update else ""
+    _check("Firmware", sw_status, sw, sw_detail)
+
+    # Tyre pressure
+    tpms = {
+        "FL": vs.get("tpms_pressure_fl"),
+        "FR": vs.get("tpms_pressure_fr"),
+        "RL": vs.get("tpms_pressure_rl"),
+        "RR": vs.get("tpms_pressure_rr"),
+    }
+    low = [k for k, v_p in tpms.items() if v_p is not None and float(v_p) < 2.4]
+    tyre_vals = {k: f"{float(v_p):.2f}" for k, v_p in tpms.items() if v_p is not None}
+    if not tyre_vals:
+        _check("Tyre pressure", "unknown", "—", "TPMS data unavailable")
+    elif low:
+        _check("Tyre pressure", "warn", ", ".join(f"{k}:{tyre_vals.get(k,'?')}bar" for k in sorted(tyre_vals)),
+               f"Low: {', '.join(low)}")
+    else:
+        _check("Tyre pressure", "ok", ", ".join(f"{k}:{tyre_vals[k]}" for k in sorted(tyre_vals)))
+
+    # Locks
+    locked = vs.get("locked")
+    if locked is not None:
+        _check("Doors locked", "ok" if locked else "warn", "Yes" if locked else "No")
+
+    # Sentry
+    sentry = vs.get("sentry_mode")
+    if sentry is not None:
+        _check("Sentry mode", "ok", "On" if sentry else "Off")
+
+    # Odometer
+    odo = vs.get("odometer")
+    if odo is not None:
+        _check("Odometer", "ok", f"{float(odo):.0f} mi")
+
+    if is_json_mode():
+        console.print(_json.dumps(results, indent=2))
+        return
+
+    _ICON = {"ok": "[green]✓[/green]", "warn": "[yellow]⚠[/yellow]", "error": "[red]✗[/red]", "unknown": "[dim]?[/dim]"}
+    from rich.table import Table as _Table
+    t = _Table(title=f"Vehicle Health — {v[-6:]}", show_header=False, box=None, padding=(0, 2))
+    t.add_column("s",  width=3)
+    t.add_column("k",  style="bold", width=18)
+    t.add_column("v",  width=30)
+    t.add_column("d",  style="dim")
+
+    for c in results["checks"]:
+        icon = _ICON.get(c["status"], "?")
+        t.add_row(icon, c["name"], c["value"], c.get("detail") or "")
+    console.print(t)
+
+    errors   = sum(1 for c in results["checks"] if c["status"] == "error")
+    warnings = sum(1 for c in results["checks"] if c["status"] == "warn")
+    if errors:
+        console.print(f"\n  [red]✗ {errors} issue(s) need attention[/red]")
+    elif warnings:
+        console.print(f"\n  [yellow]⚠ {warnings} item(s) to review[/yellow]")
+    else:
+        console.print("\n  [green]✓ All checks passed[/green]")
