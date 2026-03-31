@@ -513,9 +513,15 @@ def vehicle_alerts(
 
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
-        p.add_task("Fetching recent alerts...", total=None)
-        data = _with_wake(lambda b, v: b.get_recent_alerts(v), v)
+    from tesla_cli.exceptions import BackendNotSupportedError
+
+    try:
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+            p.add_task("Fetching recent alerts...", total=None)
+            data = _with_wake(lambda b, v: b.get_recent_alerts(v), v)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
 
     alerts = data if isinstance(data, list) else data.get("recent_alerts", [])
 
@@ -563,9 +569,15 @@ def vehicle_release_notes(
 
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
-        p.add_task("Fetching release notes...", total=None)
-        data = _with_wake(lambda b, v: b.get_release_notes(v), v)
+    from tesla_cli.exceptions import BackendNotSupportedError
+
+    try:
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+            p.add_task("Fetching release notes...", total=None)
+            data = _with_wake(lambda b, v: b.get_release_notes(v), v)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
 
     notes = data if isinstance(data, list) else data.get("release_notes", [])
 

@@ -63,9 +63,49 @@ class TessieBackend(VehicleBackend):
         data = self.get_vehicle_data(vin)
         return data.get("vehicle_config", data)
 
+    def get_vehicle_state(self, vin: str) -> dict[str, Any]:
+        data = self.get_vehicle_data(vin)
+        return data.get("vehicle_state", {})
+
+    def get_service_data(self, vin: str) -> dict[str, Any]:
+        # Tessie returns service data inside the full state blob
+        data = self.get_vehicle_data(vin)
+        return data.get("service_data", {})
+
+    def get_nearby_charging_sites(self, vin: str) -> dict[str, Any]:
+        return self._get(f"/{vin}/nearby_charging_sites")
+
     def wake_up(self, vin: str) -> bool:
         data = self._post(f"/{vin}/wake")
         return data.get("result", False)
 
     def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
         return self._post(f"/{vin}/command/{command}", **params)
+
+    # Fleet-only methods — override to give Tessie-specific message
+    def get_release_notes(self, vin: str) -> dict[str, Any]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError("vehicle release-notes", "fleet")
+
+    def get_recent_alerts(self, vin: str) -> dict[str, Any]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError("vehicle alerts", "fleet")
+
+    def get_charge_history(self) -> dict[str, Any]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError(
+            "charge history",
+            "fleet  (or use `tesla teslaMate charging` if you have TeslaMate)"
+        )
+
+    def get_invitations(self, vin: str) -> list[dict[str, Any]]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError("sharing list", "fleet")
+
+    def create_invitation(self, vin: str) -> dict[str, Any]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError("sharing invite", "fleet")
+
+    def revoke_invitation(self, vin: str, invitation_id: str) -> dict[str, Any]:
+        from tesla_cli.exceptions import BackendNotSupportedError
+        raise BackendNotSupportedError("sharing revoke", "fleet")

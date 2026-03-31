@@ -34,3 +34,20 @@ class RateLimitError(ApiError):
 
 class OrderNotFoundError(TeslaCliError):
     """Order RN not found or API endpoint broken."""
+
+
+class BackendNotSupportedError(TeslaCliError):
+    """Feature not available on the current vehicle backend.
+
+    Raised by default base-class implementations of Fleet-only methods
+    when called on backends that don't support them (Owner API, Tessie).
+    """
+
+    def __init__(self, feature: str, backends: str = "fleet") -> None:
+        self.feature = feature
+        self.backends = backends
+        super().__init__(
+            f"`{feature}` is not available on this backend.\n"
+            f"Switch to the {backends} backend:  tesla config set backend {backends}\n"
+            f"(see `tesla config --help` for setup instructions)"
+        )

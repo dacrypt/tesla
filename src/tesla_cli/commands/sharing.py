@@ -6,7 +6,8 @@ import typer
 
 from tesla_cli.backends import get_vehicle_backend
 from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.output import render_dict, render_success, render_table
+from tesla_cli.exceptions import BackendNotSupportedError
+from tesla_cli.output import console, render_dict, render_success, render_table
 
 sharing_app = typer.Typer(name="sharing", help="Vehicle sharing and driver invitations.")
 
@@ -21,12 +22,21 @@ def _vin(vin: str | None) -> str:
     return resolve_vin(load_config(), vin)
 
 
+def _backend_check(exc: BackendNotSupportedError) -> None:
+    console.print(f"[yellow]{exc}[/yellow]")
+    raise typer.Exit(1)
+
+
 @sharing_app.command("invite")
 def sharing_invite(vin: str | None = VinOption) -> None:
     """Create a new driver invitation link."""
     v = _vin(vin)
     backend = _backend()
-    data = backend.create_invitation(v)
+    try:
+        data = backend.create_invitation(v)
+    except BackendNotSupportedError as exc:
+        _backend_check(exc)
+        return
     render_dict(data, title="New Invitation")
 
 
@@ -35,7 +45,11 @@ def sharing_list(vin: str | None = VinOption) -> None:
     """List current driver invitations."""
     v = _vin(vin)
     backend = _backend()
-    invitations = backend.get_invitations(v)
+    try:
+        invitations = backend.get_invitations(v)
+    except BackendNotSupportedError as exc:
+        _backend_check(exc)
+        return
     if not invitations:
         render_success("No active invitations")
         return
@@ -54,5 +68,9 @@ def sharing_revoke(
     """Revoke a driver invitation."""
     v = _vin(vin)
     backend = _backend()
-    backend.revoke_invitation(v, invitation_id)
+    try:
+        backend.revoke_invitation(v, invitation_id)
+    except BackendNotSupportedError as exc:
+        _backend_check(exc)
+        return
     render_success(f"Invitation {invitation_id} revoked")
