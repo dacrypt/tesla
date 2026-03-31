@@ -1053,6 +1053,58 @@ def teslaMate_cost_report(
     )
 
 
+@teslaMate_app.command("trip-stats")
+def teslaMate_trip_stats(
+    days: int = typer.Option(30, "--days", "-d", help="Number of days to analyse"),
+) -> None:
+    """Aggregate trip statistics: totals, averages, and top routes.
+
+    \b
+    tesla teslaMate trip-stats
+    tesla teslaMate trip-stats --days 90
+    tesla -j teslaMate trip-stats
+    """
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Loading trip stats for last {days} days…", total=None)
+        result = backend.get_trip_stats(days=days)
+
+    if is_json_mode():
+        console.print_json(json.dumps(result, indent=2, default=str))
+        return
+
+    s = result.get("summary") or {}
+    routes = result.get("top_routes") or []
+
+    if not s.get("total_trips"):
+        console.print("[yellow]No trip data found in the last {days} days.[/yellow]")
+        return
+
+    from rich.table import Table as _Table
+
+    # Summary table
+    st = _Table(title=f"Trip Statistics — Last {days} Days", show_header=False, box=None, padding=(0, 2))
+    st.add_column("k", style="dim", width=22)
+    st.add_column("v")
+    st.add_row("Total trips",     str(s.get("total_trips") or "—"))
+    st.add_row("Total distance",  f"{s.get('total_km') or 0:.1f} km")
+    st.add_row("Avg per trip",    f"{s.get('avg_km') or 0:.1f} km")
+    st.add_row("Longest trip",    f"{s.get('longest_km') or 0:.1f} km")
+    st.add_row("Shortest trip",   f"{s.get('shortest_km') or 0:.1f} km")
+    st.add_row("Avg duration",    f"{int(s.get('avg_duration_min') or 0)} min")
+    console.print(st)
+
+    if routes:
+        rt = _Table(title="Top Routes", show_header=True, header_style="bold cyan")
+        rt.add_column("From",  width=25)
+        rt.add_column("To",    width=25)
+        rt.add_column("Trips", justify="right", width=7)
+        for r in routes:
+            rt.add_row(str(r.get("from_addr") or "—")[:23], str(r.get("to_addr") or "—")[:23], str(r.get("count") or 0))
+        console.print(rt)
+
+
 # ── Grafana ──────────────────────────────────────────────────────────────────
 
 _GRAFANA_DASHBOARDS: dict[str, str] = {
