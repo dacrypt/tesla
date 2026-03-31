@@ -60,6 +60,128 @@ def _clear_pid() -> None:
         pf.unlink()
 
 
+# ── Service file generation ───────────────────────────────────────────────────
+
+def _systemd_unit(exec_path: str, port: int, host: str) -> str:
+    return f"""\
+[Unit]
+Description=tesla-cli API server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={exec_path} serve --no-open --host {host} --port {port}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def _launchd_plist(exec_path: str, port: int, host: str) -> str:
+    return f"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>          <string>com.tesla-cli.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{exec_path}</string>
+    <string>serve</string>
+    <string>--no-open</string>
+    <string>--host</string><string>{host}</string>
+    <string>--port</string><string>{port}</string>
+  </array>
+  <key>RunAtLoad</key>      <true/>
+  <key>KeepAlive</key>      <true/>
+  <key>StandardOutPath</key><string>{Path.home()}/.tesla-cli/server.log</string>
+  <key>StandardErrorPath</key><string>{Path.home()}/.tesla-cli/server.log</string>
+</dict>
+</plist>
+"""
+
+
+@serve_app.command("install-service")
+def serve_install_service(
+    platform: str = typer.Option(
+        "", "--platform",
+        help="Service platform: 'systemd' or 'launchd'. Auto-detected if omitted.",
+    ),
+    port: int = typer.Option(_DEFAULT_PORT, "--port", "-p", help="Port for the service"),
+    host: str = typer.Option(_DEFAULT_HOST, "--host", help="Host for the service"),
+    print_only: bool = typer.Option(
+        False, "--print", help="Print the service file without installing",
+    ),
+) -> None:
+    """Generate and install a systemd (Linux) or launchd (macOS) service file.
+
+    \b
+    tesla serve install-service               # auto-detect platform
+    tesla serve install-service --platform systemd
+    tesla serve install-service --platform launchd
+    tesla serve install-service --print       # preview without installing
+    """
+    import platform as _platform
+    import shutil
+
+    # Auto-detect
+    if not platform:
+        system = _platform.system().lower()
+        if system == "darwin":
+            platform = "launchd"
+        elif system == "linux":
+            platform = "systemd"
+        else:
+            console.print(f"[red]Unsupported platform: {system}. Use --platform systemd or launchd.[/red]")
+            raise typer.Exit(1)
+
+    exec_path = shutil.which("tesla") or sys.executable + " -m tesla_cli"
+
+    if platform == "systemd":
+        content = _systemd_unit(exec_path, port, host)
+        dest = Path.home() / ".config" / "systemd" / "user" / "tesla-cli.service"
+
+        if print_only:
+            console.print(content)
+            return
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content)
+        console.print(
+            f"[green]✓[/green] Systemd service installed: [bold]{dest}[/bold]\n\n"
+            "  Enable and start:\n"
+            "  [bold]systemctl --user daemon-reload[/bold]\n"
+            "  [bold]systemctl --user enable --now tesla-cli[/bold]\n\n"
+            "  View logs:\n"
+            "  [bold]journalctl --user -u tesla-cli -f[/bold]"
+        )
+
+    elif platform == "launchd":
+        content = _launchd_plist(exec_path, port, host)
+        dest = Path.home() / "Library" / "LaunchAgents" / "com.tesla-cli.server.plist"
+
+        if print_only:
+            console.print(content)
+            return
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content)
+        console.print(
+            f"[green]✓[/green] LaunchAgent installed: [bold]{dest}[/bold]\n\n"
+            "  Load now (starts on login automatically):\n"
+            f"  [bold]launchctl load {dest}[/bold]\n\n"
+            "  Unload:\n"
+            f"  [bold]launchctl unload {dest}[/bold]"
+        )
+
+    else:
+        console.print(f"[red]Unknown platform: {platform!r}. Use 'systemd' or 'launchd'.[/red]")
+        raise typer.Exit(1)
+
+
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 @serve_app.command("stop")

@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-03-31
+
+### Added — MQTT Provider + Service Files + Dashboard TeslaMate Charts
+
+- **MQTT Provider** (`tesla_cli/providers/impl/mqtt.py`) — L3 telemetry sink:
+  - Publishes vehicle state to any MQTT broker (paho-mqtt optional dep: `pip install 'tesla-cli[mqtt]'`)
+  - Topics: `<prefix>/<vin>/<key>` per state block + `<prefix>/<vin>/state` full blob
+  - Config: `mqtt.broker`, `port`, `topic_prefix`, `username`, `password`, `qos`, `retain`, `tls`
+  - Integrated into `ProviderRegistry` fan-out (7th provider, TELEMETRY_PUSH capability)
+- **`MqttConfig`** added to `Config` model
+- **`tesla serve install-service`** — generate and install OS service file for autostart:
+  - `--platform systemd` → `~/.config/systemd/user/tesla-cli.service` (Linux)
+  - `--platform launchd` → `~/Library/LaunchAgents/com.tesla-cli.server.plist` (macOS)
+  - `--print` → preview service file without installing
+  - Auto-detects platform from `platform.system()` when `--platform` omitted
+- **Web dashboard TeslaMate section** (shows only when TeslaMate is configured):
+  - Lifetime stats bar: total km, energy, charge count, avg efficiency
+  - Daily energy bar chart (last 30 days, pure CSS bars, no external libs)
+  - Recent trips table (date, km, duration, Wh/km)
+  - Recent charging sessions table (date, kWh, SoC %, duration)
+  - Gracefully hidden if TeslaMate returns 503 (not configured)
+- **SSE geofence toast notifications** — browser shows `📍 Entered <zone>` / `🚗 Left <zone>` toasts in real time
+- **Named SSE events** — stream now uses `event: vehicle` and `event: geofence` typed events; dashboard uses `addEventListener` for each type
+
+### Optional Dependencies
+
+- `paho-mqtt>=1.6` → `pip install 'tesla-cli[mqtt]'`
+
+### Tests
+
+- 808 unit tests passing, 2 skipped, ruff clean
+- `tests/test_v270.py` — 34 tests: MqttConfig (3), MqttProvider (13), install-service CLI (6), dashboard HTML (9)
+- Updated `tests/test_providers.py` — 7 providers now registered (added mqtt assertion)
+
+---
+
 ## [2.6.0] - 2026-03-30
 
 ### Added — TeslaMate API + Auth + Daemon

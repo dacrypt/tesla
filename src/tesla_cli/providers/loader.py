@@ -51,4 +51,7 @@ def build_registry(config: Config | None = None) -> ProviderRegistry:
     from tesla_cli.providers.impl.apprise_notify import AppriseProvider
     registry.register(AppriseProvider(config))
 
+    from tesla_cli.providers.impl.mqtt import MqttProvider
+    registry.register(MqttProvider(config))
+
     return registry
