@@ -1541,6 +1541,7 @@ _WATCH_KEYS: list[tuple[str, str, str]] = [
 def vehicle_watch(
     interval: int = typer.Option(60, "--interval", "-i", min=10, help="Poll interval in seconds"),
     notify: str | None = typer.Option(None, "--notify", help="Apprise URL for push notifications on change"),
+    all_vehicles: bool = typer.Option(False, "--all", "-A", help="Watch all configured vehicles simultaneously"),
     vin: str | None = VinOption,
 ) -> None:
     """Continuous vehicle monitoring — prints alerts on state changes.
@@ -1551,28 +1552,14 @@ def vehicle_watch(
     tesla vehicle watch
     tesla vehicle watch --interval 30
     tesla vehicle watch --notify "tgram://botid/chatid"
+    tesla vehicle watch --all
     Press Ctrl+C to stop.
     """
     import json as _json
-    import time as _time
+    import threading
     from datetime import datetime as _dt
 
-    v = _vin(vin)
-    backend = get_vehicle_backend(load_config())
-
-    def _snapshot() -> dict:
-        """Fetch vehicle data and extract watched keys into a flat dict."""
-        try:
-            data = backend.get_vehicle_data(v)
-        except VehicleAsleepError:
-            return {}
-        flat: dict = {}
-        for section, key, _label in _WATCH_KEYS:
-            sec = data.get(section) or {}
-            val = sec.get(key)
-            if val is not None:
-                flat[f"{section}.{key}"] = val
-        return flat
+    cfg = load_config()
 
     notifier = None
     if notify:
@@ -1583,15 +1570,30 @@ def vehicle_watch(
         except ImportError:
             console.print("[yellow]⚠ apprise not installed — notifications disabled[/yellow]")
 
-    console.print(f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]")
-    console.print("  [dim]Press Ctrl+C to stop.[/dim]\n")
+    def _snapshot(backend, target_v: str) -> dict:
+        """Fetch vehicle data and extract watched keys into a flat dict."""
+        try:
+            data = backend.get_vehicle_data(target_v)
+        except VehicleAsleepError:
+            return {}
+        flat: dict = {}
+        for section, key, _label in _WATCH_KEYS:
+            sec = data.get(section) or {}
+            val = sec.get(key)
+            if val is not None:
+                flat[f"{section}.{key}"] = val
+        return flat
 
-    prev: dict = {}
-    try:
+    def _watch_one(target_v: str, prefix: str, stop: threading.Event | None) -> None:
+        backend = get_vehicle_backend(cfg)
+        prev: dict = {}
         while True:
-            curr = _snapshot()
+            if stop is not None and stop.is_set():
+                break
+            curr = _snapshot(backend, target_v)
+            tag = f"[cyan]{prefix}[/cyan]  " if prefix else ""
             if not curr:
-                console.print(f"  [dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]")
+                console.print(f"  {tag}[dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]")
             else:
                 changes: list[str] = []
                 for section, key, label in _WATCH_KEYS:
@@ -1607,11 +1609,11 @@ def vehicle_watch(
 
                 ts = _dt.now().strftime("%H:%M:%S")
                 if is_json_mode():
-                    payload = {"ts": ts, "changes": [c.replace("[bold]", "").replace("[/bold]", "") for c in changes]}
+                    payload = {"ts": ts, "vin": target_v, "changes": [c.replace("[bold]", "").replace("[/bold]", "") for c in changes]}
                     console.print(_json.dumps(payload))
                 elif changes:
                     for c in changes:
-                        console.print(f"  [dim]{ts}[/dim]  {c}")
+                        console.print(f"  {tag}[dim]{ts}[/dim]  {c}")
                     if notifier:
                         body = "\n".join(c.replace("[bold]", "").replace("[/bold]", "") for c in changes)
                         notifier.notify(title="Tesla Watch", body=body)
@@ -1619,11 +1621,50 @@ def vehicle_watch(
                     batt  = curr.get("charge_state.battery_level", "?")
                     state = curr.get("charge_state.charging_state", "Unknown")
                     locked = curr.get("vehicle_state.locked", "?")
-                    console.print(f"  [dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]")
+                    console.print(f"  {tag}[dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]")
             prev = curr
-            _time.sleep(interval)
-    except KeyboardInterrupt:
-        console.print("\n  [dim]Watch stopped.[/dim]\n")
+            time.sleep(interval)
+
+    if all_vehicles:
+        # Collect all VINs from default + aliases, deduplicated
+        vins_raw: list[str] = []
+        if cfg.general.default_vin:
+            vins_raw.append(cfg.general.default_vin)
+        vins_raw.extend(cfg.vehicles.aliases.values())
+        vins: list[str] = list(dict.fromkeys(vins_raw))
+
+        if not vins:
+            console.print("[red]No VINs configured. Set default-vin or add aliases.[/red]")
+            raise typer.Exit(1)
+
+        alias_of = {v: a for a, v in cfg.vehicles.aliases.items()}
+        stop_event = threading.Event()
+        threads = []
+        for target_v in vins:
+            label = alias_of.get(target_v, target_v[-6:])
+            t = threading.Thread(target=_watch_one, args=(target_v, label, stop_event), daemon=True)
+            threads.append(t)
+
+        for t in threads:
+            t.start()
+
+        console.print(f"\n  [bold]Watching {len(vins)} vehicle(s)...[/bold]  [dim]Press Ctrl+C to stop.[/dim]\n")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            stop_event.set()
+            for t in threads:
+                t.join()
+            console.print("\n  [dim]Watch stopped.[/dim]\n")
+    else:
+        v = _vin(vin)
+        console.print(f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]")
+        console.print("  [dim]Press Ctrl+C to stop.[/dim]\n")
+        try:
+            _watch_one(v, "", None)
+        except KeyboardInterrupt:
+            console.print("\n  [dim]Watch stopped.[/dim]\n")
 
 
 @vehicle_app.command("schedule-update")

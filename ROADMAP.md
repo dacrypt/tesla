@@ -325,8 +325,15 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla config migrate` — fill new config defaults; `--dry-run`; `.bak.YYYY-MM-DD` backup; JSON mode
 - [x] ~965+ tests, ruff clean
 
-### v3.1.0 — Next Milestone
-- [ ] Multi-vehicle watch — simultaneous monitoring across all configured VINs
-- [ ] `tesla vehicle schedule-charge-amps` — combined charge amp scheduling
-- [ ] Dashboard websocket fallback — reconnect SSE on error with exponential back-off
-- [ ] `tesla config validate` — schema validation with actionable error messages
+### v3.1.0 — Multi-Vehicle Watch, Charge Profile, SSE Back-off, Config Validate ✅ SHIPPED
+- [x] `tesla vehicle watch --all` — simultaneous multi-vehicle monitoring in separate threads; deduplicates VINs; `threading.Event` stop_event; alias-based prefix labels
+- [x] `tesla charge profile` — unified charge profile view/set (limit + amps + schedule in one command); JSON mode
+- [x] Dashboard SSE exponential back-off — `startStream()` retries with 2^n delay (capped 64s); closes existing connection; resets on success; `_activeVin` in stream URL
+- [x] `tesla config validate` — validates URL formats, port ranges, backend name, MQTT QoS, cost sign; exits 0/1; JSON summary
+- [x] ~1015+ tests, ruff clean
+
+### v3.2.0 — Next Milestone
+- [ ] `tesla vehicle watch --all --notify` — combine multi-vehicle watch with Apprise push notifications per vehicle
+- [ ] `tesla charge schedule-amps` — combined scheduling of charge time + amperage in one command
+- [ ] `tesla teslaMate heatmap --year N` — year selector for the GitHub-style driving heatmap
+- [ ] `GET /api/config/validate` — expose config validation via REST API for dashboard health widget

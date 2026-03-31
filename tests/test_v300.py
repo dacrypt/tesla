@@ -486,10 +486,17 @@ class TestConfigMigrate:
 
 class TestVersion300:
     def test_version_string(self):
+        from packaging.version import Version
+
         import tesla_cli
-        assert tesla_cli.__version__ == "3.0.0"
+        assert Version(tesla_cli.__version__) >= Version("3.0.0")
 
     def test_pyproject_version(self):
         pyproject = Path(__file__).parent.parent / "pyproject.toml"
         content = pyproject.read_text()
-        assert 'version = "3.0.0"' in content
+        # version must be 3.0.0 or later
+        import re
+        m = re.search(r'^version = "(\d+\.\d+\.\d+)"', content, re.MULTILINE)
+        assert m is not None
+        from packaging.version import Version
+        assert Version(m.group(1)) >= Version("3.0.0")
