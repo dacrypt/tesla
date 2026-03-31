@@ -532,6 +532,125 @@ def config_migrate(
     console.print(f"\n[green]\u2713[/green] Config migrated \u2014 {len(additions)} new default(s) added.")
 
 
+@config_app.command("validate")
+def config_validate() -> None:
+    """Validate config structure, required fields, and value ranges.
+
+    Checks schema compliance, required fields, URL formats, and port ranges.
+    Exits 0 if all checks pass, 1 if any failures.
+
+    \b
+    tesla config validate
+    tesla -j config validate
+    """
+    import json as _json
+    import re
+
+    # We need __version__ for the report
+    from tesla_cli import __version__
+
+    cfg = load_config()
+
+    checks: list[dict] = []
+
+    def _ok(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "ok", "message": msg})
+
+    def _warn(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "warn", "message": msg})
+
+    def _fail(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "fail", "message": msg})
+
+    # ── Required fields ──────────────────────────────────────────────────────
+    if cfg.general.default_vin:
+        _ok("general.default_vin", f"VIN configured: {cfg.general.default_vin[-6:]}")
+    else:
+        _warn("general.default_vin", "No default VIN set — run: tesla config set default-vin <VIN>")
+
+    valid_backends = {"owner", "tessie", "fleet"}
+    if cfg.general.backend in valid_backends:
+        _ok("general.backend", f"Backend: {cfg.general.backend}")
+    else:
+        _fail("general.backend", f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}")
+
+    # ── TeslaMate URL format ─────────────────────────────────────────────────
+    if cfg.teslaMate.database_url:
+        if cfg.teslaMate.database_url.startswith("postgresql://") or cfg.teslaMate.database_url.startswith("postgres://"):
+            _ok("teslaMate.database_url", "PostgreSQL URL format looks valid")
+        else:
+            _fail("teslaMate.database_url", "URL must start with postgresql:// or postgres://")
+
+    # ── Home Assistant URL format ────────────────────────────────────────────
+    if cfg.home_assistant.url:
+        if re.match(r"^https?://", cfg.home_assistant.url):
+            _ok("home_assistant.url", f"HA URL: {cfg.home_assistant.url}")
+        else:
+            _fail("home_assistant.url", "URL must start with http:// or https://")
+
+    # ── Server port range ────────────────────────────────────────────────────
+    if hasattr(cfg, "server"):
+        port = getattr(cfg.server, "port", None)
+        if port is not None:
+            if 1 <= port <= 65535:
+                _ok("server.port", f"Port {port} is valid")
+            else:
+                _fail("server.port", f"Port {port} is out of range (1–65535)")
+
+    # ── MQTT config ──────────────────────────────────────────────────────────
+    if cfg.mqtt.broker:
+        _ok("mqtt.broker", f"MQTT broker: {cfg.mqtt.broker}")
+        if not (0 <= cfg.mqtt.qos <= 2):
+            _fail("mqtt.qos", f"QoS {cfg.mqtt.qos} is invalid — must be 0, 1, or 2")
+        else:
+            _ok("mqtt.qos", f"QoS {cfg.mqtt.qos} is valid")
+        if not (1 <= cfg.mqtt.port <= 65535):
+            _fail("mqtt.port", f"Port {cfg.mqtt.port} is out of range")
+        else:
+            _ok("mqtt.port", f"MQTT port {cfg.mqtt.port} is valid")
+
+    # ── Notification URLs ────────────────────────────────────────────────────
+    for i, url in enumerate(cfg.notifications.apprise_urls):
+        if "://" in url:
+            _ok(f"notifications.apprise_urls[{i}]", f"URL format OK: {url[:40]}…" if len(url) > 40 else f"URL format OK: {url}")
+        else:
+            _warn(f"notifications.apprise_urls[{i}]", f"URL missing scheme (://): {url[:40]}")
+
+    # ── cost_per_kwh ─────────────────────────────────────────────────────────
+    if cfg.general.cost_per_kwh < 0:
+        _fail("general.cost_per_kwh", "cost_per_kwh cannot be negative")
+    elif cfg.general.cost_per_kwh > 0:
+        _ok("general.cost_per_kwh", f"Energy cost: ${cfg.general.cost_per_kwh:.4f}/kWh")
+
+    failures = [c for c in checks if c["status"] == "fail"]
+    warnings = [c for c in checks if c["status"] == "warn"]
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "version": __version__,
+            "checks":  checks,
+            "summary": {"ok": len(checks) - len(failures) - len(warnings), "warn": len(warnings), "fail": len(failures)},
+            "valid":   len(failures) == 0,
+        }))
+        if failures:
+            raise typer.Exit(1)
+        return
+
+    for c in checks:
+        icon  = "[green]✓[/green]" if c["status"] == "ok" else "[yellow]⚠[/yellow]" if c["status"] == "warn" else "[red]✗[/red]"
+        field = f"[dim]{c['field']}[/dim]"
+        console.print(f"  {icon}  {field}  {c['message']}")
+
+    console.print()
+    if failures:
+        console.print(f"[red]Validation failed:[/red] {len(failures)} error(s), {len(warnings)} warning(s)")
+        raise typer.Exit(1)
+    elif warnings:
+        console.print(f"[yellow]Config valid with {len(warnings)} warning(s)[/yellow]")
+    else:
+        console.print(f"[green]✓ Config is valid[/green]  ({len(checks)} checks passed)")
+
+
 def _auth_order() -> None:
     """Run Tesla OAuth2+PKCE flow for order tracking."""
     from tesla_cli.auth.oauth import run_tesla_oauth_flow

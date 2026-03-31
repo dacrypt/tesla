@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-03-31
+
+### Added — Multi-Vehicle Watch, Charge Profile, SSE Back-off, Config Validate
+
+- **`tesla vehicle watch --all`** — simultaneous multi-vehicle monitoring in separate threads; collects all configured VINs (default + aliases), deduplicates, spawns one thread per VIN with prefix labels; `threading.Event` stop_event for clean Ctrl+C shutdown
+- **`tesla charge profile`** — unified charge profile command: no args shows current limit/amps/schedule; `--limit`, `--amps`, `--schedule HH:MM` (or `""` to disable) set profile fields in one command; JSON mode returns `{ok, results}` dict
+- **Dashboard SSE exponential back-off** — `startStream()` now retries on error with `2^n` second delay (capped at 64s); closes existing connection before reconnect; resets retry counter on successful `vehicle` event; integrates `_activeVin` in stream URL
+- **`tesla config validate`** — validates config structure, required fields, URL formats, port ranges, MQTT QoS; exits 0 if valid (warns OK), exits 1 on any failures; JSON mode returns `{version, checks, summary, valid}`
+
+### Tests
+
+- ~1015+ unit tests passing, ruff clean
+- `tests/test_v310.py` — ~50 tests across 5 test classes (VehicleWatchAll, ChargeProfile, DashboardBackoff, ConfigValidate, Version310)
+
 ## [3.0.0] - 2026-03-31
 
 ### Added — Multi-Vehicle Dashboard, Schedule-Update, Timeline API, Notify Templates, Config Migrate

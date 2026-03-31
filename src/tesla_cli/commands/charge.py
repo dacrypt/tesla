@@ -304,6 +304,92 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
     _con.print(Panel(t, title="[bold]Charge & Departure Schedule[/bold]", border_style="blue"))
 
 
+@charge_app.command("profile")
+def charge_profile(
+    limit: int | None = typer.Option(None, "--limit", "-l", min=50, max=100, help="Charge limit percent (50–100)"),
+    amps:  int | None = typer.Option(None, "--amps",  "-a", min=1,  max=48,  help="Charge current amps (1–48)"),
+    schedule: str | None = typer.Option(None, "--schedule", "-s", help="Scheduled charge ON time HH:MM (empty string to disable)"),
+    vin: str | None = VinOption,
+) -> None:
+    """View or set a charge profile (limit + amps + schedule in one command).
+
+    \b
+    tesla charge profile                               # show current profile
+    tesla charge profile --limit 80                   # set limit only
+    tesla charge profile --limit 80 --amps 16         # set limit + amps
+    tesla charge profile --limit 80 --amps 16 --schedule 23:00
+    tesla -j charge profile
+    """
+    import json as _json
+
+    from tesla_cli.exceptions import VehicleAsleepError
+
+    cfg = load_config()
+    v   = resolve_vin(cfg, vin)
+    b   = get_vehicle_backend(cfg)
+
+    # ── No args → show current profile ──────────────────────────────────────
+    if limit is None and amps is None and schedule is None:
+        try:
+            cs = b.get_charge_state(v)
+        except VehicleAsleepError:
+            console.print("[yellow]Vehicle is asleep. Wake it first.[/yellow]")
+            raise typer.Exit(1)
+
+        if is_json_mode():
+            console.print(_json.dumps({
+                "charge_limit_soc":           cs.get("charge_limit_soc"),
+                "charge_amps":                cs.get("charge_amps"),
+                "scheduled_charging_pending": cs.get("scheduled_charging_pending"),
+                "scheduled_charging_start_time": str(cs.get("scheduled_charging_start_time") or ""),
+            }))
+            return
+
+        from rich.table import Table
+        t = Table(show_header=False, box=None, padding=(0, 2))
+        t.add_column("k", style="dim", width=26)
+        t.add_column("v")
+        t.add_row("Charge limit",      f"{cs.get('charge_limit_soc', '?')}%")
+        t.add_row("Charge amps",       f"{cs.get('charge_amps', '?')} A")
+        t.add_row("Scheduled pending", str(cs.get("scheduled_charging_pending", "?")))
+        t.add_row("Scheduled time",    str(cs.get("scheduled_charging_start_time") or "—"))
+        console.print(t)
+        return
+
+    # ── Set profile fields ───────────────────────────────────────────────────
+    results: dict[str, bool] = {}
+    if limit is not None:
+        r = b.command(v, "set_charge_limit", {"percent": limit})
+        results["limit"] = bool(r.get("result"))
+    if amps is not None:
+        r = b.command(v, "set_charging_amps", {"charging_amps": amps})
+        results["amps"] = bool(r.get("result"))
+    if schedule is not None:
+        if schedule == "":
+            r = b.command(v, "set_scheduled_charging", {"enable": False, "time": 0})
+        else:
+            h, m = (int(x) for x in schedule.split(":"))
+            r = b.command(v, "set_scheduled_charging", {"enable": True, "time": h * 60 + m})
+        results["schedule"] = bool(r.get("result"))
+
+    ok = all(results.values())
+
+    if is_json_mode():
+        console.print(_json.dumps({"ok": ok, "results": results}))
+        return
+
+    if ok:
+        parts = []
+        if limit is not None:  parts.append(f"limit=[bold]{limit}%[/bold]")
+        if amps  is not None:  parts.append(f"amps=[bold]{amps}A[/bold]")
+        if schedule is not None:
+            parts.append(f"schedule=[bold]{'off' if schedule == '' else schedule}[/bold]")
+        render_success("Charge profile updated: " + "  ".join(parts))
+    else:
+        console.print(f"[red]Some updates failed:[/red] {results}")
+        raise typer.Exit(1)
+
+
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
