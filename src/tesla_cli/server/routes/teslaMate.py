@@ -137,3 +137,15 @@ def tm_report(month: str) -> dict:
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/timeline")
+def teslaMate_timeline(days: int = 30) -> list:
+    """Unified event timeline: trips, charges, OTA updates (chronological, newest first)."""
+    try:
+        backend = _backend()
+        return backend.get_timeline(days=days)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc))

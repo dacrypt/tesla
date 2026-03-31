@@ -317,9 +317,16 @@ No competing tool combines all of these in one CLI:
 - [x] Dashboard theme toggle — 🌙/☀️ button; `body.light` CSS override; `localStorage` persistence
 - [x] ~900 tests, 2 skipped, ruff clean
 
-### v3.0.0 — Next Milestone
-- [ ] Multi-vehicle dashboard — switch between vehicles in web UI
-- [ ] `tesla vehicle schedule-update` — schedule OTA software update
-- [ ] `GET /api/teslaMate/timeline` — expose timeline via REST API
-- [ ] Notification templates — customizable Apprise message format
-- [ ] `tesla config migrate` — migrate config across major versions
+### v3.0.0 — Multi-Vehicle Dashboard + Schedule-Update + Timeline API ✅ SHIPPED
+- [x] Multi-vehicle dashboard — VIN switcher in header; `GET /api/vehicles` endpoint; `switchVin()` / `loadVehicleList()` JS; `?vin=` query param on vehicle routes
+- [x] `tesla vehicle schedule-update` — schedule OTA software update immediately or `--delay N` minutes; JSON mode
+- [x] `GET /api/teslaMate/timeline` — expose TeslaMate timeline via REST API with `?days=N`
+- [x] Notification templates — `message_template` in config; `tesla notify set-template` / `show-template` commands
+- [x] `tesla config migrate` — fill new config defaults; `--dry-run`; `.bak.YYYY-MM-DD` backup; JSON mode
+- [x] ~965+ tests, ruff clean
+
+### v3.1.0 — Next Milestone
+- [ ] Multi-vehicle watch — simultaneous monitoring across all configured VINs
+- [ ] `tesla vehicle schedule-charge-amps` — combined charge amp scheduling
+- [ ] Dashboard websocket fallback — reconnect SSE on error with exponential back-off
+- [ ] `tesla config validate` — schema validation with actionable error messages

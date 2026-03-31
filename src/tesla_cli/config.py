@@ -42,6 +42,7 @@ class FleetConfig(BaseModel):
 class NotificationsConfig(BaseModel):
     enabled: bool = False
     apprise_urls: list[str] = Field(default_factory=list)
+    message_template: str = "{event}: {vehicle} \u2014 {detail}"
 
 
 class VehiclesConfig(BaseModel):

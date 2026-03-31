@@ -1624,3 +1624,36 @@ def vehicle_watch(
             _time.sleep(interval)
     except KeyboardInterrupt:
         console.print("\n  [dim]Watch stopped.[/dim]\n")
+
+
+@vehicle_app.command("schedule-update")
+def vehicle_schedule_update(
+    delay: int = typer.Option(0, "--delay", "-d", help="Delay in minutes before installing (0 = now)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Schedule a pending OTA software update to install.
+
+    \b
+    tesla vehicle schedule-update            # install immediately
+    tesla vehicle schedule-update --delay 60 # install in 60 minutes
+    tesla -j vehicle schedule-update
+    """
+    import json as _json
+
+    cfg = load_config()
+    v   = resolve_vin(cfg, vin)
+    b   = get_vehicle_backend(cfg)
+
+    offset_sec = delay * 60
+    result = b.schedule_software_update(v, offset_sec=offset_sec)
+
+    if is_json_mode():
+        console.print(_json.dumps({"ok": bool(result), "delay_min": delay, "vin": v}))
+        return
+
+    if result:
+        msg = "immediately" if delay == 0 else f"in {delay} minutes"
+        render_success(f"Software update scheduled to install [bold]{msg}[/bold].")
+    else:
+        console.print("[red]Failed to schedule software update.[/red]")
+        raise typer.Exit(1)

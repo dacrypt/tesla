@@ -150,12 +150,28 @@ def notify_test(
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
         p.add_task(f"Sending to {len(cfg.notifications.apprise_urls)} channel(s)...", total=None)
 
+        # Format body using template (fallback to raw body if template keys unknown)
+        import time as _time
+        tmpl = cfg.notifications.message_template
+        try:
+            template_body = tmpl.format(
+                event="test",
+                vehicle="tesla-cli",
+                detail="connectivity test",
+                ts=_time.strftime("%Y-%m-%d %H:%M"),
+            )
+        except KeyError:
+            template_body = tmpl
+        effective_body = body if body != (
+            "\U0001f697 This is a test notification from tesla-cli. If you see this, notifications are working!"
+        ) else template_body
+
         for url in cfg.notifications.apprise_urls:
             service = url.split("://")[0] if "://" in url else "unknown"
             try:
                 apobj = apprise.Apprise()
                 apobj.add(url)
-                ok = apobj.notify(title=title, body=body)
+                ok = apobj.notify(title=title, body=effective_body)
                 results.append({"url": service, "success": ok, "error": None})
             except Exception as e:
                 results.append({"url": service, "success": False, "error": str(e)})
@@ -177,3 +193,43 @@ def notify_test(
     else:
         failed = sum(1 for r in results if not r["success"])
         render_warning(f"{failed}/{len(results)} channel(s) failed — check your URLs")
+
+
+@notify_app.command("set-template")
+def notify_set_template(
+    template: str = typer.Argument(..., help="Template string: use {event}, {vehicle}, {detail}, {ts}"),
+) -> None:
+    """Set a custom notification message template.
+
+    \b
+    tesla notify set-template "{event}: {vehicle} at {detail}"
+    tesla notify set-template "Tesla alert — {event}: {detail}"
+
+    Available placeholders: {event}, {vehicle}, {detail}, {ts}
+    """
+    cfg = load_config()
+    cfg.notifications.message_template = template
+    save_config(cfg)
+    from tesla_cli.output import render_success as _render_success
+    _render_success(f"Template saved: [bold]{template}[/bold]")
+
+
+@notify_app.command("show-template")
+def notify_show_template() -> None:
+    """Show the current notification message template.
+
+    \b
+    tesla notify show-template
+    tesla -j notify show-template
+    """
+    import json as _json
+
+    cfg = load_config()
+    tmpl = cfg.notifications.message_template
+
+    if is_json_mode():
+        console.print(_json.dumps({"template": tmpl}))
+        return
+
+    console.print(f"[dim]Template:[/dim] [bold]{tmpl}[/bold]")
+    console.print("[dim]Placeholders: {{event}}, {{vehicle}}, {{detail}}, {{ts}}[/dim]")
