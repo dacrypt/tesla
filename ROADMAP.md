@@ -189,9 +189,16 @@ No competing tool combines all of these in one CLI:
 - [x] `cryptography` dependency added
 - [x] 388 tests, ruff clean
 
-### v1.5.0 — Next Milestone
-- [ ] `tesla dossier export-pdf` — full dossier as formatted PDF (fpdf2 or weasyprint)
+### v1.5.0 — PDF, Backup, Monthly Reports ✅ SHIPPED
+- [x] `tesla dossier export-pdf` — full PDF dossier (fpdf2 optional dep)
+- [x] `tesla config backup` / `tesla config restore` — config export/import with token redaction
+- [x] `tesla teslaMate report` — monthly driving + charging summary (DC vs AC, Wh/km)
+- [x] `tesla vehicle sentry-events` — sentry-filtered alert log (Fleet API)
+- [x] 413 tests, 2 skipped (fpdf2 optional), ruff clean
+
+### v1.6.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
 - [ ] Store location DB integration (EU store locations for ship tracking)
-- [ ] `tesla vehicle sentry-events` — view sentry mode event log
+- [ ] `tesla dossier export-html` — standalone HTML report (no extra deps)
+- [ ] `tesla charge schedule-preview` — show current scheduled charge + departure in one view
 - [ ] Submit Homebrew formula to official tap
