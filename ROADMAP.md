@@ -264,7 +264,24 @@ No competing tool combines all of these in one CLI:
 - [x] `pip install 'tesla-cli[serve]'` optional dependency group
 - [x] 671 tests, 31 server tests, ruff clean
 
-### v2.5.0 — Next Milestone
+### v2.5.0 — Provider Architecture ✅ SHIPPED
+- [x] **Provider ABC** — `Provider`, `ProviderResult`, `Capability`, `ProviderPriority` base types
+- [x] **ProviderRegistry** — capability routing, priority ordering, fallback chains, fan-out to all sinks
+- [x] **6 provider implementations** across 4 priority layers:
+  - L0 `BleProvider` (CRITICAL) — BLE direct commands via `tesla-control` binary
+  - L1 `VehicleApiProvider` (HIGH) — Owner API / Tessie / Fleet API (wraps existing backends)
+  - L2 `TeslaMateProvider` (MEDIUM) — historical data from TeslaMate PostgreSQL
+  - L3 `AbrpProvider` (LOW) — ABRP live telemetry push sink
+  - L3 `HomeAssistantProvider` (LOW) — HA REST API home-sync sink
+  - L3 `AppriseProvider` (LOW) — multi-channel notification sink
+- [x] **`tesla providers status`** — table of all registered providers + capability routing summary
+- [x] **`tesla providers test`** — deep health check with progress spinner (makes network calls)
+- [x] **`tesla providers capabilities`** — full capability map (which providers serve what)
+- [x] **`GET /api/providers`** + **`GET /api/providers/capabilities`** — provider registry via REST
+- [x] **SSE fan-out** — `/api/vehicle/stream?fanout=true` pushes each tick to ABRP + HA simultaneously
+- [x] 732 tests, 2 skipped, ruff clean
+
+### v2.6.0 — Next Milestone
 - [ ] Dashboard enhancements: TeslaMate charts embedded in web UI
 - [ ] `GET /api/teslaMate/*` — TeslaMate endpoints (trips, charging, stats, heatmap)
 - [ ] Auth middleware — optional API key for `--host 0.0.0.0` LAN deployments
