@@ -1955,3 +1955,195 @@ class TestFrenchI18n:
         assert "es" in _STRINGS
         assert "pt" in _STRINGS
         assert "fr" in _STRINGS
+
+
+# ── Backend Not Supported Error ───────────────────────────────────────────────
+
+
+class TestBackendNotSupported:
+    """Verify that Fleet-only features fail gracefully on Owner/Tessie backends."""
+
+    def test_exception_message_contains_hint(self):
+        from tesla_cli.exceptions import BackendNotSupportedError
+        exc = BackendNotSupportedError("charge history", "fleet")
+        assert "fleet" in str(exc)
+        assert "charge history" in str(exc)
+        assert "tesla config set backend" in str(exc)
+
+    def test_base_get_charge_history_raises(self):
+        from tesla_cli.backends.base import VehicleBackend
+        from tesla_cli.exceptions import BackendNotSupportedError
+        # Create a minimal concrete subclass
+        class _MinimalBackend(VehicleBackend):
+            def list_vehicles(self): return []
+            def get_vehicle_data(self, vin): return {}
+            def get_charge_state(self, vin): return {}
+            def get_climate_state(self, vin): return {}
+            def get_drive_state(self, vin): return {}
+            def get_vehicle_config(self, vin): return {}
+            def wake_up(self, vin): return True
+            def command(self, vin, command, **p): return {}
+
+        b = _MinimalBackend()
+        with pytest.raises(BackendNotSupportedError):
+            b.get_charge_history()
+
+    def test_base_get_recent_alerts_raises(self):
+        from tesla_cli.backends.base import VehicleBackend
+        from tesla_cli.exceptions import BackendNotSupportedError
+        class _MinimalBackend(VehicleBackend):
+            def list_vehicles(self): return []
+            def get_vehicle_data(self, vin): return {}
+            def get_charge_state(self, vin): return {}
+            def get_climate_state(self, vin): return {}
+            def get_drive_state(self, vin): return {}
+            def get_vehicle_config(self, vin): return {}
+            def wake_up(self, vin): return True
+            def command(self, vin, command, **p): return {}
+
+        b = _MinimalBackend()
+        with pytest.raises(BackendNotSupportedError):
+            b.get_recent_alerts("VIN123")
+
+    def test_base_get_release_notes_raises(self):
+        from tesla_cli.backends.base import VehicleBackend
+        from tesla_cli.exceptions import BackendNotSupportedError
+        class _MinimalBackend(VehicleBackend):
+            def list_vehicles(self): return []
+            def get_vehicle_data(self, vin): return {}
+            def get_charge_state(self, vin): return {}
+            def get_climate_state(self, vin): return {}
+            def get_drive_state(self, vin): return {}
+            def get_vehicle_config(self, vin): return {}
+            def wake_up(self, vin): return True
+            def command(self, vin, command, **p): return {}
+
+        b = _MinimalBackend()
+        with pytest.raises(BackendNotSupportedError):
+            b.get_release_notes("VIN123")
+
+    def test_base_get_invitations_raises(self):
+        from tesla_cli.backends.base import VehicleBackend
+        from tesla_cli.exceptions import BackendNotSupportedError
+        class _MinimalBackend(VehicleBackend):
+            def list_vehicles(self): return []
+            def get_vehicle_data(self, vin): return {}
+            def get_charge_state(self, vin): return {}
+            def get_climate_state(self, vin): return {}
+            def get_drive_state(self, vin): return {}
+            def get_vehicle_config(self, vin): return {}
+            def wake_up(self, vin): return True
+            def command(self, vin, command, **p): return {}
+
+        b = _MinimalBackend()
+        with pytest.raises(BackendNotSupportedError):
+            b.get_invitations("VIN123")
+
+    def test_base_get_vehicle_state_fallback(self):
+        """get_vehicle_state falls back to extracting from vehicle_data."""
+        from tesla_cli.backends.base import VehicleBackend
+        class _MinimalBackend(VehicleBackend):
+            def list_vehicles(self): return []
+            def get_vehicle_data(self, vin): return {"vehicle_state": {"locked": True}}
+            def get_charge_state(self, vin): return {}
+            def get_climate_state(self, vin): return {}
+            def get_drive_state(self, vin): return {}
+            def get_vehicle_config(self, vin): return {}
+            def wake_up(self, vin): return True
+            def command(self, vin, command, **p): return {}
+
+        b = _MinimalBackend()
+        assert b.get_vehicle_state("VIN123") == {"locked": True}
+
+    def test_charge_history_command_graceful(self):
+        from tesla_cli.exceptions import BackendNotSupportedError
+        mock_backend = MagicMock()
+        mock_backend.get_charge_history.side_effect = BackendNotSupportedError(
+            "charge history", "fleet"
+        )
+        cfg = MagicMock()
+        cfg.general.backend = "owner"
+        cfg.general.default_vin = MOCK_VIN
+        with (
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+        ):
+            result = _run("charge", "history")
+        assert result.exit_code == 1
+        assert "fleet" in result.output.lower() or "not available" in result.output.lower()
+
+    def test_vehicle_alerts_command_graceful(self):
+        from tesla_cli.exceptions import BackendNotSupportedError
+        mock_backend = MagicMock()
+        mock_backend.get_recent_alerts.side_effect = BackendNotSupportedError(
+            "vehicle alerts", "fleet"
+        )
+        cfg = MagicMock()
+        cfg.general.backend = "owner"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "alerts")
+        assert result.exit_code == 1
+        assert "fleet" in result.output.lower() or "not available" in result.output.lower()
+
+    def test_vehicle_release_notes_command_graceful(self):
+        from tesla_cli.exceptions import BackendNotSupportedError
+        mock_backend = MagicMock()
+        mock_backend.get_release_notes.side_effect = BackendNotSupportedError(
+            "vehicle release-notes", "fleet"
+        )
+        cfg = MagicMock()
+        cfg.general.backend = "owner"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "release-notes")
+        assert result.exit_code == 1
+        assert "fleet" in result.output.lower() or "not available" in result.output.lower()
+
+    def test_sharing_list_command_graceful(self):
+        from tesla_cli.exceptions import BackendNotSupportedError
+        mock_backend = MagicMock()
+        mock_backend.get_invitations.side_effect = BackendNotSupportedError(
+            "sharing list", "fleet"
+        )
+        cfg = MagicMock()
+        cfg.general.backend = "owner"
+        cfg.general.default_vin = MOCK_VIN
+        with (
+            patch("tesla_cli.commands.sharing.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.sharing.load_config", return_value=cfg),
+            patch("tesla_cli.commands.sharing.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("sharing", "list")
+        assert result.exit_code == 1
+        assert "fleet" in result.output.lower() or "not available" in result.output.lower()
+
+    def test_tessie_backend_has_vehicle_state(self):
+        """TessieBackend.get_vehicle_state extracts from vehicle_data."""
+        from tesla_cli.backends.tessie import TessieBackend
+        backend = TessieBackend.__new__(TessieBackend)
+        backend.get_vehicle_data = MagicMock(
+            return_value={"vehicle_state": {"locked": False, "sentry_mode": True}}
+        )
+        state = backend.get_vehicle_state("VIN123")
+        assert state["locked"] is False
+        assert state["sentry_mode"] is True
+
+    def test_tessie_backend_nearby_sites_called(self):
+        """TessieBackend.get_nearby_charging_sites hits the right endpoint."""
+        from tesla_cli.backends.tessie import TessieBackend
+        backend = TessieBackend.__new__(TessieBackend)
+        backend._get = MagicMock(return_value={"superchargers": [], "destination_charging": []})
+        result = backend.get_nearby_charging_sites("VIN123")
+        backend._get.assert_called_once_with("/VIN123/nearby_charging_sites")
+        assert "superchargers" in result

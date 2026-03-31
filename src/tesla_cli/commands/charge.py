@@ -102,10 +102,22 @@ def charge_schedule(
 
 
 @charge_app.command("history")
-def charge_history(vin: str | None = VinOption) -> None:
-    """Show charging history."""
+def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
+    """Show charging history (Fleet API) or redirect to TeslaMate."""
+    from tesla_cli.exceptions import BackendNotSupportedError
+    from tesla_cli.output import console
+
     backend = _backend()
-    data = backend.get_charge_history()
+    try:
+        data = backend.get_charge_history()
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        console.print(
+            "\n[dim]Tip:[/dim] `tesla teslaMate charging` shows charging history "
+            "from your local TeslaMate database — no Fleet API required."
+        )
+        raise typer.Exit(1)
+
     if isinstance(data, list):
         render_table(
             data,
