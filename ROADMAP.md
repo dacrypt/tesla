@@ -202,8 +202,15 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla order stores` — 100+ embedded Tesla store/SC locations (EU/US/CA/AU/CN/JP); `--country`, `--city`, `--near lat,lon`
 - [x] 443 tests, ruff clean
 
-### v1.7.0 — Next Milestone
-- [ ] WebSocket streaming backend (real-time Fleet API telemetry)
-- [ ] `tesla dossier export-html` dark/light mode toggle (JS)
-- [ ] `tesla vehicle sw-update` — watch for pending OTA and notify via Apprise when available
+### v1.7.0 — OTA Watch, Speed Limit, Lifetime Stats ✅ SHIPPED
+- [x] `tesla vehicle sw-update` — one-shot or `--watch` mode + `--notify` Apprise on OTA detection
+- [x] `tesla vehicle speed-limit` — show/set/activate/deactivate/clear Speed Limit Mode with PIN
+- [x] `tesla teslaMate stats` — lifetime driving + charging stats with efficiency banner
+- [x] 471 tests, ruff clean
+
+### v1.8.0 — Next Milestone
+- [ ] WebSocket streaming backend (real-time Fleet API telemetry — upgrade `stream live` from REST polling)
+- [ ] `tesla vehicle bio` — comprehensive single-screen vehicle profile (all states in one panel)
+- [ ] `tesla dossier export-html --theme light` — light mode variant
+- [ ] `tesla charge graph` — ASCII bar chart of last N charging sessions
 - [ ] Submit Homebrew formula to official tap
