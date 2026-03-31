@@ -121,3 +121,27 @@ def guest_mode(
     _with_wake(lambda b, v: b.command(v, "guest_mode", enable=on), v)
     status = "ON" if on else "OFF"
     render_success(f"Guest Mode {status}")
+
+
+@security_app.command("remote-start")
+def security_remote_start(
+    vin: str | None = VinOption,
+) -> None:
+    """Enable remote start (keyless drive for 2 minutes).
+
+    The driver must enter their Tesla account password on the touchscreen.
+
+    tesla security remote-start
+    """
+    import json as _json
+
+    from tesla_cli.output import console, is_json_mode, render_success
+
+    v = _vin(vin)
+    from tesla_cli.commands.vehicle import _with_wake
+    _with_wake(lambda b, v: b.command(v, "remote_start_drive"), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"remote_start": True}, indent=2))
+        return
+    render_success("Remote start enabled — vehicle can be driven for 2 minutes")

@@ -41,6 +41,7 @@ def _patched_env(mock_fleet_backend):
     cfg = MagicMock()
     cfg.general.backend = "fleet"
     cfg.general.default_vin = MOCK_VIN
+    cfg.general.cost_per_kwh = 0.0
     cfg.fleet.region = "na"
 
     patches = []

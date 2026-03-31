@@ -702,3 +702,130 @@ def vehicle_schedule_charge(
         console.print(_json.dumps({"scheduled_charging": True, "time": time_str, "time_minutes": time_minutes}, indent=2))
         return
     render_success(f"Scheduled charging set to {time_str} ({time_minutes} min from midnight)")
+
+
+@vehicle_app.command("tires")
+def vehicle_tires(
+    vin: str | None = VinOption,
+) -> None:
+    """Show TPMS tire pressure readings.
+
+    tesla vehicle tires
+    tesla -j vehicle tires | jq '{fl:.front_left_psi, fr:.front_right_psi}'
+    """
+    import json as _json
+
+    v = _vin(vin)
+    state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
+
+    POSITIONS = [
+        ("front_left",  "tpms_pressure_fl", "tpms_soft_warning_fl", "tpms_hard_warning_fl"),
+        ("front_right", "tpms_pressure_fr", "tpms_soft_warning_fr", "tpms_hard_warning_fr"),
+        ("rear_left",   "tpms_pressure_rl", "tpms_soft_warning_rl", "tpms_hard_warning_rl"),
+        ("rear_right",  "tpms_pressure_rr", "tpms_soft_warning_rr", "tpms_hard_warning_rr"),
+    ]
+
+    data = {}
+    for label, psi_key, soft_key, hard_key in POSITIONS:
+        bar = state.get(psi_key)
+        psi = round(bar * 14.5038, 1) if bar else None
+        data[label] = {
+            "bar": bar,
+            "psi": psi,
+            "soft_warning": state.get(soft_key, False),
+            "hard_warning": state.get(hard_key, False),
+        }
+
+    if is_json_mode():
+        console.print(_json.dumps(data, indent=2, default=str))
+        return
+
+    from rich.table import Table
+    table = Table(title="Tire Pressure (TPMS)", header_style="bold cyan")
+    table.add_column("Tire", width=14)
+    table.add_column("Bar", justify="right", width=6)
+    table.add_column("PSI", justify="right", width=6)
+    table.add_column("Status", width=10)
+
+    for label, vals in data.items():
+        bar_v = f"{vals['bar']:.2f}" if vals["bar"] else "—"
+        psi_v = f"{vals['psi']}" if vals["psi"] else "—"
+        if vals["hard_warning"]:
+            status = "[red]HARD WARN[/red]"
+        elif vals["soft_warning"]:
+            status = "[yellow]LOW[/yellow]"
+        elif vals["psi"]:
+            status = "[green]OK[/green]"
+        else:
+            status = "[dim]N/A[/dim]"
+        table.add_row(label.replace("_", " ").title(), bar_v, psi_v, status)
+
+    console.print()
+    console.print(table)
+    last_seen = state.get("tpms_last_seen_pressure_time")
+    if last_seen:
+        console.print(f"  [dim]Last updated: {last_seen}[/dim]")
+
+
+@vehicle_app.command("homelink")
+def vehicle_homelink(
+    vin: str | None = VinOption,
+) -> None:
+    """Trigger HomeLink (garage door opener) when near home location.
+
+    tesla vehicle homelink
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    # Get current GPS coordinates for the HomeLink proximity check
+    drive = _with_wake(lambda b, v: b.get_drive_state(v), v)
+    lat = drive.get("latitude", 0.0) or 0.0
+    lon = drive.get("longitude", 0.0) or 0.0
+
+    _with_wake(lambda b, v: b.command(v, "trigger_homelink", lat=lat, lon=lon), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"homelink": "triggered", "lat": lat, "lon": lon}, indent=2))
+        return
+    render_success("HomeLink triggered")
+
+
+@vehicle_app.command("dashcam")
+def vehicle_dashcam(
+    vin: str | None = VinOption,
+) -> None:
+    """Save the current dashcam clip to USB storage.
+
+    tesla vehicle dashcam
+    """
+    import json as _json
+
+    v = _vin(vin)
+    _with_wake(lambda b, v: b.command(v, "dashcam_save_clip"), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"dashcam_save": True}, indent=2))
+        return
+    render_success("Dashcam clip saved to USB storage")
+
+
+@vehicle_app.command("rename")
+def vehicle_rename(
+    name: str = typer.Argument(..., help="New vehicle name"),
+    vin: str | None = VinOption,
+) -> None:
+    """Rename the vehicle (requires firmware 2023.12+).
+
+    tesla vehicle rename "My Tesla Y"
+    """
+    import json as _json
+
+    v = _vin(vin)
+    _with_wake(lambda b, v: b.command(v, "set_vehicle_name", vehicle_name=name), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"name": name}, indent=2))
+        return
+    render_success(f"Vehicle renamed to '{name}'")

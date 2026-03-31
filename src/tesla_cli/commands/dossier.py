@@ -1464,3 +1464,110 @@ def dossier_clean(
     if dry_run:
         for name in removed_names:
             console.print(f"    [dim]- {name}[/dim]")
+
+
+@dossier_app.command("battery-health")
+def dossier_battery_health(
+    limit: int = typer.Option(50, "--limit", "-n", help="Max snapshots to analyze"),
+) -> None:
+    """Estimate battery degradation from dossier snapshot history.
+
+    Computes estimated rated range per snapshot and shows the trend.
+    The more `tesla dossier build` runs you have, the more accurate this is.
+
+    tesla dossier battery-health
+    tesla dossier battery-health --limit 100
+    tesla -j dossier battery-health
+    """
+    import json as _json
+    import statistics
+
+    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+
+    if not SNAPSHOTS_DIR.exists():
+        console.print("[yellow]No snapshots found. Run: tesla dossier build[/yellow]")
+        raise typer.Exit(1)
+
+    all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))[-limit:]
+    if len(all_snaps) < 2:
+        console.print(
+            f"[yellow]Need at least 2 snapshots (found {len(all_snaps)}). "
+            "Run `tesla dossier build` more often.[/yellow]"
+        )
+        raise typer.Exit(1)
+
+    points = []
+    for snap_path in all_snaps:
+        try:
+            snap = _json.loads(snap_path.read_text())
+            cs = snap.get("charge_state") or snap.get("vehicle", {}).get("charge_state") or {}
+            battery_level = cs.get("battery_level") or cs.get("usable_battery_level")
+            battery_range = cs.get("battery_range") or cs.get("ideal_battery_range")
+            timestamp = snap.get("last_updated") or snap.get("timestamp") or snap_path.stem
+            if battery_level and battery_range and float(battery_level) > 10:
+                rated = float(battery_range) / (float(battery_level) / 100.0)
+                points.append({
+                    "timestamp": str(timestamp)[:16],
+                    "battery_level": float(battery_level),
+                    "battery_range_mi": float(battery_range),
+                    "estimated_rated_range_mi": round(rated, 1),
+                })
+        except Exception:
+            continue
+
+    if not points:
+        console.print("[yellow]No charge state data found in snapshots.[/yellow]")
+        raise typer.Exit(1)
+
+    rated_ranges = [p["estimated_rated_range_mi"] for p in points]
+    earliest_rated = rated_ranges[0]
+    latest_rated = rated_ranges[-1]
+    peak_rated = max(rated_ranges)
+    degradation_pct = round((1 - latest_rated / peak_rated) * 100, 1) if peak_rated > 0 else 0.0
+    avg_rated = round(statistics.mean(rated_ranges), 1)
+
+    summary = {
+        "snapshots_analyzed": len(points),
+        "earliest_estimated_range_mi": round(earliest_rated, 1),
+        "latest_estimated_range_mi": round(latest_rated, 1),
+        "peak_estimated_range_mi": round(peak_rated, 1),
+        "avg_estimated_range_mi": avg_rated,
+        "estimated_degradation_pct": degradation_pct,
+        "data_points": points,
+    }
+
+    if is_json_mode():
+        console.print(_json.dumps(summary, indent=2, default=str))
+        return
+
+    from rich.table import Table
+    console.print()
+
+    # Summary panel
+    deg_color = "green" if degradation_pct < 5 else "yellow" if degradation_pct < 10 else "red"
+    console.print(f"  [bold]Battery Health[/bold] — {len(points)} snapshots analyzed")
+    console.print(f"  Peak estimated range : [bold]{peak_rated:.0f} mi[/bold]")
+    console.print(f"  Latest estimated range: [bold]{latest_rated:.0f} mi[/bold]")
+    console.print(f"  Estimated degradation: [{deg_color}]{degradation_pct}%[/{deg_color}]")
+    console.print(f"  Average rated range  : [dim]{avg_rated:.0f} mi[/dim]")
+    console.print()
+
+    # Recent data table (last 10 points)
+    table = Table(title="Estimated Rated Range Over Time (last 10 readings)", header_style="bold cyan")
+    table.add_column("Timestamp", width=17)
+    table.add_column("Batt %", justify="right", width=7)
+    table.add_column("Range mi", justify="right", width=9)
+    table.add_column("Est. Rated mi", justify="right", width=13)
+
+    for p in points[-10:]:
+        table.add_row(
+            p["timestamp"],
+            f"{p['battery_level']:.0f}%",
+            f"{p['battery_range_mi']:.0f}",
+            f"{p['estimated_rated_range_mi']:.0f}",
+        )
+    console.print(table)
+    console.print(
+        "\n  [dim]Tip: higher sample count = more accurate. "
+        "Run `tesla dossier build` regularly to accumulate data.[/dim]"
+    )

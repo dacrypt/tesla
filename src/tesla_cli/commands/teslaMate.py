@@ -142,6 +142,7 @@ def teslaMate_status() -> None:
 @teslaMate_app.command("trips")
 def teslaMate_trips(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of trips to show"),
+    csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
 ) -> None:
     """Show recent trip history from TeslaMate.
 
@@ -154,6 +155,19 @@ def teslaMate_trips(
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
         p.add_task(f"Fetching last {limit} trips...", total=None)
         trips = backend.get_trips(limit=limit)
+
+    if csv_out:
+        import csv as _csv
+        import pathlib  # noqa: F401
+        if not trips:
+            console.print("[yellow]No data to export.[/yellow]")
+            raise typer.Exit(0)
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            writer = _csv.DictWriter(fh, fieldnames=list(trips[0].keys()))
+            writer.writeheader()
+            writer.writerows(trips)
+        console.print(f"  [green]\u2713[/green] Saved {len(trips)} rows to [bold]{csv_out}[/bold]")
+        return
 
     if is_json_mode():
         console.print_json(json.dumps(trips, indent=2, default=str))
@@ -200,6 +214,7 @@ def teslaMate_trips(
 @teslaMate_app.command("charging")
 def teslaMate_charging(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions to show"),
+    csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
 ) -> None:
     """Show recent charging session history from TeslaMate.
 
@@ -212,6 +227,19 @@ def teslaMate_charging(
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
         p.add_task(f"Fetching last {limit} charging sessions...", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
+
+    if csv_out:
+        import csv as _csv
+        import pathlib  # noqa: F401
+        if not sessions:
+            console.print("[yellow]No data to export.[/yellow]")
+            raise typer.Exit(0)
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            writer = _csv.DictWriter(fh, fieldnames=list(sessions[0].keys()))
+            writer.writeheader()
+            writer.writerows(sessions)
+        console.print(f"  [green]\u2713[/green] Saved {len(sessions)} rows to [bold]{csv_out}[/bold]")
+        return
 
     if is_json_mode():
         console.print_json(json.dumps(sessions, indent=2, default=str))
@@ -305,6 +333,7 @@ def teslaMate_updates() -> None:
 @teslaMate_app.command("efficiency")
 def teslaMate_efficiency(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of trips to analyze"),
+    csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
 ) -> None:
     """Show per-trip energy efficiency from TeslaMate.
 
@@ -317,6 +346,19 @@ def teslaMate_efficiency(
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
         p.add_task(f"Calculating efficiency for last {limit} trips...", total=None)
         trips = backend.get_efficiency(limit=limit)
+
+    if csv_out:
+        import csv as _csv
+        import pathlib  # noqa: F401
+        if not trips:
+            console.print("[yellow]No data to export.[/yellow]")
+            raise typer.Exit(0)
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            writer = _csv.DictWriter(fh, fieldnames=list(trips[0].keys()))
+            writer.writeheader()
+            writer.writerows(trips)
+        console.print(f"  [green]\u2713[/green] Saved {len(trips)} rows to [bold]{csv_out}[/bold]")
+        return
 
     if is_json_mode():
         console.print_json(json.dumps(trips, indent=2, default=str))
@@ -363,6 +405,66 @@ def teslaMate_efficiency(
         f"\n  [dim]{len(trips)} trips │ {total_km:.0f} km │ {total_kwh:.1f} kWh │ "
         f"avg {avg_wh_km:.0f} Wh/km │ avg {avg_kwh_100mi:.1f} kWh/100mi[/dim]"
     )
+
+
+@teslaMate_app.command("vampire")
+def teslaMate_vampire(
+    days: int = typer.Option(30, "--days", "-d", help="Number of days to analyze"),
+) -> None:
+    """Show vampire drain (battery loss while parked) from TeslaMate.
+
+    tesla teslaMate vampire
+    tesla teslaMate vampire --days 90
+    tesla -j teslaMate vampire | jq '.avg_pct_per_hour'
+    """
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Analyzing vampire drain over {days} days...", total=None)
+        result = backend.get_vampire_drain(days=days)
+
+    if is_json_mode():
+        console.print_json(json.dumps(result, indent=2, default=str))
+        return
+
+    daily = result.get("daily", [])
+    avg_per_hour = result.get("avg_pct_per_hour")
+
+    if not daily:
+        console.print("[yellow]No vampire drain data found for the selected period.[/yellow]")
+        return
+
+    # Summary
+    console.print()
+    if avg_per_hour is not None:
+        color = "green" if float(avg_per_hour) < 0.05 else "yellow" if float(avg_per_hour) < 0.15 else "red"
+        console.print(f"  Average vampire drain: [{color}]{avg_per_hour:.3f}% / hour[/{color}]")
+        daily_equiv = round(float(avg_per_hour) * 24, 1)
+        console.print(f"  \u2248 [dim]{daily_equiv}% per 24 hours while parked[/dim]")
+    console.print()
+
+    table = Table(
+        title=f"Vampire Drain \u2014 Last {days} Days (TeslaMate)",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Date", width=12)
+    table.add_column("Periods", justify="right", width=8)
+    table.add_column("Avg drain %", justify="right", width=11)
+    table.add_column("Avg parked h", justify="right", width=12)
+    table.add_column("% / hour", justify="right", width=9)
+
+    for row in daily[:20]:
+        pph = float(row["pct_per_hour"]) if row["pct_per_hour"] else 0
+        pph_color = "green" if pph < 0.05 else "yellow" if pph < 0.15 else "red"
+        table.add_row(
+            str(row.get("date") or "")[:10],
+            str(row.get("periods") or "-"),
+            f"{row.get('avg_drain_pct') or 0:.2f}%",
+            f"{row.get('avg_parked_hours') or 0:.1f}h",
+            f"[{pph_color}]{pph:.3f}[/{pph_color}]",
+        )
+    console.print(table)
 
 
 # ── helpers ──

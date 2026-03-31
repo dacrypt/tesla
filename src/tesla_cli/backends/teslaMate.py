@@ -195,6 +195,60 @@ class TeslaMateBacked:
             cur.execute(sql)
             return [dict(r) for r in cur.fetchall()]
 
+    def get_vampire_drain(self, days: int = 30) -> dict[str, Any]:
+        """Estimate vampire drain from periods between drives."""
+        sql = """
+            WITH ordered_drives AS (
+                SELECT
+                    start_date,
+                    end_date,
+                    start_battery_level,
+                    end_battery_level,
+                    LEAD(start_battery_level) OVER (ORDER BY start_date)  AS next_start_level,
+                    LEAD(start_date)           OVER (ORDER BY start_date)  AS next_start_date
+                FROM drives
+                WHERE car_id = %s
+                  AND start_date >= NOW() - INTERVAL '%s days'
+            )
+            SELECT
+                DATE(end_date)                                              AS date,
+                ROUND(AVG(
+                    GREATEST(0, end_battery_level - next_start_level)
+                )::numeric, 2)                                              AS avg_drain_pct,
+                ROUND(AVG(
+                    EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0
+                )::numeric, 1)                                              AS avg_parked_hours,
+                ROUND(AVG(
+                    GREATEST(0, end_battery_level - next_start_level) /
+                    NULLIF(EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0, 0)
+                )::numeric, 4)                                              AS pct_per_hour,
+                COUNT(*)                                                    AS periods
+            FROM ordered_drives
+            WHERE next_start_level IS NOT NULL
+              AND next_start_date IS NOT NULL
+              AND EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0 BETWEEN 0.5 AND 72
+            GROUP BY DATE(end_date)
+            ORDER BY date DESC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, days))
+            rows = [dict(r) for r in cur.fetchall()]
+
+        if not rows:
+            return {"days_analyzed": days, "daily": [], "avg_pct_per_hour": None}
+
+        avg_per_hour = None
+        valid = [float(r["pct_per_hour"]) for r in rows if r["pct_per_hour"] is not None]
+        if valid:
+            import statistics
+            avg_per_hour = round(statistics.mean(valid), 4)
+
+        return {
+            "days_analyzed": days,
+            "avg_pct_per_hour": avg_per_hour,
+            "daily": rows,
+        }
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

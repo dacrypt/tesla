@@ -194,6 +194,7 @@ def _print_bookmarklet(rn: str) -> None:
 def order_watch(
     interval: int = typer.Option(10, "--interval", "-i", help="Poll interval in minutes"),
     notify: bool = typer.Option(True, "--notify/--no-notify", help="Send notifications on changes"),
+    on_change_exec: str | None = typer.Option(None, "--on-change-exec", help="Shell command to run on change. Change data is passed as JSON via TESLA_CHANGES env var."),
 ) -> None:
     """Watch for order status changes. Polls every N minutes."""
     rn = _get_rn()
@@ -205,6 +206,8 @@ def order_watch(
     changes = backend.detect_changes(rn)
     if changes:
         _show_changes(changes, notify)
+        if on_change_exec:
+            _exec_on_change(on_change_exec, changes)
     else:
         status = backend.get_order_status(rn)
         console.print(f"[dim]Current status: {status.order_status}[/dim]")
@@ -227,6 +230,8 @@ def order_watch(
 
             if changes:
                 _show_changes(changes, notify)
+                if on_change_exec:
+                    _exec_on_change(on_change_exec, changes)
             else:
                 console.print(f"[dim]{time.strftime('%H:%M')} No changes[/dim]")
 
@@ -268,6 +273,26 @@ def _show_changes(changes: list, notify: bool) -> None:
 
     if notify:
         _send_notification(changes)
+
+
+def _exec_on_change(cmd: str, changes: list) -> None:
+    """Run a shell command when changes are detected, passing changes as JSON env var."""
+    import json as _json
+    import os
+    import subprocess
+
+    serialized = []
+    for c in changes:
+        if hasattr(c, "model_dump"):
+            serialized.append(c.model_dump(mode="json"))
+        else:
+            try:
+                serialized.append(vars(c))
+            except TypeError:
+                serialized.append(str(c))
+
+    env = {**os.environ, "TESLA_CHANGES": _json.dumps(serialized)}
+    subprocess.Popen(cmd, shell=True, env=env)
 
 
 def _send_notification(changes: list) -> None:
