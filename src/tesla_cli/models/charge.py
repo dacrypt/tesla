@@ -13,6 +13,7 @@ class ChargeState(BaseModel):
     charge_rate: float = 0.0
     charger_voltage: int = 0
     charger_actual_current: int = 0
+    charge_amps: int = 0
     charger_power: int = 0
     time_to_full_charge: float = 0.0
     charge_port_door_open: bool = False

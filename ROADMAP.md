@@ -227,7 +227,18 @@ No competing tool combines all of these in one CLI:
 - [x] `get_drive_days(days)` SQL query in TeslaMate backend
 - [x] 536 tests, ruff clean
 
-### v2.1.0 — Next Milestone
+### v2.1.0 — All Competitive Gaps Closed ✅ SHIPPED
+- [x] `tesla charge limit` — no-arg show state + set with validation (50–100)
+- [x] `tesla charge amps` — no-arg show state + set with validation (1–48)
+- [x] `tesla climate temp` — no-arg show state + `--passenger` option + validation (15–30°C)
+- [x] `tesla climate seat` — named positions (driver/passenger/rear-left/rear-center/rear-right) + show-all mode + validation
+- [x] `tesla climate steering-wheel` — `--on/--off` flags + show state (replaces `steering-heater`)
+- [x] `tesla media volume` — range validation (0.0–11.0)
+- [x] JSON mode verified on all gap commands
+- [x] `ChargeState` + `ClimateState` models updated with missing fields
+- [x] 590 tests, ruff clean
+
+### v2.2.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
 - [ ] `tesla vehicle map` — ASCII terminal map showing current vehicle location on a coordinate grid
-- [ ] Complete competitor feature parity audit + gap-close sprint
+- [ ] Geofencing daemon (`tesla vehicle geofence watch`) — alerts on enter/exit named zones

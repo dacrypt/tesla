@@ -8,7 +8,14 @@ from tesla_cli.backends import get_vehicle_backend
 from tesla_cli.commands.vehicle import _with_wake
 from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.models.charge import ChargeState
-from tesla_cli.output import is_json_mode, render_dict, render_model, render_success, render_table
+from tesla_cli.output import (
+    console,
+    is_json_mode,
+    render_dict,
+    render_model,
+    render_success,
+    render_table,
+)
 
 charge_app = typer.Typer(name="charge", help="Battery and charging management.")
 
@@ -61,23 +68,63 @@ def charge_stop(vin: str | None = VinOption) -> None:
 
 @charge_app.command("limit")
 def charge_limit(
-    percent: int = typer.Argument(..., help="Charge limit percentage (50-100)"),
+    percent: int | None = typer.Argument(None, help="Charge limit percentage (50-100). Omit to show current."),
     vin: str | None = VinOption,
 ) -> None:
-    """Set charge limit percentage."""
+    """Show or set charge limit percentage.
+
+    tesla charge limit          → show current limit
+    tesla charge limit 80       → set to 80%
+    tesla -j charge limit       → JSON output
+    """
+    import json as _json
+
     v = _vin(vin)
+    if percent is None:
+        data = _with_wake(lambda b, v: b.get_charge_state(v), v)
+        limit = data.get("charge_limit_soc")
+        if is_json_mode():
+            console.print(_json.dumps({"charge_limit_soc": limit}))
+            return
+        render_success(f"Current charge limit: {limit}%")
+        return
+    if not 50 <= percent <= 100:
+        raise typer.BadParameter("Charge limit must be between 50 and 100.")
     _with_wake(lambda b, v: b.command(v, "set_charge_limit", percent=percent), v)
+    if is_json_mode():
+        console.print(_json.dumps({"charge_limit_soc": percent, "status": "ok"}))
+        return
     render_success(f"Charge limit set to {percent}%")
 
 
 @charge_app.command("amps")
 def charge_amps(
-    amps: int = typer.Argument(..., help="Charging amps"),
+    amps: int | None = typer.Argument(None, help="Charging amps (1-48). Omit to show current."),
     vin: str | None = VinOption,
 ) -> None:
-    """Set charging amperage."""
+    """Show or set charging amperage.
+
+    tesla charge amps           → show current amps
+    tesla charge amps 32        → set to 32A
+    tesla -j charge amps        → JSON output
+    """
+    import json as _json
+
     v = _vin(vin)
+    if amps is None:
+        data = _with_wake(lambda b, v: b.get_charge_state(v), v)
+        current = data.get("charge_amps") or data.get("charger_actual_current")
+        if is_json_mode():
+            console.print(_json.dumps({"charge_amps": current}))
+            return
+        render_success(f"Current charge amps: {current}A")
+        return
+    if not 1 <= amps <= 48:
+        raise typer.BadParameter("Amps must be between 1 and 48.")
     _with_wake(lambda b, v: b.command(v, "set_charging_amps", charging_amps=amps), v)
+    if is_json_mode():
+        console.print(_json.dumps({"charge_amps": amps, "status": "ok"}))
+        return
     render_success(f"Charging amps set to {amps}A")
 
 

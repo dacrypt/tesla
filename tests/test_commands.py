@@ -373,3 +373,349 @@ class TestExistingVehicleCommands:
     def test_vehicle_trunk(self):
         result = _run(["vehicle", "trunk", "rear"])
         assert result.exit_code == 0
+
+
+# ── v2.1.0: charge limit enhanced ────────────────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestChargeLimitEnhanced:
+    """charge limit: show-state, validation, JSON."""
+
+    def test_charge_limit_no_arg_shows_current(self):
+        result = _run(["charge", "limit"])
+        assert result.exit_code == 0
+        assert "80" in result.output  # fixture charge_limit_soc = 80
+
+    def test_charge_limit_no_arg_json(self):
+        result = _run(["--json", "charge", "limit"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["charge_limit_soc"] == 80
+
+    def test_charge_limit_set_valid(self, _patched_env):
+        result = _run(["charge", "limit", "90"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(MOCK_VIN, "set_charge_limit", percent=90)
+
+    def test_charge_limit_set_json(self):
+        result = _run(["--json", "charge", "limit", "75"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["charge_limit_soc"] == 75
+        assert data["status"] == "ok"
+
+    def test_charge_limit_validation_too_low(self):
+        result = _run(["charge", "limit", "49"])
+        assert result.exit_code != 0
+
+    def test_charge_limit_validation_too_high(self):
+        result = _run(["charge", "limit", "101"])
+        assert result.exit_code != 0
+
+    def test_charge_limit_boundary_50(self):
+        result = _run(["charge", "limit", "50"])
+        assert result.exit_code == 0
+
+    def test_charge_limit_boundary_100(self):
+        result = _run(["charge", "limit", "100"])
+        assert result.exit_code == 0
+
+
+# ── v2.1.0: charge amps enhanced ─────────────────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestChargeAmpsEnhanced:
+    """charge amps: show-state, validation, JSON."""
+
+    def test_charge_amps_no_arg_shows_current(self):
+        result = _run(["charge", "amps"])
+        assert result.exit_code == 0
+        assert "16" in result.output  # fixture charge_amps = 16
+
+    def test_charge_amps_no_arg_json(self):
+        result = _run(["--json", "charge", "amps"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "charge_amps" in data
+
+    def test_charge_amps_set_valid(self, _patched_env):
+        result = _run(["charge", "amps", "32"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(MOCK_VIN, "set_charging_amps", charging_amps=32)
+
+    def test_charge_amps_set_json(self):
+        result = _run(["--json", "charge", "amps", "16"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["charge_amps"] == 16
+        assert data["status"] == "ok"
+
+    def test_charge_amps_validation_too_low(self):
+        result = _run(["charge", "amps", "0"])
+        assert result.exit_code != 0
+
+    def test_charge_amps_validation_too_high(self):
+        result = _run(["charge", "amps", "49"])
+        assert result.exit_code != 0
+
+    def test_charge_amps_boundary_1(self):
+        result = _run(["charge", "amps", "1"])
+        assert result.exit_code == 0
+
+    def test_charge_amps_boundary_48(self):
+        result = _run(["charge", "amps", "48"])
+        assert result.exit_code == 0
+
+
+# ── v2.1.0: climate temp enhanced ────────────────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestClimateTempEnhanced:
+    """climate temp: show-state, --passenger option, validation, JSON."""
+
+    def test_climate_temp_no_arg_shows_current(self):
+        result = _run(["climate", "temp"])
+        assert result.exit_code == 0
+        assert "21.0" in result.output  # fixture driver_temp_setting
+
+    def test_climate_temp_no_arg_json(self):
+        result = _run(["--json", "climate", "temp"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "driver_temp_setting" in data
+        assert "passenger_temp_setting" in data
+
+    def test_climate_temp_set_driver_only(self, _patched_env):
+        result = _run(["climate", "temp", "22.0"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "set_temps", driver_temp=22.0, passenger_temp=22.0
+        )
+
+    def test_climate_temp_set_with_passenger(self, _patched_env):
+        result = _run(["climate", "temp", "22.0", "--passenger", "20.0"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "set_temps", driver_temp=22.0, passenger_temp=20.0
+        )
+
+    def test_climate_temp_set_json(self):
+        result = _run(["--json", "climate", "temp", "23.0"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["driver_temp"] == 23.0
+        assert data["status"] == "ok"
+
+    def test_climate_temp_validation_too_low(self):
+        result = _run(["climate", "temp", "14.9"])
+        assert result.exit_code != 0
+
+    def test_climate_temp_validation_too_high(self):
+        result = _run(["climate", "temp", "30.1"])
+        assert result.exit_code != 0
+
+    def test_climate_temp_boundary_15(self):
+        result = _run(["climate", "temp", "15.0"])
+        assert result.exit_code == 0
+
+    def test_climate_temp_boundary_30(self):
+        result = _run(["climate", "temp", "30.0"])
+        assert result.exit_code == 0
+
+
+# ── v2.1.0: climate seat (named positions) ───────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestClimateSeatNamed:
+    """climate seat: named positions, show-all, validation, JSON."""
+
+    def test_seat_no_arg_shows_all(self):
+        result = _run(["climate", "seat"])
+        assert result.exit_code == 0
+
+    def test_seat_no_arg_json(self):
+        result = _run(["--json", "climate", "seat"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "driver" in data
+        assert "passenger" in data
+        assert "rear-left" in data
+        assert "rear-center" in data
+        assert "rear-right" in data
+
+    def test_seat_driver_set(self, _patched_env):
+        result = _run(["climate", "seat", "driver", "2"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_seat_heater_request", heater=0, level=2
+        )
+
+    def test_seat_passenger_set(self, _patched_env):
+        result = _run(["climate", "seat", "passenger", "1"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_seat_heater_request", heater=1, level=1
+        )
+
+    def test_seat_rear_left_set(self, _patched_env):
+        result = _run(["climate", "seat", "rear-left", "1"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_seat_heater_request", heater=2, level=1
+        )
+
+    def test_seat_rear_center_set(self, _patched_env):
+        result = _run(["climate", "seat", "rear-center", "0"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_seat_heater_request", heater=4, level=0
+        )
+
+    def test_seat_rear_right_set(self, _patched_env):
+        result = _run(["climate", "seat", "rear-right", "3"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_seat_heater_request", heater=5, level=3
+        )
+
+    def test_seat_json_output(self):
+        result = _run(["--json", "climate", "seat", "passenger", "3"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["seat"] == "passenger"
+        assert data["heater_id"] == 1
+        assert data["level"] == 3
+        assert data["status"] == "ok"
+
+    def test_seat_invalid_position(self):
+        result = _run(["climate", "seat", "middle", "1"])
+        assert result.exit_code != 0
+
+    def test_seat_invalid_level(self):
+        result = _run(["climate", "seat", "driver", "4"])
+        assert result.exit_code != 0
+
+    def test_seat_position_without_level(self):
+        result = _run(["climate", "seat", "driver"])
+        assert result.exit_code != 0
+
+    def test_seat_in_help(self):
+        result = _run(["climate", "--help"])
+        assert "seat" in result.output
+
+
+# ── v2.1.0: climate steering-wheel ───────────────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestClimateSteeringWheel:
+    """climate steering-wheel: show state, --on/--off, JSON."""
+
+    def test_steering_wheel_no_arg_shows_state(self):
+        result = _run(["climate", "steering-wheel"])
+        assert result.exit_code == 0
+
+    def test_steering_wheel_no_arg_json(self):
+        result = _run(["--json", "climate", "steering-wheel"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "steering_wheel_heater" in data
+        assert data["steering_wheel_heater"] is False  # fixture default
+
+    def test_steering_wheel_on(self, _patched_env):
+        result = _run(["climate", "steering-wheel", "--on"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_steering_wheel_heater_request", on=True
+        )
+
+    def test_steering_wheel_off(self, _patched_env):
+        result = _run(["climate", "steering-wheel", "--off"])
+        assert result.exit_code == 0
+        _patched_env.command.assert_called_with(
+            MOCK_VIN, "remote_steering_wheel_heater_request", on=False
+        )
+
+    def test_steering_wheel_on_json(self):
+        result = _run(["--json", "climate", "steering-wheel", "--on"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["steering_wheel_heater"] is True
+        assert data["status"] == "ok"
+
+    def test_steering_wheel_off_json(self):
+        result = _run(["--json", "climate", "steering-wheel", "--off"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["steering_wheel_heater"] is False
+        assert data["status"] == "ok"
+
+    def test_steering_wheel_in_help(self):
+        result = _run(["climate", "--help"])
+        assert "steering-wheel" in result.output
+
+
+# ── v2.1.0: media volume validation + JSON ───────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestMediaVolumeValidation:
+    """media volume: validation + JSON mode via render_success."""
+
+    def test_media_volume_validation_too_high(self):
+        result = _run(["media", "volume", "12.0"])
+        assert result.exit_code != 0
+
+    def test_media_volume_validation_negative(self):
+        result = _run(["media", "volume", "-1.0"])
+        assert result.exit_code != 0
+
+    def test_media_volume_boundary_0(self):
+        result = _run(["media", "volume", "0.0"])
+        assert result.exit_code == 0
+
+    def test_media_volume_boundary_11(self):
+        result = _run(["media", "volume", "11.0"])
+        assert result.exit_code == 0
+
+    def test_media_play_json(self):
+        result = _run(["--json", "media", "play"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+
+    def test_media_next_json(self):
+        result = _run(["--json", "media", "next"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+
+    def test_media_prev_json(self):
+        result = _run(["--json", "media", "prev"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+
+    def test_media_volume_set_json(self):
+        result = _run(["--json", "media", "volume", "5.0"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+
+
+# ── v2.1.0: nav send JSON ─────────────────────────────────────────────────────
+
+@pytest.mark.usefixtures("_patched_env")
+class TestNavSendJson:
+    """nav send: JSON mode via render_success + address passthrough."""
+
+    def test_nav_send_json(self):
+        result = _run(["--json", "nav", "send", "1600 Pennsylvania Ave NW"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+
+    def test_nav_send_passes_address(self, _patched_env):
+        result = _run(["nav", "send", "Times Square"])
+        assert result.exit_code == 0
+        call_args = _patched_env.command.call_args
+        assert call_args[0][1] == "share"
+        assert call_args[1]["value"]["android.intent.extra.TEXT"] == "Times Square"

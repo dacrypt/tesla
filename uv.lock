@@ -1500,7 +1500,7 @@ wheels = [
 
 [[package]]
 name = "tesla-cli"
-version = "1.9.0"
+version = "2.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "apprise" },
