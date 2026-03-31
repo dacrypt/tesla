@@ -234,7 +234,7 @@ def config_backup(
     safe = _redact(data)
     safe["_meta"] = {
         "backup_version": "1",
-        "tesla_cli_version": "1.7.0",
+        "tesla_cli_version": "1.8.0",
     }
 
     out = Path(output).expanduser()

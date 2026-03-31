@@ -1727,11 +1727,13 @@ def dossier_export_pdf(
 def dossier_export_html(
     output: str = typer.Option("dossier.html", "--output", "-o", help="Output HTML file path"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    theme: str = typer.Option("dark", "--theme", "-t", help="CSS theme: dark (default) or light"),
 ) -> None:
     """Export the dossier to a standalone HTML report (no extra dependencies required).
 
     tesla dossier export-html
-    tesla dossier export-html --output ~/Desktop/my-tesla.html
+    tesla dossier export-html --theme light
+    tesla dossier export-html --output ~/Desktop/my-tesla.html --theme light
     """
     import html as _html
     import json as _json
@@ -1837,6 +1839,22 @@ def dossier_export_html(
     gen_str = e(str(generated_at)[:19])
     vin_str = e(resolved_vin)
 
+    # ── Theme CSS variables ──────────────────────────────────────────────────
+    if theme.lower() == "light":
+        _css_root   = "--bg: #f5f5f5; --card: #ffffff; --border: #d0d0d0;\n    --text: #1a1a1a; --muted: #666; --accent: #c0001a;\n    --label: #444; --bar-bg: #e0e0e0; --bar-fg: #c0001a;"
+        _h2_bg      = "#f0f0f0"
+        _h2_col     = "#333"
+        _tr_hover   = "rgba(0,0,0,0.04)"
+        _code_bg    = "#ebebeb"
+        _recall_bg  = "rgba(192,0,26,0.06)"
+    else:  # dark (default)
+        _css_root   = "--bg: #0d0d0d; --card: #1a1a1a; --border: #2e2e2e;\n    --text: #e8e8e8; --muted: #888; --accent: #e82127;\n    --label: #aaa; --bar-bg: #2e2e2e; --bar-fg: #e82127;"
+        _h2_bg      = "#222"
+        _h2_col     = "#ccc"
+        _tr_hover   = "rgba(255,255,255,0.03)"
+        _code_bg    = "#222"
+        _recall_bg  = "rgba(232,33,39,0.07)"
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1845,9 +1863,7 @@ def dossier_export_html(
 <title>Tesla Dossier — {vin_str}</title>
 <style>
   :root {{
-    --bg: #0d0d0d; --card: #1a1a1a; --border: #2e2e2e;
-    --text: #e8e8e8; --muted: #888; --accent: #e82127;
-    --label: #aaa; --bar-bg: #2e2e2e; --bar-fg: #e82127;
+    {_css_root}
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -1858,23 +1874,23 @@ def dossier_export_html(
   header .meta {{ color: var(--muted); font-size: 0.85rem; margin-top: 6px; }}
   .section {{ background: var(--card); border: 1px solid var(--border);
               border-radius: 6px; margin: 16px 0; overflow: hidden; }}
-  .section h2 {{ background: #222; padding: 10px 16px; font-size: 0.95rem;
-                 letter-spacing: 0.5px; text-transform: uppercase; color: #ccc; }}
+  .section h2 {{ background: {_h2_bg}; padding: 10px 16px; font-size: 0.95rem;
+                 letter-spacing: 0.5px; text-transform: uppercase; color: {_h2_col}; }}
   .section .body {{ padding: 16px; }}
   table {{ width: 100%; border-collapse: collapse; }}
   td {{ padding: 5px 8px; font-size: 0.9rem; }}
   td.lbl {{ color: var(--label); width: 38%; font-weight: 500; }}
-  tr:hover {{ background: rgba(255,255,255,0.03); }}
+  tr:hover {{ background: {_tr_hover}; }}
   .bar-wrap {{ background: var(--bar-bg); border-radius: 4px; height: 18px;
                margin: 8px 0 12px; overflow: hidden; }}
   .bar {{ background: var(--bar-fg); height: 100%; border-radius: 4px;
           font-size: 0.75rem; color: #fff; line-height: 18px; text-align: right;
           padding-right: 6px; min-width: 2rem; transition: width 0.3s; }}
   .recall {{ border-left: 3px solid var(--accent); padding: 8px 12px;
-             margin-bottom: 10px; background: rgba(232,33,39,0.07); border-radius: 0 4px 4px 0; }}
+             margin-bottom: 10px; background: {_recall_bg}; border-radius: 0 4px 4px 0; }}
   .recall strong {{ font-size: 0.9rem; }}
   .dim {{ color: var(--muted); font-size: 0.85rem; }}
-  code {{ background: #222; padding: 2px 5px; border-radius: 3px; font-size: 0.82rem; }}
+  code {{ background: {_code_bg}; padding: 2px 5px; border-radius: 3px; font-size: 0.82rem; }}
   footer {{ text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 32px; }}
   a {{ color: var(--accent); text-decoration: none; }}
 </style>

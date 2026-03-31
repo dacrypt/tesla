@@ -1169,3 +1169,222 @@ def vehicle_speed_limit(
         t.add_row("Min Limit", f"{min_limit} mph")
     t.add_row("PIN Set", "Yes" if pin_set else "No")
     console.print(Panel(t, title="[bold]Speed Limit Mode[/bold]", border_style="red"))
+
+
+@vehicle_app.command("bio")
+def vehicle_bio(vin: str | None = VinOption) -> None:
+    """Comprehensive single-screen vehicle profile — all states at once.
+
+    tesla vehicle bio
+    tesla -j vehicle bio | jq '.battery.battery_level'
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Loading vehicle profile...", total=None)
+        data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+
+    vs   = data.get("vehicle_state", {}) or {}
+    cs   = data.get("charge_state", {}) or {}
+    clim = data.get("climate_state", {}) or {}
+    vcfg = data.get("vehicle_config", {}) or {}
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "vin":   data.get("vin", v),
+            "name":  data.get("display_name") or data.get("vehicle_name", ""),
+            "state": data.get("state", ""),
+            "identity": {
+                "vin":        data.get("vin", v),
+                "model":      vcfg.get("car_type", ""),
+                "color":      vcfg.get("exterior_color", ""),
+                "sw_version": vs.get("car_version", ""),
+            },
+            "battery": {
+                "battery_level":    cs.get("battery_level"),
+                "battery_range":    cs.get("battery_range"),
+                "charging_state":   cs.get("charging_state"),
+                "charge_limit_soc": cs.get("charge_limit_soc"),
+            },
+            "climate": {
+                "is_climate_on": clim.get("is_climate_on"),
+                "inside_temp":   clim.get("inside_temp"),
+                "outside_temp":  clim.get("outside_temp"),
+            },
+            "drive": {
+                "locked":    vs.get("locked"),
+                "sentry_mode": vs.get("sentry_mode"),
+                "valet_mode":  vs.get("valet_mode"),
+                "odometer":    vs.get("odometer"),
+                "sw_version":  vs.get("car_version"),
+            },
+            "scheduling": {
+                "scheduled_charging_pending":    cs.get("scheduled_charging_pending"),
+                "scheduled_charging_start_time": cs.get("scheduled_charging_start_time"),
+                "scheduled_departure_time":      cs.get("scheduled_departure_time"),
+            },
+        }, indent=2, default=str))
+        return
+
+    from rich.panel import Panel as _Panel
+    from rich.table import Table as _Table
+
+    display_name = data.get("display_name") or data.get("vehicle_name") or v
+    state_txt    = data.get("state", "unknown")
+
+    def _row(t: _Table, label: str, value: object, color: str = "white") -> None:
+        if value is None or str(value) in ("None", ""):
+            t.add_row(f"[dim]{label}[/dim]", "[dim]—[/dim]")
+        else:
+            t.add_row(f"[dim]{label}[/dim]", f"[{color}]{value}[/{color}]")
+
+    def _kv() -> _Table:
+        t = _Table(show_header=False, box=None, padding=(0, 2), expand=True)
+        t.add_column("k", width=26)
+        t.add_column("v")
+        return t
+
+    # Identity
+    t_id = _kv()
+    _row(t_id, "VIN",        data.get("vin", v), "cyan")
+    _row(t_id, "Model",      vcfg.get("car_type", ""), "cyan")
+    _row(t_id, "Color",      vcfg.get("exterior_color", ""))
+    _row(t_id, "Name",       display_name, "bold")
+    _row(t_id, "SW Version", vs.get("car_version", ""))
+    _row(t_id, "State",      state_txt, "green" if state_txt == "online" else "yellow")
+
+    # Battery
+    lvl    = cs.get("battery_level")
+    rng    = cs.get("battery_range")
+    cs_txt = cs.get("charging_state", "")
+    lim    = cs.get("charge_limit_soc")
+    t_bat  = _kv()
+    bc = "green" if (lvl or 0) >= 50 else "yellow" if (lvl or 0) >= 20 else "red"
+    _row(t_bat, "Level",         f"{lvl}%" if lvl is not None else None, bc)
+    _row(t_bat, "Range",         f"{rng} mi" if rng else None)
+    _row(t_bat, "Charging",      cs_txt, "green" if cs_txt == "Charging" else "dim")
+    _row(t_bat, "Charge Limit",  f"{lim}%" if lim else None)
+
+    # Climate
+    hvac_on = clim.get("is_climate_on")
+    inside  = clim.get("inside_temp")
+    outside = clim.get("outside_temp")
+    t_clim  = _kv()
+    _row(t_clim, "HVAC",         "ON" if hvac_on else "OFF", "green" if hvac_on else "dim")
+    _row(t_clim, "Inside temp",  f"{inside}°C"  if inside  is not None else None)
+    _row(t_clim, "Outside temp", f"{outside}°C" if outside is not None else None)
+
+    # Drive state
+    locked   = vs.get("locked")
+    sentry   = vs.get("sentry_mode")
+    valet    = vs.get("valet_mode")
+    odometer = vs.get("odometer")
+    t_drv    = _kv()
+    _row(t_drv, "Locked",   "LOCKED"   if locked else "UNLOCKED", "green" if locked else "red")
+    _row(t_drv, "Sentry",   "ON"       if sentry else "off",      "yellow" if sentry else "dim")
+    _row(t_drv, "Valet",    "ON"       if valet  else "off",      "yellow" if valet  else "dim")
+    _row(t_drv, "Odometer", f"{odometer:.1f} mi" if odometer else None)
+
+    # Scheduling
+    sched_pending = cs.get("scheduled_charging_pending")
+    sched_time    = cs.get("scheduled_charging_start_time")
+    dep_time      = cs.get("scheduled_departure_time")
+    t_sched = _kv()
+    if sched_pending and sched_time:
+        try:
+            from datetime import UTC, datetime
+            dt_s = datetime.fromtimestamp(int(sched_time), tz=UTC).strftime("%H:%M UTC")
+        except Exception:
+            dt_s = str(sched_time)
+        _row(t_sched, "Scheduled Charge", dt_s, "cyan")
+    else:
+        _row(t_sched, "Scheduled Charge", "Not set")
+    if dep_time:
+        try:
+            from datetime import UTC, datetime  # noqa: F811
+            dt_d = datetime.fromtimestamp(int(dep_time), tz=UTC).strftime("%H:%M UTC")
+        except Exception:
+            dt_d = str(dep_time)
+        _row(t_sched, "Departure", dt_d, "cyan")
+
+    console.print()
+    console.print(_Panel(t_id,    title=f"[bold cyan]{display_name}[/bold cyan]", border_style="cyan"))
+    console.print(_Panel(t_bat,   title="[bold]Battery[/bold]",   border_style="green"))
+    console.print(_Panel(t_clim,  title="[bold]Climate[/bold]",   border_style="blue"))
+    console.print(_Panel(t_drv,   title="[bold]Drive State[/bold]", border_style="yellow"))
+    console.print(_Panel(t_sched, title="[bold]Scheduling[/bold]", border_style="dim"))
+
+
+_CABIN_LEVEL_MAP: dict[str, dict] = {
+    "FAN_ONLY":  {"on": True, "fan_only": True},
+    "NO_AC":     {"on": True, "fan_only": False},
+    "CHARGE_ON": {"on": True, "fan_only": False},
+}
+
+
+@vehicle_app.command("cabin-protection")
+def vehicle_cabin_protection(
+    on: bool | None = typer.Option(None, "--on/--off", help="Enable or disable cabin overheat protection"),
+    level: str | None = typer.Option(
+        None, "--level",
+        help="Protection level: FAN_ONLY | NO_AC | CHARGE_ON",
+    ),
+    vin: str | None = VinOption,
+) -> None:
+    """Show or control Cabin Overheat Protection.
+
+    tesla vehicle cabin-protection              → show current status
+    tesla vehicle cabin-protection --on         → enable protection
+    tesla vehicle cabin-protection --off        → disable protection
+    tesla vehicle cabin-protection --level FAN_ONLY
+    tesla vehicle cabin-protection --level NO_AC
+    tesla -j vehicle cabin-protection
+    """
+    import json as _json
+
+    v = _vin(vin)
+    VALID_LEVELS = tuple(_CABIN_LEVEL_MAP.keys())
+
+    # ── Status (no flags) ────────────────────────────────────────────────────
+    if on is None and level is None:
+        data = _with_wake(lambda b, v: b.get_climate_state(v), v)
+        cop        = data.get("cabin_overheat_protection", "Unknown")
+        cop_active = data.get("cabin_overheat_protection_actively_cooling", False)
+        if is_json_mode():
+            console.print(_json.dumps({
+                "cabin_overheat_protection": cop,
+                "actively_cooling": cop_active,
+            }, indent=2))
+            return
+        sc = "green" if cop not in ("Off", "Unknown", None) else "dim"
+        console.print(f"\n  Cabin Overheat Protection: [{sc}][bold]{cop}[/bold][/{sc}]")
+        if cop_active:
+            console.print("  [yellow]Currently actively cooling[/yellow]")
+        return
+
+    # ── --level flag ─────────────────────────────────────────────────────────
+    if level is not None:
+        lu = level.upper()
+        if lu not in VALID_LEVELS:
+            console.print(
+                f"[red]Invalid level '{level}'. Choose from: {', '.join(VALID_LEVELS)}[/red]"
+            )
+            raise typer.Exit(1)
+        params = _CABIN_LEVEL_MAP[lu]
+        _with_wake(lambda b, v: b.command(v, "set_cabin_overheat_protection", **params), v)
+        if is_json_mode():
+            console.print(_json.dumps({"cabin_overheat_protection": lu, **params}, indent=2))
+            return
+        render_success(f"Cabin Overheat Protection set to {lu}")
+        return
+
+    # ── --on / --off ─────────────────────────────────────────────────────────
+    _with_wake(
+        lambda b, v: b.command(v, "set_cabin_overheat_protection", on=bool(on), fan_only=False), v
+    )
+    if is_json_mode():
+        console.print(_json.dumps({"cabin_overheat_protection": "on" if on else "off"}, indent=2))
+        return
+    render_success(f"Cabin Overheat Protection {'enabled' if on else 'disabled'}")

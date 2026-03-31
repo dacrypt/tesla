@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-03-30
+
+### Added
+
+- **`tesla vehicle bio`** — comprehensive single-screen vehicle profile: one `get_vehicle_data` call renders 5 Rich panels (Identity, Battery, Climate, Drive State, Scheduling); color-coded battery level (green/yellow/red); gracefully handles missing fields with `—` placeholders; full JSON mode with structured `identity/battery/climate/drive/scheduling` keys
+- **`tesla teslaMate graph`** — ASCII bar chart of recent charging sessions from TeslaMate; bars scaled to terminal width via `shutil.get_terminal_size`; color-coded by kWh (green ≥30, yellow ≥10, red <10); fixed-width label column for alignment; summary footer with session count, total kWh, and total cost; `--limit N`; JSON mode returns raw session list
+- **`tesla dossier export-html --theme light|dark`** — theme flag for HTML dossier export; `dark` preserves existing dark CSS (default); `light` switches to white background with deep-red Tesla accent `#c0001a` (WCAG AA compliant); CSS injected via Python string variables into the existing f-string, no template engine required
+- **`tesla vehicle cabin-protection`** — view and control Cabin Overheat Protection; no flags = show current level from `climate_state`; `--on/--off` toggles; `--level FAN_ONLY|NO_AC|CHARGE_ON` sets specific mode (case-insensitive); JSON mode; invalid level exits with helpful message
+
+### Tests
+
+- 501 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [1.7.0] - 2026-03-30
 
 ### Added
