@@ -302,8 +302,15 @@ No competing tool combines all of these in one CLI:
 - [x] Named SSE events (`event: vehicle`, `event: geofence`) with `addEventListener`
 - [x] 808 tests, 2 skipped, ruff clean
 
-### v2.8.0 — Next Milestone
-- [ ] `tesla mqtt setup|status|test` — CLI commands to configure and test MQTT
-- [ ] MQTT Home Assistant discovery — publish `homeassistant/sensor/tesla_<vin>_<key>/config` on startup
-- [ ] `GET /api/vehicle/stream?topics=geofence,battery` — fine-grained topic filtering in SSE
-- [ ] Dashboard: live geofence map overlay showing active zones as circles
+### v2.8.0 — MQTT CLI + HA Discovery + SSE Topics + Geofence Overlay ✅ SHIPPED
+- [x] `tesla mqtt setup|status|test|publish|ha-discovery` — full MQTT broker management CLI
+- [x] MQTT HA discovery — publish 15 `homeassistant/sensor/tesla_<vin>_<slug>/config` retained messages for auto-registration
+- [x] `GET /api/vehicle/stream?topics=battery,climate,drive,location` — fine-grained named SSE events per state section
+- [x] Dashboard geofence overlay — zone chips on Location card; highlight green on enter, update live from SSE `geofence` events
+- [x] 853 tests, 2 skipped, ruff clean
+
+### v2.9.0 — Next Milestone
+- [ ] `tesla vehicle bio` — 5-panel comprehensive vehicle profile (identity/battery/climate/drive/scheduling)
+- [ ] `tesla charge graph` — ASCII bar chart of TeslaMate charging sessions
+- [ ] `tesla dossier export-html --theme light|dark` — light mode HTML export
+- [ ] `tesla vehicle cabin-protection` — Cabin Overheat Protection control
