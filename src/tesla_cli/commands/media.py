@@ -58,6 +58,8 @@ def media_volume(
     """Set volume or step up/down."""
     v = _vin(vin)
     if level is not None:
+        if not 0.0 <= level <= 11.0:
+            raise typer.BadParameter("Volume must be between 0.0 and 11.0.")
         _with_wake(lambda b, v: b.command(v, "adjust_volume", volume=level), v)
         render_success(f"Volume set to {level}")
     elif down:

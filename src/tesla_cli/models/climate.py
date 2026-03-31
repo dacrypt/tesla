@@ -15,5 +15,9 @@ class ClimateState(BaseModel):
     fan_status: int = 0
     seat_heater_left: int = 0
     seat_heater_right: int = 0
+    seat_heater_rear_left: int = 0
+    seat_heater_rear_center: int = 0
+    seat_heater_rear_right: int = 0
+    steering_wheel_heater: bool = False
     is_front_defroster_on: bool = False
     is_rear_defroster_on: bool = False

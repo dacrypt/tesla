@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-03-30
+
+### Enhanced — All Competitive Gaps Closed
+
+- **`tesla charge limit [PERCENT]`** — no-arg mode shows current `charge_limit_soc` from `charge_state`; set mode validates 50–100 and calls `set_charge_limit`; JSON output in both read and write paths
+- **`tesla charge amps [AMPS]`** — no-arg mode shows current `charge_amps`; set mode validates 1–48 and calls `set_charging_amps`; JSON output in both paths
+- **`tesla climate temp [CELSIUS]`** — no-arg mode shows current driver + passenger temps; `--passenger TEMP` option sets independent passenger temp; validation 15.0–30.0 °C; JSON output
+- **`tesla climate seat [POSITION [LEVEL]]`** — new named-position command (`driver | passenger | rear-left | rear-center | rear-right`); no-arg shows all 5 seat heater levels with color indicators; per-position level set with validation 0–3; JSON output; original integer `seat-heater` command retained for backward compatibility
+- **`tesla climate steering-wheel [--on|--off]`** — new command replacing clunky bool-arg `steering-heater`; no-arg shows current state; `--on/--off` flags; JSON output; original `steering-heater` command retained
+- **`tesla media volume`** — added range validation (0.0–11.0); JSON output already present via `render_success`
+- **`tesla media play/next/prev`** — JSON output confirmed working via `render_success`; no structural change needed
+- **`tesla nav send`** — JSON output confirmed working via `render_success`; no structural change needed
+
+### Models
+
+- `ChargeState`: added `charge_amps: int = 0`
+- `ClimateState`: added `seat_heater_rear_left`, `seat_heater_rear_center`, `seat_heater_rear_right`, `steering_wheel_heater`
+
+### Tests
+
+- 590 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [2.0.0] - 2026-03-30
 
 ### Added
