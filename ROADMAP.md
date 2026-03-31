@@ -309,8 +309,17 @@ No competing tool combines all of these in one CLI:
 - [x] Dashboard geofence overlay — zone chips on Location card; highlight green on enter, update live from SSE `geofence` events
 - [x] 853 tests, 2 skipped, ruff clean
 
-### v2.9.0 — Next Milestone
-- [ ] `tesla vehicle bio` — 5-panel comprehensive vehicle profile (identity/battery/climate/drive/scheduling)
-- [ ] `tesla charge graph` — ASCII bar chart of TeslaMate charging sessions
-- [ ] `tesla dossier export-html --theme light|dark` — light mode HTML export
-- [ ] `tesla vehicle cabin-protection` — Cabin Overheat Protection control
+### v2.9.0 — Timeline, Cost Report, Prometheus Metrics, Theme Toggle ✅ SHIPPED
+- [x] `tesla teslaMate timeline` — unified chronological event timeline (trips + charges + OTA); `--days N`; type icons + duration column
+- [x] `tesla teslaMate cost-report` — monthly charging cost report; `--month YYYY-MM` filter; uses `cost_per_kwh` config; JSON mode
+- [x] `GET /api/metrics` — Prometheus text-format scrape endpoint; 11 gauges with VIN label; NaN on missing values; graceful error fallback
+- [x] `get_timeline(days)` SQL method in `TeslaMateBacked` — UNION ALL across drives / charging_processes / updates
+- [x] Dashboard theme toggle — 🌙/☀️ button; `body.light` CSS override; `localStorage` persistence
+- [x] ~900 tests, 2 skipped, ruff clean
+
+### v3.0.0 — Next Milestone
+- [ ] Multi-vehicle dashboard — switch between vehicles in web UI
+- [ ] `tesla vehicle schedule-update` — schedule OTA software update
+- [ ] `GET /api/teslaMate/timeline` — expose timeline via REST API
+- [ ] Notification templates — customizable Apprise message format
+- [ ] `tesla config migrate` — migrate config across major versions

@@ -118,6 +118,55 @@ def create_app(vin: str | None = None) -> FastAPI:
             for name, zone in cfg.geofences.zones.items()
         ]
 
+    # ── Prometheus metrics endpoint ──────────────────────────────────────────
+
+    @app.get("/api/metrics", tags=["System"])
+    def api_metrics(request: Request):
+        """Prometheus text format metrics — battery level, range, odometer, etc.
+
+        Designed to be scraped by Prometheus or read by Grafana.
+        Returns 200 with text/plain; set=0.0.4 even if vehicle is unreachable
+        (uses stale/empty values rather than error).
+        """
+        from fastapi.responses import PlainTextResponse
+
+        cfg = load_config()
+        v   = resolve_vin(cfg, app.state.override_vin)
+
+        # Try to get fresh data; fall back to empty on any error
+        try:
+            backend = get_vehicle_backend(cfg)
+            data = backend.get_vehicle_data(v)
+        except Exception:  # noqa: BLE001
+            data = {}
+
+        cs = data.get("charge_state") or {}
+        ds = data.get("drive_state")  or {}
+        vs = data.get("vehicle_state") or {}
+
+        def _g(name: str, help_text: str, value, labels: str = "") -> str:
+            lbl = f'{{vin="{v}"{", " + labels if labels else ""}}}'
+            val = float(value) if value is not None else float("nan")
+            # Prometheus uses NaN for missing; but many exporters use 0 — use NaN for clarity
+            val_str = str(val) if val == val else "NaN"
+            return f"# HELP {name} {help_text}\n# TYPE {name} gauge\n{name}{lbl} {val_str}\n"
+
+        lines = [
+            _g("tesla_battery_level",   "Battery level percent",         cs.get("battery_level")),
+            _g("tesla_battery_range",   "Estimated range in miles",       cs.get("battery_range")),
+            _g("tesla_charge_limit",    "Charge limit SoC percent",       cs.get("charge_limit_soc")),
+            _g("tesla_charger_power",   "Charger power in kW",            cs.get("charger_power")),
+            _g("tesla_energy_added",    "Energy added in kWh this session",cs.get("charge_energy_added")),
+            _g("tesla_odometer",        "Odometer in miles",              vs.get("odometer")),
+            _g("tesla_speed",           "Vehicle speed in mph",           ds.get("speed")),
+            _g("tesla_latitude",        "Vehicle latitude",               ds.get("latitude")),
+            _g("tesla_longitude",       "Vehicle longitude",              ds.get("longitude")),
+            _g("tesla_locked",          "Doors locked (1=locked 0=unlocked)", int(bool(vs.get("locked"))) if vs.get("locked") is not None else None),
+            _g("tesla_sentry_mode",     "Sentry mode active (1=on 0=off)",    int(bool(vs.get("sentry_mode"))) if vs.get("sentry_mode") is not None else None),
+        ]
+
+        return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
+
     # ── Real-time SSE stream ──────────────────────────────────────────────────
 
     @app.get("/api/vehicle/stream", tags=["Vehicle"])

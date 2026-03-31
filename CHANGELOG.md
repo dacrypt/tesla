@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-03-31
+
+### Added — Timeline, Cost Report, Prometheus Metrics, Theme Toggle
+
+- **`tesla teslaMate timeline`** — unified chronological event feed merging trips, charges, and OTA updates; `--days N`; JSON mode; duration column; type icons (🚗 ⚡ 🔄)
+- **`tesla teslaMate cost-report`** — charging cost report grouped by month; uses `cost_per_kwh` from config; `--month YYYY-MM` filter; `--limit N` sessions; JSON mode with per-month kWh + cost summary
+- **`GET /api/metrics`** — Prometheus text-format metrics endpoint (`text/plain; version=0.0.4`); exposes battery level, range, charge limit, charger power, energy added, odometer, speed, latitude, longitude, locked, sentry mode; NaN for missing values; graceful fallback on vehicle errors
+- **`get_timeline(days)`** added to `TeslaMateBacked` — UNION ALL SQL across drives, charging_processes, and updates tables ordered by start_date DESC
+- **Dashboard theme toggle** — 🌙/☀️ button in header; `body.light` CSS class with light-mode variable overrides; `localStorage` persistence across page loads; `toggleTheme()` + `initTheme()` JS functions
+
+### Tests
+
+- ~900 unit tests passing, 2 skipped, ruff clean
+- `tests/test_v290.py` — 45 tests: TeslaMate timeline CLI (15), cost-report CLI (14), Prometheus metrics API (17), dashboard theme HTML (13), version assertions (2)
+
 ## [2.8.0] - 2026-03-30
 
 ### Added — MQTT CLI, HA Discovery, SSE Topic Filtering, Geofence Overlay
