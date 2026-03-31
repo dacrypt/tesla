@@ -293,8 +293,17 @@ No competing tool combines all of these in one CLI:
 - [x] `ServerConfig` added to `Config` model (`api_key`, `pid_file`)
 - [x] 774 tests, 2 skipped, ruff clean
 
-### v2.7.0 — Next Milestone
-- [ ] Dashboard enhancements: TeslaMate charts embedded in web UI (trips, charging, heatmap)
-- [ ] `GET /api/vehicle/stream?topics=geofence` — geofence events visualized in dashboard
-- [ ] `tesla serve --systemd` / `--launchd` — generate service file for OS-level autostart
-- [ ] MQTT provider — publish vehicle state to MQTT broker as a provider
+### v2.7.0 — MQTT + Service Files + Dashboard Charts ✅ SHIPPED
+- [x] **MQTT provider** — `MqttProvider` L3 sink; publishes per-state-key topics to any MQTT broker; paho-mqtt optional dep
+- [x] `MqttConfig` added to `Config` model (broker, port, topic_prefix, username, password, qos, retain, tls)
+- [x] `tesla serve install-service` — generate systemd (Linux) or launchd (macOS) service file; `--print` for preview
+- [x] **Dashboard TeslaMate section** — lifetime stats bar, daily energy bar chart, trips table, charging table; auto-hidden when TeslaMate not configured
+- [x] **SSE geofence toasts** — browser shows enter/exit zone notifications from named SSE events
+- [x] Named SSE events (`event: vehicle`, `event: geofence`) with `addEventListener`
+- [x] 808 tests, 2 skipped, ruff clean
+
+### v2.8.0 — Next Milestone
+- [ ] `tesla mqtt setup|status|test` — CLI commands to configure and test MQTT
+- [ ] MQTT Home Assistant discovery — publish `homeassistant/sensor/tesla_<vin>_<key>/config` on startup
+- [ ] `GET /api/vehicle/stream?topics=geofence,battery` — fine-grained topic filtering in SSE
+- [ ] Dashboard: live geofence map overlay showing active zones as circles

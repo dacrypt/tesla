@@ -553,13 +553,14 @@ class TestLoader:
         assert "abrp"            in names
         assert "home-assistant"  in names
         assert "apprise"         in names
+        assert "mqtt"            in names
 
-    def test_six_providers_registered(self):
+    def test_seven_providers_registered(self):
         from tesla_cli.providers.loader import build_registry
         cfg = _make_cfg()
         with patch("tesla_cli.auth.tokens.get_token", return_value=None):
             reg = build_registry(cfg)
-        assert len(reg.all()) == 6
+        assert len(reg.all()) == 7
 
 
 # ── CLI commands ──────────────────────────────────────────────────────────────

@@ -23,6 +23,20 @@
     --radius: 12px;
     --gap: 16px;
   }
+  /* ── TeslaMate tables ── */
+  .tm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tm-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  .tm-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .tm-table tr:last-child td { border-bottom: none; }
+  .tm-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .tm-stat-val { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .tm-stat-key { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  /* bar chart */
+  .bar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .bar-label { width: 28px; color: var(--muted); font-size: 10px; text-align: right; flex-shrink: 0; }
+  .bar-fill { height: 12px; background: var(--blue); border-radius: 2px; min-width: 2px; transition: width .3s; }
+  .bar-val { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; }
 
@@ -257,6 +271,47 @@
     </div>
 
   </div><!-- /grid -->
+
+  <!-- ── TeslaMate section ────────────────────────────────────── -->
+  <div id="tm-section" style="display:none;margin-top:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 style="font-size:16px;font-weight:600;color:var(--muted)">TeslaMate History</h2>
+      <span id="tm-status" class="pill"></span>
+    </div>
+
+    <!-- Stats bar -->
+    <div id="tm-stats-bar" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--gap);margin-bottom:var(--gap)"></div>
+
+    <!-- Charts row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:var(--gap)">
+
+      <!-- Daily energy bar chart -->
+      <div class="card">
+        <div class="card-title">Energy Added — Last 30 Days (kWh)</div>
+        <div id="tm-energy-chart" style="margin-top:12px;font-family:monospace;font-size:11px;overflow-x:auto;white-space:nowrap;line-height:1.7">
+          <span style="color:var(--muted)">Loading…</span>
+        </div>
+      </div>
+
+      <!-- Trips table -->
+      <div class="card">
+        <div class="card-title">Recent Trips</div>
+        <div id="tm-trips-table" style="margin-top:10px;overflow-x:auto">
+          <span style="color:var(--muted);font-size:13px">Loading…</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Charging sessions -->
+    <div class="card" style="margin-bottom:var(--gap)">
+      <div class="card-title">Recent Charging Sessions</div>
+      <div id="tm-charges-table" style="margin-top:10px;overflow-x:auto">
+        <span style="color:var(--muted);font-size:13px">Loading…</span>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <footer>
@@ -462,11 +517,27 @@ async function fetchAll() {
 // ── SSE stream ─────────────────────────────────────────────────────────────
 function startStream(interval = 30) {
   const es = new EventSource(`/api/vehicle/stream?interval=${interval}`);
-  es.onmessage = (e) => {
+  // Handle named 'vehicle' events
+  es.addEventListener('vehicle', (e) => {
     try {
       const payload = JSON.parse(e.data);
       if (payload.data) render(payload.data);
       if (payload.error) toast('Stream: ' + payload.error, 'err');
+    } catch (_) {}
+  });
+  // Handle named 'geofence' events
+  es.addEventListener('geofence', (e) => {
+    try {
+      const gf = JSON.parse(e.data);
+      const icon = gf.event === 'enter' ? '📍' : '🚗';
+      toast(`${icon} ${gf.event === 'enter' ? 'Entered' : 'Left'} ${gf.zone}`, 'ok');
+    } catch (_) {}
+  });
+  // Fallback for any unnamed message
+  es.onmessage = (e) => {
+    try {
+      const payload = JSON.parse(e.data);
+      if (payload.data) render(payload.data);
     } catch (_) {}
   };
   es.onerror = () => {
@@ -475,10 +546,104 @@ function startStream(interval = 30) {
   return es;
 }
 
+// ── TeslaMate helpers ──────────────────────────────────────────────────────
+function tmTable(rows, cols, labels) {
+  if (!rows || !rows.length)
+    return '<span style="color:var(--muted);font-size:13px">No data available</span>';
+  let h = '<table class="tm-table"><thead><tr>';
+  labels.forEach(l => h += `<th>${l}</th>`);
+  h += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    h += '<tr>';
+    cols.forEach(c => h += `<td>${r[c] ?? '–'}</td>`);
+    h += '</tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+function tmBarChart(items, labelKey, valKey) {
+  if (!items || !items.length)
+    return '<span style="color:var(--muted)">No data</span>';
+  const max = Math.max(...items.map(i => i[valKey] || 0), 0.1);
+  const maxW = 160;
+  return items.map(i => {
+    const v = i[valKey] || 0;
+    const w = Math.round((v / max) * maxW);
+    const lbl = (i[labelKey] || '').slice(5); // strip year, show MM-DD
+    return `<div class="bar-row">
+      <span class="bar-label">${lbl}</span>
+      <span class="bar-fill" style="width:${w}px"></span>
+      <span class="bar-val">${v.toFixed(1)}</span>
+    </div>`;
+  }).join('');
+}
+
+async function fetchTeslaMate() {
+  const sec = document.getElementById('tm-section');
+  const pill = document.getElementById('tm-status');
+  try {
+    const [stats, trips, charges, energy] = await Promise.all([
+      apiFetch('/api/teslaMate/stats'),
+      apiFetch('/api/teslaMate/trips?limit=10'),
+      apiFetch('/api/teslaMate/charges?limit=10'),
+      apiFetch('/api/teslaMate/daily-energy?days=30'),
+    ]);
+
+    // Stats bar
+    const statsEl = document.getElementById('tm-stats-bar');
+    const km = stats.total_km ? stats.total_km.toFixed(0) : '–';
+    const kwh = stats.total_kwh ? stats.total_kwh.toFixed(0) : '–';
+    const charges_n = stats.total_charges ?? '–';
+    const eff = stats.avg_wh_km ? stats.avg_wh_km.toFixed(0) : '–';
+    statsEl.innerHTML = [
+      ['Total km', km + ' km'], ['Energy used', kwh + ' kWh'],
+      ['Charges', charges_n], ['Avg efficiency', eff + ' Wh/km'],
+    ].map(([k,v]) => `<div class="tm-stat"><div class="tm-stat-key">${k}</div><div class="tm-stat-val">${v}</div></div>`).join('');
+
+    // Energy chart
+    $html('tm-energy-chart', tmBarChart(energy.slice(-30), 'date', 'kwh'));
+
+    // Trips table
+    const tripRows = trips.map(t => ({
+      date: (t.start_date || t.started_at || '').slice(0, 10),
+      km: t.distance_km ? t.distance_km.toFixed(1) : (t.km ? t.km.toFixed(1) : '–'),
+      duration: t.duration_min ? Math.round(t.duration_min) + ' min' : '–',
+      wh_km: t.wh_km ? t.wh_km.toFixed(0) : '–',
+    }));
+    $html('tm-trips-table', tmTable(tripRows, ['date','km','duration','wh_km'], ['Date','km','Duration','Wh/km']));
+
+    // Charges table
+    const chargeRows = charges.map(c => ({
+      date: (c.start_date || c.started_at || '').slice(0, 10),
+      kwh: c.charge_energy_added != null ? c.charge_energy_added.toFixed(1)
+           : c.kwh != null ? c.kwh.toFixed(1) : '–',
+      pct: c.battery_level_start != null ? `${c.battery_level_start}→${c.battery_level_end}%` : '–',
+      duration: c.duration_min ? Math.round(c.duration_min) + ' min' : '–',
+    }));
+    $html('tm-charges-table', tmTable(chargeRows, ['date','kwh','pct','duration'], ['Date','kWh','SoC','Duration']));
+
+    pill.className = 'pill ok';
+    pill.textContent = 'connected';
+    sec.style.display = '';
+  } catch (e) {
+    if (e.message && (e.message.includes('503') || e.message.includes('not configured'))) {
+      // TeslaMate not configured — hide section silently
+      return;
+    }
+    pill.className = 'pill error';
+    pill.textContent = 'error';
+    sec.style.display = '';
+    document.getElementById('tm-stats-bar').innerHTML =
+      `<span style="color:var(--accent);font-size:13px">TeslaMate unavailable: ${e.message}</span>`;
+  }
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   // Initial load
   await fetchAll();
+  // Load TeslaMate data (shown only if configured)
+  fetchTeslaMate();
   // Start SSE for live updates
   startStream(30);
   // PWA install

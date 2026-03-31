@@ -82,6 +82,18 @@ class GrafanaConfig(BaseModel):
     url: str = "http://localhost:3000"
 
 
+class MqttConfig(BaseModel):
+    """MQTT broker telemetry publisher."""
+    broker: str = ""            # e.g. localhost or mqtt.example.com
+    port: int = 1883
+    topic_prefix: str = "tesla" # Base topic; messages go to <prefix>/<vin>/<key>
+    username: str = ""
+    password: str = ""
+    qos: int = 0                # MQTT QoS level (0, 1, or 2)
+    retain: bool = False        # Whether to set the retain flag on published messages
+    tls: bool = False           # Use TLS/SSL (port 8883 typical)
+
+
 class ServerConfig(BaseModel):
     """Local API server settings."""
     api_key: str = ""           # If set, require X-API-Key header on all /api/* requests
@@ -101,6 +113,7 @@ class Config(BaseModel):
     ble: BleConfig = Field(default_factory=BleConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
+    mqtt: MqttConfig = Field(default_factory=MqttConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
 
 
