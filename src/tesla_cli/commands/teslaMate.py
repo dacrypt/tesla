@@ -860,6 +860,188 @@ def teslaMate_heatmap(
     console.print()
 
 
+@teslaMate_app.command("timeline")
+def teslaMate_timeline(
+    days: int = typer.Option(30, "--days", "-d", help="Number of days to include"),
+) -> None:
+    """Unified event timeline: trips, charges, and OTA updates in chronological order.
+
+    \b
+    tesla teslaMate timeline
+    tesla teslaMate timeline --days 7
+    tesla -j teslaMate timeline | jq '.[].type'
+    """
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Loading timeline for last {days} days…", total=None)
+        events = backend.get_timeline(days=days)
+
+    if is_json_mode():
+        console.print_json(json.dumps(events, indent=2, default=str))
+        return
+
+    if not events:
+        console.print("[yellow]No events found in the last {days} days.[/yellow]")
+        return
+
+    _TYPE_ICON = {"trip": "🚗", "charge": "⚡", "ota": "🔄"}
+    _TYPE_COLOR = {"trip": "blue", "charge": "green", "ota": "yellow"}
+
+    table = Table(
+        title=f"Event Timeline — Last {days} Days (TeslaMate)",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Date",   width=17)
+    table.add_column("Type",   width=9)
+    table.add_column("Value",  justify="right", width=10)
+    table.add_column("Detail", width=32)
+    table.add_column("Duration", justify="right", width=10)
+
+    for ev in events:
+        ev_type   = str(ev.get("type") or "")
+        icon      = _TYPE_ICON.get(ev_type, "•")
+        color     = _TYPE_COLOR.get(ev_type, "white")
+        date      = str(ev.get("start_date") or "")[:16]
+        val       = ev.get("value")
+        detail    = str(ev.get("detail") or "")[:30]
+
+        # Format value
+        if ev_type == "trip":
+            val_str = f"{float(val):.1f} km" if val else "—"
+        elif ev_type == "charge":
+            val_str = f"+{float(val):.2f} kWh" if val else "—"
+        else:
+            val_str = "—"
+
+        # Duration
+        start = ev.get("start_date")
+        end   = ev.get("end_date")
+        if start and end:
+            try:
+                import datetime as _dt
+                if isinstance(start, str):
+                    start = _dt.datetime.fromisoformat(start)
+                if isinstance(end, str):
+                    end = _dt.datetime.fromisoformat(end)
+                delta = end - start
+                mins = int(delta.total_seconds() / 60)
+                dur_str = f"{mins}m" if mins < 60 else f"{mins // 60}h {mins % 60}m"
+            except Exception:
+                dur_str = "—"
+        else:
+            dur_str = "—"
+
+        table.add_row(
+            date,
+            f"[{color}]{icon} {ev_type}[/{color}]",
+            val_str,
+            detail,
+            dur_str,
+        )
+
+    console.print(table)
+    counts = {t: sum(1 for e in events if e.get("type") == t) for t in ("trip", "charge", "ota")}
+    console.print(
+        f"\n  [dim]{counts['trip']} trips · {counts['charge']} charges · {counts['ota']} OTA updates[/dim]"
+    )
+
+
+@teslaMate_app.command("cost-report")
+def teslaMate_cost_report(
+    month: str | None = typer.Option(None, "--month", "-m", help="Filter to YYYY-MM (default: all available)"),
+    limit: int        = typer.Option(100, "--limit", "-n", help="Max sessions to analyse"),
+) -> None:
+    """Charging cost report grouped by month, using TeslaMate sessions + cost_per_kwh config.
+
+    \b
+    tesla teslaMate cost-report
+    tesla teslaMate cost-report --month 2026-03
+    tesla -j teslaMate cost-report | jq '.months'
+    """
+    import collections
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh or 0.0
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Loading charging sessions…", total=None)
+        sessions = backend.get_charging_sessions(limit=limit)
+
+    # Optionally filter by month
+    if month:
+        sessions = [s for s in sessions if str(s.get("start_date") or "").startswith(month)]
+
+    if is_json_mode():
+        # Build per-month summary
+        by_month: dict[str, dict] = collections.defaultdict(lambda: {"sessions": 0, "kwh": 0.0, "cost": 0.0})
+        for s in sessions:
+            ym = str(s.get("start_date") or "")[:7]
+            kwh = float(s.get("energy_added_kwh") or 0)
+            by_month[ym]["sessions"] += 1
+            by_month[ym]["kwh"] += kwh
+            by_month[ym]["cost"] += kwh * cost_per_kwh
+        # Round
+        for v in by_month.values():
+            v["kwh"] = round(v["kwh"], 2)
+            v["cost"] = round(v["cost"], 2)
+        console.print_json(json.dumps({
+            "cost_per_kwh": cost_per_kwh,
+            "months": dict(sorted(by_month.items(), reverse=True)),
+            "sessions": len(sessions),
+        }, indent=2, default=str))
+        return
+
+    if not sessions:
+        console.print("[yellow]No charging sessions found.[/yellow]")
+        return
+
+    # Group by month
+    by_month_list: dict[str, list] = collections.defaultdict(list)
+    for s in sessions:
+        ym = str(s.get("start_date") or "")[:7]
+        by_month_list[ym].append(s)
+
+    total_kwh = 0.0
+    total_cost = 0.0
+    total_sessions = 0
+
+    for ym in sorted(by_month_list.keys(), reverse=True):
+        sess_list = by_month_list[ym]
+        m_kwh  = sum(float(s.get("energy_added_kwh") or 0) for s in sess_list)
+        m_cost = m_kwh * cost_per_kwh
+        total_kwh  += m_kwh
+        total_cost += m_cost
+        total_sessions += len(sess_list)
+
+        t = Table(
+            title=f"[bold]{ym}[/bold]  {len(sess_list)} sessions · {m_kwh:.1f} kWh · ${m_cost:.2f}",
+            show_header=True, header_style="bold cyan",
+        )
+        t.add_column("Date",     width=17)
+        t.add_column("Location", width=22)
+        t.add_column("SoC %",    width=12)
+        t.add_column("kWh",      justify="right", width=8)
+        t.add_column("Cost",     justify="right", width=9)
+
+        for s in sess_list:
+            date     = str(s.get("start_date") or "")[:16]
+            loc      = str(s.get("location") or "—")[:20]
+            soc      = f"{s.get('start_battery_level') or '?'}→{s.get('end_battery_level') or '?'}"
+            kwh      = float(s.get("energy_added_kwh") or 0)
+            cost     = kwh * cost_per_kwh
+            t.add_row(date, loc, soc, f"{kwh:.2f}", f"${cost:.2f}")
+
+        console.print(t)
+
+    rate_note = f" (@ ${cost_per_kwh:.3f}/kWh)" if cost_per_kwh else " [dim](set cost_per_kwh in config for cost estimates)[/dim]"
+    console.print(
+        f"\n  [bold]Total:[/bold] {total_sessions} sessions · {total_kwh:.1f} kWh · [green]${total_cost:.2f}[/green]{rate_note}"
+    )
+
+
 # ── Grafana ──────────────────────────────────────────────────────────────────
 
 _GRAFANA_DASHBOARDS: dict[str, str] = {

@@ -23,6 +23,11 @@
     --radius: 12px;
     --gap: 16px;
   }
+  body.light {
+    --bg: #f5f5f5; --surface: #ffffff; --border: #d8d8d8;
+    --text: #1a1a1a; --muted: #666; --accent: #c0001a; --accent2: #e60019;
+    --green: #1a8a4a; --yellow: #b06000; --blue: #0055aa;
+  }
   /* ── TeslaMate tables ── */
   .tm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .tm-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
@@ -175,6 +180,7 @@
   <h1>⚡ <span>Tesla</span> Dashboard</h1>
   <div class="header-right">
     <span id="status-pill" class="pill">connecting…</span>
+    <button id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
     <button id="refresh-btn" onclick="fetchAll()">↺ Refresh</button>
   </div>
 </header>
@@ -345,6 +351,25 @@ function toast(msg, type = 'ok') {
   clearTimeout(el._t);
   el._t = setTimeout(() => el.className = '', 2800);
 }
+
+// ── Theme toggle ──────────────────────────────────────────────────────────
+function toggleTheme() {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent = light ? '☀️' : '🌙';
+  try { localStorage.setItem('tesla-theme', light ? 'light' : 'dark'); } catch (_) {}
+}
+(function initTheme() {
+  try {
+    if (localStorage.getItem('tesla-theme') === 'light') {
+      document.body.classList.add('light');
+      // Button text set after DOM ready
+      document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-btn');
+        if (btn) btn.textContent = '☀️';
+      });
+    }
+  } catch (_) {}
+})();
 
 // ── API helpers ────────────────────────────────────────────────────────────
 async function apiFetch(url) {

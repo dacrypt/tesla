@@ -351,6 +351,46 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, str(days)))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_timeline(self, days: int = 30) -> list[dict[str, Any]]:
+        """Unified event timeline: trips, charges, and OTA updates merged chronologically."""
+        sql = """
+            SELECT
+                'trip'            AS type,
+                d.start_date,
+                d.end_date,
+                ROUND(d.distance::numeric, 1)      AS value,
+                COALESCE(a.display_name, 'Unknown') AS detail
+            FROM drives d
+            LEFT JOIN addresses a ON d.start_address_id = a.id
+            WHERE d.car_id = %s
+              AND d.start_date >= NOW() - INTERVAL '%s days'
+            UNION ALL
+            SELECT
+                'charge'          AS type,
+                cp.start_date,
+                cp.end_date,
+                ROUND(cp.charge_energy_added::numeric, 2) AS value,
+                COALESCE(a.display_name, 'Unknown')       AS detail
+            FROM charging_processes cp
+            LEFT JOIN addresses a ON cp.address_id = a.id
+            WHERE cp.car_id = %s
+              AND cp.start_date >= NOW() - INTERVAL '%s days'
+            UNION ALL
+            SELECT
+                'ota'             AS type,
+                u.start_date,
+                u.end_date,
+                NULL              AS value,
+                u.version         AS detail
+            FROM updates u
+            WHERE u.car_id = %s
+              AND u.start_date >= NOW() - INTERVAL '%s days'
+            ORDER BY start_date DESC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, days, self._car_id, days, self._car_id, days))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:
