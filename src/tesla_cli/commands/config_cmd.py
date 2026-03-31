@@ -205,6 +205,94 @@ def config_decrypt_token(
     render_success(f"Token '{key_name}' decrypted and restored to keyring")
 
 
+@config_app.command("backup")
+def config_backup(
+    output: str = typer.Option("tesla-config-backup.json", "--output", "-o", help="Output JSON file"),
+) -> None:
+    """Export current configuration to a JSON backup file (tokens omitted for security).
+
+    tesla config backup
+    tesla config backup --output ~/tesla-backup.json
+    """
+    import json as _json
+    from pathlib import Path
+
+    cfg = load_config()
+    data = cfg.model_dump()
+
+    # Redact any token-like values in config (security)
+    def _redact(obj: object) -> object:
+        if isinstance(obj, dict):
+            return {
+                k: "[REDACTED]" if any(t in k.lower() for t in ("token", "secret", "key", "password")) else _redact(v)
+                for k, v in obj.items()
+            }
+        if isinstance(obj, list):
+            return [_redact(i) for i in obj]
+        return obj
+
+    safe = _redact(data)
+    safe["_meta"] = {
+        "backup_version": "1",
+        "tesla_cli_version": "1.5.0",
+    }
+
+    out = Path(output).expanduser()
+    out.write_text(_json.dumps(safe, indent=2, default=str))
+    console.print(f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] (tokens redacted)")
+
+
+@config_app.command("restore")
+def config_restore(
+    input_file: str = typer.Argument(..., help="JSON backup file to restore from"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing config without prompting"),
+) -> None:
+    """Restore configuration from a JSON backup file.
+
+    tesla config restore tesla-config-backup.json
+    tesla config restore backup.json --force
+    """
+    import json as _json
+    from pathlib import Path
+
+    src = Path(input_file).expanduser()
+    if not src.exists():
+        console.print(f"[red]File not found:[/red] {src}")
+        raise typer.Exit(1)
+
+    try:
+        data = _json.loads(src.read_text())
+    except Exception as exc:
+        console.print(f"[red]Failed to read backup:[/red] {exc}")
+        raise typer.Exit(1)
+
+    data.pop("_meta", None)
+
+    if not force:
+        confirm = typer.confirm(f"Restore config from {src.name}? This will overwrite current settings.")
+        if not confirm:
+            console.print("[dim]Restore cancelled.[/dim]")
+            return
+
+    cfg = load_config()
+
+    # Apply non-redacted, non-token fields from backup
+    def _apply(target: object, source: dict) -> None:
+        for k, v in source.items():
+            if isinstance(v, dict) and hasattr(target, k):
+                _apply(getattr(target, k), v)
+            elif v != "[REDACTED]" and hasattr(target, k):
+                try:
+                    setattr(target, k, v)
+                except Exception:
+                    pass
+
+    _apply(cfg, data)
+    save_config(cfg)
+    console.print(f"  [green]\u2713[/green] Config restored from [bold]{src}[/bold]")
+    console.print("  [dim]Note: tokens were not restored (they must be re-authenticated)[/dim]")
+
+
 @config_app.command("auth")
 def config_auth(
     backend: str = typer.Argument(help="Backend to authenticate: order, tessie, fleet"),

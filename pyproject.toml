@@ -33,6 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 fleet = ["tesla-fleet-api>=1.0"]
 teslaMate = ["psycopg2-binary>=2.9"]
+pdf = ["fpdf2>=2.7"]
 dev = ["pytest>=8", "pytest-httpx>=0.35", "ruff>=0.9"]
 
 [project.scripts]
