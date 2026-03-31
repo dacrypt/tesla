@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-03-30
+
+### Added — API Server + Web Dashboard (`tesla serve`)
+
+- **`tesla serve`** — one-command local API server + web dashboard; FastAPI + uvicorn optional dependency (`pip install 'tesla-cli[serve]'`); auto-opens browser; `--port`, `--host`, `--no-open`, `--vin`, `--reload` flags
+- **REST API** — all vehicle backends exposed as HTTP endpoints:
+  - `GET /api/status` — version, backend, VIN
+  - `GET /api/config` — public config (no tokens)
+  - `GET /api/vehicle/state` — full vehicle data
+  - `GET /api/vehicle/location` — drive state + GPS
+  - `GET /api/vehicle/charge` — charge state
+  - `GET /api/vehicle/climate` — climate state
+  - `GET /api/vehicle/vehicle-state` — locks, doors, software
+  - `GET /api/vehicle/list` — account vehicles
+  - `POST /api/vehicle/command` — send any command with params
+  - `POST /api/vehicle/wake` — wake vehicle
+  - `GET /api/charge/status` + `POST /api/charge/limit|amps|start|stop`
+  - `GET /api/climate/status` + `POST /api/climate/on|off|temp`
+  - `GET /api/order/status` — order delivery status
+  - `GET /api/vehicle/stream` — **Server-Sent Events** real-time stream (configurable interval)
+  - `GET /api/docs` — interactive Swagger UI (auto-generated from FastAPI)
+- **Web dashboard** (`/`) — single-page dark-themed HTML/CSS/JS, zero build step:
+  - Battery ring gauge with SoC%, range, limit, charging state, power
+  - Climate card with cabin/outside temp, on/off buttons
+  - Security card with lock icon, door states, sentry, user present
+  - Drive card with speed, power, heading, odometer, SW version
+  - Location card with coordinates, Google Maps link, ASCII mini-map
+  - Quick actions card: wake, sentry on/off, HomeLink, remote start
+  - Live updates via SSE stream (30s interval)
+  - All action buttons call the REST API
+- **PWA** — `manifest.json` (name, theme color, display standalone) + `sw.js` service worker for offline shell; installable from browser
+
+### Optional Dependencies
+
+- `fastapi>=0.110` + `uvicorn[standard]>=0.29` → `pip install 'tesla-cli[serve]'`
+
+### Tests
+
+- 671 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+- `tests/test_server.py` — 31 FastAPI endpoint tests (system, vehicle, charge, climate)
+
+---
+
 ## [2.3.0] - 2026-03-30
 
 ### Added — Vehicle Map, Geofencing, Home Assistant

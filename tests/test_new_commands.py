@@ -5962,7 +5962,7 @@ class TestGeofenceCommands:
     """Tests for `tesla geofence` command group."""
 
     def _cfg(self, zones=None):
-        from tesla_cli.config import Config, GeofencesConfig
+        from tesla_cli.config import Config
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
         if zones:

@@ -254,8 +254,19 @@ No competing tool combines all of these in one CLI:
 - [x] `GeofencesConfig` added to Config model; zones persisted to config.toml
 - [x] 640 tests, ruff clean
 
-### v2.4.0 — Next Milestone
-- [ ] WebSocket streaming backend (real-time Fleet API telemetry)
-- [ ] `tesla vehicle route` — upcoming route ETA from drive state + Google Maps deeplink
-- [ ] `tesla teslaMate export` — export full TeslaMate history to SQLite/CSV archive
-- [ ] `tesla config migrate` — migrate config between tesla-cli versions
+### v2.4.0 — API Server + Web Dashboard ✅ SHIPPED
+- [x] `tesla serve` — FastAPI + uvicorn server; `--port`, `--host`, `--no-open`, `--vin`, `--reload`
+- [x] REST API: vehicle state/location/charge/climate/command/wake, charge limit/amps/start/stop, climate on/off/temp, order status
+- [x] GET /api/vehicle/stream — Server-Sent Events real-time stream
+- [x] GET /api/docs — Swagger UI (FastAPI auto-generated)
+- [x] Web dashboard: battery ring gauge, climate, security/doors, drive, location, quick-action buttons
+- [x] PWA: manifest.json + sw.js service worker
+- [x] `pip install 'tesla-cli[serve]'` optional dependency group
+- [x] 671 tests, 31 server tests, ruff clean
+
+### v2.5.0 — Next Milestone
+- [ ] Dashboard enhancements: TeslaMate charts embedded in web UI
+- [ ] `GET /api/teslaMate/*` — TeslaMate endpoints (trips, charging, stats, heatmap)
+- [ ] Auth middleware — optional API key for `--host 0.0.0.0` LAN deployments
+- [ ] `tesla serve --daemon` — run as background systemd/launchd service
+- [ ] `GET /api/geofences` + `GET /api/vehicle/stream?topics=geofence` — geofence events over SSE
