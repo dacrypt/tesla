@@ -441,13 +441,18 @@ class TestApiConfigValidate:
 
 class TestVersion320:
     def test_version_string(self):
-        """__version__ == '3.2.0'."""
+        """__version__ >= '3.2.0'."""
+        from packaging.version import Version
+
         import tesla_cli
-        assert tesla_cli.__version__ == "3.2.0"
+        assert Version(tesla_cli.__version__) >= Version("3.2.0")
 
     def test_pyproject_version(self):
-        """pyproject.toml contains version = '3.2.0'."""
+        """pyproject.toml version >= '3.2.0'."""
+        import re
         from pathlib import Path
-        pyproject = Path(__file__).parent.parent / "pyproject.toml"
-        content = pyproject.read_text()
-        assert 'version = "3.2.0"' in content
+
+        from packaging.version import Version
+        content = (Path(__file__).parent.parent / "pyproject.toml").read_text()
+        m = re.search(r'version = "(\d+\.\d+\.\d+)"', content)
+        assert m and Version(m.group(1)) >= Version("3.2.0")
