@@ -53,6 +53,12 @@ class TeslamateConfig(BaseModel):
     car_id: int = 1  # TeslaMate car ID (1-based)
 
 
+class GeofencesConfig(BaseModel):
+    """Named geographic zones for geofence watch alerts."""
+    zones: dict[str, dict] = Field(default_factory=dict)
+    # zones[name] = {"lat": float, "lon": float, "radius_km": float}
+
+
 class AbrpConfig(BaseModel):
     """A Better Route Planner live telemetry integration."""
     api_key: str = ""        # Developer API key (get from ABRP dashboard)
@@ -84,6 +90,7 @@ class Config(BaseModel):
     notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
     vehicles: VehiclesConfig = Field(default_factory=VehiclesConfig)
     teslaMate: TeslamateConfig = Field(default_factory=TeslamateConfig)
+    geofences: GeofencesConfig = Field(default_factory=GeofencesConfig)
     abrp: AbrpConfig = Field(default_factory=AbrpConfig)
     ble: BleConfig = Field(default_factory=BleConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)

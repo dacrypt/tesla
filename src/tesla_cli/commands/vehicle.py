@@ -86,6 +86,133 @@ def vehicle_location(vin: str | None = VinOption) -> None:
     render_model(loc, title="Location")
 
 
+@vehicle_app.command("map")
+def vehicle_map(
+    span: float = typer.Option(0.05, "--span", help="Degree span for map window (default 0.05 ≈ 5km)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show ASCII terminal map with current vehicle position.
+
+    tesla vehicle map
+    tesla vehicle map --span 0.02
+    tesla -j vehicle map
+    """
+    import json as _json
+    import math
+    import shutil
+
+    v    = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_drive_state(v), v)
+
+    lat = data.get("latitude")
+    lon = data.get("longitude")
+    heading  = data.get("heading") or 0
+    speed    = data.get("speed") or 0
+    shift    = data.get("shift_state") or "P"
+
+    if lat is None or lon is None:
+        console.print("[yellow]No GPS data available.[/yellow]")
+        raise typer.Exit(1)
+
+    if is_json_mode():
+        console.print(_json.dumps({"lat": lat, "lon": lon, "heading": heading, "speed": speed, "shift_state": shift}))
+        return
+
+    # ── Grid dimensions (auto from terminal, min 40×18) ──────────────────────
+    cols, rows = shutil.get_terminal_size((80, 24))
+    map_w = min(cols - 4, 72)
+    map_h = min(rows - 8, 22)
+    # Ensure even numbers for clean center
+    map_w = map_w if map_w % 2 == 0 else map_w - 1
+    map_h = map_h if map_h % 2 == 0 else map_h - 1
+
+    cx = map_w // 2  # vehicle column
+    cy = map_h // 2  # vehicle row
+
+    # Degrees per cell
+    lat_span = span
+    # Correct for longitude compression at given latitude
+    lon_span = span / max(math.cos(math.radians(lat)), 0.01)
+
+    dlat = lat_span / map_h  # degrees per row
+    dlon = lon_span / map_w  # degrees per col
+
+    # ── Heading arrow ─────────────────────────────────────────────────────────
+    _ARROWS = {
+        (0,   22):  "↑", (23,  67):  "↗", (68, 112):  "→",
+        (113, 157): "↘", (158, 202): "↓", (203, 247): "↙",
+        (248, 292): "←", (293, 337): "↖", (338, 360): "↑",
+    }
+    arrow = "▲"
+    for (lo, hi), sym in _ARROWS.items():
+        if lo <= heading <= hi:
+            arrow = sym
+            break
+
+    # ── Build grid ────────────────────────────────────────────────────────────
+    # Geofence zones overlay
+    cfg = load_config()
+    zones = cfg.geofences.zones
+
+    def _zone_in_cell(row: int, col: int) -> bool:
+        cell_lat = lat + (cy - row) * dlat
+        cell_lon = lon + (col - cx) * dlon
+        for zone in zones.values():
+            zlat = zone.get("lat", 0)
+            zlon = zone.get("lon", 0)
+            zrad = zone.get("radius_km", 0.5)
+            # haversine approx in km
+            dlat_km = (cell_lat - zlat) * 111.0
+            dlon_km = (cell_lon - zlon) * 111.0 * math.cos(math.radians(zlat))
+            dist = math.sqrt(dlat_km ** 2 + dlon_km ** 2)
+            if dist <= zrad:
+                return True
+        return False
+
+    grid: list[list[str]] = []
+    for row in range(map_h):
+        line: list[str] = []
+        for col in range(map_w):
+            if row == cy and col == cx:
+                line.append(f"[bold green]{arrow}[/bold green]")
+            elif _zone_in_cell(row, col):
+                line.append("[cyan]░[/cyan]")
+            elif row == cy:
+                line.append("[dim]─[/dim]")
+            elif col == cx:
+                line.append("[dim]│[/dim]")
+            else:
+                line.append("[dim]·[/dim]")
+        grid.append(line)
+
+    # ── Render ────────────────────────────────────────────────────────────────
+    console.print()
+    # Top coordinate label
+    top_lat = lat + cy * dlat
+    console.print(f"  [dim]N {top_lat:+.4f}°[/dim]")
+
+    for row_idx, row_cells in enumerate(grid):
+        row_str = "".join(row_cells)
+        if row_idx == cy:
+            row_lat = lat
+            console.print(f"  {row_str}  [dim]{row_lat:+.4f}°[/dim]")
+        else:
+            console.print(f"  {row_str}")
+
+    # Bottom scale
+    scale_km = round(lon_span * 111.0 * math.cos(math.radians(lat)), 1)
+    console.print(f"  [dim]S  ←{'─' * (map_w - 10)}→  {scale_km} km[/dim]")
+    console.print(
+        f"\n  [bold]{arrow}[/bold] Heading [bold]{heading}°[/bold]  "
+        f"Speed [bold]{speed} mph[/bold]  "
+        f"Shift [bold]{shift}[/bold]  "
+        f"[dim]{lat:+.5f}, {lon:+.5f}[/dim]"
+    )
+    if zones:
+        console.print(f"  [dim cyan]Geofence zones: {', '.join(zones.keys())}[/dim cyan]")
+    console.print()
+
+
 @vehicle_app.command("charge")
 def vehicle_charge(
     vin: str | None = VinOption,

@@ -247,9 +247,15 @@ No competing tool combines all of these in one CLI:
 - [x] `ExternalToolNotFoundError` exception for graceful L0/L3 wrapper failures
 - [x] 616 tests, ruff clean
 
-### v2.3.0 — Next Milestone
+### v2.3.0 — Vehicle Map, Geofencing, Home Assistant ✅ SHIPPED
+- [x] `tesla vehicle map` — ASCII terminal map with GPS crosshair, geofence zone overlay, heading arrow, span control
+- [x] `tesla geofence add|list|remove|watch` — named geofence zones; continuous enter/exit monitoring with Apprise alerts
+- [x] `tesla ha setup|status|push|sync` — Home Assistant REST API integration; 18 sensor entities pushed; connectivity check
+- [x] `GeofencesConfig` added to Config model; zones persisted to config.toml
+- [x] 640 tests, ruff clean
+
+### v2.4.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
-- [ ] `tesla vehicle map` — ASCII terminal map showing current vehicle location on a coordinate grid
-- [ ] Geofencing daemon (`tesla vehicle geofence watch`) — alerts on enter/exit named zones
-- [ ] `tesla ha push` — push vehicle state to Home Assistant MQTT/REST API
-- [ ] `tesla ha sync` — set HA entity attributes from vehicle data
+- [ ] `tesla vehicle route` — upcoming route ETA from drive state + Google Maps deeplink
+- [ ] `tesla teslaMate export` — export full TeslaMate history to SQLite/CSV archive
+- [ ] `tesla config migrate` — migrate config between tesla-cli versions
