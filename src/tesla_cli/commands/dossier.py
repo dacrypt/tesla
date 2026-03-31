@@ -1410,3 +1410,57 @@ def _kv_table(rows: list[tuple[str, str]]) -> None:
         if v:
             table.add_row(k, v)
     console.print(table)
+
+
+@dossier_app.command("clean")
+def dossier_clean(
+    keep: int = typer.Option(10, "--keep", "-n", help="Number of snapshots to keep (most recent)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without deleting"),
+) -> None:
+    """Prune old dossier snapshots, keeping the N most recent.
+
+    tesla dossier clean             # keep last 10
+    tesla dossier clean --keep 5    # keep last 5
+    tesla dossier clean --dry-run   # preview without deleting
+    """
+    import json as _json
+
+    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+
+    if not SNAPSHOTS_DIR.exists():
+        console.print("[yellow]No snapshots directory found.[/yellow]")
+        return
+
+    all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+    total = len(all_snaps)
+
+    if total <= keep:
+        if is_json_mode():
+            console.print(_json.dumps({"deleted": 0, "kept": total, "files_removed": []}, indent=2))
+            return
+        console.print(f"  [green]Nothing to clean[/green] — {total} snapshot(s), keep={keep}")
+        return
+
+    to_delete = all_snaps[:total - keep]
+    to_keep = all_snaps[total - keep:]
+
+    removed_names = [f.name for f in to_delete]
+
+    if not dry_run:
+        for f in to_delete:
+            f.unlink(missing_ok=True)
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "deleted": len(to_delete),
+            "kept": len(to_keep),
+            "dry_run": dry_run,
+            "files_removed": removed_names,
+        }, indent=2))
+        return
+
+    verb = "Would delete" if dry_run else "Deleted"
+    console.print(f"  {verb} [red]{len(to_delete)}[/red] snapshot(s), kept [green]{len(to_keep)}[/green]")
+    if dry_run:
+        for name in removed_names:
+            console.print(f"    [dim]- {name}[/dim]")

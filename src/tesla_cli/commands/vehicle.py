@@ -496,3 +496,197 @@ def vehicle_nearby(
             )
         console.print()
         console.print(dtable)
+
+
+@vehicle_app.command("alerts")
+def vehicle_alerts(
+    vin: str | None = VinOption,
+) -> None:
+    """Show recent vehicle alerts and fault codes.
+
+    tesla vehicle alerts
+    tesla -j vehicle alerts | jq '.[] | select(.audience | contains("CUSTOMER"))'
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    v = _vin(vin)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Fetching recent alerts...", total=None)
+        data = _with_wake(lambda b, v: b.get_recent_alerts(v), v)
+
+    alerts = data if isinstance(data, list) else data.get("recent_alerts", [])
+
+    if is_json_mode():
+        console.print(_json.dumps(alerts, indent=2, default=str))
+        return
+
+    if not alerts:
+        console.print("[green]No recent alerts.[/green]")
+        return
+
+    table = Table(
+        title=f"Recent Vehicle Alerts ({len(alerts)})",
+        show_header=True,
+        header_style="bold yellow",
+    )
+    table.add_column("Name", width=36)
+    table.add_column("Audience", width=12)
+    table.add_column("Time", width=17)
+    table.add_column("Expires", width=17)
+
+    for alert in alerts:
+        name = (alert.get("name") or alert.get("message") or "")[:35]
+        audience = ",".join(alert.get("audiences", []))[:11]
+        start = str(alert.get("started_at") or alert.get("time") or "")[:16]
+        expires = str(alert.get("expires_at") or "")[:16]
+        table.add_row(name, audience, start, expires)
+
+    console.print()
+    console.print(table)
+
+
+@vehicle_app.command("release-notes")
+def vehicle_release_notes(
+    vin: str | None = VinOption,
+) -> None:
+    """Show OTA software release notes for the current firmware version.
+
+    tesla vehicle release-notes
+    tesla -j vehicle release-notes | jq '.[] | .title'
+    """
+    import json as _json
+
+    from rich.panel import Panel
+
+    v = _vin(vin)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task("Fetching release notes...", total=None)
+        data = _with_wake(lambda b, v: b.get_release_notes(v), v)
+
+    notes = data if isinstance(data, list) else data.get("release_notes", [])
+
+    if is_json_mode():
+        console.print(_json.dumps(notes, indent=2, default=str))
+        return
+
+    if not notes:
+        console.print("[yellow]No release notes available.[/yellow]")
+        return
+
+    console.print()
+    for note in notes:
+        title = note.get("title") or note.get("subtitle") or "Update"
+        subtitle = note.get("subtitle") or ""
+        description = note.get("description") or note.get("text") or ""
+        header = f"[bold cyan]{title}[/bold cyan]"
+        if subtitle and subtitle != title:
+            header += f"  [dim]{subtitle}[/dim]"
+        body = description.strip()
+        if not body:
+            body = "[dim](no description)[/dim]"
+        console.print(Panel(body, title=header, border_style="dim"))
+        console.print()
+
+
+@vehicle_app.command("valet")
+def vehicle_valet(
+    on: bool | None = typer.Option(None, "--on/--off", help="Enable or disable valet mode"),
+    password: str = typer.Option("", "--password", "-p", help="4-digit PIN for valet mode"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show or toggle Valet Mode.
+
+    tesla vehicle valet              # show status
+    tesla vehicle valet --on --password 1234
+    tesla vehicle valet --off
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    if on is None:
+        # Show current status
+        state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
+        valet_active = state.get("valet_mode", False)
+        if is_json_mode():
+            console.print(_json.dumps({"valet_mode": valet_active}, indent=2))
+            return
+        status = "[green]ON[/green]" if valet_active else "[dim]OFF[/dim]"
+        console.print(f"  Valet Mode: {status}")
+        return
+
+    _with_wake(lambda b, v: b.set_valet_mode(v, on=on, password=password), v)
+    action = "enabled" if on else "disabled"
+    if is_json_mode():
+        console.print(_json.dumps({"valet_mode": on, "action": action}, indent=2))
+        return
+    render_success(f"Valet Mode {action}")
+
+
+@vehicle_app.command("schedule-charge")
+def vehicle_schedule_charge(
+    time_str: str | None = typer.Argument(None, help="Charge time HH:MM (24h), e.g. 23:30"),
+    off: bool = typer.Option(False, "--off", help="Disable scheduled charging"),
+    vin: str | None = VinOption,
+) -> None:
+    """Set or disable scheduled charging.
+
+    tesla vehicle schedule-charge 23:30   # charge at 11:30 PM
+    tesla vehicle schedule-charge --off   # disable schedule
+    tesla -j vehicle schedule-charge 06:00
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    if off:
+        _with_wake(lambda b, v: b.set_scheduled_charging(v, enable=False, time_minutes=0), v)
+        if is_json_mode():
+            console.print(_json.dumps({"scheduled_charging": False}, indent=2))
+            return
+        render_success("Scheduled charging disabled")
+        return
+
+    if not time_str:
+        # Show current schedule
+        state = _with_wake(lambda b, v: b.get_charge_state(v), v)
+        enabled = state.get("scheduled_charging_pending", False)
+        sched_time = state.get("scheduled_charging_start_time")
+        if is_json_mode():
+            console.print(_json.dumps({
+                "scheduled_charging_pending": enabled,
+                "scheduled_charging_start_time": sched_time,
+            }, indent=2))
+            return
+        if enabled and sched_time:
+            from datetime import datetime
+            try:
+                dt = datetime.fromtimestamp(int(sched_time), tz=datetime.UTC).strftime("%H:%M UTC")
+            except Exception:
+                dt = str(sched_time)
+            console.print(f"  Scheduled Charging: [green]ON[/green] at {dt}")
+        else:
+            console.print("  Scheduled Charging: [dim]OFF[/dim]")
+        return
+
+    # Parse HH:MM → minutes since midnight
+    try:
+        parts = time_str.strip().split(":")
+        hours, minutes = int(parts[0]), int(parts[1])
+        if not (0 <= hours <= 23 and 0 <= minutes <= 59):
+            raise ValueError
+    except (ValueError, IndexError):
+        console.print("[red]Invalid time format. Use HH:MM (24h), e.g. 23:30[/red]")
+        raise typer.Exit(1)
+
+    time_minutes = hours * 60 + minutes
+    _with_wake(lambda b, v: b.set_scheduled_charging(v, enable=True, time_minutes=time_minutes), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"scheduled_charging": True, "time": time_str, "time_minutes": time_minutes}, indent=2))
+        return
+    render_success(f"Scheduled charging set to {time_str} ({time_minutes} min from midnight)")

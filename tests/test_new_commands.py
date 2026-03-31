@@ -197,7 +197,7 @@ class TestI18n:
 
     def test_fallback_to_english(self):
         from tesla_cli.i18n import set_lang, t
-        set_lang("fr")  # French not implemented yet
+        set_lang("xx")  # unknown language — falls back to English
         result = t("order.stopped")
         assert result == "Stopped watching."  # falls back to English
 
@@ -1467,3 +1467,491 @@ class TestPortugueseI18n:
         monkeypatch.setenv("TESLA_LANG", "pt")
         set_lang("pt")
         assert "Veículo" in t("vehicle.locked") or t("vehicle.locked") == "Veículo trancado"
+
+
+# ── Vehicle Alerts ────────────────────────────────────────────────────────────
+
+
+class TestVehicleAlerts:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_alerts_help(self):
+        result = _run("vehicle", "alerts", "--help")
+        assert result.exit_code == 0
+
+    def test_alerts_none(self, mock_fleet_backend):
+        mock_fleet_backend.get_recent_alerts.return_value = []
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "alerts")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "No recent" in result.output
+
+    def test_alerts_with_data(self, mock_fleet_backend):
+        mock_fleet_backend.get_recent_alerts.return_value = [
+            {
+                "name": "VCFRONT_a174",
+                "audiences": ["CUSTOMER"],
+                "started_at": "2026-03-01T10:00:00",
+                "expires_at": "2026-03-08T10:00:00",
+            }
+        ]
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "alerts")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "VCFRONT" in result.output or "CUSTOMER" in result.output
+
+    def test_alerts_json(self, mock_fleet_backend):
+        mock_fleet_backend.get_recent_alerts.return_value = [
+            {"name": "ALERT_001", "audiences": ["CUSTOMER"], "started_at": "2026-03-01"}
+        ]
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "alerts")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["name"] == "ALERT_001"
+
+    def test_alerts_dict_response(self, mock_fleet_backend):
+        """Backend may return {recent_alerts: [...]} dict."""
+        mock_fleet_backend.get_recent_alerts.return_value = {
+            "recent_alerts": [{"name": "WRAPPED_ALERT", "audiences": []}]
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "alerts")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["name"] == "WRAPPED_ALERT"
+
+
+# ── Vehicle Release Notes ─────────────────────────────────────────────────────
+
+
+class TestVehicleReleaseNotes:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_release_notes_help(self):
+        result = _run("vehicle", "release-notes", "--help")
+        assert result.exit_code == 0
+
+    def test_release_notes_empty(self, mock_fleet_backend):
+        mock_fleet_backend.get_release_notes.return_value = []
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "release-notes")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "No release notes" in result.output
+
+    def test_release_notes_with_data(self, mock_fleet_backend):
+        mock_fleet_backend.get_release_notes.return_value = [
+            {"title": "Autopilot Improvements", "description": "Better lane changing."}
+        ]
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "release-notes")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "Autopilot" in result.output or "lane" in result.output
+
+    def test_release_notes_dict_response(self, mock_fleet_backend):
+        """Backend may return {release_notes: [...]} dict."""
+        mock_fleet_backend.get_release_notes.return_value = {
+            "release_notes": [{"title": "Test Update", "description": "Fixes."}]
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "release-notes")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "Test Update" in result.output or "Fixes" in result.output
+
+    def test_release_notes_json(self, mock_fleet_backend):
+        mock_fleet_backend.get_release_notes.return_value = [
+            {"title": "OTA 2025.6", "description": "New features."}
+        ]
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "release-notes")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["title"] == "OTA 2025.6"
+
+
+# ── Vehicle Valet ─────────────────────────────────────────────────────────────
+
+
+class TestVehicleValet:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_valet_help(self):
+        result = _run("vehicle", "valet", "--help")
+        assert result.exit_code == 0
+        assert "--on" in result.output or "--off" in result.output
+
+    def test_valet_status_off(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {"valet_mode": False}
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "valet")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "OFF" in result.output or "off" in result.output.lower()
+
+    def test_valet_status_on(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {"valet_mode": True}
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "valet")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "ON" in result.output or "on" in result.output.lower()
+
+    def test_valet_status_json(self, mock_fleet_backend):
+        mock_fleet_backend.get_vehicle_state.return_value = {"valet_mode": False}
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "valet")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "valet_mode" in data
+        assert data["valet_mode"] is False
+
+    def test_valet_enable(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "valet", "--on", "--password", "1234")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.set_valet_mode.assert_called_once_with(
+            MOCK_VIN, on=True, password="1234"
+        )
+
+    def test_valet_disable(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "valet", "--off")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.set_valet_mode.assert_called_once_with(
+            MOCK_VIN, on=False, password=""
+        )
+
+
+# ── Vehicle Schedule Charge ───────────────────────────────────────────────────
+
+
+class TestVehicleScheduleCharge:
+    def _patched(self, mock_backend):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.fleet.region = "na"
+        return [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ]
+
+    def test_schedule_charge_help(self):
+        result = _run("vehicle", "schedule-charge", "--help")
+        assert result.exit_code == 0
+        assert "--off" in result.output
+
+    def test_schedule_charge_status_off(self, mock_fleet_backend):
+        mock_fleet_backend.get_charge_state.return_value = {
+            "scheduled_charging_pending": False,
+            "scheduled_charging_start_time": None,
+        }
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "schedule-charge")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        assert "OFF" in result.output
+
+    def test_schedule_charge_set_time(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "schedule-charge", "23:30")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=True, time_minutes=23 * 60 + 30
+        )
+
+    def test_schedule_charge_disable(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "schedule-charge", "--off")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=False, time_minutes=0
+        )
+
+    def test_schedule_charge_json(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("--json", "vehicle", "schedule-charge", "06:00")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["scheduled_charging"] is True
+        assert data["time_minutes"] == 360
+
+    def test_schedule_charge_invalid_time(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "schedule-charge", "25:99")
+        for p in patches:
+            p.stop()
+        assert result.exit_code != 0
+
+    def test_schedule_charge_midnight(self, mock_fleet_backend):
+        patches = self._patched(mock_fleet_backend)
+        for p in patches:
+            p.start()
+        result = _run("vehicle", "schedule-charge", "00:00")
+        for p in patches:
+            p.stop()
+        assert result.exit_code == 0
+        mock_fleet_backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=True, time_minutes=0
+        )
+
+
+# ── Dossier Clean ─────────────────────────────────────────────────────────────
+
+
+class TestDossierClean:
+    def test_clean_help(self):
+        result = _run("dossier", "clean", "--help")
+        assert result.exit_code == 0
+        assert "--keep" in result.output
+        assert "--dry-run" in result.output
+
+    def test_clean_no_snapshots_dir(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_dir = Path(tmpdir) / "nonexistent"
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", fake_dir):
+                result = _run("dossier", "clean")
+        assert result.exit_code == 0
+        assert "No snapshots" in result.output
+
+    def test_clean_nothing_to_do(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir()
+            for i in range(3):
+                (snap_dir / f"snapshot_2026010{i}_120000.json").write_text("{}")
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("dossier", "clean", "--keep", "10")
+        assert result.exit_code == 0
+        assert "Nothing to clean" in result.output
+
+    def test_clean_deletes_oldest(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir()
+            for i in range(1, 8):
+                (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("dossier", "clean", "--keep", "3")
+            remaining = list(snap_dir.glob("snapshot_*.json"))
+        assert result.exit_code == 0
+        assert len(remaining) == 3
+        assert "Deleted" in result.output or "deleted" in result.output.lower()
+
+    def test_clean_dry_run(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir()
+            for i in range(1, 6):
+                (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("dossier", "clean", "--keep", "2", "--dry-run")
+            remaining = list(snap_dir.glob("snapshot_*.json"))
+        assert result.exit_code == 0
+        assert len(remaining) == 5  # nothing actually deleted
+        assert "Would delete" in result.output
+
+    def test_clean_json(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir()
+            for i in range(1, 6):
+                (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("--json", "dossier", "clean", "--keep", "3")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["deleted"] == 2
+        assert data["kept"] == 3
+        assert len(data["files_removed"]) == 2
+
+    def test_clean_json_dry_run(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir()
+            for i in range(1, 4):
+                (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("--json", "dossier", "clean", "--keep", "1", "--dry-run")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["dry_run"] is True
+        assert data["deleted"] == 2
+
+
+# ── French i18n ───────────────────────────────────────────────────────────────
+
+
+class TestFrenchI18n:
+    def setup_method(self):
+        from tesla_cli.i18n import set_lang
+        set_lang("en")
+
+    def teardown_method(self):
+        from tesla_cli.i18n import set_lang
+        set_lang("en")
+
+    def test_fr_vehicle_locked(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        assert t("vehicle.locked") == "Véhicule verrouillé"
+
+    def test_fr_vehicle_unlocked(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        assert t("vehicle.unlocked") == "Véhicule déverrouillé"
+
+    def test_fr_order_watching(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        text = t("order.watching", rn="RN999", interval="10")
+        assert "RN999" in text and "10" in text
+        assert "Surveillance" in text or "commande" in text
+
+    def test_fr_charge_started(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        assert "Charge" in t("charge.started") or "Charg" in t("charge.started")
+
+    def test_fr_climate_on(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        assert "ACTIVÉE" in t("climate.on") or "Climatisation" in t("climate.on")
+
+    def test_fr_dossier_not_found(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        assert "dossier" in t("dossier.not_found").lower() or "Aucun" in t("dossier.not_found")
+
+    def test_fr_teslaMate_not_configured(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        text = t("teslaMate.not_configured")
+        assert "TeslaMate" in text and ("non" in text or "configuré" in text)
+
+    def test_fr_isolation_from_en(self):
+        from tesla_cli.i18n import set_lang, t
+        set_lang("fr")
+        fr_text = t("vehicle.locked")
+        set_lang("en")
+        en_text = t("vehicle.locked")
+        assert fr_text != en_text
+        assert en_text == "Vehicle locked"
+
+    def test_fr_catalog_completeness(self):
+        """French catalog should cover the same keys as English."""
+        from tesla_cli.i18n import _STRINGS
+        en_keys = set(_STRINGS["en"].keys())
+        fr_keys = set(_STRINGS["fr"].keys())
+        missing = en_keys - fr_keys
+        assert not missing, f"French catalog missing keys: {missing}"
+
+    def test_three_languages_registered(self):
+        from tesla_cli.i18n import _STRINGS
+        assert "en" in _STRINGS
+        assert "es" in _STRINGS
+        assert "pt" in _STRINGS
+        assert "fr" in _STRINGS

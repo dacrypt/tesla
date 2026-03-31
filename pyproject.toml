@@ -1,6 +1,6 @@
 [project]
 name = "tesla-cli"
-version = "1.1.0"
+version = "1.2.0"
 description = "CLI tool for Tesla order tracking and vehicle control"
 readme = "README.md"
 license = { text = "MIT" }

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-30
+
+### Added
+
+- **`tesla vehicle alerts`** — show recent vehicle fault alerts with name, audience, start/expiry time; full JSON mode
+- **`tesla vehicle release-notes`** — display OTA firmware release notes as Rich panels; full JSON mode
+- **`tesla vehicle valet`** — show Valet Mode status or toggle on/off (`--on`/`--off`); optional `--password` PIN
+- **`tesla vehicle schedule-charge`** — show scheduled charging status, set time (`HH:MM`), or disable (`--off`); full JSON mode
+- **`tesla dossier clean`** — prune old snapshots keeping the N most recent (`--keep N`, default 10); `--dry-run` preview; full JSON mode
+- **French (fr) i18n** — complete French translation catalog; `--lang fr` / `TESLA_LANG=fr`
+
+### Tests
+
+- 260 unit tests passing (40 new tests); ruff clean
+
+---
+
 ## [1.1.0] - 2026-03-30
 
 ### Added
