@@ -178,10 +178,20 @@ No competing tool combines all of these in one CLI:
 - [x] German (de) + Italian (it) i18n → 6 languages total
 - [x] 338 tests, ruff clean
 
-### v1.4.0 — Next Milestone
-- [ ] `tesla vehicle media` — full media control (next/prev/volume)
-- [ ] Token encryption at rest (AES-256-GCM for headless servers)
-- [ ] `tesla dossier export-pdf` — full dossier as formatted PDF
-- [ ] WebSocket streaming backend (real-time telemetry)
-- [ ] Store location DB integration
+### v1.4.0 — Headless Security + New Commands ✅ SHIPPED
+- [x] `tesla charge departure` — scheduled departure with preconditioning + off-peak window
+- [x] `tesla vehicle precondition` — max preconditioning toggle (blast heat/cool)
+- [x] `tesla vehicle screenshot` — trigger display screenshot → TeslaConnect
+- [x] `tesla vehicle tonneau` — Cybertruck tonneau cover (open/close/stop/status)
+- [x] `tesla teslaMate geo` — most-visited locations ranked by visit count + CSV export
+- [x] `tesla config encrypt-token` — AES-256-GCM token encryption for headless servers
+- [x] `tesla config decrypt-token` — reverse token encryption
+- [x] `cryptography` dependency added
+- [x] 388 tests, ruff clean
+
+### v1.5.0 — Next Milestone
+- [ ] `tesla dossier export-pdf` — full dossier as formatted PDF (fpdf2 or weasyprint)
+- [ ] WebSocket streaming backend (real-time Fleet API telemetry)
+- [ ] Store location DB integration (EU store locations for ship tracking)
+- [ ] `tesla vehicle sentry-events` — view sentry mode event log
 - [ ] Submit Homebrew formula to official tap

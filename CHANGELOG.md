@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-30
+
+### Added
+
+- **`tesla charge departure`** — set scheduled departure time (HH:MM) with optional cabin preconditioning (`--precondition`) and off-peak charging window (`--off-peak --off-peak-end HH:MM`); `--disable` to cancel; full JSON mode
+- **`tesla vehicle precondition`** — toggle max preconditioning on/off (blast heat/cool before a trip); full JSON mode
+- **`tesla vehicle screenshot`** — trigger a screenshot of the vehicle's display; saves to TeslaConnect mobile app; full JSON mode
+- **`tesla vehicle tonneau`** — Cybertruck tonneau cover control: `open|close|stop|status`; full JSON mode
+- **`tesla teslaMate geo`** — most-visited locations from TeslaMate ranked by visit count with lat/lon and arrival battery range; `--limit N`; `--csv FILE`; full JSON mode
+- **`tesla config encrypt-token`** — AES-256-GCM encrypt any keyring token for headless server deployments; PBKDF2-SHA256 key derivation (260,000 iterations); `enc1:` prefix marker; interactive `--password` prompt
+- **`tesla config decrypt-token`** — reverse AES-256-GCM encryption back to plaintext in keyring
+- **`src/tesla_cli/auth/encryption.py`** — new module: `is_encrypted()`, `encrypt_token()`, `decrypt_token()`; lazy `cryptography` import with helpful install hint
+
+### Dependencies
+
+- `cryptography>=46.0.5` added for AES-256-GCM token encryption
+
+### Tests
+
+- 388 unit tests passing (50 new tests for all v1.4.0 features); ruff clean
+
+---
+
 ## [1.3.0] - 2026-03-30
 
 ### Added
