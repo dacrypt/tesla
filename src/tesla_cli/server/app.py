@@ -132,15 +132,24 @@ def create_app(vin: str | None = None) -> FastAPI:
         Query params:
         - `interval` — polling interval in seconds (default 10)
         - `fanout` — also push each tick to ABRP + Home Assistant
-        - `topics` — comma-separated extra topics: `geofence`
+        - `topics` — comma-separated filter: `geofence`, `battery`, `climate`, `drive`, `location`
 
         Event types:
-        - `vehicle` — full vehicle state snapshot
-        - `geofence` — enter/exit zone event (when `topics=geofence`)
+        - `vehicle`  — full vehicle state snapshot (always emitted)
+        - `battery`  — charge_state snapshot (when `topics` includes `battery`)
+        - `climate`  — climate_state snapshot (when `topics` includes `climate`)
+        - `drive`    — drive_state snapshot (when `topics` includes `drive`)
+        - `location` — {lat, lon, heading} (when `topics` includes `location`)
+        - `geofence` — enter/exit zone event (when `topics` includes `geofence`)
         """
         cfg = load_config()
         v   = resolve_vin(cfg, app.state.override_vin)
-        want_geofence = "geofence" in topics.split(",")
+        topic_set      = {t.strip() for t in topics.split(",") if t.strip()}
+        want_geofence  = "geofence" in topic_set
+        want_battery   = "battery"  in topic_set
+        want_climate   = "climate"  in topic_set
+        want_drive     = "drive"    in topic_set
+        want_location  = "location" in topic_set
         geofence_state: dict[str, bool] = {}  # zone_name → was_inside
 
         async def _generate():
@@ -153,11 +162,35 @@ def create_app(vin: str | None = None) -> FastAPI:
                     data = await asyncio.get_event_loop().run_in_executor(
                         None, lambda: backend.get_vehicle_data(v)
                     )
+                    ts = int(time.time())
                     payload = json.dumps({
-                        "ts":   int(time.time()),
+                        "ts":   ts,
                         "data": _sanitize(data),
                     })
                     yield f"event: vehicle\ndata: {payload}\n\n"
+
+                    # Fine-grained named topic events
+                    if want_battery:
+                        cs = data.get("charge_state") or {}
+                        yield f"event: battery\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cs)})}\n\n"
+
+                    if want_climate:
+                        cl = data.get("climate_state") or {}
+                        yield f"event: climate\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cl)})}\n\n"
+
+                    if want_drive:
+                        ds = data.get("drive_state") or {}
+                        yield f"event: drive\ndata: {json.dumps({'ts': ts, 'data': _sanitize(ds)})}\n\n"
+
+                    if want_location:
+                        ds = data.get("drive_state") or {}
+                        loc = {
+                            "lat":     ds.get("latitude"),
+                            "lon":     ds.get("longitude"),
+                            "heading": ds.get("heading"),
+                            "speed":   ds.get("speed"),
+                        }
+                        yield f"event: location\ndata: {json.dumps({'ts': ts, 'data': loc})}\n\n"
 
                     # Fan-out to all telemetry sinks if requested
                     if fanout:
@@ -185,7 +218,7 @@ def create_app(vin: str | None = None) -> FastAPI:
                                     geofence_state[name] = inside
                                     event = "enter" if inside else "exit"
                                     gf_payload = json.dumps({
-                                        "ts":      int(time.time()),
+                                        "ts":      ts,
                                         "zone":    name,
                                         "event":   event,
                                         "lat":     lat,

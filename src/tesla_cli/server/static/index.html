@@ -136,6 +136,14 @@
   /* ── Location ── */
   .map-link { color: var(--blue); text-decoration: none; font-size: 12px; }
   .map-link:hover { text-decoration: underline; }
+  /* ── Geofence overlay ── */
+  #geofence-overlay { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; min-height: 0; }
+  .gf-zone { display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+    padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); transition: all .3s; }
+  .gf-zone.inside  { border-color: var(--green); color: var(--green); background: rgba(46,204,113,.1); }
+  .gf-zone.outside { border-color: var(--border); color: var(--muted); }
+  .gf-zone .gf-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   /* ── Toast ── */
   #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(60px);
@@ -256,6 +264,7 @@
       <div id="location-coords" class="card-sub" style="font-size:14px;margin-top:4px">–</div>
       <a id="maps-link" class="map-link" href="#" target="_blank" style="display:block;margin-top:6px">Open in Maps ↗</a>
       <div class="map-canvas" id="ascii-map">Loading…</div>
+      <div id="geofence-overlay"></div>
     </div>
 
     <!-- ── Quick actions card ── -->
@@ -531,6 +540,7 @@ function startStream(interval = 30) {
       const gf = JSON.parse(e.data);
       const icon = gf.event === 'enter' ? '📍' : '🚗';
       toast(`${icon} ${gf.event === 'enter' ? 'Entered' : 'Left'} ${gf.zone}`, 'ok');
+      updateGeofenceZone(gf.zone, gf.event);
     } catch (_) {}
   });
   // Fallback for any unnamed message
@@ -544,6 +554,40 @@ function startStream(interval = 30) {
     setPill('error', 'stream error');
   };
   return es;
+}
+
+// ── Geofence overlay ──────────────────────────────────────────────────────
+let _gfZones = [];  // [{name, lat, lon, radius_km}]
+
+async function loadGeofenceZones() {
+  try {
+    const zones = await apiFetch('/api/geofences');
+    _gfZones = zones || [];
+    renderGeofenceOverlay();
+  } catch (_) {
+    _gfZones = [];
+  }
+}
+
+function renderGeofenceOverlay(insideZone) {
+  const el = document.getElementById('geofence-overlay');
+  if (!el || !_gfZones.length) return;
+  el.innerHTML = _gfZones.map(z => {
+    const active = insideZone === z.name;
+    return `<span class="gf-zone ${active ? 'inside' : 'outside'}" title="${z.radius_km || 0.5} km radius">
+      <span class="gf-dot"></span>${z.name}
+    </span>`;
+  }).join('');
+}
+
+function updateGeofenceZone(zoneName, event) {
+  // Update a single zone chip on enter/exit
+  const chips = document.querySelectorAll('.gf-zone');
+  chips.forEach(chip => {
+    if (chip.textContent.trim() === zoneName) {
+      chip.className = `gf-zone ${event === 'enter' ? 'inside' : 'outside'}`;
+    }
+  });
 }
 
 // ── TeslaMate helpers ──────────────────────────────────────────────────────
@@ -642,6 +686,8 @@ async function fetchTeslaMate() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Initial load
   await fetchAll();
+  // Load geofence zones for overlay
+  loadGeofenceZones();
   // Load TeslaMate data (shown only if configured)
   fetchTeslaMate();
   // Start SSE for live updates

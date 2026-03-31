@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-03-30
+
+### Added — MQTT CLI, HA Discovery, SSE Topic Filtering, Geofence Overlay
+
+- **`tesla mqtt` command group** — full MQTT broker management CLI:
+  - `tesla mqtt setup <broker>` — configure broker (host, port, username, password, prefix, TLS)
+  - `tesla mqtt status` — show configuration + live connectivity check; JSON mode
+  - `tesla mqtt test` — publish test message and report round-trip latency; JSON mode
+  - `tesla mqtt publish [--ha-discovery]` — one-shot vehicle state push via MqttProvider; optional HA discovery publish
+  - `tesla mqtt ha-discovery` — publish 15 Home Assistant MQTT discovery configs (retained) for auto-registration of sensors in HA
+- **15 HA sensor discovery configs**: battery_level, battery_range, charging_state, charge_limit, energy_added, charger_power, speed, latitude, longitude, inside_temp, outside_temp, climate_on, locked, odometer, sw_version
+- **SSE fine-grained topic filtering** — `/api/vehicle/stream?topics=battery,climate,drive,location,geofence`:
+  - `event: battery` — yields `charge_state` snapshot
+  - `event: climate` — yields `climate_state` snapshot
+  - `event: drive` — yields `drive_state` snapshot
+  - `event: location` — yields `{lat, lon, heading, speed}` subset
+  - `event: geofence` — enter/exit zone crossing (pre-existing, now documented alongside new topics)
+- **Dashboard geofence overlay** — Location card shows zone chips (`📍 Home`, `🏢 Work`) that highlight green when vehicle is inside; updates live on SSE `geofence` events; zones loaded from `/api/geofences` on page load
+
+### Tests
+
+- 853 unit tests passing, 2 skipped, ruff clean
+- `tests/test_v280.py` — 45 tests: MQTT setup/status/test/publish/ha-discovery CLI (25), SSE topic filtering source analysis (14), dashboard geofence overlay HTML (8), version assertions (2)
+
 ## [2.7.0] - 2026-03-31
 
 ### Added — MQTT Provider + Service Files + Dashboard TeslaMate Charts
