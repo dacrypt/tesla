@@ -976,3 +976,196 @@ def vehicle_sentry_events(
         columns=["time", "name", "audience"],
         title=f"Sentry Events (last {len(sentry_events)})",
     )
+
+
+@vehicle_app.command("sw-update")
+def vehicle_sw_update(
+    watch: bool = typer.Option(False, "--watch", "-w", help="Watch mode: keep polling until update appears"),
+    interval: int = typer.Option(60, "--interval", "-i", help="Poll interval in minutes (watch mode)"),
+    notify: bool = typer.Option(False, "--notify", help="Send Apprise notification when update is detected"),
+    vin: str | None = VinOption,
+) -> None:
+    """Check for a pending OTA software update, or watch until one is available.
+
+    tesla vehicle sw-update                          → one-shot check
+    tesla vehicle sw-update --watch                 → poll every 60 min
+    tesla vehicle sw-update --watch --interval 30   → poll every 30 min
+    tesla vehicle sw-update --watch --notify        → + Apprise notification on detection
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    def _check_once() -> dict:
+        """Fetch vehicle data and return software update info."""
+        data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+        vs = data.get("vehicle_state", {})
+        return {
+            "current_version": vs.get("car_version", ""),
+            "update_available": bool(vs.get("software_update", {}).get("status") in ("available", "scheduled", "installing", "downloading")),
+            "update_status": vs.get("software_update", {}).get("status", ""),
+            "update_version": vs.get("software_update", {}).get("version", ""),
+            "update_download_pct": vs.get("software_update", {}).get("download_perc", 0),
+            "update_install_perc": vs.get("software_update", {}).get("install_perc", 0),
+            "expected_duration_sec": vs.get("software_update", {}).get("expected_duration_sec", 0),
+            "scheduled_time_ms": vs.get("software_update", {}).get("scheduled_time_ms", 0),
+        }
+
+    if not watch:
+        info = _check_once()
+        if is_json_mode():
+            console.print(_json.dumps(info, indent=2))
+            return
+        from rich.panel import Panel
+        from rich.table import Table as RTable
+        t = RTable(show_header=False, box=None, padding=(0, 2))
+        t.add_column("Key", style="dim", width=28)
+        t.add_column("Value", style="bold")
+        t.add_row("Current Version", info["current_version"])
+        if info["update_available"]:
+            t.add_row("Update Status", f"[bold yellow]{info['update_status'].upper()}[/bold yellow]")
+            t.add_row("Update Version", f"[bold green]{info['update_version']}[/bold green]")
+            if info["update_download_pct"]:
+                t.add_row("Download", f"{info['update_download_pct']}%")
+            if info["update_install_perc"]:
+                t.add_row("Install", f"{info['update_install_perc']}%")
+        else:
+            t.add_row("Update Status", "[dim]No update pending[/dim]")
+        console.print(Panel(t, title="[bold]Software Update Status[/bold]", border_style="cyan"))
+        return
+
+    # ── Watch mode ────────────────────────────────────────────────────────────
+    import signal
+
+    console.print(
+        f"[dim]Watching for OTA updates every {interval} min. Press Ctrl+C to stop.[/dim]\n"
+    )
+    poll_secs = interval * 60
+    try:
+        while True:
+            try:
+                info = _check_once()
+            except Exception as exc:
+                console.print(f"[yellow]Poll error: {exc}[/yellow]")
+                info = {}
+
+            ts = __import__("datetime").datetime.now().strftime("%H:%M:%S")
+            if info.get("update_available"):
+                ver = info.get("update_version", "")
+                status = info.get("update_status", "")
+                console.print(
+                    f"[bold green]✓ [{ts}] Update detected![/bold green] "
+                    f"Version [bold]{ver}[/bold] — {status}"
+                )
+                if notify:
+                    try:
+                        import apprise
+                        cfg = load_config()
+                        urls = getattr(cfg.notifications, "apprise_urls", []) or []
+                        if urls:
+                            a = apprise.Apprise()
+                            for u in urls:
+                                a.add(u)
+                            a.notify(
+                                title="Tesla OTA Update Available",
+                                body=f"Version {ver} is {status} on your Tesla.",
+                            )
+                            console.print("[dim]Apprise notification sent.[/dim]")
+                    except Exception as exc:
+                        console.print(f"[yellow]Notify error: {exc}[/yellow]")
+                break
+            else:
+                cur = info.get("current_version", "—")
+                console.print(f"[dim][{ts}] No update — current: {cur}. Next check in {interval} min.[/dim]")
+
+            time.sleep(poll_secs)
+    except (KeyboardInterrupt, signal.Signals):
+        console.print("\n[dim]Stopped.[/dim]")
+
+
+@vehicle_app.command("speed-limit")
+def vehicle_speed_limit(
+    limit_mph: int | None = typer.Option(None, "--limit", help="Set speed limit in mph (50–90)"),
+    pin: str | None = typer.Option(None, "--pin", help="4-digit speed limit PIN"),
+    on: bool = typer.Option(False, "--on", help="Activate speed limit mode (requires --pin)"),
+    off: bool = typer.Option(False, "--off", help="Deactivate speed limit mode (requires --pin)"),
+    clear: bool = typer.Option(False, "--clear", help="Clear the saved speed limit PIN (requires --pin)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show or control Speed Limit Mode.
+
+    tesla vehicle speed-limit                          → show current status
+    tesla vehicle speed-limit --limit 65               → set limit to 65 mph
+    tesla vehicle speed-limit --on --pin 1234          → activate speed limit mode
+    tesla vehicle speed-limit --off --pin 1234         → deactivate speed limit mode
+    tesla vehicle speed-limit --clear --pin 1234       → clear saved PIN
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    if on:
+        if not pin:
+            console.print("[red]--pin is required to activate speed limit mode.[/red]")
+            raise typer.Exit(1)
+        _with_wake(lambda b, v: b.command(v, "speed_limit_activate", pin=pin), v)
+        render_success("Speed Limit Mode activated")
+        return
+
+    if off:
+        if not pin:
+            console.print("[red]--pin is required to deactivate speed limit mode.[/red]")
+            raise typer.Exit(1)
+        _with_wake(lambda b, v: b.command(v, "speed_limit_deactivate", pin=pin), v)
+        render_success("Speed Limit Mode deactivated")
+        return
+
+    if clear:
+        if not pin:
+            console.print("[red]--pin is required to clear the speed limit PIN.[/red]")
+            raise typer.Exit(1)
+        _with_wake(lambda b, v: b.command(v, "speed_limit_clear_pin", pin=pin), v)
+        render_success("Speed Limit PIN cleared")
+        return
+
+    if limit_mph is not None:
+        if not (50 <= limit_mph <= 90):
+            console.print("[red]Speed limit must be between 50 and 90 mph.[/red]")
+            raise typer.Exit(1)
+        _with_wake(lambda b, v: b.command(v, "speed_limit_set_limit", limit_mph=limit_mph), v)
+        render_success(f"Speed limit set to {limit_mph} mph")
+        return
+
+    # ── Status (no flags) ────────────────────────────────────────────────────
+    data = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
+    slm = data.get("speed_limit_mode", {}) if isinstance(data, dict) else {}
+    active = slm.get("active", False)
+    current_limit = slm.get("current_limit_mph")
+    max_limit = slm.get("max_limit_mph")
+    min_limit = slm.get("min_limit_mph")
+    pin_set = slm.get("pin_code_set", False)
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "active": active,
+            "current_limit_mph": current_limit,
+            "max_limit_mph": max_limit,
+            "min_limit_mph": min_limit,
+            "pin_code_set": pin_set,
+        }, indent=2))
+        return
+
+    from rich.panel import Panel
+    from rich.table import Table as RTable
+    t = RTable(show_header=False, box=None, padding=(0, 2))
+    t.add_column("Key", style="dim", width=24)
+    t.add_column("Value", style="bold")
+    t.add_row("Status", "[bold red]Active[/bold red]" if active else "[dim]Inactive[/dim]")
+    if current_limit:
+        t.add_row("Current Limit", f"{current_limit} mph")
+    if max_limit:
+        t.add_row("Max Limit", f"{max_limit} mph")
+    if min_limit:
+        t.add_row("Min Limit", f"{min_limit} mph")
+    t.add_row("PIN Set", "Yes" if pin_set else "No")
+    console.print(Panel(t, title="[bold]Speed Limit Mode[/bold]", border_style="red"))

@@ -580,6 +580,80 @@ def teslaMate_report(
     console.print()
 
 
+@teslaMate_app.command("stats")
+def teslaMate_stats() -> None:
+    """Show lifetime driving and charging statistics from TeslaMate.
+
+    tesla teslaMate stats
+    tesla -j teslaMate stats
+    """
+    import json as _json
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+        p.add_task("Loading lifetime stats...", total=None)
+        drive_stats = backend.get_stats()
+        charge_stats = backend.get_charging_stats()
+
+    combined = {
+        "drives": drive_stats,
+        "charging": charge_stats,
+    }
+
+    if is_json_mode():
+        console.print(_json.dumps(combined, indent=2, default=str))
+        return
+
+    console.print()
+    console.print("  [bold]Lifetime Statistics[/bold]")
+    console.print()
+
+    # ── Driving ──
+    console.print("  [bold cyan]── Driving ─────────────────────────────────────[/bold cyan]")
+    total_drives = drive_stats.get("total_drives") or 0
+    total_km     = float(drive_stats.get("total_km") or 0)
+    total_mi     = round(total_km * 0.621371, 0)
+    avg_km       = drive_stats.get("avg_km_per_trip") or "—"
+    longest_km   = drive_stats.get("longest_trip_km") or "—"
+    total_kwh    = drive_stats.get("total_kwh") or "—"
+    first_drive  = str(drive_stats.get("first_drive") or "—")[:10]
+    last_drive   = str(drive_stats.get("last_drive") or "—")[:10]
+
+    console.print(f"  Total drives       : [bold]{total_drives}[/bold]")
+    console.print(f"  Total distance     : [bold]{total_km:,.0f} km[/bold] ({total_mi:,.0f} mi)")
+    console.print(f"  Avg per trip       : {avg_km} km")
+    console.print(f"  Longest trip       : {longest_km} km")
+    console.print(f"  Energy used        : {total_kwh} kWh")
+    console.print(f"  First drive        : {first_drive}")
+    console.print(f"  Last drive         : {last_drive}")
+    console.print()
+
+    # ── Charging ──
+    console.print("  [bold cyan]── Charging ────────────────────────────────────[/bold cyan]")
+    sessions       = charge_stats.get("total_sessions") or 0
+    total_kwh_ch   = charge_stats.get("total_kwh_added") or "—"
+    total_cost     = charge_stats.get("total_cost")
+    avg_kwh        = charge_stats.get("avg_kwh_per_session") or "—"
+    last_session   = str(charge_stats.get("last_session") or "—")[:10]
+
+    console.print(f"  Total sessions     : [bold]{sessions}[/bold]")
+    console.print(f"  Total kWh added    : [bold]{total_kwh_ch} kWh[/bold]")
+    console.print(f"  Avg per session    : {avg_kwh} kWh")
+    if total_cost is not None and float(total_cost or 0) > 0:
+        console.print(f"  Total cost         : [bold]${total_cost}[/bold]")
+    console.print(f"  Last session       : {last_session}")
+    console.print()
+
+    # ── Efficiency banner ──
+    if total_km > 0 and total_kwh not in ("—", None, 0):
+        try:
+            wh_per_km = round(float(total_kwh) * 1000 / total_km, 1)
+            console.print(f"  [bold]Lifetime avg efficiency: {wh_per_km} Wh/km[/bold]")
+            console.print()
+        except (ZeroDivisionError, TypeError, ValueError):
+            pass
+
+
 # ── helpers ──
 
 def _kv(rows: list[tuple[str, str]]) -> None:

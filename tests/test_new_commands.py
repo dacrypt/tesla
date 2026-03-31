@@ -4370,3 +4370,372 @@ class TestOrderStores:
         required = {"country", "city", "name", "lat", "lon"}
         for s in _STORES:
             assert required.issubset(s.keys()), f"Missing keys in: {s}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.7.0 — vehicle sw-update, vehicle speed-limit, teslaMate stats
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ── vehicle sw-update ─────────────────────────────────────────────────────────
+
+
+class TestVehicleSwUpdate:
+    """Tests for tesla vehicle sw-update."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _vehicle_data(self, status: str = "", version: str = "") -> dict:
+        return {
+            "vehicle_state": {
+                "car_version": "2025.10.4 abc1234",
+                "software_update": {
+                    "status": status,
+                    "version": version,
+                    "download_perc": 100 if status == "available" else 0,
+                    "install_perc": 0,
+                    "expected_duration_sec": 1800,
+                    "scheduled_time_ms": 0,
+                },
+            }
+        }
+
+    def test_sw_update_no_update(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data()
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "sw-update")
+        assert result.exit_code == 0
+        assert "No update pending" in result.output or "2025.10.4" in result.output
+
+    def test_sw_update_available(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data(
+            status="available", version="2025.14.0"
+        )
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "sw-update")
+        assert result.exit_code == 0
+        assert "2025.14.0" in result.output
+        assert "available" in result.output.lower()
+
+    def test_sw_update_json_no_update(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data()
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "sw-update")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["update_available"] is False
+        assert "current_version" in data
+
+    def test_sw_update_json_available(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data(
+            status="available", version="2025.14.0"
+        )
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "sw-update")
+        data = json.loads(result.output)
+        assert data["update_available"] is True
+        assert data["update_version"] == "2025.14.0"
+        assert data["update_status"] == "available"
+
+    def test_sw_update_json_all_keys(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data()
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "sw-update")
+        data = json.loads(result.output)
+        expected_keys = {
+            "current_version", "update_available", "update_status",
+            "update_version", "update_download_pct", "update_install_perc",
+            "expected_duration_sec", "scheduled_time_ms",
+        }
+        assert expected_keys.issubset(data.keys())
+
+    def test_sw_update_downloading_status(self):
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = self._vehicle_data(
+            status="downloading", version="2025.14.0"
+        )
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "sw-update")
+        data = json.loads(result.output)
+        assert data["update_available"] is True
+        assert data["update_status"] == "downloading"
+
+    def test_sw_update_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "sw-update" in result.output
+
+
+# ── vehicle speed-limit ───────────────────────────────────────────────────────
+
+
+class TestVehicleSpeedLimit:
+    """Tests for tesla vehicle speed-limit."""
+
+    MOCK_VEHICLE_STATE_SLM = {
+        "locked": True,
+        "sentry_mode": False,
+        "speed_limit_mode": {
+            "active": False,
+            "current_limit_mph": 75.0,
+            "max_limit_mph": 90.0,
+            "min_limit_mph": 50.0,
+            "pin_code_set": True,
+        },
+    }
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_speed_limit_status(self):
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = self.MOCK_VEHICLE_STATE_SLM
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit")
+        assert result.exit_code == 0
+        assert "75" in result.output
+        assert "Inactive" in result.output or "inactive" in result.output.lower()
+
+    def test_speed_limit_status_json(self):
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = self.MOCK_VEHICLE_STATE_SLM
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "speed-limit")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["active"] is False
+        assert data["current_limit_mph"] == 75.0
+        assert data["pin_code_set"] is True
+
+    def test_speed_limit_set(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--limit", "65")
+        assert result.exit_code == 0
+        assert "65 mph" in result.output
+        mock.command.assert_called_once()
+
+    def test_speed_limit_activate_requires_pin(self):
+        result = _run("vehicle", "speed-limit", "--on")
+        assert result.exit_code == 1
+        assert "pin" in result.output.lower() or "--pin" in result.output
+
+    def test_speed_limit_deactivate_requires_pin(self):
+        result = _run("vehicle", "speed-limit", "--off")
+        assert result.exit_code == 1
+        assert "pin" in result.output.lower()
+
+    def test_speed_limit_activate_with_pin(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--on", "--pin", "1234")
+        assert result.exit_code == 0
+        assert "activated" in result.output.lower()
+
+    def test_speed_limit_deactivate_with_pin(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--off", "--pin", "1234")
+        assert result.exit_code == 0
+        assert "deactivated" in result.output.lower()
+
+    def test_speed_limit_clear_pin(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--clear", "--pin", "1234")
+        assert result.exit_code == 0
+        assert "cleared" in result.output.lower() or "PIN" in result.output
+
+    def test_speed_limit_out_of_range(self):
+        mock = MagicMock()
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--limit", "120")
+        assert result.exit_code == 1
+        assert "50" in result.output and "90" in result.output
+
+    def test_speed_limit_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "speed-limit" in result.output
+
+
+# ── teslaMate stats ───────────────────────────────────────────────────────────
+
+
+class TestTeslaMateStats:
+    """Tests for tesla teslaMate stats."""
+
+    MOCK_DRIVE_STATS = {
+        "total_drives": 142,
+        "total_km": 8432.5,
+        "total_kwh": 1350.2,
+        "avg_km_per_trip": 59.4,
+        "longest_trip_km": 312.0,
+        "first_drive": "2023-06-01T08:00:00",
+        "last_drive": "2026-03-28T17:30:00",
+    }
+
+    MOCK_CHARGE_STATS = {
+        "total_sessions": 98,
+        "total_kwh_added": 1412.7,
+        "total_cost": 178.35,
+        "avg_kwh_per_session": 14.4,
+        "last_session": "2026-03-27T22:15:00",
+    }
+
+    def _patched(self):
+        mock_backend = MagicMock()
+        mock_backend.get_stats.return_value = self.MOCK_DRIVE_STATS
+        mock_backend.get_charging_stats.return_value = self.MOCK_CHARGE_STATS
+        return patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend)
+
+    def test_stats_shows_drives(self):
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        assert result.exit_code == 0
+        assert "142" in result.output
+
+    def test_stats_shows_total_km(self):
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        assert "8,432" in result.output or "8432" in result.output
+
+    def test_stats_shows_charging_sessions(self):
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        assert "98" in result.output
+
+    def test_stats_shows_cost(self):
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        assert "178.35" in result.output or "178" in result.output
+
+    def test_stats_json(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "stats")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "drives" in data
+        assert "charging" in data
+        assert data["drives"]["total_drives"] == 142
+        assert data["charging"]["total_sessions"] == 98
+
+    def test_stats_json_all_drive_keys(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "stats")
+        data = json.loads(result.output)
+        drives = data["drives"]
+        for key in ("total_drives", "total_km", "total_kwh", "avg_km_per_trip", "longest_trip_km"):
+            assert key in drives
+
+    def test_stats_json_all_charging_keys(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "stats")
+        data = json.loads(result.output)
+        charging = data["charging"]
+        for key in ("total_sessions", "total_kwh_added", "total_cost", "avg_kwh_per_session"):
+            assert key in charging
+
+    def test_stats_shows_efficiency(self):
+        """Lifetime avg efficiency banner should appear when data is available."""
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        # 1350.2 kWh / 8432.5 km * 1000 ≈ 160.1 Wh/km
+        assert "Wh/km" in result.output
+        assert "160" in result.output
+
+    def test_stats_shows_first_drive_date(self):
+        with self._patched():
+            result = _run("teslaMate", "stats")
+        assert "2023-06-01" in result.output
+
+    def test_stats_empty_data(self):
+        """Should handle empty stats gracefully without crashing."""
+        mock_backend = MagicMock()
+        mock_backend.get_stats.return_value = {}
+        mock_backend.get_charging_stats.return_value = {}
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend):
+            result = _run("teslaMate", "stats")
+        assert result.exit_code == 0
+
+    def test_stats_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "stats" in result.output

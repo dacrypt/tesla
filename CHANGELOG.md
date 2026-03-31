@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-03-30
+
+### Added
+
+- **`tesla vehicle sw-update`** — check for pending OTA software update; one-shot or `--watch` mode that polls every N minutes until an update is detected; `--notify` fires Apprise notification on detection; full JSON mode with all update fields (`status`, `version`, `download_perc`, `install_perc`, `expected_duration_sec`)
+- **`tesla vehicle speed-limit`** — view and control Speed Limit Mode; show current status + limit (default); `--limit MPH` to set (50–90); `--on --pin XXXX` to activate; `--off --pin XXXX` to deactivate; `--clear --pin XXXX` to clear PIN; full JSON mode
+- **`tesla teslaMate stats`** — lifetime driving and charging statistics from TeslaMate DB; total drives, distance (km + mi), avg/longest trip, total kWh used, first/last drive; charging sessions, kWh added, cost, avg per session, last session; lifetime Wh/km efficiency banner; full JSON mode
+
+### Tests
+
+- 471 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [1.6.0] - 2026-03-30
 
 ### Added
