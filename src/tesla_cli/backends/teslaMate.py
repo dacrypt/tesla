@@ -271,6 +271,50 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, limit))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_monthly_report(self, month: str) -> dict[str, Any]:
+        """Driving and charging summary for a given month (YYYY-MM)."""
+        sql_drives = """
+            SELECT
+                COUNT(*)                                    AS trips,
+                ROUND(SUM(distance)::numeric, 1)            AS total_km,
+                ROUND(SUM(duration_min)::numeric, 0)        AS total_drive_min,
+                ROUND(SUM(energy_used)::numeric, 2)         AS total_kwh_used,
+                ROUND(AVG(distance)::numeric, 1)            AS avg_km_per_trip,
+                ROUND(MAX(distance)::numeric, 1)            AS longest_trip_km,
+                ROUND(AVG(
+                    energy_used / NULLIF(distance, 0) * 100
+                )::numeric, 1)                              AS avg_wh_per_km
+            FROM drives
+            WHERE car_id = %s
+              AND DATE_TRUNC('month', start_date) = DATE_TRUNC('month', %s::date)
+        """
+        sql_charging = """
+            SELECT
+                COUNT(*)                                            AS sessions,
+                ROUND(SUM(charge_energy_added)::numeric, 2)         AS total_kwh_charged,
+                ROUND(SUM(cost)::numeric, 2)                        AS total_cost,
+                ROUND(AVG(charge_energy_added)::numeric, 2)         AS avg_kwh_per_session,
+                COUNT(*) FILTER (WHERE charger_power >= 50)         AS dc_fast_sessions,
+                COUNT(*) FILTER (WHERE charger_power < 50)          AS ac_sessions
+            FROM charging_processes
+            WHERE car_id = %s
+              AND DATE_TRUNC('month', start_date) = DATE_TRUNC('month', %s::date)
+        """
+        # month is YYYY-MM, convert to first day for SQL
+        month_date = f"{month}-01"
+        with self._cursor() as cur:
+            cur.execute(sql_drives, (self._car_id, month_date))
+            drive_row = dict(cur.fetchone() or {})
+        with self._cursor() as cur:
+            cur.execute(sql_charging, (self._car_id, month_date))
+            charge_row = dict(cur.fetchone() or {})
+
+        return {
+            "month": month,
+            "driving": drive_row,
+            "charging": charge_row,
+        }
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

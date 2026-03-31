@@ -1571,3 +1571,153 @@ def dossier_battery_health(
         "\n  [dim]Tip: higher sample count = more accurate. "
         "Run `tesla dossier build` regularly to accumulate data.[/dim]"
     )
+
+
+@dossier_app.command("export-pdf")
+def dossier_export_pdf(
+    output: str = typer.Option("dossier.pdf", "--output", "-o", help="Output PDF file path"),
+    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+) -> None:
+    """Export the dossier to a formatted PDF report.
+
+    tesla dossier export-pdf
+    tesla dossier export-pdf --output ~/Desktop/my-tesla.pdf
+    """
+    try:
+        from fpdf import FPDF  # type: ignore[import]
+    except ImportError:
+        console.print(
+            "[red]fpdf2 is required for PDF export.[/red]\n"
+            "Install with: [bold]uv pip install fpdf2[/bold]"
+        )
+        raise typer.Exit(1)
+
+    import json as _json
+    from pathlib import Path
+
+    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+
+    # Load the latest snapshot if available
+    snap_data: dict = {}
+    if SNAPSHOTS_DIR.exists():
+        snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+        if snaps:
+            try:
+                snap_data = _json.loads(snaps[-1].read_text())
+            except Exception:
+                snap_data = {}
+
+    # Gather data sections
+    charge_state = snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
+    config_data  = snap_data.get("vehicle_config") or {}
+    order_status = snap_data.get("order_status") or {}
+    recalls      = snap_data.get("nhtsa_recalls") or []
+    vin_decoded  = snap_data.get("vin_decode") or {}
+    generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
+
+    # Resolve VIN
+    from tesla_cli.config import load_config
+    cfg = load_config()
+    resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
+
+    # --- Build PDF ---
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Header
+    pdf.set_font("Helvetica", "B", 24)
+    pdf.set_fill_color(26, 26, 26)
+    pdf.set_text_color(255, 255, 255)
+    pdf.rect(0, 0, 210, 40, "F")
+    pdf.set_xy(10, 10)
+    pdf.cell(0, 10, "Tesla Vehicle Dossier", ln=True)
+    pdf.set_font("Helvetica", "", 12)
+    pdf.set_xy(10, 22)
+    pdf.cell(0, 8, f"VIN: {resolved_vin}   |   Generated: {str(generated_at)[:19]}")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(25)
+
+    def section(title: str) -> None:
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.cell(0, 8, f"  {title}", ln=True, fill=True)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.ln(2)
+
+    def row(label: str, value: str) -> None:
+        if not value or value in ("None", "none", ""):
+            return
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(60, 6, f"  {label}:", ln=False)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, str(value)[:80], ln=True)
+
+    # Section 1: Vehicle Identity
+    section("Vehicle Identity")
+    row("VIN", resolved_vin)
+    row("Model", vin_decoded.get("model") or config_data.get("car_type", ""))
+    row("Year", vin_decoded.get("model_year") or str(config_data.get("model_year", "")))
+    row("Plant", vin_decoded.get("manufacturer") or "")
+    row("Exterior Color", config_data.get("exterior_color", ""))
+    row("Wheel Type", config_data.get("wheel_type", ""))
+    row("Battery Type", config_data.get("battery_type", ""))
+    row("Drive Unit", config_data.get("drive_unit", ""))
+    pdf.ln(4)
+
+    # Section 2: Charge State
+    section("Battery & Charging")
+    row("Battery Level", f"{charge_state.get('battery_level', '')}%")
+    row("Battery Range", f"{charge_state.get('battery_range', '')} mi")
+    row("Charge Limit", f"{charge_state.get('charge_limit_soc', '')}%")
+    row("Charging State", charge_state.get("charging_state", ""))
+    row("Energy Added", f"{charge_state.get('charge_energy_added', '')} kWh")
+    pdf.ln(4)
+
+    # Section 3: Order Status
+    if order_status:
+        section("Order & Delivery Status")
+        for k, v in order_status.items():
+            if v and k not in ("vin",):
+                row(k.replace("_", " ").title(), str(v)[:80])
+        pdf.ln(4)
+
+    # Section 4: NHTSA Recalls
+    section(f"NHTSA Recalls ({len(recalls)} found)")
+    if recalls:
+        for r in recalls[:10]:
+            pdf.set_font("Helvetica", "B", 10)
+            recall_id = r.get("NHTSACampaignNumber") or r.get("id") or ""
+            pdf.cell(0, 6, f"  Recall {recall_id}", ln=True)
+            pdf.set_font("Helvetica", "", 9)
+            component = r.get("Component") or r.get("component") or ""
+            summary = (r.get("Summary") or r.get("consequence") or "")[:120]
+            if component:
+                pdf.cell(0, 5, f"    Component: {component[:80]}", ln=True)
+            if summary:
+                pdf.multi_cell(0, 5, f"    {summary}")
+            pdf.ln(1)
+    else:
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.cell(0, 6, "  No open recalls found.", ln=True)
+    pdf.ln(4)
+
+    # Section 5: Snapshot summary
+    if SNAPSHOTS_DIR.exists():
+        all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+        section(f"Snapshot History ({len(all_snaps)} snapshots)")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"  First snapshot: {all_snaps[0].stem if all_snaps else 'none'}", ln=True)
+        pdf.cell(0, 6, f"  Latest snapshot: {all_snaps[-1].stem if all_snaps else 'none'}", ln=True)
+        pdf.ln(2)
+
+    # Footer
+    pdf.set_y(-20)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 6, "Generated by tesla-cli — https://github.com/dacrypt/tesla", align="C")
+
+    # Save
+    out_path = Path(output).expanduser()
+    pdf.output(str(out_path))
+    console.print(f"  [green]\u2713[/green] PDF report saved to [bold]{out_path}[/bold]")

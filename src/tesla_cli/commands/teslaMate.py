@@ -516,6 +516,70 @@ def teslaMate_geo(
     )
 
 
+@teslaMate_app.command("report")
+def teslaMate_report(
+    month: str = typer.Option(
+        "",
+        "--month", "-m",
+        help="Month to report on (YYYY-MM). Defaults to current month.",
+    ),
+) -> None:
+    """Show monthly driving and charging summary from TeslaMate.
+
+    tesla teslaMate report
+    tesla teslaMate report --month 2024-06
+    tesla -j teslaMate report --month 2024-06
+    """
+    import json as _json
+    from datetime import datetime
+
+    if not month:
+        month = datetime.now().strftime("%Y-%m")
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+        p.add_task(f"Loading report for {month}...", total=None)
+        data = backend.get_monthly_report(month=month)
+
+    if is_json_mode():
+        console.print(_json.dumps(data, indent=2, default=str))
+        return
+
+    driving = data.get("driving") or {}
+    charging = data.get("charging") or {}
+
+    console.print()
+    console.print(f"  [bold]Monthly Report \u2014 {month}[/bold]")
+    console.print()
+
+    # Driving section
+    console.print("  [bold cyan]\u2500\u2500 Driving \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]")
+    trips = driving.get("trips") or 0
+    total_km = driving.get("total_km") or 0
+    total_mi = round(float(total_km) * 0.621371, 1) if total_km else 0
+    console.print(f"  Trips              : [bold]{trips}[/bold]")
+    console.print(f"  Total distance     : [bold]{total_km} km[/bold] ({total_mi} mi)")
+    console.print(f"  Avg per trip       : {driving.get('avg_km_per_trip') or '\u2014'} km")
+    console.print(f"  Longest trip       : {driving.get('longest_trip_km') or '\u2014'} km")
+    console.print(f"  Energy used        : {driving.get('total_kwh_used') or '\u2014'} kWh")
+    console.print(f"  Avg efficiency     : {driving.get('avg_wh_per_km') or '\u2014'} Wh/km")
+    console.print()
+
+    # Charging section
+    console.print("  [bold cyan]\u2500\u2500 Charging \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]")
+    sessions = charging.get("sessions") or 0
+    total_kwh = charging.get("total_kwh_charged") or 0
+    total_cost = charging.get("total_cost")
+    console.print(f"  Sessions           : [bold]{sessions}[/bold]")
+    console.print(f"    DC fast (\u226550kW)  : {charging.get('dc_fast_sessions') or 0}")
+    console.print(f"    AC (<50kW)       : {charging.get('ac_sessions') or 0}")
+    console.print(f"  Total charged      : [bold]{total_kwh} kWh[/bold]")
+    console.print(f"  Avg per session    : {charging.get('avg_kwh_per_session') or '\u2014'} kWh")
+    if total_cost is not None and float(total_cost) > 0:
+        console.print(f"  Total cost         : [bold]${total_cost}[/bold]")
+    console.print()
+
+
 # ── helpers ──
 
 def _kv(rows: list[tuple[str, str]]) -> None:

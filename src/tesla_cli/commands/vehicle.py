@@ -922,3 +922,57 @@ def vehicle_tonneau(
         console.print(_json.dumps({"tonneau": action}, indent=2))
         return
     render_success(f"Tonneau cover {action} command sent")
+
+
+@vehicle_app.command("sentry-events")
+def vehicle_sentry_events(
+    limit: int = typer.Option(20, "--limit", "-n", help="Max events to show"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show recent Sentry Mode events (Fleet API only).
+
+    Filters recent vehicle alerts to sentry-triggered events.
+
+    tesla vehicle sentry-events
+    tesla vehicle sentry-events --limit 50
+    tesla -j vehicle sentry-events
+    """
+    import json as _json
+
+    from tesla_cli.exceptions import BackendNotSupportedError
+
+    v = _vin(vin)
+    try:
+        alerts = _with_wake(lambda b, v: b.get_recent_alerts(v), v)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+
+    # Filter sentry-related alerts; if empty, show all
+    sentry_keywords = ("sentry", "camera", "detection", "intrus", "motion", "tampering")
+    sentry_events = [
+        a for a in (alerts if isinstance(alerts, list) else alerts.get("alerts", []))
+        if any(kw in str(a).lower() for kw in sentry_keywords)
+    ] or (alerts if isinstance(alerts, list) else alerts.get("alerts", []))
+    sentry_events = sentry_events[:limit]
+
+    if is_json_mode():
+        console.print(_json.dumps(sentry_events, indent=2, default=str))
+        return
+
+    if not sentry_events:
+        console.print("[dim]No sentry events found.[/dim]")
+        return
+
+    render_table(
+        [
+            {
+                "time": str(e.get("start_epoch_time") or e.get("created_at") or "")[:19],
+                "name": str(e.get("name") or e.get("type") or "")[:40],
+                "audience": str(e.get("audience") or "")[:20],
+            }
+            for e in sentry_events
+        ],
+        columns=["time", "name", "audience"],
+        title=f"Sentry Events (last {len(sentry_events)})",
+    )
