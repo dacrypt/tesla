@@ -22,7 +22,7 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **Free vehicle backend (Owner API)** | ✅ | — | — | — | — | — |
 | **Secure token storage (system keyring)** | ✅ | — | partial | — | — | — |
 | **Multi-vehicle support (aliases)** | ✅ | — | — | — | — | ✅ |
-| **Multi-language UI** | ✅ (en+es) | ✅ (5 langs) | — | — | — | — |
+| **Multi-language UI** | ✅ (en/es/pt/fr/de/it) | ✅ (5 langs) | — | — | — | — |
 | **Share / anonymize mode** | ✅ | ✅ | — | — | — | — |
 | **Token encryption at rest (AES-256-GCM)** | — | — | ✅ | — | — | — |
 | **Offline option-code catalog** | ✅ (140+) | — | ✅ | — | — | — |
@@ -41,7 +41,18 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **Real-time telemetry (WebSocket stream)** | partial | — | — | — | — | — |
 | **Nearby Supercharger availability** | ✅ | — | — | — | — | partial |
 | **Energy efficiency per trip** | ✅ | — | — | — | — | — |
-| **Portuguese (pt) i18n** | ✅ (en+es+pt) | ✅ (5 langs) | — | — | — | — |
+| **Portuguese (pt) i18n** | ✅ (en/es/pt/fr/de/it) | ✅ (5 langs) | — | — | — | — |
+| **TPMS tire pressure** | ✅ | — | — | — | — | — |
+| **HomeLink trigger** | ✅ | — | — | — | — | — |
+| **Dashcam clip save** | ✅ | — | — | — | — | — |
+| **Vehicle rename** | ✅ | — | — | — | — | — |
+| **Remote start** | ✅ | — | — | — | — | — |
+| **Battery degradation estimate** | ✅ | — | — | — | — | — |
+| **Vampire drain analysis** | ✅ | — | — | — | — | — |
+| **CSV export** | ✅ | — | — | — | — | — |
+| **Automation hook (on-change-exec)** | ✅ | — | — | — | — | — |
+| **MQTT telemetry publish** | ✅ | — | — | — | — | — |
+| **Energy cost tracking** | ✅ | — | — | — | — | — |
 
 ---
 
@@ -130,3 +141,47 @@ No competing tool combines all of these in one CLI:
 - [x] 178 tests, ruff clean
 - [x] Tagged v1.0.0, pushed to GitHub → PyPI publish triggered
 - [ ] Submit Homebrew formula to tap
+
+### v1.1.0 — More Commands ✅ SHIPPED
+- [x] `tesla vehicle nearby` — real-time Supercharger stall availability
+- [x] `tesla teslaMate efficiency` — per-trip energy efficiency (Wh/km)
+- [x] Portuguese (pt) i18n
+- [x] 220 tests, ruff clean
+
+### v1.2.0 — Fleet-Only Features ✅ SHIPPED
+- [x] `tesla vehicle alerts` — recent fault alerts
+- [x] `tesla vehicle release-notes` — OTA firmware notes
+- [x] `tesla vehicle valet` — valet mode toggle
+- [x] `tesla vehicle schedule-charge` — scheduled charging control
+- [x] `tesla dossier clean` — prune old snapshots
+- [x] French (fr) i18n
+- [x] 260 tests, ruff clean
+
+### v1.2.1 — Free Backends Hardening ✅ SHIPPED
+- [x] `BackendNotSupportedError` with actionable migration hints
+- [x] Graceful errors for all 6 Fleet-only commands on free backends
+- [x] TessieBackend completed (vehicle_state, service_data, nearby_sites)
+- [x] 272 tests, ruff clean
+
+### v1.3.0 — All Competitive Gaps Closed ✅ SHIPPED
+- [x] `tesla vehicle tires` — TPMS pressure (bar + PSI), color-coded warnings
+- [x] `tesla vehicle homelink` — trigger garage door opener
+- [x] `tesla vehicle dashcam` — save clip to USB
+- [x] `tesla vehicle rename` — rename vehicle
+- [x] `tesla security remote-start` — keyless drive
+- [x] `tesla dossier battery-health` — degradation from snapshot history
+- [x] `tesla teslaMate vampire` — vampire drain via SQL CTE
+- [x] `--csv` export on teslaMate trips/charging/efficiency
+- [x] `order watch --on-change-exec` — shell automation hook
+- [x] `stream live --mqtt` — MQTT telemetry publishing
+- [x] Energy cost tracking (`charge status` + `cost_per_kwh`)
+- [x] German (de) + Italian (it) i18n → 6 languages total
+- [x] 338 tests, ruff clean
+
+### v1.4.0 — Next Milestone
+- [ ] `tesla vehicle media` — full media control (next/prev/volume)
+- [ ] Token encryption at rest (AES-256-GCM for headless servers)
+- [ ] `tesla dossier export-pdf` — full dossier as formatted PDF
+- [ ] WebSocket streaming backend (real-time telemetry)
+- [ ] Store location DB integration
+- [ ] Submit Homebrew formula to official tap
