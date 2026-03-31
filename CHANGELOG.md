@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-03-30
+
+### Added — TeslaMate API + Auth + Daemon
+
+- **`GET /api/teslaMate/trips`** — recent driving trips from TeslaMate (`?limit=N`)
+- **`GET /api/teslaMate/charges`** — recent charging sessions (`?limit=N`)
+- **`GET /api/teslaMate/stats`** — lifetime driving + charging statistics
+- **`GET /api/teslaMate/efficiency`** — per-trip energy efficiency in Wh/km (`?limit=N`)
+- **`GET /api/teslaMate/heatmap`** — driving-day data for calendar heatmap (`?days=N`)
+- **`GET /api/teslaMate/vampire`** — vampire drain analysis (`?days=N`)
+- **`GET /api/teslaMate/daily-energy`** — daily kWh added (`?days=N`)
+- **`GET /api/teslaMate/report/{month}`** — monthly driving + charging summary (YYYY-MM)
+- **`GET /api/geofences`** — list all configured geofence zones (name, lat, lon, radius_km)
+- **API Key Auth middleware** (`tesla_cli/server/auth.py`):
+  - `X-API-Key` header or `?api_key=` query param
+  - `TESLA_API_KEY` env var overrides config
+  - Protects all `/api/*` paths; `/` (dashboard) always open
+  - Enabled via `server.api_key` in config or `tesla serve --api-key TOKEN`
+- **`tesla serve --daemon`** — detach server to background; writes PID to `~/.tesla-cli/server.pid`
+- **`tesla serve stop`** — gracefully stop running daemon (SIGTERM + PID cleanup)
+- **`tesla serve status`** — show running/stopped state with PID; `--json` for scripting
+- **`tesla serve --api-key TOKEN`** — set API key and persist to config in one step
+- **SSE geofence events** — `/api/vehicle/stream?topics=geofence` emits typed `geofence` events (`enter`/`exit`) with zone name, coordinates and distance; uses haversine formula
+- **`ServerConfig`** added to `Config` model (`api_key`, `pid_file`)
+- **`auth_enabled` field** in `GET /api/config` response
+
+### Tests
+
+- 774 unit tests passing, 2 skipped, ruff clean
+- `tests/test_v260.py` — 42 tests: TeslaMate routes (10), Auth middleware (7), Geofences endpoint (3), Haversine (3), Middleware unit (3), ServerConfig (4), Daemon helpers (5), Serve CLI (7)
+
+---
+
 ## [2.5.0] - 2026-03-30
 
 ### Added — Provider Architecture

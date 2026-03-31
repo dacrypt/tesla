@@ -82,6 +82,12 @@ class GrafanaConfig(BaseModel):
     url: str = "http://localhost:3000"
 
 
+class ServerConfig(BaseModel):
+    """Local API server settings."""
+    api_key: str = ""           # If set, require X-API-Key header on all /api/* requests
+    pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -95,6 +101,7 @@ class Config(BaseModel):
     ble: BleConfig = Field(default_factory=BleConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
 
 
 def load_config() -> Config:

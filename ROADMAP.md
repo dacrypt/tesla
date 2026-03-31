@@ -281,9 +281,20 @@ No competing tool combines all of these in one CLI:
 - [x] **SSE fan-out** — `/api/vehicle/stream?fanout=true` pushes each tick to ABRP + HA simultaneously
 - [x] 732 tests, 2 skipped, ruff clean
 
-### v2.6.0 — Next Milestone
-- [ ] Dashboard enhancements: TeslaMate charts embedded in web UI
-- [ ] `GET /api/teslaMate/*` — TeslaMate endpoints (trips, charging, stats, heatmap)
-- [ ] Auth middleware — optional API key for `--host 0.0.0.0` LAN deployments
-- [ ] `tesla serve --daemon` — run as background systemd/launchd service
-- [ ] `GET /api/geofences` + `GET /api/vehicle/stream?topics=geofence` — geofence events over SSE
+### v2.6.0 — TeslaMate API + Auth + Daemon ✅ SHIPPED
+- [x] `GET /api/teslaMate/trips|charges|stats|efficiency|heatmap|vampire|daily-energy|report/{month}` — full TeslaMate REST surface
+- [x] `GET /api/geofences` — list all configured geofence zones
+- [x] **API Key auth middleware** — `X-API-Key` header / `?api_key=` / `TESLA_API_KEY` env var; protects all `/api/*` paths
+- [x] `tesla serve --api-key TOKEN` — set key and persist to config in one command
+- [x] `tesla serve --daemon` — detach to background with PID file
+- [x] `tesla serve stop` — SIGTERM + PID cleanup
+- [x] `tesla serve status` — running/stopped + PID; `--json` for scripting
+- [x] **SSE geofence events** — `/api/vehicle/stream?topics=geofence` emits typed `geofence` events (enter/exit) using haversine formula
+- [x] `ServerConfig` added to `Config` model (`api_key`, `pid_file`)
+- [x] 774 tests, 2 skipped, ruff clean
+
+### v2.7.0 — Next Milestone
+- [ ] Dashboard enhancements: TeslaMate charts embedded in web UI (trips, charging, heatmap)
+- [ ] `GET /api/vehicle/stream?topics=geofence` — geofence events visualized in dashboard
+- [ ] `tesla serve --systemd` / `--launchd` — generate service file for OS-level autostart
+- [ ] MQTT provider — publish vehicle state to MQTT broker as a provider
