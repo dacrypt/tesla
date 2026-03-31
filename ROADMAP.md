@@ -332,8 +332,12 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla config validate` — validates URL formats, port ranges, backend name, MQTT QoS, cost sign; exits 0/1; JSON summary
 - [x] ~1015+ tests, ruff clean
 
-### v3.2.0 — Next Milestone
-- [ ] `tesla vehicle watch --all --notify` — combine multi-vehicle watch with Apprise push notifications per vehicle
-- [ ] `tesla charge schedule-amps` — combined scheduling of charge time + amperage in one command
-- [ ] `tesla teslaMate heatmap --year N` — year selector for the GitHub-style driving heatmap
-- [ ] `GET /api/config/validate` — expose config validation via REST API for dashboard health widget
+### v3.2.0 — Watch Notify Per-Vehicle, Schedule-Amps, Heatmap --year, Config Validate API ✅ SHIPPED
+- [x] `tesla vehicle watch --all --notify` — per-vehicle notification titles: `"Tesla Watch — {label}"` when `--all` active
+- [x] `tesla charge schedule-amps HH:MM AMPS` — set amperage + enable scheduled charging in one command; validates time + amps range
+- [x] `tesla teslaMate heatmap --year N` — year selector; `get_drive_days_year(year)` backend method; Jan 1 → min(today, Dec 31)
+- [x] `GET /api/config/validate` — REST config validation endpoint; `{valid, errors, warnings, checks[]}`; backed by `_run_config_checks()` helper
+- [x] ~1030+ tests, ruff clean
+
+### v3.3.0 — Next Milestone
+- [ ] TBD

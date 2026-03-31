@@ -182,6 +182,19 @@ def create_app(vin: str | None = None) -> FastAPI:
 
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
 
+    @app.get("/api/config/validate", tags=["System"])
+    def api_config_validate() -> dict:
+        """Run config validation checks — same as `tesla config validate`.
+
+        Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
+        """
+        from tesla_cli.commands.config_cmd import _run_config_checks
+        cfg = load_config()
+        checks = _run_config_checks(cfg)
+        errors   = sum(1 for c in checks if c["status"] == "error")
+        warnings = sum(1 for c in checks if c["status"] == "warn")
+        return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
+
     # ── Real-time SSE stream ──────────────────────────────────────────────────
 
     @app.get("/api/vehicle/stream", tags=["Vehicle"])

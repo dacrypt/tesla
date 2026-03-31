@@ -390,6 +390,48 @@ def charge_profile(
         raise typer.Exit(1)
 
 
+@charge_app.command("schedule-amps")
+def charge_schedule_amps(
+    schedule_time: str = typer.Argument(..., metavar="HH:MM", help="Scheduled charge start time (24-hour)"),
+    amps: int         = typer.Argument(..., help="Charge current in amps (1–48)"),
+    vin: str | None   = VinOption,
+) -> None:
+    """Enable scheduled charging at a specific time and amperage in one command.
+
+    \b
+    tesla charge schedule-amps 02:00 8     # charge at 2 AM with 8 A (off-peak)
+    tesla charge schedule-amps 23:30 16    # charge at 11:30 PM with 16 A
+    tesla -j charge schedule-amps 02:00 8
+    """
+    import json as _json
+
+    if amps < 1 or amps > 48:
+        console.print("[red]Amps must be between 1 and 48.[/red]")
+        raise typer.Exit(1)
+
+    try:
+        hh, mm = schedule_time.split(":")
+        minutes = int(hh) * 60 + int(mm)
+        if not (0 <= int(hh) <= 23 and 0 <= int(mm) <= 59):
+            raise ValueError
+    except ValueError:
+        console.print("[red]Invalid time format — use HH:MM (e.g. 02:00)[/red]")
+        raise typer.Exit(1)
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    b = get_vehicle_backend(cfg)
+
+    b.command(v, "set_charging_amps", {"charging_amps": amps})
+    b.set_scheduled_charging(v, enable=True, time_minutes=minutes)
+
+    if is_json_mode():
+        console.print(_json.dumps({"ok": True, "schedule": schedule_time, "amps": amps, "vin": v}))
+        return
+
+    render_success(f"Scheduled charging set: [bold]{schedule_time}[/bold] at [bold]{amps} A[/bold]")
+
+
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
