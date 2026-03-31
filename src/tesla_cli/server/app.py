@@ -70,6 +70,21 @@ def create_app(vin: str | None = None) -> FastAPI:
             "server":   "tesla-cli API",
         }
 
+    @app.get("/api/vehicles", tags=["System"])
+    def api_vehicles() -> list:
+        """List all configured vehicles (aliases + default VIN)."""
+        cfg = load_config()
+        vehicles = []
+        # Always include the default VIN first
+        default = cfg.general.default_vin
+        if default:
+            vehicles.append({"vin": default, "alias": "default", "is_default": True})
+        # Add any aliases that are different from the default
+        for alias, vin in cfg.vehicles.aliases.items():
+            if vin != default:
+                vehicles.append({"vin": vin, "alias": alias, "is_default": False})
+        return vehicles
+
     @app.get("/api/config", tags=["System"])
     def api_config() -> dict:
         cfg = load_config()

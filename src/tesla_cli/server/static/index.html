@@ -61,6 +61,8 @@
   .pill { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--border); color: var(--muted); }
   .pill.ok { background: rgba(46,204,113,.15); color: var(--green); }
   .pill.error { background: rgba(232,33,39,.15); color: var(--accent); }
+  #vin-select { background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font-size: 12px; cursor: pointer; }
   #refresh-btn {
     background: none; border: 1px solid var(--border); color: var(--muted);
     padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
@@ -180,6 +182,7 @@
   <h1>⚡ <span>Tesla</span> Dashboard</h1>
   <div class="header-right">
     <span id="status-pill" class="pill">connecting…</span>
+    <select id="vin-select" onchange="switchVin(this.value)"></select>
     <button id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
     <button id="refresh-btn" onclick="fetchAll()">↺ Refresh</button>
   </div>
@@ -343,6 +346,37 @@
 let vData = {};
 let autoRefresh = null;
 
+// ── Vehicle switcher ──────────────────────────────────────────────────────
+let _activeVin = '';
+try { _activeVin = localStorage.getItem('tesla-vin') || ''; } catch (_) {}
+
+function _url(path) {
+  if (!_activeVin) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'vin=' + encodeURIComponent(_activeVin);
+}
+
+async function loadVehicleList() {
+  try {
+    const vehicles = await apiFetch('/api/vehicles');
+    const sel = document.getElementById('vin-select');
+    if (!sel || !vehicles || !vehicles.length) return;
+    sel.innerHTML = '';
+    vehicles.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.vin;
+      opt.textContent = v.alias === 'default' ? `${v.vin.slice(-6)} (default)` : `${v.vin.slice(-6)} [${v.alias}]`;
+      if (v.vin === _activeVin || (v.is_default && !_activeVin)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+function switchVin(vin) {
+  _activeVin = vin;
+  try { localStorage.setItem('tesla-vin', vin); } catch (_) {}
+  fetchAll();
+}
+
 // ── Toast ──────────────────────────────────────────────────────────────────
 function toast(msg, type = 'ok') {
   const el = document.getElementById('toast');
@@ -373,7 +407,8 @@ function toggleTheme() {
 
 // ── API helpers ────────────────────────────────────────────────────────────
 async function apiFetch(url) {
-  const r = await fetch(url);
+  const fetchUrl = url.startsWith('/api/vehicle/') ? _url(url) : url;
+  const r = await fetch(fetchUrl);
   if (!r.ok) {
     const e = await r.json().catch(() => ({detail: r.statusText}));
     throw new Error(e.detail || r.statusText);
@@ -709,6 +744,8 @@ async function fetchTeslaMate() {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // Load vehicle list for VIN switcher
+  loadVehicleList();
   // Initial load
   await fetchAll();
   // Load geofence zones for overlay

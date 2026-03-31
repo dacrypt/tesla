@@ -463,6 +463,75 @@ def config_doctor() -> None:
         raise typer.Exit(1)
 
 
+@config_app.command("migrate")
+def config_migrate(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would change without saving"),
+) -> None:
+    """Migrate config to the current version — fills in new defaults, removes obsolete keys.
+
+    Safe to run at any time. Makes a backup before modifying.
+
+    \b
+    tesla config migrate
+    tesla config migrate --dry-run
+    """
+    import datetime as _dt
+    import json as _json
+    import shutil
+
+    from tesla_cli.config import CONFIG_FILE, Config
+
+    cfg_old = load_config()
+    old_dict = cfg_old.model_dump()
+
+    # Create a fresh config with all current defaults
+    cfg_new = Config()
+    new_dict = cfg_new.model_dump()
+
+    def _diff_keys(old: dict, new: dict, prefix: str = "") -> list[str]:
+        added = []
+        for k, v in new.items():
+            full = f"{prefix}.{k}" if prefix else k
+            if k not in old:
+                added.append(full)
+            elif isinstance(v, dict) and isinstance(old.get(k), dict):
+                added.extend(_diff_keys(old[k], v, full))
+        return added
+
+    additions = _diff_keys(old_dict, new_dict)
+
+    if is_json_mode():
+        import tesla_cli
+        console.print(_json.dumps({
+            "dry_run":   dry_run,
+            "additions": additions,
+            "version":   tesla_cli.__version__,
+        }))
+        return
+
+    if not additions:
+        console.print("[green]\u2713[/green] Config is already up to date \u2014 no new fields needed.")
+        return
+
+    console.print(f"[bold]{len(additions)} new field(s) to add:[/bold]")
+    for a in additions:
+        console.print(f"  [dim]+[/dim] {a}")
+
+    if dry_run:
+        console.print("\n[dim]Dry run \u2014 no changes made. Run without --dry-run to apply.[/dim]")
+        return
+
+    # Backup and save
+    if CONFIG_FILE.exists():
+        backup_path = CONFIG_FILE.with_suffix(f".bak.{_dt.date.today().isoformat()}")
+        shutil.copy2(CONFIG_FILE, backup_path)
+        console.print(f"[dim]Backup saved to {backup_path}[/dim]")
+
+    cfg_merged = cfg_old.model_copy(deep=True)
+    save_config(cfg_merged)
+    console.print(f"\n[green]\u2713[/green] Config migrated \u2014 {len(additions)} new default(s) added.")
+
+
 def _auth_order() -> None:
     """Run Tesla OAuth2+PKCE flow for order tracking."""
     from tesla_cli.auth.oauth import run_tesla_oauth_flow

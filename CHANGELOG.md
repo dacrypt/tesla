@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-31
+
+### Added — Multi-Vehicle Dashboard, Schedule-Update, Timeline API, Notify Templates, Config Migrate
+
+- **Multi-vehicle dashboard** — VIN switcher `<select>` in header; `GET /api/vehicles` endpoint lists default + aliased VINs; `switchVin()` / `loadVehicleList()` JS; all `/api/vehicle/` fetch calls inject `?vin=` when active; `_backend_and_vin()` reads `?vin=` query param
+- **`tesla vehicle schedule-update`** — schedule a pending OTA update immediately or with `--delay N` minutes; JSON mode; calls `b.schedule_software_update(v, offset_sec=...)`
+- **`GET /api/teslaMate/timeline`** — unified event timeline (trips + charges + OTA) with `?days=N`; proxies `TeslaMateBacked.get_timeline()`; 502 on backend errors, 503 when not configured
+- **Notification templates** — `message_template` field in `NotificationsConfig` (default `"{event}: {vehicle} — {detail}"`); `tesla notify set-template` / `tesla notify show-template` commands; `notify test` uses template for body
+- **`tesla config migrate`** — fills in new config defaults, shows additions diff, makes `.bak.YYYY-MM-DD` backup before saving; `--dry-run` mode; JSON mode
+
+### Tests
+
+- ~965+ unit tests passing, ruff clean
+- `tests/test_v300.py` — ~50 tests across 6 test classes
+
 ## [2.9.0] - 2026-03-31
 
 ### Added — Timeline, Cost Report, Prometheus Metrics, Theme Toggle

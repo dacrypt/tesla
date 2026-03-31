@@ -14,7 +14,8 @@ router = APIRouter()
 
 def _backend_and_vin(request: Request):
     cfg = load_config()
-    v   = resolve_vin(cfg, request.app.state.override_vin)
+    vin_override = request.query_params.get("vin") or request.app.state.override_vin
+    v   = resolve_vin(cfg, vin_override)
     return get_vehicle_backend(cfg), v
 
 
