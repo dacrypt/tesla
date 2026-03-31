@@ -221,8 +221,13 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla config doctor` — health check: token, VIN, RN, backend, TeslaMate, config file; exit 1 on fail
 - [x] 523 tests, ruff clean
 
-### v2.0.0 — Next Milestone
+### v2.0.0 — Heatmap + Live Watch ✅ SHIPPED
+- [x] `tesla teslaMate heatmap` — GitHub-style calendar grid of driving days (color-coded by km, week columns, month labels)
+- [x] `tesla vehicle watch` — continuous monitoring loop: alerts on battery/lock/door/climate/charging state changes, `--notify` Apprise
+- [x] `get_drive_days(days)` SQL query in TeslaMate backend
+- [x] 536 tests, ruff clean
+
+### v2.1.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
-- [ ] `tesla teslaMate heatmap` — calendar grid of driving days (ASCII art)
-- [ ] `tesla vehicle watch` — continuous monitoring mode: prints alerts on state changes (battery drop, door opened, etc.)
+- [ ] `tesla vehicle map` — ASCII terminal map showing current vehicle location on a coordinate grid
 - [ ] Complete competitor feature parity audit + gap-close sprint
