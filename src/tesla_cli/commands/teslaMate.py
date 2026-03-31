@@ -1105,6 +1105,63 @@ def teslaMate_trip_stats(
         console.print(rt)
 
 
+@teslaMate_app.command("charging-locations")
+def teslaMate_charging_locations(
+    days:  int = typer.Option(90,  "--days",  "-d", help="Look-back window in days"),
+    limit: int = typer.Option(10,  "--limit", "-n", help="Max locations to show"),
+) -> None:
+    """Top charging locations ranked by session count.
+
+    \b
+    tesla teslaMate charging-locations
+    tesla teslaMate charging-locations --days 365 --limit 20
+    tesla -j teslaMate charging-locations
+    """
+    backend = _backend()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Loading charging locations for last {days} days…", total=None)
+        rows = backend.get_charging_locations(days=days, limit=limit)
+
+    if is_json_mode():
+        console.print_json(json.dumps(rows, indent=2, default=str))
+        return
+
+    if not rows:
+        console.print(f"[yellow]No charging sessions found in the last {days} days.[/yellow]")
+        return
+
+    from rich.table import Table as _Table
+    t = _Table(
+        title=f"Top Charging Locations — Last {days} Days",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    t.add_column("#",         width=4,  style="dim")
+    t.add_column("Location",  width=28)
+    t.add_column("Sessions",  justify="right", width=10)
+    t.add_column("Total kWh", justify="right", width=11)
+    t.add_column("Avg kWh",   justify="right", width=10)
+    t.add_column("Last Visit",width=17)
+
+    total_sessions = 0
+    total_kwh = 0.0
+    for i, r in enumerate(rows, 1):
+        loc   = str(r.get("location") or "—")[:26]
+        sess  = int(r.get("sessions") or 0)
+        tkwh  = float(r.get("total_kwh") or 0)
+        akwh  = float(r.get("avg_kwh_per_session") or 0)
+        last  = str(r.get("last_visit") or "—")[:16]
+        total_sessions += sess
+        total_kwh += tkwh
+        t.add_row(str(i), loc, str(sess), f"{tkwh:.1f}", f"{akwh:.1f}", last)
+
+    console.print(t)
+    console.print(
+        f"\n  [dim]{len(rows)} locations · {total_sessions} sessions · {total_kwh:.1f} kWh total[/dim]"
+    )
+
+
 # ── Grafana ──────────────────────────────────────────────────────────────────
 
 _GRAFANA_DASHBOARDS: dict[str, str] = {

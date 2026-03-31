@@ -139,6 +139,15 @@
   .ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .ring-label .pct { font-size: 22px; font-weight: 700; }
   .ring-label .unit { font-size: 11px; color: var(--muted); margin-top: -2px; }
+  /* ── Charging animation ── */
+  @keyframes charge-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: .45; }
+    100% { opacity: 1; }
+  }
+  #ring-fg.charging { animation: charge-pulse 1.8s ease-in-out infinite; }
+  #charge-rate-row  { display: none; }
+  #charge-rate-row.active { display: flex; }
 
   /* ── Location ── */
   .map-link { color: var(--blue); text-decoration: none; font-size: 12px; }
@@ -215,6 +224,8 @@
         <div class="kv-row"><span class="kv-key">Limit</span><span class="kv-val" id="batt-limit">–</span></div>
         <div class="kv-row"><span class="kv-key">State</span><span class="kv-val" id="charge-state-badge">–</span></div>
         <div class="kv-row"><span class="kv-key">Power</span><span class="kv-val" id="charger-power">–</span></div>
+        <div class="kv-row" id="charge-rate-row"><span class="kv-key">Charge rate</span><span class="kv-val" id="charge-rate-val">–</span></div>
+        <div class="kv-row" id="charge-eta-row" style="display:none"><span class="kv-key">ETA</span><span class="kv-val" id="charge-eta-val">–</span></div>
       </div>
       <div class="btn-row">
         <button class="btn" onclick="cmd('charge_start')">▶ Start</button>
@@ -491,6 +502,28 @@ function render(data) {
     : chargingState === 'Disconnected' ? 'muted' : 'yellow';
   $html('charge-state-badge', badge(chargingState, chargeBadgeColor));
   $set('charger-power', cs.charger_power ? cs.charger_power + ' kW' : '–');
+
+  // Charging animation + rate/ETA
+  const isCharging = (cs.charging_state === 'Charging');
+  const ringEl = document.getElementById('ring-fg');
+  if (ringEl) {
+    if (isCharging) ringEl.classList.add('charging');
+    else ringEl.classList.remove('charging');
+  }
+  const rateRow = document.getElementById('charge-rate-row');
+  const etaRow  = document.getElementById('charge-eta-row');
+  if (rateRow) rateRow.className = 'kv-row' + (isCharging ? ' active' : '');
+  if (etaRow)  etaRow.style.display = isCharging ? '' : 'none';
+  if (isCharging) {
+    const kw = cs.charger_power != null ? cs.charger_power.toFixed(1) + ' kW' : '–';
+    $set('charge-rate-val', kw);
+    const ttf = cs.time_to_full_charge;
+    if (ttf > 0) {
+      const mins = Math.round(ttf * 60);
+      const eta  = new Date(Date.now() + mins * 60000);
+      $set('charge-eta-val', eta.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+    }
+  }
 
   // Climate
   const inside = clim.inside_temp != null ? clim.inside_temp.toFixed(1) + '°C' : '–°';

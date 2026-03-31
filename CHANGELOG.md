@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-03-31
+
+### Added — Charging Locations, Vehicle Health Check, Charging Animation, Trip-Stats API
+
+- **`tesla teslaMate charging-locations`** — top charging locations ranked by session count; `--days N` (default 90) and `--limit N` (default 10); shows location, sessions, total kWh, avg kWh/session, last visit; JSON mode returns list of dicts; summary footer with totals
+- **`tesla vehicle health-check`** — comprehensive vehicle health summary: battery level (ok/warn/error thresholds), charge limit (70–90% range check), firmware version + pending update detection, TPMS tyre pressure (warn < 2.4 bar), door lock status, sentry mode, odometer; JSON mode returns `{vin, checks: [{name, status, value, detail}]}`
+- **Dashboard charging animation** — `#ring-fg.charging` CSS pulse animation (1.8s ease-in-out); `#charge-rate-row` shown only while charging (kW from `charger_power`); `#charge-eta-row` shows estimated full-charge ETA from `time_to_full_charge`; `classList.add/remove('charging')` toggled in `render()`
+- **`GET /api/teslaMate/trip-stats`** — aggregate trip statistics REST endpoint; `?days=N` (default 30); returns `{summary, top_routes, days}`; 502 on backend error, 503 when TeslaMate not configured
+
+### Tests
+
+- ~1090+ unit tests passing, ruff clean
+- `tests/test_v340.py` — ~45 tests across 5 test classes (ChargingLocations, VehicleHealthCheck, DashboardChargingAnim, ApiTripStats, Version340)
+
 ## [3.3.0] - 2026-03-31
 
 ### Added — Charge Forecast, Trip Stats, Health Badge, Cost-Report API

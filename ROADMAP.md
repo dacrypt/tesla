@@ -346,5 +346,12 @@ No competing tool combines all of these in one CLI:
 - [x] `GET /api/teslaMate/cost-report` — monthly cost report grouped by YYYY-MM; `?month=` filter; `?limit=N`
 - [x] ~1060+ tests, ruff clean
 
-### v3.4.0 — Next Milestone
+### v3.4.0 — Charging Locations, Health Check, Charging Animation, Trip-Stats API ✅ SHIPPED
+- [x] `tesla teslaMate charging-locations` — top charging locations by session count; `--days N`, `--limit N`; kWh totals + last visit; JSON mode
+- [x] `tesla vehicle health-check` — battery/firmware/TPMS/locks/sentry/odometer health summary; ok/warn/error status; JSON mode returns `{vin, checks[]}`
+- [x] Dashboard charging animation — `charge-pulse` CSS keyframe on `#ring-fg.charging`; `#charge-rate-row` + `#charge-eta-row` shown only while charging
+- [x] `GET /api/teslaMate/trip-stats` — trip aggregate REST endpoint; `?days=N`; returns `{summary, top_routes, days}`
+- [x] ~1090+ tests, ruff clean
+
+### v3.5.0 — Next Milestone
 - [ ] TBD

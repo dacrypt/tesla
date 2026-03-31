@@ -189,3 +189,21 @@ def teslaMate_cost_report(month: str = "", limit: int = 100) -> dict:
         "months":   dict(sorted(by_month.items(), reverse=True)),
         "sessions": len(sessions),
     }
+
+
+@router.get("/trip-stats")
+def teslaMate_trip_stats_api(days: int = 30) -> dict:
+    """Aggregate trip statistics: totals, averages, and top routes.
+
+    Query params:
+    - `days` — look-back window (default 30)
+
+    Returns {summary, top_routes, days}
+    """
+    try:
+        backend = _backend()
+        return backend.get_trip_stats(days=days)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc))

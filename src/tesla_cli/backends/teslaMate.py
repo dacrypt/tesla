@@ -450,6 +450,28 @@ class TeslaMateBacked:
             routes = [dict(r) for r in cur.fetchall()]
         return {"summary": summary, "top_routes": routes, "days": days}
 
+    def get_charging_locations(self, days: int = 90, limit: int = 10) -> list[dict[str, Any]]:
+        """Top charging locations by session count over the last N days."""
+        sql = """
+            SELECT
+                COALESCE(a.display_name, 'Unknown')          AS location,
+                COUNT(*)                                      AS sessions,
+                ROUND(SUM(cp.charge_energy_added)::numeric, 2) AS total_kwh,
+                ROUND(AVG(cp.charge_energy_added)::numeric, 2) AS avg_kwh_per_session,
+                MAX(cp.start_date)                            AS last_visit
+            FROM charging_processes cp
+            LEFT JOIN addresses a ON cp.address_id = a.id
+            WHERE cp.car_id = %s
+              AND cp.start_date >= NOW() - INTERVAL '%s days'
+              AND cp.charge_energy_added > 0
+            GROUP BY a.display_name
+            ORDER BY sessions DESC
+            LIMIT %s
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, days, limit))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:
