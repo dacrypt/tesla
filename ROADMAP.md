@@ -238,7 +238,18 @@ No competing tool combines all of these in one CLI:
 - [x] `ChargeState` + `ClimateState` models updated with missing fields
 - [x] 590 tests, ruff clean
 
-### v2.2.0 — Next Milestone
+### v2.2.0 — Ecosystem Hub: ABRP + BLE + Grafana ✅ SHIPPED
+- [x] `tesla abrp send/stream/status/setup` — ABRP live telemetry integration (SoC, speed, power, GPS → ABRP API)
+- [x] `tesla ble lock|unlock|climate-on|climate-off|charge-start|charge-stop|flash|honk` — L0 BLE direct control via `tesla-control` binary
+- [x] `tesla ble status|setup-key` — BLE key management + binary availability check
+- [x] `tesla teslaMate grafana [DASHBOARD]` — open TeslaMate Grafana dashboards in browser (8 dashboards)
+- [x] `AbrpConfig`, `BleConfig`, `HomeAssistantConfig`, `GrafanaConfig` added to `Config` model
+- [x] `ExternalToolNotFoundError` exception for graceful L0/L3 wrapper failures
+- [x] 616 tests, ruff clean
+
+### v2.3.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
 - [ ] `tesla vehicle map` — ASCII terminal map showing current vehicle location on a coordinate grid
 - [ ] Geofencing daemon (`tesla vehicle geofence watch`) — alerts on enter/exit named zones
+- [ ] `tesla ha push` — push vehicle state to Home Assistant MQTT/REST API
+- [ ] `tesla ha sync` — set HA entity attributes from vehicle data

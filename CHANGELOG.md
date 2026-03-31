@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-03-30
+
+### Added — Ecosystem Hub: ABRP + BLE + Grafana
+
+- **`tesla abrp send`** — one-shot push of current vehicle state (SoC, speed, power, GPS, charging status, cabin temp) to A Better Route Planner live telemetry API; JSON mode returns `{telemetry, abrp_response}`
+- **`tesla abrp stream`** — continuous ABRP telemetry loop; `--interval N` seconds (default 30); prints timestamped push log each cycle; `--notify URL` Apprise alert on push errors; Ctrl+C exits gracefully
+- **`tesla abrp status`** — show configured user token and API key presence; JSON mode; setup hint when unconfigured
+- **`tesla abrp setup <TOKEN>`** — save ABRP user token (and optional `--api-key`) to config
+- **`tesla ble lock|unlock|climate-on|climate-off|charge-start|charge-stop|flash|honk`** — L0 BLE direct control via `tesla-control` binary (no internet required); graceful `ExternalToolNotFoundError` with install hint when binary absent; JSON mode returns `{status, command, vin, returncode, stdout, stderr}`
+- **`tesla ble status`** — check `tesla-control` binary presence, BLE key path, and MAC; JSON mode
+- **`tesla ble setup-key <PATH>`** — configure BLE private key path (and optional `--mac`); validates file existence
+- **`tesla teslaMate grafana [DASHBOARD]`** — open a TeslaMate Grafana dashboard in the system browser; supports `overview|trips|charges|battery|efficiency|locations|vampire|updates`; `--grafana.url` configurable (default `http://localhost:3000`); JSON mode returns `{dashboard, url}`
+
+### Config
+
+- `AbrpConfig(api_key, user_token)` — ABRP integration credentials
+- `BleConfig(key_path, ble_mac)` — BLE key path and optional MAC override
+- `HomeAssistantConfig(url, token)` — Home Assistant long-lived token (future use)
+- `GrafanaConfig(url)` — Grafana base URL (default `http://localhost:3000`)
+
+### Exceptions
+
+- `ExternalToolNotFoundError(tool_name, install_hint)` — raised by L0/L3 wrappers when a required binary is absent from PATH
+
+### Tests
+
+- 616 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [2.1.0] - 2026-03-30
 
 ### Enhanced — All Competitive Gaps Closed

@@ -92,10 +92,14 @@ def _register_commands() -> None:
     app.add_typer(runt_app, name="runt")
     app.add_typer(simit_app, name="simit")
 
+    from tesla_cli.commands.abrp import abrp_app
+    from tesla_cli.commands.ble import ble_app
     from tesla_cli.commands.setup import setup_wizard
     from tesla_cli.commands.teslaMate import teslaMate_app
     app.command("setup")(setup_wizard)
     app.add_typer(teslaMate_app, name="teslaMate")
+    app.add_typer(abrp_app, name="abrp")
+    app.add_typer(ble_app, name="ble")
 
 
 _register_commands()

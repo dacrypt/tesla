@@ -5576,3 +5576,313 @@ class TestVehicleWatch:
     def test_watch_in_help(self):
         result = _run("vehicle", "--help")
         assert "watch" in result.output
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.2.0 Tests: ABRP, BLE, TeslaMate grafana
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestAbrpCommands:
+    """Tests for `tesla abrp` command group."""
+
+    def _cfg(self, user_token="test_abrp_token", api_key=""):
+        from tesla_cli.config import Config
+        cfg = Config()
+        cfg.general.default_vin = MOCK_VIN
+        cfg.abrp.user_token = user_token
+        cfg.abrp.api_key = api_key
+        return cfg
+
+    def _vehicle_data(self):
+        return {
+            "charge_state": {
+                "battery_level": 72,
+                "charging_state": "Disconnected",
+                "charger_power": 0,
+                "charge_limit_soc": 80,
+            },
+            "drive_state": {
+                "speed": 0,
+                "power": 0,
+                "latitude": 37.42,
+                "longitude": -122.08,
+                "shift_state": "P",
+            },
+            "climate_state": {
+                "inside_temp": 22.0,
+            },
+        }
+
+    def test_abrp_status_not_configured(self):
+        cfg = self._cfg(user_token="")
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg):
+            result = _run("abrp", "status")
+        assert result.exit_code == 0
+        assert "not set" in result.output
+
+    def test_abrp_status_configured(self):
+        cfg = self._cfg(user_token="tok123", api_key="apikey456")
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg):
+            result = _run("abrp", "status")
+        assert result.exit_code == 0
+        assert "set" in result.output
+
+    def test_abrp_status_json(self):
+        cfg = self._cfg(user_token="tok123")
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg):
+            result = _run("-j", "abrp", "status")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["user_token_set"] is True
+        assert "abrp_api" in data
+
+    def test_abrp_setup_saves_token(self):
+        cfg = self._cfg(user_token="")
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.abrp.save_config") as mock_save:
+            result = _run("abrp", "setup", "my_token_abc")
+        assert result.exit_code == 0
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved.abrp.user_token == "my_token_abc"
+
+    def test_abrp_setup_with_api_key(self):
+        cfg = self._cfg(user_token="")
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.abrp.save_config") as mock_save:
+            result = _run("abrp", "setup", "my_token", "--api-key", "dev_key_xyz")
+        assert result.exit_code == 0
+        saved = mock_save.call_args[0][0]
+        assert saved.abrp.user_token == "my_token"
+        assert saved.abrp.api_key == "dev_key_xyz"
+
+    def test_abrp_send_no_token_fails(self):
+        cfg = self._cfg(user_token="")
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend):
+            result = _run("abrp", "send")
+        # Should fail with config error about missing token
+        assert result.exit_code != 0 or "token" in result.output.lower()
+
+    def test_abrp_send_pushes_and_shows_soc(self):
+        cfg = self._cfg(user_token="tok123")
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.abrp._push", return_value={"status": "ok"}) as mock_push:
+            result = _run("abrp", "send")
+        assert result.exit_code == 0
+        mock_push.assert_called_once()
+        tlm_arg = mock_push.call_args[0][1]
+        assert tlm_arg["soc"] == 72
+        assert "72" in result.output
+
+    def test_abrp_send_json_output(self):
+        cfg = self._cfg(user_token="tok123")
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        with patch("tesla_cli.commands.abrp.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.abrp._push", return_value={"status": "ok"}):
+            result = _run("-j", "abrp", "send")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "telemetry" in data
+        assert "abrp_response" in data
+        assert data["telemetry"]["soc"] == 72
+
+    def test_abrp_in_help(self):
+        result = _run("abrp", "--help")
+        assert result.exit_code == 0
+        assert "send" in result.output
+        assert "stream" in result.output
+
+
+class TestBleCommands:
+    """Tests for `tesla ble` command group."""
+
+    def _cfg(self, key_path=""):
+        from tesla_cli.config import Config
+        cfg = Config()
+        cfg.general.default_vin = MOCK_VIN
+        cfg.ble.key_path = key_path
+        return cfg
+
+    def _mock_run(self, returncode=0, stdout="", stderr=""):
+        mock_result = MagicMock()
+        mock_result.returncode = returncode
+        mock_result.stdout = stdout
+        mock_result.stderr = stderr
+        return mock_result
+
+    def test_ble_status_no_binary(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value=None):
+            result = _run("ble", "status")
+        assert result.exit_code == 0
+        assert "not found" in result.output
+
+    def test_ble_status_binary_found(self):
+        cfg = self._cfg(key_path="/home/user/.tesla/private.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/local/bin/tesla-control"):
+            result = _run("ble", "status")
+        assert result.exit_code == 0
+        assert "found" in result.output
+
+    def test_ble_status_json(self):
+        cfg = self._cfg(key_path="/tmp/key.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"):
+            result = _run("-j", "ble", "status")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["tesla_control_found"] is True
+        assert data["key_path_set"] is True
+
+    def test_ble_lock_success(self):
+        cfg = self._cfg(key_path="/tmp/key.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
+             patch("tesla_cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")):
+            result = _run("ble", "lock")
+        assert result.exit_code == 0
+        assert "locked" in result.output.lower()
+
+    def test_ble_lock_binary_not_found(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value=None):
+            result = _run("ble", "lock")
+        assert result.exit_code != 0
+
+    def test_ble_unlock_success(self):
+        cfg = self._cfg(key_path="/tmp/key.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
+             patch("tesla_cli.commands.ble.subprocess.run", return_value=self._mock_run(0)):
+            result = _run("ble", "unlock")
+        assert result.exit_code == 0
+        assert "unlocked" in result.output.lower()
+
+    def test_ble_lock_json(self):
+        cfg = self._cfg(key_path="/tmp/key.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
+             patch("tesla_cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")):
+            result = _run("-j", "ble", "lock")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "ok"
+        assert data["command"] == "lock"
+
+    def test_ble_command_failure(self):
+        cfg = self._cfg(key_path="/tmp/key.pem")
+        with patch("tesla_cli.commands.ble.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
+             patch("tesla_cli.commands.ble.subprocess.run",
+                   return_value=self._mock_run(1, stderr="BLE handshake failed")):
+            result = _run("ble", "lock")
+        assert result.exit_code != 0
+        assert "BLE handshake failed" in result.output
+
+    def test_ble_in_help(self):
+        result = _run("ble", "--help")
+        assert result.exit_code == 0
+        assert "lock" in result.output
+        assert "unlock" in result.output
+
+
+class TestTeslaMateGrafana:
+    """Tests for `tesla teslaMate grafana` command."""
+
+    def _cfg(self, grafana_url="http://localhost:3000"):
+        from tesla_cli.config import Config
+        cfg = Config()
+        cfg.grafana.url = grafana_url
+        return cfg
+
+    def _patched_cfg(self, cfg):
+        return patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg)
+
+    def test_grafana_default_opens_overview(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open") as mock_open:
+            result = _run("teslaMate", "grafana")
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        url = mock_open.call_args[0][0]
+        assert "localhost:3000" in url
+        assert "overview" in url
+
+    def test_grafana_trips_dashboard(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open") as mock_open:
+            result = _run("teslaMate", "grafana", "trips")
+        assert result.exit_code == 0
+        url = mock_open.call_args[0][0]
+        assert "trips" in url
+
+    def test_grafana_charges_dashboard(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open") as mock_open:
+            result = _run("teslaMate", "grafana", "charges")
+        assert result.exit_code == 0
+        url = mock_open.call_args[0][0]
+        assert "charges" in url
+
+    def test_grafana_custom_url(self):
+        cfg = self._cfg(grafana_url="http://myserver:3000")
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open") as mock_open:
+            result = _run("teslaMate", "grafana", "battery")
+        assert result.exit_code == 0
+        url = mock_open.call_args[0][0]
+        assert "myserver:3000" in url
+        assert "battery" in url
+
+    def test_grafana_json_mode(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open"):
+            result = _run("-j", "teslaMate", "grafana", "efficiency")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["dashboard"] == "efficiency"
+        assert "localhost:3000" in data["url"]
+
+    def test_grafana_unknown_dashboard(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg):
+            result = _run("teslaMate", "grafana", "nonexistent_board")
+        assert result.exit_code != 0
+        assert "Unknown dashboard" in result.output
+
+    def test_grafana_vampire_dashboard(self):
+        cfg = self._cfg()
+        with self._patched_cfg(cfg), \
+             patch("webbrowser.open") as mock_open:
+            result = _run("teslaMate", "grafana", "vampire")
+        assert result.exit_code == 0
+        url = mock_open.call_args[0][0]
+        assert "vampire" in url
+
+    def test_grafana_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert result.exit_code == 0
+        assert "grafana" in result.output
