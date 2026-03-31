@@ -339,5 +339,12 @@ No competing tool combines all of these in one CLI:
 - [x] `GET /api/config/validate` — REST config validation endpoint; `{valid, errors, warnings, checks[]}`; backed by `_run_config_checks()` helper
 - [x] ~1030+ tests, ruff clean
 
-### v3.3.0 — Next Milestone
+### v3.3.0 — Charge Forecast, Trip Stats, Health Badge, Cost-Report API ✅ SHIPPED
+- [x] `tesla charge forecast` — estimate time-to-limit, ETA, energy needed; JSON mode; hint when not charging
+- [x] `tesla teslaMate trip-stats` — totals, averages, top-5 routes; `--days N`; JSON mode
+- [x] Dashboard config health badge — `#health-badge` pill in footer; calls `/api/config/validate`; green/yellow/red states
+- [x] `GET /api/teslaMate/cost-report` — monthly cost report grouped by YYYY-MM; `?month=` filter; `?limit=N`
+- [x] ~1060+ tests, ruff clean
+
+### v3.4.0 — Next Milestone
 - [ ] TBD

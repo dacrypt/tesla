@@ -168,6 +168,11 @@
   /* ── Footer ── */
   footer { text-align: center; padding: 24px; color: var(--muted); font-size: 12px; }
   footer a { color: var(--muted); }
+  #health-badge { font-size: 11px; margin-left: 8px; padding: 2px 7px;
+    border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  #health-badge.ok   { border-color: var(--green); color: var(--green); }
+  #health-badge.warn { border-color: var(--yellow); color: var(--yellow); }
+  #health-badge.err  { border-color: var(--accent); color: var(--accent); }
 
   /* ── Responsive ── */
   @media (max-width: 500px) {
@@ -333,7 +338,7 @@
 </main>
 
 <footer>
-  tesla-cli v<span id="ver">–</span> &nbsp;·&nbsp;
+  tesla-cli v<span id="ver">–</span><span id="health-badge">…</span> &nbsp;·&nbsp;
   <a href="/api/docs">API Docs</a> &nbsp;·&nbsp;
   <a href="https://github.com/dacrypt/tesla" target="_blank">GitHub</a>
   &nbsp;·&nbsp; <span id="last-update">–</span>
@@ -628,6 +633,27 @@ function startStream(interval = 30) {
   return es;
 }
 
+// ── Config health badge ───────────────────────────────────────────────────
+async function loadHealthBadge() {
+  const badge = document.getElementById('health-badge');
+  if (!badge) return;
+  try {
+    const h = await apiFetch('/api/config/validate');
+    if (h.errors > 0) {
+      badge.className = 'err';
+      badge.textContent = `✗ ${h.errors} config error${h.errors > 1 ? 's' : ''}`;
+    } else if (h.warnings > 0) {
+      badge.className = 'warn';
+      badge.textContent = `⚠ ${h.warnings} warning${h.warnings > 1 ? 's' : ''}`;
+    } else {
+      badge.className = 'ok';
+      badge.textContent = '✓ healthy';
+    }
+  } catch (_) {
+    badge.textContent = '';
+  }
+}
+
 // ── Geofence overlay ──────────────────────────────────────────────────────
 let _gfZones = [];  // [{name, lat, lon, radius_km}]
 
@@ -762,6 +788,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchAll();
   // Load geofence zones for overlay
   loadGeofenceZones();
+  // Load config health badge
+  loadHealthBadge();
   // Load TeslaMate data (shown only if configured)
   fetchTeslaMate();
   // Start SSE for live updates

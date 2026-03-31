@@ -412,6 +412,44 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, days, self._car_id, days, self._car_id, days))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_trip_stats(self, days: int = 30) -> dict[str, Any]:
+        """Aggregate trip statistics over the last N days."""
+        summary_sql = """
+            SELECT
+                COUNT(*)                                    AS total_trips,
+                ROUND(SUM(distance)::numeric, 1)            AS total_km,
+                ROUND(AVG(distance)::numeric, 1)            AS avg_km,
+                ROUND(MAX(distance)::numeric, 1)            AS longest_km,
+                ROUND(MIN(distance)::numeric, 1)            AS shortest_km,
+                ROUND(AVG(EXTRACT(EPOCH FROM (end_date - start_date)) / 60)::numeric, 0) AS avg_duration_min
+            FROM drives
+            WHERE car_id = %s
+              AND start_date >= NOW() - INTERVAL '%s days'
+              AND distance IS NOT NULL
+        """
+        routes_sql = """
+            SELECT
+                COALESCE(a_s.display_name, 'Unknown') AS from_addr,
+                COALESCE(a_e.display_name, 'Unknown') AS to_addr,
+                COUNT(*)                               AS count
+            FROM drives d
+            LEFT JOIN addresses a_s ON d.start_address_id = a_s.id
+            LEFT JOIN addresses a_e ON d.end_address_id   = a_e.id
+            WHERE d.car_id = %s
+              AND d.start_date >= NOW() - INTERVAL '%s days'
+            GROUP BY from_addr, to_addr
+            ORDER BY count DESC
+            LIMIT 5
+        """
+        with self._cursor() as cur:
+            cur.execute(summary_sql, (self._car_id, days))
+            row = cur.fetchone()
+            summary = dict(row) if row else {}
+        with self._cursor() as cur:
+            cur.execute(routes_sql, (self._car_id, days))
+            routes = [dict(r) for r in cur.fetchall()]
+        return {"summary": summary, "top_routes": routes, "days": days}
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-03-31
+
+### Added — Charge Forecast, Trip Stats, Health Badge, Cost-Report API
+
+- **`tesla charge forecast`** — estimates time to reach charge limit based on current charge rate; shows status, battery level, charger power, time-to-limit (e.g. "1h 30m"), ETA (HH:MM), energy to add (kWh), and range; JSON mode returns all fields; hints when not charging
+- **`tesla teslaMate trip-stats`** — aggregate trip statistics over `--days N` (default 30): total trips, total/avg/longest/shortest distance, avg duration; top-5 routes table; JSON mode returns `{summary, top_routes, days}`
+- **Dashboard config health badge** — `#health-badge` pill in footer calls `GET /api/config/validate` on load; shows ✓ healthy (green), ⚠ N warning (yellow), or ✗ N error (red); CSS classes `ok`/`warn`/`err`; `loadHealthBadge()` JS function
+- **`GET /api/teslaMate/cost-report`** — monthly charging cost report; groups charging sessions by YYYY-MM; optional `?month=YYYY-MM` filter and `?limit=N`; returns `{cost_per_kwh, months: {YYYY-MM: {sessions, kwh, cost}}, sessions}`
+
+### Tests
+
+- ~1060+ unit tests passing, ruff clean
+- `tests/test_v330.py` — ~45 tests across 5 test classes (ChargeForecast, TeslaMateTripsStats, DashboardHealthBadge, ApiCostReport, Version330)
+
 ## [3.2.0] - 2026-03-31
 
 ### Added — Watch Notify Per-Vehicle, Schedule-Amps, Heatmap --year, Config Validate API

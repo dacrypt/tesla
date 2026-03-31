@@ -149,3 +149,43 @@ def teslaMate_timeline(days: int = 30) -> list:
         raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/cost-report")
+def teslaMate_cost_report(month: str = "", limit: int = 100) -> dict:
+    """Monthly charging cost report grouped by month.
+
+    Query params:
+    - `month` — filter to YYYY-MM (optional)
+    - `limit` — max sessions to analyse (default 100)
+
+    Returns {cost_per_kwh, months: {YYYY-MM: {sessions, kwh, cost}}, sessions: N}
+    """
+    import collections
+    try:
+        backend = _backend()
+        cfg     = load_config()
+        sessions = backend.get_charging_sessions(limit=limit)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    cost_per_kwh = cfg.general.cost_per_kwh or 0.0
+
+    if month:
+        sessions = [s for s in sessions if str(s.get("start_date") or "").startswith(month)]
+
+    by_month: dict = collections.defaultdict(lambda: {"sessions": 0, "kwh": 0.0, "cost": 0.0})
+    for s in sessions:
+        ym  = str(s.get("start_date") or "")[:7]
+        kwh = float(s.get("energy_added_kwh") or 0)
+        by_month[ym]["sessions"] += 1
+        by_month[ym]["kwh"]      = round(by_month[ym]["kwh"] + kwh, 3)
+        by_month[ym]["cost"]     = round(by_month[ym]["cost"] + kwh * cost_per_kwh, 2)
+
+    return {
+        "cost_per_kwh": cost_per_kwh,
+        "months":   dict(sorted(by_month.items(), reverse=True)),
+        "sessions": len(sessions),
+    }

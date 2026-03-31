@@ -432,6 +432,83 @@ def charge_schedule_amps(
     render_success(f"Scheduled charging set: [bold]{schedule_time}[/bold] at [bold]{amps} A[/bold]")
 
 
+@charge_app.command("forecast")
+def charge_forecast(vin: str | None = VinOption) -> None:
+    """Estimate time to reach charge limit based on current charge rate.
+
+    \b
+    tesla charge forecast
+    tesla -j charge forecast
+    """
+    import datetime as _dt
+    import json as _json
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    b = get_vehicle_backend(cfg)
+
+    try:
+        cs = b.get_charge_state(v)
+    except Exception as exc:
+        console.print(f"[red]Failed to get charge state:[/red] {exc}")
+        raise typer.Exit(1)
+
+    level      = cs.get("battery_level") or 0
+    limit      = cs.get("charge_limit_soc") or 80
+    rate_kw    = float(cs.get("charger_power") or 0)
+    range_mi   = float(cs.get("battery_range") or 0)
+    ttf_hrs    = float(cs.get("time_to_full_charge") or 0)
+    state      = cs.get("charging_state") or "Unknown"
+
+    # Compute estimated completion time
+    if ttf_hrs > 0:
+        eta_dt  = _dt.datetime.now() + _dt.timedelta(hours=ttf_hrs)
+        eta_str = eta_dt.strftime("%H:%M")
+        mins    = int(ttf_hrs * 60)
+        dur_str = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+    else:
+        eta_str = "—"
+        dur_str = "—"
+
+    # kWh needed estimate
+    # battery_range gives rated miles at current SOC; scale to full vs limit
+    kwh_needed = round(rate_kw * ttf_hrs, 2) if ttf_hrs > 0 and rate_kw > 0 else None
+
+    if is_json_mode():
+        console.print(_json.dumps({
+            "battery_level":     level,
+            "charge_limit_soc":  limit,
+            "charging_state":    state,
+            "charger_power_kw":  rate_kw,
+            "time_to_full_hrs":  ttf_hrs,
+            "time_to_full_str":  dur_str,
+            "eta":               eta_str,
+            "kwh_needed":        kwh_needed,
+            "battery_range_mi":  range_mi,
+        }))
+        return
+
+    from rich.table import Table
+    t = Table(title="Charge Forecast", show_header=False, box=None, padding=(0, 2))
+    t.add_column("k", style="dim", width=22)
+    t.add_column("v")
+
+    state_color = "green" if state == "Charging" else "yellow" if state == "Complete" else "dim"
+    t.add_row("Status",          f"[{state_color}]{state}[/{state_color}]")
+    t.add_row("Battery level",   f"{level}%")
+    t.add_row("Charge limit",    f"{limit}%")
+    t.add_row("Charger power",   f"{rate_kw:.1f} kW" if rate_kw else "—")
+    t.add_row("Time to limit",   f"[bold]{dur_str}[/bold]" if dur_str != "—" else "—")
+    t.add_row("ETA",             f"[bold]{eta_str}[/bold]" if eta_str != "—" else "—")
+    if kwh_needed is not None:
+        t.add_row("Energy to add",   f"{kwh_needed:.2f} kWh")
+    t.add_row("Range",           f"{range_mi:.1f} mi")
+
+    console.print(t)
+    if state not in ("Charging",):
+        console.print("\n  [dim]Vehicle is not currently charging — connect to a charger to get a live forecast.[/dim]")
+
+
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
