@@ -36,6 +36,22 @@ class OrderNotFoundError(TeslaCliError):
     """Order RN not found or API endpoint broken."""
 
 
+class ExternalToolNotFoundError(TeslaCliError):
+    """A required external binary/tool was not found on PATH.
+
+    Raised by L0/L3 wrappers when the underlying binary (e.g. tesla-control)
+    is not installed.
+    """
+
+    def __init__(self, tool_name: str, install_hint: str = "") -> None:
+        self.tool_name = tool_name
+        self.install_hint = install_hint
+        msg = f"External tool `{tool_name}` not found on PATH."
+        if install_hint:
+            msg += f"\nInstall: {install_hint}"
+        super().__init__(msg)
+
+
 class BackendNotSupportedError(TeslaCliError):
     """Feature not available on the current vehicle backend.
 

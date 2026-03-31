@@ -860,6 +860,57 @@ def teslaMate_heatmap(
     console.print()
 
 
+# ── Grafana ──────────────────────────────────────────────────────────────────
+
+_GRAFANA_DASHBOARDS: dict[str, str] = {
+    "overview":   "/d/overview/overview",
+    "trips":      "/d/ZihFSXoZk/trips",
+    "charges":    "/d/7Cp9k_7Zz/charges",
+    "battery":    "/d/pf6xQMd7k/battery",
+    "efficiency": "/d/5k7CaGFZz/efficiency",
+    "locations":  "/d/GhFG_aS7k/locations",
+    "vampire":    "/d/g_EIOX5Zz/vampire-drain",
+    "updates":    "/d/f4V4XRhZz/updates",
+}
+
+_GRAFANA_NAMES = ", ".join(_GRAFANA_DASHBOARDS.keys())
+
+
+@teslaMate_app.command("grafana")
+def teslaMate_grafana(
+    dashboard: str = typer.Argument("overview", help=f"Dashboard: {_GRAFANA_NAMES}"),
+) -> None:
+    """Open a TeslaMate Grafana dashboard in your browser.
+
+    tesla teslaMate grafana
+    tesla teslaMate grafana trips
+    tesla teslaMate grafana charges
+    tesla -j teslaMate grafana battery
+    """
+    import json as _json
+    import webbrowser
+
+    cfg  = load_config()
+    base = (cfg.grafana.url or "http://localhost:3000").rstrip("/")
+
+    key = dashboard.lower()
+    if key not in _GRAFANA_DASHBOARDS:
+        console.print(
+            f"[red]Unknown dashboard:[/red] {dashboard}\n"
+            f"[dim]Available:[/dim] {_GRAFANA_NAMES}"
+        )
+        raise typer.Exit(1)
+
+    url = base + _GRAFANA_DASHBOARDS[key]
+
+    if is_json_mode():
+        console.print(_json.dumps({"dashboard": key, "url": url}))
+        return
+
+    console.print(f"Opening [bold cyan]{key}[/bold cyan] dashboard…  [dim]{url}[/dim]")
+    webbrowser.open(url)
+
+
 # ── helpers ──
 
 def _kv(rows: list[tuple[str, str]]) -> None:

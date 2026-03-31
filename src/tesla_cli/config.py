@@ -53,6 +53,29 @@ class TeslamateConfig(BaseModel):
     car_id: int = 1  # TeslaMate car ID (1-based)
 
 
+class AbrpConfig(BaseModel):
+    """A Better Route Planner live telemetry integration."""
+    api_key: str = ""        # Developer API key (get from ABRP dashboard)
+    user_token: str = ""     # Per-user token from ABRP app → share → API
+
+
+class BleConfig(BaseModel):
+    """BLE (Bluetooth Low Energy) direct control via tesla-control binary."""
+    key_path: str = ""       # Path to private key .pem for BLE pairing
+    ble_mac: str = ""        # Vehicle BLE MAC address (optional, auto-detected)
+
+
+class HomeAssistantConfig(BaseModel):
+    """Home Assistant integration."""
+    url: str = ""            # e.g. http://homeassistant.local:8123
+    token: str = ""          # Long-lived access token
+
+
+class GrafanaConfig(BaseModel):
+    """Grafana / TeslaMate dashboard URLs."""
+    url: str = "http://localhost:3000"
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -61,6 +84,10 @@ class Config(BaseModel):
     notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
     vehicles: VehiclesConfig = Field(default_factory=VehiclesConfig)
     teslaMate: TeslamateConfig = Field(default_factory=TeslamateConfig)
+    abrp: AbrpConfig = Field(default_factory=AbrpConfig)
+    ble: BleConfig = Field(default_factory=BleConfig)
+    home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
+    grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
 
 
 def load_config() -> Config:
