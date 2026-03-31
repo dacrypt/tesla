@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-03-30
+
+### Added
+
+- **`tesla teslaMate heatmap`** — GitHub-style calendar heatmap of driving activity; 7-row × N-week grid (Mon–Sun); color-coded cells: `·` no drive (dim), `▪` <50 km (blue), `▪` 50–150 km (yellow), `█` 150+ km (green); month labels across top; activity summary footer (active days, total km); `--days N` window (default 365); new SQL `get_drive_days(days)` in TeslaMate backend groups drives by calendar day; JSON mode returns `[{date, drives, km}]`
+- **`tesla vehicle watch`** — continuous vehicle monitoring loop; polls every `--interval N` seconds (default 60); detects and prints alerts on state changes to battery level, charging state, charge limit, lock state, user presence, individual door open/close, climate on/off, cabin temp, shift state, and speed; first poll establishes baseline silently; Ctrl+C exits gracefully; `--notify URL` sends Apprise push notification on any change; JSON mode emits `{ts, changes}` payload each cycle
+
+### Tests
+
+- 536 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [1.9.0] - 2026-03-30
 
 ### Added

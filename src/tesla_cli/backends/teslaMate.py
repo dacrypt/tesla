@@ -333,6 +333,24 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, str(days)))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_drive_days(self, days: int = 365) -> list[dict[str, Any]]:
+        """Per-day driving activity over the last N days (date, km, drives)."""
+        sql = """
+            SELECT
+                DATE(start_date)                        AS day,
+                COUNT(*)                                AS drives,
+                ROUND(SUM(distance)::numeric, 1)        AS km
+            FROM drives
+            WHERE car_id = %s
+              AND start_date >= NOW() - (%s || ' days')::interval
+              AND distance IS NOT NULL
+            GROUP BY DATE(start_date)
+            ORDER BY day ASC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, str(days)))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

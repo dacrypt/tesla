@@ -5386,3 +5386,193 @@ class TestConfigDoctor:
     def test_doctor_in_help(self):
         result = _run("config", "--help")
         assert "doctor" in result.output
+
+# ── v2.0.0: teslaMate heatmap ─────────────────────────────────────────────────
+
+import datetime as _dt_mod
+
+MOCK_DRIVE_DAYS = [
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=10), "drives": 2, "km": 180.5},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=5),  "drives": 1, "km":  45.0},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=2),  "drives": 3, "km": 210.0},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=1),  "drives": 1, "km":  0.0},
+]
+
+
+class TestTeslaMateHeatmap:
+    """Tests for tesla teslaMate heatmap."""
+
+    def _patched(self, rows=None):
+        if rows is None:
+            rows = MOCK_DRIVE_DAYS
+        mock_backend = MagicMock()
+        mock_backend.get_drive_days.return_value = rows
+        return patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend)
+
+    def test_heatmap_renders(self):
+        with self._patched():
+            result = _run("teslaMate", "heatmap")
+        assert result.exit_code == 0
+        # Should show day-of-week labels
+        assert "Mo" in result.output
+        assert "Su" in result.output
+
+    def test_heatmap_shows_activity_symbols(self):
+        with self._patched():
+            result = _run("teslaMate", "heatmap")
+        # At least one colored cell (green or yellow or blue)
+        assert "█" in result.output or "▪" in result.output or "·" in result.output
+
+    def test_heatmap_shows_legend(self):
+        with self._patched():
+            result = _run("teslaMate", "heatmap")
+        assert "Legend" in result.output
+        assert "km" in result.output
+
+    def test_heatmap_shows_summary(self):
+        with self._patched():
+            result = _run("teslaMate", "heatmap")
+        assert "active days" in result.output
+        assert "total" in result.output.lower()
+
+    def test_heatmap_json(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "heatmap")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["km"] == 180.5
+        assert "date" in data[0]
+        assert "drives" in data[0]
+
+    def test_heatmap_empty_no_crash(self):
+        with self._patched(rows=[]):
+            result = _run("teslaMate", "heatmap")
+        assert result.exit_code == 0
+
+    def test_heatmap_days_flag(self):
+        mock_backend = MagicMock()
+        mock_backend.get_drive_days.return_value = MOCK_DRIVE_DAYS
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend):
+            result = _run("teslaMate", "heatmap", "--days", "90")
+        assert result.exit_code == 0
+        mock_backend.get_drive_days.assert_called_once_with(days=90)
+
+    def test_heatmap_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "heatmap" in result.output
+
+
+# ── v2.0.0: vehicle watch ─────────────────────────────────────────────────────
+
+class TestVehicleWatch:
+    """Tests for tesla vehicle watch."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _vehicle_data_v1(self) -> dict:
+        from tests.conftest import MOCK_VEHICLE_DATA
+        return MOCK_VEHICLE_DATA
+
+    def _vehicle_data_v2(self) -> dict:
+        """Return vehicle data with changed battery and unlocked state."""
+        import copy
+        data = copy.deepcopy(self._vehicle_data_v1())
+        data["charge_state"]["battery_level"] = 65   # was 72
+        data["vehicle_state"]["locked"] = False       # was True
+        return data
+
+    def _run_watch(self, backend_mock, *extra_args):
+        """Run vehicle watch with all required patches via ExitStack."""
+        from contextlib import ExitStack
+        patches = [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend_mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("time.sleep"),
+        ]
+        with ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            return _run("vehicle", "watch", "--interval", "10", *extra_args)
+
+    def test_watch_starts_and_shows_status(self):
+        """First poll sets baseline; second poll shows no-change status."""
+        mock_backend = MagicMock()
+        mock_backend.wake_up.return_value = True
+        call_count = [0]
+        def _side_effect(v):
+            call_count[0] += 1
+            if call_count[0] > 2:
+                raise KeyboardInterrupt
+            return self._vehicle_data_v1()
+        mock_backend.get_vehicle_data.side_effect = _side_effect
+        result = self._run_watch(mock_backend)
+        assert result.exit_code == 0
+        assert "72" in result.output or "no changes" in result.output.lower()
+
+    def test_watch_detects_battery_change(self):
+        """Second poll has lower battery — should print change alert."""
+        call_count = [0]
+        def _side_effect(v):
+            call_count[0] += 1
+            if call_count[0] > 2:
+                raise KeyboardInterrupt
+            return self._vehicle_data_v1() if call_count[0] == 1 else self._vehicle_data_v2()
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.side_effect = _side_effect
+        mock_backend.wake_up.return_value = True
+        result = self._run_watch(mock_backend)
+        assert result.exit_code == 0
+        assert "72" in result.output or "🔋" in result.output or "Battery" in result.output
+
+    def test_watch_handles_asleep_vehicle(self):
+        """When vehicle is asleep, watch should note it and continue."""
+        from tesla_cli.exceptions import VehicleAsleepError
+        call_count = [0]
+        def _side_effect(v):
+            call_count[0] += 1
+            if call_count[0] > 1:
+                raise KeyboardInterrupt
+            raise VehicleAsleepError("asleep")
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.side_effect = _side_effect
+        result = self._run_watch(mock_backend)
+        assert result.exit_code == 0
+        assert "asleep" in result.output.lower() or "Vehicle asleep" in result.output
+
+    def test_watch_json_no_changes(self):
+        """JSON mode emits a payload even when there are no changes."""
+        call_count = [0]
+        def _side_effect(v):
+            call_count[0] += 1
+            if call_count[0] > 2:
+                raise KeyboardInterrupt
+            return self._vehicle_data_v1()
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.side_effect = _side_effect
+        from contextlib import ExitStack
+        patches = [
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("time.sleep"),
+        ]
+        with ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            result = _run("-j", "vehicle", "watch", "--interval", "10")
+        assert result.exit_code == 0
+        lines = [ln for ln in result.output.strip().splitlines() if ln.strip().startswith("{")]
+        assert len(lines) >= 1
+        payload = json.loads(lines[0])
+        assert "ts" in payload
+        assert "changes" in payload
+
+    def test_watch_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "watch" in result.output

@@ -767,6 +767,99 @@ def teslaMate_stats() -> None:
             pass
 
 
+@teslaMate_app.command("heatmap")
+def teslaMate_heatmap(
+    days: int = typer.Option(365, "--days", "-d", help="Calendar window in days (default 365)"),
+) -> None:
+    """GitHub-style driving heatmap — calendar grid of active driving days.
+
+    tesla teslaMate heatmap
+    tesla teslaMate heatmap --days 180
+    tesla -j teslaMate heatmap
+    """
+    import datetime as _dt
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+        p.add_task("Loading drive history...", total=None)
+        rows = backend.get_drive_days(days=days)
+
+    # Build lookup: date-string → km
+    activity: dict[str, float] = {str(r["day"]): float(r["km"] or 0) for r in rows}
+
+    if is_json_mode():
+        console.print(json.dumps([{"date": str(r["day"]), "drives": r["drives"], "km": float(r["km"] or 0)} for r in rows], indent=2))
+        return
+
+    # ── Calendar grid ─────────────────────────────────────────────────────────
+    today    = _dt.date.today()
+    start    = today - _dt.timedelta(days=days - 1)
+    # Align to Monday of start week
+    week_start = start - _dt.timedelta(days=start.weekday())
+
+    # Collect all weeks
+    weeks: list[list[_dt.date | None]] = []
+    cur = week_start
+    while cur <= today:
+        week: list[_dt.date | None] = []
+        for wd in range(7):
+            d = cur + _dt.timedelta(days=wd)
+            week.append(d if start <= d <= today else None)
+        weeks.append(week)
+        cur += _dt.timedelta(weeks=1)
+
+    # Determine month labels (one per column where month changes)
+    month_labels: list[str] = []
+    prev_month = -1
+    for week in weeks:
+        # Find first real day in week
+        first_real = next((d for d in week if d is not None), None)
+        if first_real and first_real.month != prev_month:
+            month_labels.append(first_real.strftime("%b"))
+            prev_month = first_real.month
+        else:
+            month_labels.append("   ")
+
+    # ── Legend / thresholds ───────────────────────────────────────────────────
+    def _cell(d: _dt.date | None) -> str:
+        if d is None:
+            return "  "
+        km = activity.get(str(d), 0.0)
+        if km == 0:
+            return "[dim]·[/dim] "
+        elif km < 50:
+            return "[blue]▪[/blue] "
+        elif km < 150:
+            return "[yellow]▪[/yellow] "
+        else:
+            return "[green]█[/green] "
+
+    day_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+
+    # Print month header row
+    header = "    " + "".join(f"{lbl:<3}" for lbl in month_labels)
+    console.print()
+    console.print("  " + header)
+
+    # Print 7 day-of-week rows
+    for wd in range(7):
+        cells = "".join(_cell(week[wd]) for week in weeks)
+        console.print(f"  {day_labels[wd]}  {cells}")
+
+    # Legend
+    console.print()
+    total_km   = sum(activity.values())
+    active_days = len(activity)
+    console.print(
+        "  [dim]Legend:[/dim]  [dim]·[/dim] no drive  "
+        "[blue]▪[/blue] <50 km  [yellow]▪[/yellow] 50–150 km  [green]█[/green] 150+ km"
+    )
+    console.print(
+        f"  [dim]{active_days} active days · {total_km:,.0f} km total · last {days} days[/dim]"
+    )
+    console.print()
+
+
 # ── helpers ──
 
 def _kv(rows: list[tuple[str, str]]) -> None:

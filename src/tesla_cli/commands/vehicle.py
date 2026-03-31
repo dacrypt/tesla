@@ -1388,3 +1388,112 @@ def vehicle_cabin_protection(
         console.print(_json.dumps({"cabin_overheat_protection": "on" if on else "off"}, indent=2))
         return
     render_success(f"Cabin Overheat Protection {'enabled' if on else 'disabled'}")
+
+
+# ── Watch state keys ──────────────────────────────────────────────────────────
+
+_WATCH_KEYS: list[tuple[str, str, str]] = [
+    # (section, key, label)
+    ("charge_state",  "battery_level",      "🔋 Battery"),
+    ("charge_state",  "charging_state",     "⚡ Charging state"),
+    ("charge_state",  "charge_limit_soc",   "⚡ Charge limit"),
+    ("vehicle_state", "locked",             "🔒 Locked"),
+    ("vehicle_state", "is_user_present",    "👤 User present"),
+    ("vehicle_state", "df",                 "🚪 Driver front door"),
+    ("vehicle_state", "pf",                 "🚪 Pass front door"),
+    ("vehicle_state", "dr",                 "🚪 Driver rear door"),
+    ("vehicle_state", "pr",                 "🚪 Pass rear door"),
+    ("climate_state", "is_climate_on",      "🌡️ Climate"),
+    ("climate_state", "inside_temp",        "🌡️ Cabin temp"),
+    ("drive_state",   "shift_state",        "🚗 Shift state"),
+    ("drive_state",   "speed",              "🚗 Speed"),
+]
+
+
+@vehicle_app.command("watch")
+def vehicle_watch(
+    interval: int = typer.Option(60, "--interval", "-i", min=10, help="Poll interval in seconds"),
+    notify: str | None = typer.Option(None, "--notify", help="Apprise URL for push notifications on change"),
+    vin: str | None = VinOption,
+) -> None:
+    """Continuous vehicle monitoring — prints alerts on state changes.
+
+    Polls every INTERVAL seconds and reports any change in battery,
+    charging state, locks, climate, doors, or shift state.
+
+    tesla vehicle watch
+    tesla vehicle watch --interval 30
+    tesla vehicle watch --notify "tgram://botid/chatid"
+    Press Ctrl+C to stop.
+    """
+    import json as _json
+    import time as _time
+    from datetime import datetime as _dt
+
+    v = _vin(vin)
+    backend = get_vehicle_backend(load_config())
+
+    def _snapshot() -> dict:
+        """Fetch vehicle data and extract watched keys into a flat dict."""
+        try:
+            data = backend.get_vehicle_data(v)
+        except VehicleAsleepError:
+            return {}
+        flat: dict = {}
+        for section, key, _label in _WATCH_KEYS:
+            sec = data.get(section) or {}
+            val = sec.get(key)
+            if val is not None:
+                flat[f"{section}.{key}"] = val
+        return flat
+
+    notifier = None
+    if notify:
+        try:
+            import apprise
+            notifier = apprise.Apprise()
+            notifier.add(notify)
+        except ImportError:
+            console.print("[yellow]⚠ apprise not installed — notifications disabled[/yellow]")
+
+    console.print(f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]")
+    console.print("  [dim]Press Ctrl+C to stop.[/dim]\n")
+
+    prev: dict = {}
+    try:
+        while True:
+            curr = _snapshot()
+            if not curr:
+                console.print(f"  [dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]")
+            else:
+                changes: list[str] = []
+                for section, key, label in _WATCH_KEYS:
+                    fk = f"{section}.{key}"
+                    if fk not in curr:
+                        continue
+                    old = prev.get(fk)
+                    new = curr[fk]
+                    if old is None:
+                        continue  # first-seen value, don't alert
+                    if new != old:
+                        changes.append(f"{label}: [bold]{old}[/bold] → [bold]{new}[/bold]")
+
+                ts = _dt.now().strftime("%H:%M:%S")
+                if is_json_mode():
+                    payload = {"ts": ts, "changes": [c.replace("[bold]", "").replace("[/bold]", "") for c in changes]}
+                    console.print(_json.dumps(payload))
+                elif changes:
+                    for c in changes:
+                        console.print(f"  [dim]{ts}[/dim]  {c}")
+                    if notifier:
+                        body = "\n".join(c.replace("[bold]", "").replace("[/bold]", "") for c in changes)
+                        notifier.notify(title="Tesla Watch", body=body)
+                else:
+                    batt  = curr.get("charge_state.battery_level", "?")
+                    state = curr.get("charge_state.charging_state", "Unknown")
+                    locked = curr.get("vehicle_state.locked", "?")
+                    console.print(f"  [dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]")
+            prev = curr
+            _time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("\n  [dim]Watch stopped.[/dim]\n")
