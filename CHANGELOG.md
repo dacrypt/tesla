@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-03-30
+
+### Added
+
+- **`tesla vehicle tires`** — TPMS tire pressure in bar + PSI for all four wheels; color-coded status (OK / LOW / HARD WARN); `--vin`; full JSON mode
+- **`tesla vehicle homelink`** — trigger HomeLink garage door opener using live GPS coordinates from drive state; full JSON mode
+- **`tesla vehicle dashcam`** — save the current dashcam clip to USB storage; full JSON mode
+- **`tesla vehicle rename`** — rename the vehicle (requires firmware 2023.12+); full JSON mode
+- **`tesla security remote-start`** — enable keyless drive for 2 minutes; full JSON mode
+- **`tesla dossier battery-health`** — estimate battery degradation from local snapshot history; computes estimated rated range per snapshot (battery_range ÷ battery_level%); shows peak, latest, average, and degradation %; no paid service required; full JSON mode
+- **`tesla teslaMate vampire`** — analyze daily vampire drain (battery loss while parked) from TeslaMate PostgreSQL DB via CTE SQL query; shows avg %/hour with color coding; `--days N`; full JSON mode
+- **`--csv FILE`** flag on `teslaMate trips`, `teslaMate charging`, `teslaMate efficiency` — export any dataset to CSV with header row
+- **`order watch --on-change-exec CMD`** — run a shell hook whenever order changes are detected; change data passed as JSON via `TESLA_CHANGES` env var
+- **`stream live --mqtt URL`** — publish vehicle state to any MQTT broker after each poll; format: `mqtt://host:1883/topic`; graceful `ImportError` hint if `paho-mqtt` not installed
+- **Energy cost tracking** — `charge status` now displays estimated session cost when `cost_per_kwh` is configured (`tesla config set cost-per-kwh 0.15`)
+- **German (de) i18n** — complete German translation catalog; `--lang de` / `TESLA_LANG=de`
+- **Italian (it) i18n** — complete Italian translation catalog; `--lang it` / `TESLA_LANG=it`
+- Now supports 6 languages: en, es, pt, fr, de, it
+
+### Fixed
+
+- `order._exec_on_change`: use `model_dump(mode="json")` to correctly serialize `datetime` fields in `OrderChange`
+- `test_commands`: set `cfg.general.cost_per_kwh = 0.0` in mock config fixture to avoid `MagicMock > int` comparison error
+
+### Tests
+
+- 338 unit tests passing (66 new tests); ruff clean
+
+---
+
+## [1.2.1] - 2026-03-30
+
+### Added
+
+- **`BackendNotSupportedError`** — new exception for Fleet-only features; includes actionable "switch to fleet" hint and `tesla config set backend fleet` instruction
+- **Graceful errors** for 6 Fleet-only commands on Owner API / Tessie backends: `charge history`, `vehicle alerts`, `vehicle release-notes`, `sharing invite/list/revoke`
+- **TessieBackend** completed: added `get_vehicle_state`, `get_service_data`, `get_nearby_charging_sites`; all Fleet-only methods raise `BackendNotSupportedError`
+- **`VehicleBackend` ABC** extended with default stubs for all Fleet-only methods (no breaking change for existing backends)
+
+### Tests
+
+- 272 unit tests passing (12 new backend-not-supported tests); ruff clean
+
+---
+
 ## [1.2.0] - 2026-03-30
 
 ### Added
