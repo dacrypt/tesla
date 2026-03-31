@@ -1553,6 +1553,7 @@ def vehicle_watch(
     tesla vehicle watch --interval 30
     tesla vehicle watch --notify "tgram://botid/chatid"
     tesla vehicle watch --all
+    tesla vehicle watch --all --notify "tgram://botid/chatid"
     Press Ctrl+C to stop.
     """
     import json as _json
@@ -1585,6 +1586,7 @@ def vehicle_watch(
         return flat
 
     def _watch_one(target_v: str, prefix: str, stop: threading.Event | None) -> None:
+        label = prefix
         backend = get_vehicle_backend(cfg)
         prev: dict = {}
         while True:
@@ -1596,7 +1598,7 @@ def vehicle_watch(
                 console.print(f"  {tag}[dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]")
             else:
                 changes: list[str] = []
-                for section, key, label in _WATCH_KEYS:
+                for section, key, watch_label in _WATCH_KEYS:
                     fk = f"{section}.{key}"
                     if fk not in curr:
                         continue
@@ -1605,7 +1607,7 @@ def vehicle_watch(
                     if old is None:
                         continue  # first-seen value, don't alert
                     if new != old:
-                        changes.append(f"{label}: [bold]{old}[/bold] → [bold]{new}[/bold]")
+                        changes.append(f"{watch_label}: [bold]{old}[/bold] → [bold]{new}[/bold]")
 
                 ts = _dt.now().strftime("%H:%M:%S")
                 if is_json_mode():
@@ -1616,7 +1618,8 @@ def vehicle_watch(
                         console.print(f"  {tag}[dim]{ts}[/dim]  {c}")
                     if notifier:
                         body = "\n".join(c.replace("[bold]", "").replace("[/bold]", "") for c in changes)
-                        notifier.notify(title="Tesla Watch", body=body)
+                        prefix_title = f"Tesla Watch — {label}" if label else "Tesla Watch"
+                        notifier.notify(title=prefix_title, body=body)
                 else:
                     batt  = curr.get("charge_state.battery_level", "?")
                     state = curr.get("charge_state.charging_state", "Unknown")

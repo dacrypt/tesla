@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-03-31
+
+### Added — Watch Notify Per-Vehicle, Schedule-Amps, Heatmap --year, Config Validate API
+
+- **`tesla vehicle watch --all --notify`** — per-vehicle notification titles: when `--all` is active, each thread sends `"Tesla Watch — {label}"` so the user can identify which vehicle triggered the alert
+- **`tesla charge schedule-amps HH:MM AMPS`** — combined command to set charge amperage and enable scheduled charging in one step; validates time format and amps range (1–48); JSON mode returns `{ok, schedule, amps, vin}`
+- **`tesla teslaMate heatmap --year N`** — year selector for the GitHub-style driving heatmap; calls `get_drive_days_year(year)` backend method; start=Jan 1, end=min(today, Dec 31); `--days` path unchanged
+- **`GET /api/config/validate`** — REST endpoint exposing config validation; returns `{valid, errors, warnings, checks[]}` for dashboard health widgets; backed by `_run_config_checks()` helper extracted from `config validate`
+- **`_run_config_checks(cfg)`** — module-level helper in `config_cmd.py`; shared by CLI and REST endpoint; returns list of `{field, status, message}` dicts; status values: `ok`, `warn`, `error`
+
+### Tests
+
+- ~1030+ unit tests passing, ruff clean
+- `tests/test_v320.py` — ~45 tests across 5 test classes (WatchAllNotify, ChargeScheduleAmps, HeatmapYear, ApiConfigValidate, Version320)
+
 ## [3.1.0] - 2026-03-31
 
 ### Added — Multi-Vehicle Watch, Charge Profile, SSE Back-off, Config Validate

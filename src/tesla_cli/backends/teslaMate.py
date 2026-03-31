@@ -351,6 +351,27 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, str(days)))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_drive_days_year(self, year: int) -> list[dict[str, Any]]:
+        """Active driving days for a full calendar year."""
+        sql = """
+            SELECT
+                DATE(start_date AT TIME ZONE 'UTC') AS day,
+                COUNT(*)                             AS drives,
+                COALESCE(SUM(distance), 0)           AS km
+            FROM drives
+            WHERE car_id  = %s
+              AND start_date >= %s
+              AND start_date <  %s
+            GROUP BY day
+            ORDER BY day
+        """
+        import datetime as _dt
+        start = _dt.date(year, 1, 1)
+        end   = _dt.date(year + 1, 1, 1)
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, start, end))
+            return [dict(r) for r in cur.fetchall()]
+
     def get_timeline(self, days: int = 30) -> list[dict[str, Any]]:
         """Unified event timeline: trips, charges, and OTA updates merged chronologically."""
         sql = """

@@ -769,20 +769,26 @@ def teslaMate_stats() -> None:
 
 @teslaMate_app.command("heatmap")
 def teslaMate_heatmap(
-    days: int = typer.Option(365, "--days", "-d", help="Calendar window in days (default 365)"),
+    days: int          = typer.Option(365, "--days", "-d", help="Calendar window in days (default 365)"),
+    year: int | None   = typer.Option(None, "--year", "-y", help="Show a specific calendar year (e.g. 2025)"),
 ) -> None:
     """GitHub-style driving heatmap — calendar grid of active driving days.
 
+    \b
     tesla teslaMate heatmap
     tesla teslaMate heatmap --days 180
-    tesla -j teslaMate heatmap
+    tesla teslaMate heatmap --year 2025
+    tesla -j teslaMate heatmap --year 2025
     """
     import datetime as _dt
 
     backend = _backend()
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
         p.add_task("Loading drive history...", total=None)
-        rows = backend.get_drive_days(days=days)
+        if year is not None:
+            rows = backend.get_drive_days_year(year)
+        else:
+            rows = backend.get_drive_days(days=days)
 
     # Build lookup: date-string → km
     activity: dict[str, float] = {str(r["day"]): float(r["km"] or 0) for r in rows}
@@ -792,8 +798,12 @@ def teslaMate_heatmap(
         return
 
     # ── Calendar grid ─────────────────────────────────────────────────────────
-    today    = _dt.date.today()
-    start    = today - _dt.timedelta(days=days - 1)
+    if year is not None:
+        start = _dt.date(year, 1, 1)
+        today = min(_dt.date.today(), _dt.date(year, 12, 31))
+    else:
+        today    = _dt.date.today()
+        start    = today - _dt.timedelta(days=days - 1)
     # Align to Monday of start week
     week_start = start - _dt.timedelta(days=start.weekday())
 
@@ -854,8 +864,9 @@ def teslaMate_heatmap(
         "  [dim]Legend:[/dim]  [dim]·[/dim] no drive  "
         "[blue]▪[/blue] <50 km  [yellow]▪[/yellow] 50–150 km  [green]█[/green] 150+ km"
     )
+    period_label = str(year) if year is not None else f"last {days} days"
     console.print(
-        f"  [dim]{active_days} active days · {total_km:,.0f} km total · last {days} days[/dim]"
+        f"  [dim]{active_days} active days · {total_km:,.0f} km total · {period_label}[/dim]"
     )
     console.print()
 
