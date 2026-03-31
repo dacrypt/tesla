@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-03-30
+
+### Added
+
+- **`tesla dossier export-html`** — export the full dossier to a standalone HTML report with zero extra dependencies; sections: Vehicle Identity (with color/wheel/drive), Battery & Charging (with live bar), Order Status, NHTSA Recalls, Snapshot History; dark-themed self-contained CSS; `--output` flag; default filename `dossier.html`
+- **`tesla charge schedule-preview`** — consolidated view of all scheduled charging and departure settings in one command; shows scheduled charging mode + start time, departure time, preconditioning (with weekdays-only flag), off-peak charging window; full JSON mode
+- **`tesla order stores`** — embedded offline database of 100+ Tesla store and service center locations across EU, US, CA, AU, CN, JP; filter by `--country` (ISO code), `--city`, or find nearest with `--near lat,lon`; `--limit N`; distance shown in km when using `--near`; full JSON mode
+
+### Tests
+
+- 443 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [1.5.0] - 2026-03-30
 
 ### Added

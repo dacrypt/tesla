@@ -184,6 +184,79 @@ def charge_departure(
     render_success(msg)
 
 
+@charge_app.command("schedule-preview")
+def charge_schedule_preview(vin: str | None = VinOption) -> None:
+    """Show current scheduled charge and departure settings in one consolidated view.
+
+    tesla charge schedule-preview
+    """
+    import json as _json
+
+    v = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_charge_state(v), v)
+
+    # Extract scheduling fields
+    sched_mode  = data.get("scheduled_charging_mode", "Off")
+    sched_start = data.get("scheduled_charging_start_time_app")  # minutes after midnight
+    sched_start_utc = data.get("scheduled_charging_start_time")
+    dep_mode    = data.get("scheduled_departure_time_minutes")    # minutes after midnight
+    dep_time    = data.get("scheduled_departure_time")            # epoch
+    precond     = data.get("preconditioning_enabled", False)
+    precond_wkd = data.get("preconditioning_weekdays_only", False)
+    off_peak    = data.get("off_peak_charging_enabled", False)
+    off_peak_end = data.get("off_peak_hours_end_time")            # minutes after midnight
+
+    def _minutes_to_hhmm(mins: int | None) -> str:
+        if mins is None:
+            return "—"
+        return f"{int(mins) // 60:02d}:{int(mins) % 60:02d}"
+
+    if is_json_mode():
+        from tesla_cli.output import console as _con
+        _con.print(_json.dumps({
+            "scheduled_charging_mode": sched_mode,
+            "scheduled_charging_start": _minutes_to_hhmm(sched_start),
+            "scheduled_charging_start_utc": sched_start_utc,
+            "scheduled_departure_time": _minutes_to_hhmm(dep_mode),
+            "scheduled_departure_epoch": dep_time,
+            "preconditioning_enabled": precond,
+            "preconditioning_weekdays_only": precond_wkd,
+            "off_peak_charging_enabled": off_peak,
+            "off_peak_hours_end_time": _minutes_to_hhmm(off_peak_end),
+        }, indent=2))
+        return
+
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from tesla_cli.output import console as _con
+
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column("Key", style="dim", width=32)
+    t.add_column("Value", style="bold")
+
+    # Scheduled charging section
+    t.add_row("[bold cyan]── Scheduled Charging ──[/bold cyan]", "")
+    sc_color = "green" if sched_mode and sched_mode != "Off" else "dim"
+    t.add_row("Mode", f"[{sc_color}]{sched_mode or 'Off'}[/{sc_color}]")
+    if sched_start is not None:
+        t.add_row("Start Time", _minutes_to_hhmm(sched_start))
+
+    # Scheduled departure section
+    t.add_row("", "")
+    t.add_row("[bold cyan]── Scheduled Departure ──[/bold cyan]", "")
+    dep_color = "green" if dep_mode else "dim"
+    t.add_row("Departure Time", f"[{dep_color}]{_minutes_to_hhmm(dep_mode)}[/{dep_color}]")
+    t.add_row("Preconditioning", "[green]On[/green]" if precond else "[dim]Off[/dim]")
+    if precond:
+        t.add_row("  Weekdays Only", "Yes" if precond_wkd else "No")
+    t.add_row("Off-Peak Charging", "[green]On[/green]" if off_peak else "[dim]Off[/dim]")
+    if off_peak and off_peak_end is not None:
+        t.add_row("  Off-Peak Ends", _minutes_to_hhmm(off_peak_end))
+
+    _con.print(Panel(t, title="[bold]Charge & Departure Schedule[/bold]", border_style="blue"))
+
+
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""

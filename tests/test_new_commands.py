@@ -3987,3 +3987,386 @@ class TestVehicleSentryEvents:
     def test_sentry_events_in_help(self):
         result = _run("vehicle", "--help")
         assert "sentry-events" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.6.0 — dossier export-html, charge schedule-preview, order stores
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ── dossier export-html ───────────────────────────────────────────────────────
+
+
+class TestDossierExportHtml:
+    """Tests for tesla dossier export-html (no extra deps)."""
+
+    def _snapshot(self, tmp_path: Path) -> Path:
+        """Write a minimal snapshot to a temp dir."""
+        snap = {
+            "vin": MOCK_VIN,
+            "last_updated": "2026-03-30T12:00:00",
+            "charge_state": {
+                "battery_level": 75,
+                "battery_range": 220.5,
+                "charging_state": "Disconnected",
+                "charge_limit_soc": 80,
+                "charge_energy_added": 12.3,
+                "charger_power": 0,
+            },
+            "vehicle_config": {
+                "car_type": "modely",
+                "exterior_color": "Pearl White",
+                "wheel_type": "Gemini",
+            },
+            "vin_decode": {"model": "Y", "model_year": "2026", "manufacturer": "Shanghai"},
+            "order_status": {"orderStatus": "ORDERED", "reservationNumber": "RN123"},
+            "nhtsa_recalls": [],
+        }
+        snaps_dir = tmp_path / "snapshots"
+        snaps_dir.mkdir()
+        snap_file = snaps_dir / "snapshot_2026-03-30T12-00-00.json"
+        snap_file.write_text(json.dumps(snap))
+        return snaps_dir
+
+    def test_export_html_creates_file(self, tmp_path):
+        snaps_dir = self._snapshot(tmp_path)
+        out = tmp_path / "report.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            result = _run("dossier", "export-html", "--output", str(out))
+        assert result.exit_code == 0
+        assert out.exists()
+        content = out.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert MOCK_VIN in content
+
+    def test_export_html_contains_vin(self, tmp_path):
+        snaps_dir = self._snapshot(tmp_path)
+        out = tmp_path / "dossier.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", str(out))
+        content = out.read_text()
+        assert MOCK_VIN in content
+        assert "Tesla Vehicle Dossier" in content
+
+    def test_export_html_battery_level(self, tmp_path):
+        snaps_dir = self._snapshot(tmp_path)
+        out = tmp_path / "dossier.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", str(out))
+        content = out.read_text()
+        assert "75" in content  # battery_level
+
+    def test_export_html_no_snapshots(self, tmp_path):
+        """Should still produce a valid HTML when there are no snapshots."""
+        empty_dir = tmp_path / "empty_snaps"
+        empty_dir.mkdir()
+        out = tmp_path / "empty.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", empty_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = ""
+            result = _run("dossier", "export-html", "--output", str(out))
+        assert result.exit_code == 0
+        assert out.exists()
+        content = out.read_text()
+        assert "<!DOCTYPE html>" in content
+
+    def test_export_html_with_recalls(self, tmp_path):
+        snaps_dir = tmp_path / "snaps_rc"
+        snaps_dir.mkdir()
+        snap = {
+            "vin": MOCK_VIN,
+            "nhtsa_recalls": [
+                {
+                    "NHTSACampaignNumber": "23V-999",
+                    "Component": "STEERING",
+                    "Summary": "Steering may fail unexpectedly under load",
+                }
+            ],
+        }
+        (snaps_dir / "snapshot_2026.json").write_text(json.dumps(snap))
+        out = tmp_path / "recalls.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", str(out))
+        content = out.read_text()
+        assert "23V-999" in content
+        assert "STEERING" in content
+
+    def test_export_html_in_help(self):
+        result = _run("dossier", "--help")
+        assert "export-html" in result.output
+
+    def test_export_html_self_contained(self, tmp_path):
+        """No external CSS/JS references — everything is inline."""
+        snaps_dir = self._snapshot(tmp_path)
+        out = tmp_path / "self.html"
+        with (
+            patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+            patch("tesla_cli.config.load_config") as mock_lc,
+        ):
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", str(out))
+        content = out.read_text()
+        # No external stylesheet or script src references
+        assert '<link' not in content or 'http' not in content.split('<link')[1].split('>')[0]
+        assert '<script src="http' not in content
+
+    def test_export_html_default_output_name(self, tmp_path):
+        """Default output filename is dossier.html."""
+        snaps_dir = self._snapshot(tmp_path)
+        import os
+        orig = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with (
+                patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snaps_dir),
+                patch("tesla_cli.config.load_config") as mock_lc,
+            ):
+                mock_lc.return_value.general.default_vin = MOCK_VIN
+                result = _run("dossier", "export-html")
+            assert result.exit_code == 0
+            assert (tmp_path / "dossier.html").exists()
+        finally:
+            os.chdir(orig)
+
+
+# ── charge schedule-preview ───────────────────────────────────────────────────
+
+
+class TestChargeSchedulePreview:
+    """Tests for tesla charge schedule-preview."""
+
+    MOCK_CHARGE_STATE = {
+        "battery_level": 72,
+        "charging_state": "Disconnected",
+        "charge_limit_soc": 80,
+        "charge_energy_added": 0.0,
+        "scheduled_charging_mode": "StartAt",
+        "scheduled_charging_start_time_app": 420,   # 07:00
+        "scheduled_charging_start_time": 1711940400,
+        "scheduled_departure_time_minutes": 450,    # 07:30
+        "scheduled_departure_time": 1711942200,
+        "preconditioning_enabled": True,
+        "preconditioning_weekdays_only": False,
+        "off_peak_charging_enabled": True,
+        "off_peak_hours_end_time": 480,             # 08:00
+    }
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.general.cost_per_kwh = 0.0
+        return cfg
+
+    def test_schedule_preview_shows_charge_time(self):
+        mock = MagicMock()
+        mock.get_charge_state.return_value = self.MOCK_CHARGE_STATE
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge._vin", return_value=MOCK_VIN),
+        ):
+            result = _run("charge", "schedule-preview")
+        assert result.exit_code == 0
+        assert "07:00" in result.output  # scheduled_charging_start_time_app = 420
+
+    def test_schedule_preview_shows_departure_time(self):
+        mock = MagicMock()
+        mock.get_charge_state.return_value = self.MOCK_CHARGE_STATE
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge._vin", return_value=MOCK_VIN),
+        ):
+            result = _run("charge", "schedule-preview")
+        assert result.exit_code == 0
+        assert "07:30" in result.output  # departure_time_minutes = 450
+
+    def test_schedule_preview_json(self):
+        mock = MagicMock()
+        mock.get_charge_state.return_value = self.MOCK_CHARGE_STATE
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge._vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "charge", "schedule-preview")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["scheduled_charging_mode"] == "StartAt"
+        assert data["scheduled_charging_start"] == "07:00"
+        assert data["scheduled_departure_time"] == "07:30"
+        assert data["preconditioning_enabled"] is True
+        assert data["off_peak_charging_enabled"] is True
+        assert data["off_peak_hours_end_time"] == "08:00"
+
+    def test_schedule_preview_off_charging(self):
+        state = {**self.MOCK_CHARGE_STATE,
+                 "scheduled_charging_mode": "Off",
+                 "scheduled_charging_start_time_app": None,
+                 "scheduled_departure_time_minutes": None,
+                 "preconditioning_enabled": False,
+                 "off_peak_charging_enabled": False}
+        mock = MagicMock()
+        mock.get_charge_state.return_value = state
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge._vin", return_value=MOCK_VIN),
+        ):
+            result = _run("charge", "schedule-preview")
+        assert result.exit_code == 0
+        assert "Off" in result.output
+
+    def test_schedule_preview_minutes_to_hhmm_midnight(self):
+        """Edge case: 0 minutes should display 00:00."""
+        state = {**self.MOCK_CHARGE_STATE,
+                 "scheduled_charging_start_time_app": 0,
+                 "scheduled_departure_time_minutes": 0}
+        mock = MagicMock()
+        mock.get_charge_state.return_value = state
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.charge._vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "charge", "schedule-preview")
+        data = json.loads(result.output)
+        assert data["scheduled_charging_start"] == "00:00"
+        assert data["scheduled_departure_time"] == "00:00"
+
+    def test_schedule_preview_in_help(self):
+        result = _run("charge", "--help")
+        assert "schedule-preview" in result.output
+
+
+# ── order stores ─────────────────────────────────────────────────────────────
+
+
+class TestOrderStores:
+    """Tests for tesla order stores — embedded EU/global store DB."""
+
+    def test_stores_all(self):
+        result = _run("order", "stores")
+        assert result.exit_code == 0
+        assert "Tesla" in result.output
+
+    def test_stores_filter_country_de(self):
+        result = _run("-j", "order", "stores", "--country", "DE")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert all(s["country"] == "DE" for s in data)
+        assert len(data) > 0
+
+    def test_stores_filter_country_fr(self):
+        result = _run("-j", "order", "stores", "--country", "FR")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert all(s["country"] == "FR" for s in data)
+        assert len(data) >= 5  # at least Paris, Lyon, Marseille, Bordeaux, Toulouse
+
+    def test_stores_filter_city(self):
+        result = _run("-j", "order", "stores", "--city", "Paris")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert all("paris" in s["city"].lower() for s in data)
+
+    def test_stores_near_berlin(self):
+        result = _run("-j", "order", "stores", "--near", "52.52,13.40", "--limit", "3")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) <= 3
+        # First result should be Berlin
+        assert "Berlin" in data[0]["city"] or data[0]["country"] == "DE"
+
+    def test_stores_near_paris(self):
+        result = _run("-j", "order", "stores", "--near", "48.86,2.35", "--limit", "1")
+        data = json.loads(result.output)
+        assert "Paris" in data[0]["city"] or data[0]["country"] == "FR"
+
+    def test_stores_near_invalid_coords(self):
+        result = _run("order", "stores", "--near", "badcoord")
+        assert result.exit_code == 1
+        assert "lat,lon" in result.output or "must be" in result.output
+
+    def test_stores_limit(self):
+        result = _run("-j", "order", "stores", "--limit", "5")
+        data = json.loads(result.output)
+        assert len(data) == 5
+
+    def test_stores_json_has_lat_lon(self):
+        result = _run("-j", "order", "stores", "--country", "NO")
+        data = json.loads(result.output)
+        for s in data:
+            assert "lat" in s
+            assert "lon" in s
+            assert isinstance(s["lat"], float)
+            assert isinstance(s["lon"], float)
+
+    def test_stores_json_has_distance_when_near(self):
+        result = _run("-j", "order", "stores", "--near", "51.50,-0.12", "--limit", "5")
+        data = json.loads(result.output)
+        for s in data:
+            assert "_dist_km" in s
+            assert isinstance(s["_dist_km"], float)
+
+    def test_stores_norway_has_oslo(self):
+        result = _run("-j", "order", "stores", "--country", "NO")
+        data = json.loads(result.output)
+        cities = [s["city"] for s in data]
+        assert any("Oslo" in c for c in cities)
+
+    def test_stores_gb_has_london(self):
+        result = _run("-j", "order", "stores", "--country", "GB")
+        data = json.loads(result.output)
+        names = [s["name"] for s in data]
+        assert any("London" in n for n in names)
+
+    def test_stores_us_has_fremont(self):
+        result = _run("-j", "order", "stores", "--country", "US")
+        data = json.loads(result.output)
+        names = [s["name"] for s in data]
+        assert any("Fremont" in n for n in names)
+
+    def test_stores_in_help(self):
+        result = _run("order", "--help")
+        assert "stores" in result.output
+
+    def test_stores_total_count_geq_200(self):
+        """The embedded DB should have at least 100 locations."""
+        from tesla_cli.commands.order import _STORES
+        assert len(_STORES) >= 100
+
+    def test_stores_all_have_required_fields(self):
+        from tesla_cli.commands.order import _STORES
+        required = {"country", "city", "name", "lat", "lon"}
+        for s in _STORES:
+            assert required.issubset(s.keys()), f"Missing keys in: {s}"

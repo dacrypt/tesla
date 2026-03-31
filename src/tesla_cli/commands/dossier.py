@@ -1721,3 +1721,202 @@ def dossier_export_pdf(
     out_path = Path(output).expanduser()
     pdf.output(str(out_path))
     console.print(f"  [green]\u2713[/green] PDF report saved to [bold]{out_path}[/bold]")
+
+
+@dossier_app.command("export-html")
+def dossier_export_html(
+    output: str = typer.Option("dossier.html", "--output", "-o", help="Output HTML file path"),
+    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+) -> None:
+    """Export the dossier to a standalone HTML report (no extra dependencies required).
+
+    tesla dossier export-html
+    tesla dossier export-html --output ~/Desktop/my-tesla.html
+    """
+    import html as _html
+    import json as _json
+    from pathlib import Path
+
+    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+
+    # Load the latest snapshot if available
+    snap_data: dict = {}
+    if SNAPSHOTS_DIR.exists():
+        snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+        if snaps:
+            try:
+                snap_data = _json.loads(snaps[-1].read_text())
+            except Exception:
+                snap_data = {}
+
+    # Gather data sections
+    charge_state = snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
+    config_data  = snap_data.get("vehicle_config") or {}
+    order_status = snap_data.get("order_status") or {}
+    recalls      = snap_data.get("nhtsa_recalls") or []
+    vin_decoded  = snap_data.get("vin_decode") or {}
+    generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
+
+    from tesla_cli.config import load_config as _lc
+    cfg = _lc()
+    resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
+
+    def e(v: object) -> str:
+        return _html.escape(str(v)) if v else ""
+
+    def kv_row(label: str, value: object) -> str:
+        if not value or str(value) in ("None", "none", ""):
+            return ""
+        return (
+            f"<tr><td class='lbl'>{e(label)}</td>"
+            f"<td>{e(value)}</td></tr>"
+        )
+
+    # Build sections
+    identity_rows = "".join([
+        kv_row("VIN", resolved_vin),
+        kv_row("Model", vin_decoded.get("model") or config_data.get("car_type", "")),
+        kv_row("Year", vin_decoded.get("model_year") or config_data.get("model_year", "")),
+        kv_row("Plant", vin_decoded.get("manufacturer", "")),
+        kv_row("Exterior Color", config_data.get("exterior_color", "")),
+        kv_row("Wheel Type", config_data.get("wheel_type", "")),
+        kv_row("Battery Type", config_data.get("battery_type", "")),
+        kv_row("Drive Unit", config_data.get("drive_unit", "")),
+    ])
+
+    battery_level = charge_state.get("battery_level", "")
+    bar_pct = battery_level if isinstance(battery_level, (int, float)) else 0
+    battery_rows = "".join([
+        kv_row("Battery Level", f"{battery_level}%"),
+        kv_row("Battery Range", f"{charge_state.get('battery_range', '')} mi"),
+        kv_row("Charge Limit", f"{charge_state.get('charge_limit_soc', '')}%"),
+        kv_row("Charging State", charge_state.get("charging_state", "")),
+        kv_row("Energy Added", f"{charge_state.get('charge_energy_added', '')} kWh"),
+        kv_row("Charger Power", f"{charge_state.get('charger_power', '')} kW"),
+    ])
+    battery_bar = (
+        f"<div class='bar-wrap'><div class='bar' style='width:{bar_pct}%'>{bar_pct}%</div></div>"
+        if bar_pct else ""
+    )
+
+    order_rows = ""
+    if order_status:
+        order_rows = "".join(
+            kv_row(k.replace("_", " ").title(), v)
+            for k, v in order_status.items()
+            if v and k not in ("vin",)
+        )
+
+    recall_items = ""
+    if recalls:
+        for r in recalls[:10]:
+            rid = e(r.get("NHTSACampaignNumber") or r.get("id") or "")
+            comp = e(r.get("Component") or r.get("component") or "")
+            summ = e((r.get("Summary") or r.get("consequence") or "")[:200])
+            recall_items += (
+                f"<div class='recall'>"
+                f"<strong>Recall {rid}</strong>"
+                + (f" — <em>{comp}</em>" if comp else "")
+                + (f"<br><span class='dim'>{summ}</span>" if summ else "")
+                + "</div>"
+            )
+    else:
+        recall_items = "<p class='dim'>No open recalls found.</p>"
+
+    snap_summary = ""
+    if SNAPSHOTS_DIR.exists():
+        all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+        snap_count = len(all_snaps)
+        first = all_snaps[0].stem if all_snaps else "none"
+        last  = all_snaps[-1].stem if all_snaps else "none"
+        snap_summary = (
+            f"<p>{snap_count} snapshots — "
+            f"first: <code>{e(first)}</code>, latest: <code>{e(last)}</code></p>"
+        )
+
+    gen_str = e(str(generated_at)[:19])
+    vin_str = e(resolved_vin)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tesla Dossier — {vin_str}</title>
+<style>
+  :root {{
+    --bg: #0d0d0d; --card: #1a1a1a; --border: #2e2e2e;
+    --text: #e8e8e8; --muted: #888; --accent: #e82127;
+    --label: #aaa; --bar-bg: #2e2e2e; --bar-fg: #e82127;
+  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: var(--bg); color: var(--text); padding: 24px; }}
+  header {{ background: var(--card); border-bottom: 3px solid var(--accent);
+            padding: 24px 32px; border-radius: 8px 8px 0 0; margin-bottom: 2px; }}
+  header h1 {{ font-size: 1.8rem; letter-spacing: -0.5px; }}
+  header .meta {{ color: var(--muted); font-size: 0.85rem; margin-top: 6px; }}
+  .section {{ background: var(--card); border: 1px solid var(--border);
+              border-radius: 6px; margin: 16px 0; overflow: hidden; }}
+  .section h2 {{ background: #222; padding: 10px 16px; font-size: 0.95rem;
+                 letter-spacing: 0.5px; text-transform: uppercase; color: #ccc; }}
+  .section .body {{ padding: 16px; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  td {{ padding: 5px 8px; font-size: 0.9rem; }}
+  td.lbl {{ color: var(--label); width: 38%; font-weight: 500; }}
+  tr:hover {{ background: rgba(255,255,255,0.03); }}
+  .bar-wrap {{ background: var(--bar-bg); border-radius: 4px; height: 18px;
+               margin: 8px 0 12px; overflow: hidden; }}
+  .bar {{ background: var(--bar-fg); height: 100%; border-radius: 4px;
+          font-size: 0.75rem; color: #fff; line-height: 18px; text-align: right;
+          padding-right: 6px; min-width: 2rem; transition: width 0.3s; }}
+  .recall {{ border-left: 3px solid var(--accent); padding: 8px 12px;
+             margin-bottom: 10px; background: rgba(232,33,39,0.07); border-radius: 0 4px 4px 0; }}
+  .recall strong {{ font-size: 0.9rem; }}
+  .dim {{ color: var(--muted); font-size: 0.85rem; }}
+  code {{ background: #222; padding: 2px 5px; border-radius: 3px; font-size: 0.82rem; }}
+  footer {{ text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 32px; }}
+  a {{ color: var(--accent); text-decoration: none; }}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#x1F697; Tesla Vehicle Dossier</h1>
+  <div class="meta">VIN: <strong>{vin_str}</strong> &nbsp;|&nbsp; Generated: {gen_str}</div>
+</header>
+
+<div class="section">
+  <h2>&#x1F4CB; Vehicle Identity</h2>
+  <div class="body"><table>{identity_rows}</table></div>
+</div>
+
+<div class="section">
+  <h2>&#x26A1; Battery &amp; Charging</h2>
+  <div class="body">
+    {battery_bar}
+    <table>{battery_rows}</table>
+  </div>
+</div>
+
+{'<div class="section"><h2>&#x1F4E6; Order &amp; Delivery Status</h2><div class="body"><table>' + order_rows + '</table></div></div>' if order_rows else ''}
+
+<div class="section">
+  <h2>&#x26A0;&#xFE0F; NHTSA Recalls</h2>
+  <div class="body">{recall_items}</div>
+</div>
+
+<div class="section">
+  <h2>&#x1F4F8; Snapshot History</h2>
+  <div class="body">{snap_summary}</div>
+</div>
+
+<footer>
+  Generated by <a href="https://github.com/dacrypt/tesla">tesla-cli</a>
+</footer>
+</body>
+</html>
+"""
+
+    out_path = Path(output).expanduser()
+    out_path.write_text(html_content, encoding="utf-8")
+    console.print(f"  [green]\u2713[/green] HTML report saved to [bold]{out_path}[/bold]")

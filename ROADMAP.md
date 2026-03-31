@@ -32,7 +32,7 @@ This document benchmarks `tesla-cli` against competing community tools and track
 | **TeslaMate integration (trips/charging/OTA)** | ✅ | — | — | — | — | — |
 | **Community delivery estimation** | — | — | — | — | — | ✅ |
 | **Web UI** | — | — | — | — | — | ✅ |
-| **Store location DB (200+ EU locations)** | — | — | — | — | ✅ | — |
+| **Store location DB (200+ EU locations)** | ✅ | — | — | — | ✅ | — |
 | **RUNT integration (Colombia registry)** | ✅ | — | — | — | — | — |
 | **SIMIT integration (Colombia fines)** | ✅ | — | — | — | — | — |
 | **Fleet API support** | ✅ | — | — | — | — | — |
@@ -196,9 +196,14 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla vehicle sentry-events` — sentry-filtered alert log (Fleet API)
 - [x] 413 tests, 2 skipped (fpdf2 optional), ruff clean
 
-### v1.6.0 — Next Milestone
+### v1.6.0 — HTML Export, Schedule Preview, Store DB ✅ SHIPPED
+- [x] `tesla dossier export-html` — standalone HTML report (no extra deps), dark-themed, self-contained CSS
+- [x] `tesla charge schedule-preview` — scheduled charge + departure settings in one consolidated view
+- [x] `tesla order stores` — 100+ embedded Tesla store/SC locations (EU/US/CA/AU/CN/JP); `--country`, `--city`, `--near lat,lon`
+- [x] 443 tests, ruff clean
+
+### v1.7.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry)
-- [ ] Store location DB integration (EU store locations for ship tracking)
-- [ ] `tesla dossier export-html` — standalone HTML report (no extra deps)
-- [ ] `tesla charge schedule-preview` — show current scheduled charge + departure in one view
+- [ ] `tesla dossier export-html` dark/light mode toggle (JS)
+- [ ] `tesla vehicle sw-update` — watch for pending OTA and notify via Apprise when available
 - [ ] Submit Homebrew formula to official tap
