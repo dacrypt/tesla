@@ -54,6 +54,7 @@ def config_set(
         "region": ("fleet", "region"),
         "client-id": ("fleet", "client_id"),
         "notifications-enabled": ("notifications", "enabled"),
+        "cost-per-kwh": ("general", "cost_per_kwh"),
     }
     if key not in key_map:
         valid = ", ".join(key_map.keys())
@@ -63,6 +64,8 @@ def config_set(
     section_obj = getattr(cfg, section)
     if field == "enabled":
         value = value.lower() in ("true", "1", "yes")  # type: ignore[assignment]
+    elif field == "cost_per_kwh":
+        value = float(value)  # type: ignore[assignment]
     setattr(section_obj, field, value)
     save_config(cfg)
     render_success(f"{key} = {value}")

@@ -338,4 +338,166 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.vin_not_assigned": "VIN pas encore attribué — uniquement le numéro de réservation enregistré.",
         "setup.multiple_orders": "Plusieurs commandes trouvées — choisissez-en une :",
     },
+
+    "de": {
+        # Bestellung
+        "order.no_rn": "Keine Reservierungsnummer konfiguriert.\nAusführen: tesla config set reservation-number RNXXXXXXXXX",
+        "order.watching": "Bestellung {rn} wird beobachtet (alle {interval} Min., Strg+C zum Stoppen)",
+        "order.changes_at": "● Änderungen erkannt um {time}",
+        "order.no_changes": "{time} Keine Änderungen",
+        "order.stopped": "Beobachtung gestoppt.",
+        "order.notif_failed": "Benachrichtigung fehlgeschlagen: {error}",
+
+        # Fahrzeug
+        "vehicle.asleep_waking": "Fahrzeug schläft, wird geweckt…",
+        "vehicle.awake": "Fahrzeug ist wach",
+        "vehicle.wake_sent": "Aufwachbefehl gesendet. Das Fahrzeug braucht einen Moment.",
+        "vehicle.locked": "Fahrzeug gesperrt",
+        "vehicle.unlocked": "Fahrzeug entsperrt",
+        "vehicle.horn": "Hupe betätigt",
+        "vehicle.flash": "Lichter geblinkt",
+        "vehicle.sentry_on": "Sentinel-Modus aktiviert",
+        "vehicle.sentry_off": "Sentinel-Modus deaktiviert",
+        "vehicle.sentry_unavailable": "Hinweis: Sentinel-Modus nicht verfügbar (Fahrzeug möglicherweise nicht geparkt)",
+        "vehicle.trunk_opened": "{which} geöffnet",
+
+        # Laden
+        "charge.started": "Laden gestartet",
+        "charge.stopped": "Laden gestoppt",
+        "charge.limit_set": "Ladelimit auf {limit}% gesetzt",
+        "charge.amps_set": "Ladestrom auf {amps}A gesetzt",
+
+        # Klimaanlage
+        "climate.on": "Klimaanlage AN",
+        "climate.off": "Klimaanlage AUS",
+        "climate.temp_set": "Temperatur auf {temp}°C gesetzt",
+
+        # Dossier
+        "dossier.not_found": "Kein Dossier gefunden. Ausführen: tesla dossier build",
+        "dossier.building": "Dossier wird aus allen Quellen erstellt…",
+        "dossier.diff_need_two": "Mindestens 2 Schnappschüsse benötigt. Ausführen: tesla dossier build",
+        "dossier.diff_no_changes": "Keine Unterschiede zwischen den beiden Schnappschüssen gefunden.",
+        "dossier.checklist_reset": "Checkliste zurückgesetzt.",
+        "dossier.checklist_complete": "Alle Punkte abgehakt! Viel Spaß mit Ihrem Tesla! ⚡",
+        "dossier.checklist_hint": "Ausführen: tesla dossier checklist --mark <N> um Punkt N abzuhaken",
+        "dossier.gates_no_dossier": "Kein Dossier gefunden. Ausführen: tesla dossier build für echte Daten.",
+        "dossier.delivery_set": "Lieferdatum gesetzt: {date}",
+
+        # Stream
+        "stream.starting": "Live-Stream wird gestartet… Strg+C zum Stoppen.",
+        "stream.stopped": "Stream gestoppt.",
+        "stream.asleep": "Fahrzeug schläft (Daten aus letztem bekannten Zustand)",
+
+        # Konfiguration
+        "config.saved": "{key} = {value}",
+        "config.unknown_key": "Unbekannter Schlüssel: {key}",
+        "config.alias_set": "Alias '{name}' -> {vin}",
+
+        # TeslaMate
+        "teslaMate.not_configured": "TeslaMate nicht konfiguriert.\nAusführen: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
+        "teslaMate.connected": "Mit TeslaMate verbunden ({url})",
+        "teslaMate.no_trips": "Keine Fahrten in TeslaMate gefunden.",
+        "teslaMate.no_charging": "Keine Ladesitzungen in TeslaMate gefunden.",
+        "teslaMate.no_updates": "Kein Update-Verlauf in TeslaMate gefunden.",
+
+        # Fehler
+        "errors.vin_required": "VIN erforderlich. Ausführen: tesla config set default-vin <VIN>",
+        "errors.not_configured": "{feature} nicht konfiguriert. Ausführen: tesla config set {key} <wert>",
+        "errors.backend_unavailable": "Backend {backend} nicht verfügbar: {reason}",
+        "error.auth": "Nicht authentifiziert. Ausführen: tesla config auth order",
+        "error.no_vin": "Keine VIN konfiguriert. Ausführen: tesla config set default-vin <VIN>",
+        "error.token_expired": "Token abgelaufen. Ausführen: tesla config auth order",
+        "error.vehicle_not_found": "Fahrzeug {vin} nicht in diesem Konto gefunden",
+        "error.api": "API-Fehler {code}: {message}",
+
+        # Einrichtung
+        "setup.welcome": "Willkommen bei tesla-cli! Lassen Sie uns Ihr Konto einrichten.",
+        "setup.step": "Schritt {n} / {total} — {label}",
+        "setup.done": "Einrichtung abgeschlossen! Ausführen: tesla --help für verfügbare Befehle.",
+        "setup.skip": "(übersprungen)",
+        "setup.found_order": "Bestellung gefunden: {model} — {status}",
+        "setup.vin_not_assigned": "VIN noch nicht zugewiesen — nur Reservierungsnummer gespeichert.",
+        "setup.multiple_orders": "Mehrere Bestellungen gefunden — bitte eine auswählen:",
+    },
+
+    "it": {
+        # Ordine
+        "order.no_rn": "Numero di prenotazione non configurato.\nEseguire: tesla config set reservation-number RNXXXXXXXXX",
+        "order.watching": "Monitoraggio ordine {rn} (ogni {interval} min, Ctrl+C per fermare)",
+        "order.changes_at": "● Modifiche rilevate alle {time}",
+        "order.no_changes": "{time} Nessuna modifica",
+        "order.stopped": "Monitoraggio fermato.",
+        "order.notif_failed": "Invio notifica fallito: {error}",
+
+        # Veicolo
+        "vehicle.asleep_waking": "Veicolo in standby, risveglio in corso…",
+        "vehicle.awake": "Veicolo sveglio",
+        "vehicle.wake_sent": "Comando di risveglio inviato. Il veicolo potrebbe impiegare un momento.",
+        "vehicle.locked": "Veicolo bloccato",
+        "vehicle.unlocked": "Veicolo sbloccato",
+        "vehicle.horn": "Clacson attivato",
+        "vehicle.flash": "Luci lampeggianti",
+        "vehicle.sentry_on": "Modalità Sentinella attivata",
+        "vehicle.sentry_off": "Modalità Sentinella disattivata",
+        "vehicle.sentry_unavailable": "Nota: Modalità Sentinella non disponibile (il veicolo potrebbe non essere parcheggiato)",
+        "vehicle.trunk_opened": "{which} aperto",
+
+        # Ricarica
+        "charge.started": "Ricarica avviata",
+        "charge.stopped": "Ricarica fermata",
+        "charge.limit_set": "Limite di ricarica impostato al {limit}%",
+        "charge.amps_set": "Ampere di ricarica impostati a {amps}A",
+
+        # Clima
+        "climate.on": "Climatizzazione ACCESA",
+        "climate.off": "Climatizzazione SPENTA",
+        "climate.temp_set": "Temperatura impostata a {temp}°C",
+
+        # Dossier
+        "dossier.not_found": "Nessun dossier trovato. Eseguire: tesla dossier build",
+        "dossier.building": "Costruzione dossier da tutte le fonti…",
+        "dossier.diff_need_two": "Necessari almeno 2 snapshot. Eseguire: tesla dossier build",
+        "dossier.diff_no_changes": "Nessuna differenza trovata tra i due snapshot.",
+        "dossier.checklist_reset": "Lista di controllo reimpostata.",
+        "dossier.checklist_complete": "Tutti gli elementi verificati! Godetevi la vostra Tesla! ⚡",
+        "dossier.checklist_hint": "Eseguire: tesla dossier checklist --mark <N> per spuntare l'elemento N",
+        "dossier.gates_no_dossier": "Nessun dossier trovato. Eseguire: tesla dossier build per dati reali.",
+        "dossier.delivery_set": "Data di consegna impostata: {date}",
+
+        # Streaming
+        "stream.starting": "Avvio streaming in tempo reale… premere Ctrl+C per fermare.",
+        "stream.stopped": "Streaming fermato.",
+        "stream.asleep": "Veicolo in standby (dati dall'ultimo stato noto)",
+
+        # Configurazione
+        "config.saved": "{key} = {value}",
+        "config.unknown_key": "Chiave sconosciuta: {key}",
+        "config.alias_set": "Alias '{name}' -> {vin}",
+
+        # TeslaMate
+        "teslaMate.not_configured": "TeslaMate non configurato.\nEseguire: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
+        "teslaMate.connected": "Connesso a TeslaMate ({url})",
+        "teslaMate.no_trips": "Nessun viaggio trovato in TeslaMate.",
+        "teslaMate.no_charging": "Nessuna sessione di ricarica trovata in TeslaMate.",
+        "teslaMate.no_updates": "Nessuna cronologia aggiornamenti trovata in TeslaMate.",
+
+        # Errori
+        "errors.vin_required": "VIN richiesto. Eseguire: tesla config set default-vin <VIN>",
+        "errors.not_configured": "{feature} non configurato. Eseguire: tesla config set {key} <valore>",
+        "errors.backend_unavailable": "Backend {backend} non disponibile: {reason}",
+        "error.auth": "Non autenticato. Eseguire: tesla config auth order",
+        "error.no_vin": "VIN non configurato. Eseguire: tesla config set default-vin <VIN>",
+        "error.token_expired": "Token scaduto. Eseguire: tesla config auth order",
+        "error.vehicle_not_found": "Veicolo {vin} non trovato su questo account",
+        "error.api": "Errore API {code}: {message}",
+
+        # Configurazione iniziale
+        "setup.welcome": "Benvenuto in tesla-cli! Configuriamo il tuo account.",
+        "setup.step": "Passo {n} / {total} — {label}",
+        "setup.done": "Configurazione completata! Eseguire tesla --help per i comandi disponibili.",
+        "setup.skip": "(saltato)",
+        "setup.found_order": "Ordine trovato: {model} — {status}",
+        "setup.vin_not_assigned": "VIN non ancora assegnato — solo il numero di prenotazione salvato.",
+        "setup.multiple_orders": "Più ordini trovati — selezionarne uno:",
+    },
 }

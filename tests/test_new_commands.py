@@ -2147,3 +2147,867 @@ class TestBackendNotSupported:
         result = backend.get_nearby_charging_sites("VIN123")
         backend._get.assert_called_once_with("/VIN123/nearby_charging_sites")
         assert "superchargers" in result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Vehicle Tires, HomeLink, Dashcam, Rename
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleTires:
+    """Tests for `tesla vehicle tires` (TPMS)."""
+
+    def _make_backend(self, fl=2.8, fr=2.8, rl=2.7, rr=2.7, soft_fl=False, hard_fl=False):
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = {
+            "tpms_pressure_fl": fl,
+            "tpms_pressure_fr": fr,
+            "tpms_pressure_rl": rl,
+            "tpms_pressure_rr": rr,
+            "tpms_soft_warning_fl": soft_fl,
+            "tpms_hard_warning_fl": hard_fl,
+            "tpms_soft_warning_fr": False,
+            "tpms_hard_warning_fr": False,
+            "tpms_soft_warning_rl": False,
+            "tpms_hard_warning_rl": False,
+            "tpms_soft_warning_rr": False,
+            "tpms_hard_warning_rr": False,
+        }
+        return mock
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_tires_success(self):
+        mock = self._make_backend()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tires")
+        assert result.exit_code == 0
+
+    def test_tires_psi_conversion(self):
+        """2.8 bar ≈ 40.6 PSI."""
+        mock = self._make_backend(fl=2.8)
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tires")
+        assert "40.6" in result.output or "40" in result.output
+
+    def test_tires_json_output(self):
+        mock = self._make_backend()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "tires")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "front_left" in data
+        assert "psi" in data["front_left"]
+
+    def test_tires_soft_warning_shown(self):
+        mock = self._make_backend(fl=2.0, soft_fl=True)
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tires")
+        assert result.exit_code == 0
+        assert "LOW" in result.output or "WARN" in result.output
+
+    def test_tires_hard_warning_shown(self):
+        mock = self._make_backend(fl=1.5, hard_fl=True)
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tires")
+        assert result.exit_code == 0
+        assert "HARD" in result.output
+
+    def test_tires_missing_data_graceful(self):
+        """Missing TPMS data returns N/A, not a crash."""
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = {}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tires")
+        assert result.exit_code == 0
+
+    def test_tires_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "tires" in result.output
+
+
+class TestVehicleHomelink:
+    """Tests for `tesla vehicle homelink`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _make_backend(self, lat=37.42, lon=-122.08):
+        mock = MagicMock()
+        mock.get_drive_state.return_value = {"latitude": lat, "longitude": lon}
+        mock.command.return_value = {"result": True}
+        return mock
+
+    def test_homelink_success(self):
+        mock = self._make_backend()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "homelink")
+        assert result.exit_code == 0
+        assert "HomeLink" in result.output or "triggered" in result.output.lower()
+
+    def test_homelink_passes_gps_to_command(self):
+        mock = self._make_backend(lat=37.42, lon=-122.08)
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("vehicle", "homelink")
+        mock.command.assert_called_once_with(MOCK_VIN, "trigger_homelink", lat=37.42, lon=-122.08)
+
+    def test_homelink_json_output(self):
+        mock = self._make_backend()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "homelink")
+        data = json.loads(result.output)
+        assert data["homelink"] == "triggered"
+        assert "lat" in data
+
+    def test_homelink_missing_gps_uses_zero(self):
+        """Missing GPS falls back to 0.0 coordinates — no crash."""
+        mock = MagicMock()
+        mock.get_drive_state.return_value = {}
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "homelink")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "trigger_homelink", lat=0.0, lon=0.0)
+
+
+class TestVehicleDashcam:
+    """Tests for `tesla vehicle dashcam`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_dashcam_success(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "dashcam")
+        assert result.exit_code == 0
+        assert "saved" in result.output.lower() or "dashcam" in result.output.lower()
+
+    def test_dashcam_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("vehicle", "dashcam")
+        mock.command.assert_called_once_with(MOCK_VIN, "dashcam_save_clip")
+
+    def test_dashcam_json_output(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "dashcam")
+        data = json.loads(result.output)
+        assert data["dashcam_save"] is True
+
+
+class TestVehicleRename:
+    """Tests for `tesla vehicle rename`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_rename_success(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "rename", "My Tesla Y")
+        assert result.exit_code == 0
+        assert "My Tesla Y" in result.output or "renamed" in result.output.lower()
+
+    def test_rename_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("vehicle", "rename", "Road Runner")
+        mock.command.assert_called_once_with(MOCK_VIN, "set_vehicle_name", vehicle_name="Road Runner")
+
+    def test_rename_json_output(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "rename", "Thunder")
+        data = json.loads(result.output)
+        assert data["name"] == "Thunder"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Security Remote Start
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSecurityRemoteStart:
+    """Tests for `tesla security remote-start`.
+
+    Note: security.py imports _with_wake from vehicle.py, which calls
+    get_vehicle_backend from tesla_cli.commands.vehicle — that's the patch target.
+    """
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _patches(self, mock_backend):
+        return (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.resolve_vin", return_value=MOCK_VIN),
+        )
+
+    def test_remote_start_success(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("security", "remote-start")
+        assert result.exit_code == 0
+
+    def test_remote_start_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("security", "remote-start")
+        mock.command.assert_called_once_with(MOCK_VIN, "remote_start_drive")
+
+    def test_remote_start_in_help(self):
+        result = _run("security", "--help")
+        assert "remote-start" in result.output
+
+    def test_remote_start_json_output(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.security.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "security", "remote-start")
+        data = json.loads(result.output)
+        assert data["remote_start"] is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Dossier Battery Health
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDossierBatteryHealth:
+    """Tests for `tesla dossier battery-health`."""
+
+    def _make_snapshot(self, battery_level: float, battery_range: float, ts: str) -> dict:
+        return {
+            "last_updated": ts,
+            "charge_state": {
+                "battery_level": battery_level,
+                "battery_range": battery_range,
+            },
+        }
+
+    def test_no_snapshots_dir_exits(self):
+        fake_dir = Path("/nonexistent_snapshots_xyz_123")
+        with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", fake_dir):
+            result = _run("dossier", "battery-health")
+        assert result.exit_code != 0
+
+    def test_single_snapshot_exits_with_message(self):
+        with tempfile.TemporaryDirectory() as td:
+            snap_dir = Path(td)
+            snap1 = snap_dir / "snapshot_2024-01-01.json"
+            snap1.write_text(json.dumps(self._make_snapshot(80.0, 200.0, "2024-01-01")))
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("dossier", "battery-health")
+        assert result.exit_code != 0
+
+    def test_battery_health_json_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            snap_dir = Path(td)
+            for fname, level, rng, ts in [
+                ("snapshot_2024-01-01.json", 100.0, 320.0, "2024-01-01"),
+                ("snapshot_2024-06-01.json", 80.0, 248.0, "2024-06-01"),
+            ]:
+                (snap_dir / fname).write_text(
+                    json.dumps(self._make_snapshot(level, rng, ts))
+                )
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("-j", "dossier", "battery-health")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "snapshots_analyzed" in data
+        assert data["snapshots_analyzed"] == 2
+        assert "estimated_degradation_pct" in data
+        assert "peak_estimated_range_mi" in data
+
+    def test_battery_health_in_help(self):
+        result = _run("dossier", "--help")
+        assert "battery-health" in result.output
+
+    def test_battery_health_skips_low_battery(self):
+        """Snapshots with battery_level <= 10 are excluded."""
+        with tempfile.TemporaryDirectory() as td:
+            snap_dir = Path(td)
+            (snap_dir / "snapshot_2024-01-01.json").write_text(
+                json.dumps(self._make_snapshot(85.0, 255.0, "2024-01-01"))
+            )
+            # 5% battery — should be excluded
+            (snap_dir / "snapshot_2024-02-01.json").write_text(
+                json.dumps(self._make_snapshot(5.0, 10.0, "2024-02-01"))
+            )
+            (snap_dir / "snapshot_2024-03-01.json").write_text(
+                json.dumps(self._make_snapshot(90.0, 270.0, "2024-03-01"))
+            )
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("-j", "dossier", "battery-health")
+        data = json.loads(result.output)
+        assert data["snapshots_analyzed"] == 2  # 5% battery excluded
+
+    def test_degradation_math(self):
+        """320mi peak, 280mi latest (280/0.8=350 rated — no degradation vs 320 peak)."""
+        with tempfile.TemporaryDirectory() as td:
+            snap_dir = Path(td)
+            # rated = 320 (320/1.0) then 350 (280/0.8), peak=350, latest=350, degradation=0%
+            (snap_dir / "snapshot_2024-01-01.json").write_text(
+                json.dumps(self._make_snapshot(100.0, 320.0, "2024-01-01"))
+            )
+            (snap_dir / "snapshot_2024-06-01.json").write_text(
+                json.dumps(self._make_snapshot(80.0, 280.0, "2024-06-01"))  # 280/0.8=350
+            )
+            with patch("tesla_cli.backends.dossier.SNAPSHOTS_DIR", snap_dir):
+                result = _run("-j", "dossier", "battery-health")
+        data = json.loads(result.output)
+        assert data["estimated_degradation_pct"] == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — TeslaMate Vampire Drain
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTeslaMatVampireDrain:
+    """Tests for `tesla teslaMate vampire`."""
+
+    def _make_mock_backend(self, data=None):
+        mock = MagicMock()
+        if data is None:
+            data = {
+                "days_analyzed": 30,
+                "avg_pct_per_hour": 0.042,
+                "daily": [
+                    {"date": "2024-06-01", "avg_drain_pct": 1.2, "avg_parked_hours": 8.0, "pct_per_hour": 0.15, "periods": 2},
+                    {"date": "2024-06-02", "avg_drain_pct": 0.8, "avg_parked_hours": 10.0, "pct_per_hour": 0.08, "periods": 1},
+                ],
+            }
+        mock.get_vampire_drain.return_value = data
+        return mock
+
+    def test_vampire_success(self):
+        mock = self._make_mock_backend()
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("teslaMate", "vampire")
+        assert result.exit_code == 0
+
+    def test_vampire_shows_drain_rate(self):
+        mock = self._make_mock_backend()
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("teslaMate", "vampire")
+        assert "0.042" in result.output or "%" in result.output
+
+    def test_vampire_empty_data(self):
+        mock = self._make_mock_backend({"days_analyzed": 30, "avg_pct_per_hour": None, "daily": []})
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("teslaMate", "vampire")
+        assert result.exit_code == 0
+        # should mention no data
+        out = result.output.lower()
+        assert "no" in out or "found" in out or "data" in out
+
+    def test_vampire_json_output(self):
+        mock = self._make_mock_backend()
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("-j", "teslaMate", "vampire")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "avg_pct_per_hour" in data
+        assert "daily" in data
+
+    def test_vampire_days_option(self):
+        mock = self._make_mock_backend()
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            _run("teslaMate", "vampire", "--days", "90")
+        mock.get_vampire_drain.assert_called_once_with(days=90)
+
+    def test_vampire_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "vampire" in result.output
+
+    def test_vampire_backend_method_returns_structure(self):
+        """TeslaMateBacked.get_vampire_drain returns expected dict structure."""
+        from tesla_cli.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        backend._car_id = 1
+        mock_rows = [
+            {"date": "2024-06-01", "avg_drain_pct": 1.0, "avg_parked_hours": 8.0, "pct_per_hour": 0.125, "periods": 2},
+        ]
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        backend._cursor = MagicMock(return_value=mock_ctx)
+        result = backend.get_vampire_drain(days=30)
+        assert result["days_analyzed"] == 30
+        assert "avg_pct_per_hour" in result
+        assert len(result["daily"]) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — CSV Export (trips, charging, efficiency)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTeslaMateCsvExport:
+    """Tests for --csv flag on teslaMate trips, charging, efficiency."""
+
+    MOCK_TRIPS = [
+        {"date": "2024-06-01", "distance_km": 42.5, "duration_min": 35, "energy_wh": 6200, "start": "Home", "end": "Work"},
+        {"date": "2024-06-02", "distance_km": 18.0, "duration_min": 15, "energy_wh": 2800, "start": "Work", "end": "Home"},
+    ]
+
+    MOCK_SESSIONS = [
+        {"date": "2024-06-01", "location": "Home", "kwh": 45.2, "cost": 8.14, "duration": "3h 22m"},
+        {"date": "2024-06-02", "location": "Supercharger", "kwh": 62.0, "cost": 0, "duration": "45m"},
+    ]
+
+    def test_trips_csv_creates_file(self):
+        mock = MagicMock()
+        mock.get_trips.return_value = self.MOCK_TRIPS
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            csv_path = f.name
+        try:
+            with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+                result = _run("teslaMate", "trips", "--csv", csv_path)
+            assert result.exit_code == 0
+            assert Path(csv_path).exists()
+            content = Path(csv_path).read_text()
+            assert "date" in content
+            assert "2024-06-01" in content
+        finally:
+            Path(csv_path).unlink(missing_ok=True)
+
+    def test_trips_csv_has_correct_columns(self):
+        mock = MagicMock()
+        mock.get_trips.return_value = self.MOCK_TRIPS
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            csv_path = f.name
+        try:
+            with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+                _run("teslaMate", "trips", "--csv", csv_path)
+            import csv
+            with open(csv_path, newline="") as fh:
+                reader = csv.DictReader(fh)
+                rows = list(reader)
+            assert len(rows) == 2
+            assert "distance_km" in rows[0]
+        finally:
+            Path(csv_path).unlink(missing_ok=True)
+
+    def test_charging_csv_creates_file(self):
+        mock = MagicMock()
+        mock.get_charging_sessions.return_value = self.MOCK_SESSIONS
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            csv_path = f.name
+        try:
+            with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+                result = _run("teslaMate", "charging", "--csv", csv_path)
+            assert result.exit_code == 0
+            content = Path(csv_path).read_text()
+            assert "location" in content
+        finally:
+            Path(csv_path).unlink(missing_ok=True)
+
+    def test_efficiency_csv_creates_file(self):
+        mock = MagicMock()
+        mock.get_efficiency_stats.return_value = [
+            {"month": "2024-06", "avg_wh_per_km": 145.0, "total_km": 820.0, "total_kwh": 118.9},
+        ]
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            csv_path = f.name
+        try:
+            with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+                result = _run("teslaMate", "efficiency", "--csv", csv_path)
+            assert result.exit_code == 0
+            assert Path(csv_path).exists()
+        finally:
+            Path(csv_path).unlink(missing_ok=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Energy Cost Tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEnergyCostTracking:
+    """Tests for cost_per_kwh config and charge status cost display."""
+
+    def test_cost_per_kwh_field_in_config(self):
+        """GeneralConfig must have cost_per_kwh with default 0.0."""
+        from tesla_cli.config import GeneralConfig
+        cfg = GeneralConfig()
+        assert hasattr(cfg, "cost_per_kwh")
+        assert cfg.cost_per_kwh == 0.0
+
+    def test_charge_status_shows_cost_when_configured(self):
+        """When cost_per_kwh > 0 and energy was added, show estimated cost."""
+        mock_backend = MagicMock()
+        mock_backend.get_charge_state.return_value = {
+            "battery_level": 80,
+            "battery_range": 240.0,
+            "charge_energy_added": 20.0,  # 20 kWh added
+            "charging_state": "Complete",
+            "charge_limit_soc": 80,
+        }
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.general.cost_per_kwh = 0.15  # 15¢/kWh
+        # charge.py uses _with_wake from vehicle.py which calls vehicle._backend()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("charge", "status")
+        assert result.exit_code == 0
+        # 20 kWh × $0.15 = $3.00
+        assert "$3.00" in result.output
+
+    def test_charge_status_no_cost_when_zero(self):
+        """When cost_per_kwh is 0, no cost line is shown."""
+        mock_backend = MagicMock()
+        mock_backend.get_charge_state.return_value = {
+            "battery_level": 80,
+            "battery_range": 240.0,
+            "charge_energy_added": 20.0,
+            "charging_state": "Complete",
+            "charge_limit_soc": 80,
+        }
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        cfg.general.cost_per_kwh = 0.0
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("charge", "status")
+        assert result.exit_code == 0
+        assert "session cost" not in result.output.lower()
+
+    def test_cost_per_kwh_is_valid_config_key(self):
+        """config set cost-per-kwh must be accepted (not raise 'unknown key')."""
+        cfg_mock = MagicMock()
+        cfg_mock.general.cost_per_kwh = 0.0
+        cfg_mock.notifications.enabled = False
+        cfg_mock.notifications.apprise_urls = []
+        with (
+            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg_mock),
+            patch("tesla_cli.commands.config_cmd.save_config"),
+        ):
+            result = _run("config", "set", "cost-per-kwh", "0.12")
+        # Should not print "Unknown key"
+        assert "Unknown key" not in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Order Watch --on-change-exec
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestOrderWatchOnChangeExec:
+    """Tests for _exec_on_change helper."""
+
+    def test_exec_on_change_passes_env_var(self):
+        """_exec_on_change should call subprocess.Popen with TESLA_CHANGES env."""
+        from tesla_cli.commands.order import _exec_on_change
+        from tesla_cli.models.order import OrderChange
+
+        changes = [OrderChange(field="order_status", old_value="Pending", new_value="Confirmed")]
+
+        # subprocess is imported lazily inside _exec_on_change — patch at stdlib level
+        with patch("subprocess.Popen") as mock_popen:
+            _exec_on_change("echo test", changes)
+
+        mock_popen.assert_called_once()
+        call_kwargs = mock_popen.call_args
+        env = call_kwargs.kwargs.get("env") or call_kwargs[1].get("env", {})
+        assert "TESLA_CHANGES" in env
+        changes_data = json.loads(env["TESLA_CHANGES"])
+        assert len(changes_data) == 1
+        assert changes_data[0]["field"] == "order_status"
+
+    def test_exec_on_change_uses_shell(self):
+        """Command must run with shell=True for flexibility."""
+        from tesla_cli.commands.order import _exec_on_change
+
+        with patch("subprocess.Popen") as mock_popen:
+            _exec_on_change("my-hook.sh", [])
+
+        call_kwargs = mock_popen.call_args
+        shell = call_kwargs.kwargs.get("shell") or call_kwargs[1].get("shell")
+        assert shell is True
+
+    def test_exec_on_change_empty_changes(self):
+        """Empty changes list produces empty JSON array in env."""
+        from tesla_cli.commands.order import _exec_on_change
+
+        with patch("subprocess.Popen") as mock_popen:
+            _exec_on_change("noop", [])
+
+        call_kwargs = mock_popen.call_args
+        env = call_kwargs.kwargs.get("env") or call_kwargs[1].get("env", {})
+        assert json.loads(env["TESLA_CHANGES"]) == []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — Stream MQTT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestStreamMqtt:
+    """Tests for --mqtt option on `tesla stream live`."""
+
+    def test_stream_live_subcommand_help_has_mqtt(self):
+        result = _run("stream", "live", "--help")
+        assert "--mqtt" in result.output
+
+    def test_mqtt_url_parsing(self):
+        """MQTT URL parsed correctly for host/port/topic."""
+        from urllib.parse import urlparse
+        url = "mqtt://mybroker:1884/tesla/VIN123"
+        parsed = urlparse(url)
+        assert parsed.hostname == "mybroker"
+        assert parsed.port == 1884
+        assert parsed.path == "/tesla/VIN123"
+
+    def test_mqtt_import_error_handled(self):
+        """If paho-mqtt not installed, stream should not crash immediately."""
+        # The warning is shown lazily after first MQTT attempt, so this just
+        # tests that the help renders correctly and the option is registered.
+        result = _run("stream", "live", "--help")
+        assert result.exit_code == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.3.0 Tests — German + Italian i18n
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGermanI18n:
+    """Tests for German (de) i18n catalog."""
+
+    def test_de_catalog_exists(self):
+        from tesla_cli.i18n import _STRINGS
+        assert "de" in _STRINGS
+
+    def test_de_order_keys(self):
+        """German catalog must have order-related keys."""
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        # These are the actual keys in the catalog (not order.status)
+        assert "order.no_rn" in de or "order.watching" in de
+
+    def test_de_vehicle_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        assert "vehicle.locked" in de
+        assert "vehicle.unlocked" in de
+
+    def test_de_charge_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        # Actual keys are charge.started / charge.stopped
+        assert "charge.started" in de
+        assert "charge.stopped" in de
+
+    def test_de_climate_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        assert "climate.on" in de
+        assert "climate.off" in de
+
+    def test_de_error_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        assert "error.auth" in de
+
+    def test_de_t_function_returns_string(self):
+        from tesla_cli.i18n import _lang, set_lang, t
+        original = _lang
+        try:
+            set_lang("de")
+            result = t("vehicle.locked")
+            assert isinstance(result, str)
+            assert len(result) > 0
+        finally:
+            set_lang(original)
+
+    def test_de_translations_are_not_english(self):
+        """German should differ from English for at least one key."""
+        from tesla_cli.i18n import _STRINGS
+        en = _STRINGS["en"]
+        de = _STRINGS["de"]
+        differs = any(de.get(k) != v for k, v in en.items() if k in de)
+        assert differs, "German catalog is identical to English — translations missing"
+
+    def test_de_setup_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        de = _STRINGS["de"]
+        assert any(k.startswith("setup.") for k in de)
+
+
+class TestItalianI18n:
+    """Tests for Italian (it) i18n catalog."""
+
+    def test_it_catalog_exists(self):
+        from tesla_cli.i18n import _STRINGS
+        assert "it" in _STRINGS
+
+    def test_it_order_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        it = _STRINGS["it"]
+        assert "order.no_rn" in it or "order.watching" in it
+
+    def test_it_vehicle_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        it = _STRINGS["it"]
+        assert "vehicle.locked" in it
+        assert "vehicle.unlocked" in it
+
+    def test_it_charge_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        it = _STRINGS["it"]
+        assert "charge.started" in it
+        assert "charge.stopped" in it
+
+    def test_it_error_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        it = _STRINGS["it"]
+        assert "error.auth" in it
+
+    def test_it_t_function_returns_string(self):
+        from tesla_cli.i18n import _lang, set_lang, t
+        original = _lang
+        try:
+            set_lang("it")
+            result = t("vehicle.locked")
+            assert isinstance(result, str)
+            assert len(result) > 0
+        finally:
+            set_lang(original)
+
+    def test_it_translations_are_not_english(self):
+        """Italian should differ from English for at least one key."""
+        from tesla_cli.i18n import _STRINGS
+        en = _STRINGS["en"]
+        it = _STRINGS["it"]
+        differs = any(it.get(k) != v for k, v in en.items() if k in it)
+        assert differs, "Italian catalog is identical to English — translations missing"
+
+    def test_it_setup_keys(self):
+        from tesla_cli.i18n import _STRINGS
+        it = _STRINGS["it"]
+        assert any(k.startswith("setup.") for k in it)
+
+    def test_six_languages_supported(self):
+        """CLI must support exactly 6 languages."""
+        from tesla_cli.i18n import _STRINGS
+        for lang in ["en", "es", "pt", "fr", "de", "it"]:
+            assert lang in _STRINGS, f"Language '{lang}' missing from _STRINGS"

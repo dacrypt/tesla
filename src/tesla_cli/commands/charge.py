@@ -26,10 +26,21 @@ def _vin(vin: str | None) -> str:
 @charge_app.command("status")
 def charge_status(vin: str | None = VinOption) -> None:
     """Show current charge state."""
+    from tesla_cli.output import console
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_charge_state(v), v)
     state = ChargeState.model_validate(data)
     render_model(state, title="Charge State")
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh
+    energy_added = data.get("charge_energy_added")
+    if cost_per_kwh and cost_per_kwh > 0 and energy_added:
+        estimated_cost = float(energy_added) * float(cost_per_kwh)
+        console.print(
+            f"  [dim]Estimated session cost:[/dim] [bold]${estimated_cost:.2f}[/bold] "
+            f"[dim]({energy_added} kWh \xd7 ${cost_per_kwh:.4f}/kWh)[/dim]"
+        )
 
 
 @charge_app.command("start")

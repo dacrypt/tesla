@@ -16,6 +16,7 @@ def stream_live(
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
     interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds"),
     count: int = typer.Option(0, "--count", "-n", help="Stop after N refreshes (0 = run forever)"),
+    mqtt_url: str | None = typer.Option(None, "--mqtt", help="MQTT broker URL to publish state (e.g. mqtt://localhost:1883/tesla/{vin})"),
 ) -> None:
     """Stream live vehicle data, refreshing every N seconds.
 
@@ -44,11 +45,14 @@ def stream_live(
 
     refreshes = 0
     last_error: str | None = None
+    _last_vehicle_data: dict = {}
+    _mqtt_state = {"warned": False}
 
     def _build_panel() -> Panel:
-        nonlocal last_error
+        nonlocal last_error, _last_vehicle_data
         try:
             data = backend.get_vehicle_data(v)
+            _last_vehicle_data = data
             last_error = None
         except VehicleAsleepError:
             last_error = "Vehicle is asleep (data from last known state)"
@@ -148,6 +152,23 @@ def stream_live(
         with Live(console=console, refresh_per_second=1, screen=False) as live:
             while True:
                 live.update(_build_panel())
+                if mqtt_url and _last_vehicle_data:
+                    try:
+                        from urllib.parse import urlparse
+
+                        import paho.mqtt.publish as mqtt_publish
+                        parsed = urlparse(mqtt_url)
+                        host = parsed.hostname or "localhost"
+                        port = parsed.port or 1883
+                        topic = (parsed.path.lstrip("/") or f"tesla/{v}/state").replace("{vin}", v)
+                        payload = _json.dumps(_last_vehicle_data, default=str)
+                        mqtt_publish.single(topic, payload=payload, hostname=host, port=port)
+                    except ImportError:
+                        if not _mqtt_state["warned"]:
+                            console.print("[yellow]paho-mqtt not installed. Run: pip install paho-mqtt[/yellow]")
+                            _mqtt_state["warned"] = True
+                    except Exception as e:
+                        console.print(f"[dim]MQTT publish failed: {e}[/dim]")
                 refreshes += 1
                 if count and refreshes >= count:
                     break
