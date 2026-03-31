@@ -7,7 +7,7 @@ from rich.prompt import Prompt
 
 from tesla_cli.auth import tokens
 from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, render_dict, render_success
+from tesla_cli.output import console, is_json_mode, render_dict, render_success
 
 config_app = typer.Typer(name="config", help="Manage tesla-cli configuration.")
 
@@ -234,7 +234,7 @@ def config_backup(
     safe = _redact(data)
     safe["_meta"] = {
         "backup_version": "1",
-        "tesla_cli_version": "1.8.0",
+        "tesla_cli_version": "1.9.0",
     }
 
     out = Path(output).expanduser()
@@ -306,6 +306,160 @@ def config_auth(
         _auth_fleet()
     else:
         console.print(f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet")
+        raise typer.Exit(1)
+
+
+@config_app.command("doctor")
+def config_doctor() -> None:
+    """Diagnose the CLI configuration — check tokens, API connectivity, and settings.
+
+    tesla config doctor
+    tesla -j config doctor
+    """
+    import json as _json
+
+    checks: list[dict] = []
+    ok_count = 0
+    warn_count = 0
+    fail_count = 0
+
+    def _check(name: str, status: str, detail: str, fix: str = "") -> None:
+        """Record a check result. status: ok | warn | fail"""
+        nonlocal ok_count, warn_count, fail_count
+        checks.append({"name": name, "status": status, "detail": detail, "fix": fix})
+        if status == "ok":
+            ok_count += 1
+        elif status == "warn":
+            warn_count += 1
+        else:
+            fail_count += 1
+
+    cfg = load_config()
+
+    # ── 1. Order auth token ──────────────────────────────────────────────────
+    if tokens.has_token(tokens.ORDER_ACCESS_TOKEN):
+        _check("Order auth token", "ok", "Token present in keyring")
+    else:
+        _check(
+            "Order auth token", "fail",
+            "No order access token found",
+            "Run: tesla config auth order",
+        )
+
+    # ── 2. VIN configured ────────────────────────────────────────────────────
+    vin = cfg.general.default_vin or ""
+    if vin:
+        _check("Default VIN", "ok", f"VIN: {vin}")
+    else:
+        _check(
+            "Default VIN", "warn",
+            "No default VIN configured",
+            "Run: tesla config set default-vin <YOUR_VIN>",
+        )
+
+    # ── 3. Reservation number ────────────────────────────────────────────────
+    rn = cfg.order.reservation_number or ""
+    if rn:
+        _check("Reservation number", "ok", f"RN: {rn}")
+    else:
+        _check(
+            "Reservation number", "warn",
+            "No reservation number configured",
+            "Run: tesla config set reservation-number RNXXXXXXXXX",
+        )
+
+    # ── 4. Vehicle backend ───────────────────────────────────────────────────
+    backend_name = cfg.general.backend or "owner"
+    if backend_name in ("fleet", "tessie", "owner"):
+        _check("Vehicle backend", "ok", f"Backend: {backend_name}")
+    else:
+        _check(
+            "Vehicle backend", "warn",
+            f"Unrecognised backend: '{backend_name}'",
+            "Run: tesla config set backend fleet|tessie|owner",
+        )
+
+    # ── 5. Backend-specific token ────────────────────────────────────────────
+    if backend_name == "tessie":
+        if tokens.has_token(tokens.TESSIE_TOKEN):
+            _check("Tessie API token", "ok", "Token present in keyring")
+        else:
+            _check(
+                "Tessie API token", "fail",
+                "No Tessie token found",
+                "Run: tesla config auth tessie",
+            )
+    elif backend_name == "fleet":
+        if tokens.has_token(tokens.FLEET_ACCESS_TOKEN):
+            _check("Fleet API token", "ok", "Token present in keyring")
+        else:
+            _check(
+                "Fleet API token", "fail",
+                "No Fleet API token found",
+                "Run: tesla config auth fleet",
+            )
+    else:
+        if tokens.has_token(tokens.ORDER_ACCESS_TOKEN):
+            _check("Owner API token", "ok", "Reusing order token for Owner API")
+        else:
+            _check("Owner API token", "warn", "No owner API token (use tessie or fleet for vehicle control)", "")
+
+    # ── 6. TeslaMate ─────────────────────────────────────────────────────────
+    tm_url = cfg.teslaMate.database_url or ""
+    if not tm_url:
+        _check("TeslaMate DB", "warn", "Not configured (optional)", "Run: tesla teslaMate connect <url>")
+    else:
+        try:
+            from tesla_cli.backends.teslaMate import TeslaMateBacked
+            tm = TeslaMateBacked(tm_url, car_id=cfg.teslaMate.car_id)
+            if tm.ping():
+                _check("TeslaMate DB", "ok", f"Connected: {tm_url[:40]}...")
+            else:
+                _check("TeslaMate DB", "fail", "DB unreachable", "Check DB URL and connectivity")
+        except ImportError:
+            _check("TeslaMate DB", "warn", "psycopg2 not installed (optional)", "uv pip install psycopg2-binary")
+        except Exception as exc:
+            _check("TeslaMate DB", "fail", f"Connection error: {str(exc)[:60]}", "Check DB URL")
+
+    # ── 7. Config file ───────────────────────────────────────────────────────
+    try:
+        from tesla_cli.config import CONFIG_PATH
+        if CONFIG_PATH.exists():
+            _check("Config file", "ok", f"Found: {CONFIG_PATH}")
+        else:
+            _check("Config file", "warn", "Config file not yet written (using defaults)", "Run any config set command")
+    except Exception:
+        _check("Config file", "ok", "Config loaded successfully")
+
+    # ── Output ───────────────────────────────────────────────────────────────
+    if is_json_mode():
+        console.print_json(_json.dumps({
+            "ok": ok_count, "warn": warn_count, "fail": fail_count,
+            "checks": checks,
+        }, indent=2))
+        return
+
+    console.print()
+    for c in checks:
+        icon, color = {
+            "ok":   ("✅", "green"),
+            "warn": ("⚠️ ", "yellow"),
+            "fail": ("❌", "red"),
+        }.get(c["status"], ("?", "white"))
+        console.print(f"  {icon}  [{color}]{c['name']}[/{color}]  [dim]{c['detail']}[/dim]")
+        if c["fix"]:
+            console.print(f"      [dim]→ {c['fix']}[/dim]")
+
+    console.print()
+    summary_color = "green" if fail_count == 0 else "red"
+    console.print(
+        f"  [{summary_color}]Result:[/{summary_color}] "
+        f"[green]{ok_count} ok[/green]  "
+        f"[yellow]{warn_count} warnings[/yellow]  "
+        f"[red]{fail_count} errors[/red]"
+    )
+    console.print()
+    if fail_count > 0:
         raise typer.Exit(1)
 
 

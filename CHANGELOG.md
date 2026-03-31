@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-03-30
+
+### Added
+
+- **`tesla teslaMate daily-chart`** — ASCII bar chart of kWh added per day over the last N days from TeslaMate; new SQL query `get_daily_energy(days)` groups charging sessions by calendar day; `--days N` (default 30); color-coded bars; multi-session days annotated; totals footer; JSON mode
+- **`tesla order eta`** — delivery ETA estimation based on current order phase; best-case / typical / worst-case windows for each remaining phase using community-sourced duration data; auto-reads current phase from latest dossier snapshot (with live API fallback); phase breakdown table; JSON mode with full duration breakdown
+- **`tesla config doctor`** — configuration health check; diagnoses order auth token, default VIN, reservation number, vehicle backend token (fleet/tessie/owner), TeslaMate DB connectivity, and config file presence; each check reports ✅ ok / ⚠️ warn / ❌ fail with fix hint; exits code 1 if any check fails; full JSON mode
+
+### Tests
+
+- 523 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [1.8.0] - 2026-03-30
 
 ### Added

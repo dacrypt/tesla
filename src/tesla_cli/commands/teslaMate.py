@@ -580,6 +580,61 @@ def teslaMate_report(
     console.print()
 
 
+@teslaMate_app.command("daily-chart")
+def teslaMate_daily_chart(
+    days: int = typer.Option(30, "--days", "-d", help="Number of past days to chart"),
+) -> None:
+    """ASCII bar chart of daily kWh added from TeslaMate (last N days).
+
+    tesla teslaMate daily-chart
+    tesla teslaMate daily-chart --days 60
+    tesla -j teslaMate daily-chart
+    """
+    import json as _json
+    import shutil
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Fetching daily energy for last {days} days...", total=None)
+        rows = backend.get_daily_energy(days=days)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(rows, indent=2, default=str))
+        return
+
+    if not rows:
+        console.print(f"[yellow]No charging data found for the last {days} days.[/yellow]")
+        return
+
+    terminal_cols = shutil.get_terminal_size((80, 24)).columns
+    BAR_MAX = max(10, min(terminal_cols - 26, 60))
+
+    kwh_vals  = [float(r.get("kwh_added") or 0) for r in rows]
+    max_kwh   = max(kwh_vals) if any(v > 0 for v in kwh_vals) else 1.0
+    total_kwh = sum(kwh_vals)
+    total_sessions = sum(int(r.get("sessions") or 0) for r in rows)
+
+    console.print()
+    console.print(f"  [bold cyan]Daily kWh Added — last {days} days[/bold cyan]")
+    console.print(f"  [dim]Scale: full bar = {max_kwh:.1f} kWh[/dim]")
+    console.print()
+
+    for r in rows:
+        day  = str(r.get("day") or "")[:10]
+        kwh  = float(r.get("kwh_added") or 0)
+        sess = int(r.get("sessions") or 0)
+
+        bar_len = round((kwh / max_kwh) * BAR_MAX) if max_kwh > 0 else 0
+        bar     = "█" * bar_len
+
+        bc = "green" if kwh >= 30 else "yellow" if kwh >= 10 else "red" if kwh > 0 else "dim"
+        sess_str = f"[dim]({sess})[/dim]" if sess > 1 else ""
+        console.print(f"  [dim]{day}[/dim]  [{bc}]{bar}[/{bc}] {kwh:.1f} kWh {sess_str}")
+
+    console.print()
+    console.print(f"  [dim]{len(rows)} days with charging │ {total_kwh:.1f} kWh total │ {total_sessions} sessions[/dim]")
+
+
 @teslaMate_app.command("graph")
 def teslaMate_graph(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of recent sessions to chart"),

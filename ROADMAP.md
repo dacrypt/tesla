@@ -215,8 +215,14 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla vehicle cabin-protection` — show/set/toggle Cabin Overheat Protection
 - [x] 501 tests, ruff clean
 
-### v1.9.0 — Next Milestone
-- [ ] WebSocket streaming backend (real-time Fleet API telemetry — upgrade `stream live` from REST polling)
-- [ ] `tesla vehicle charge-history-graph` — ASCII graph of per-day energy added (TeslaMate)
-- [ ] `tesla order eta` — smarter ETA prediction combining ship position + customs delays + historical delivery windows
-- [ ] Submit Homebrew formula to official tap
+### v1.9.0 — Daily Chart, Order ETA, Config Doctor ✅ SHIPPED
+- [x] `tesla teslaMate daily-chart` — per-day kWh added chart (new SQL `get_daily_energy(days)`); `--days N`
+- [x] `tesla order eta` — delivery ETA (best/typical/worst) from community phase durations; phase breakdown table
+- [x] `tesla config doctor` — health check: token, VIN, RN, backend, TeslaMate, config file; exit 1 on fail
+- [x] 523 tests, ruff clean
+
+### v2.0.0 — Next Milestone
+- [ ] WebSocket streaming backend (real-time Fleet API telemetry)
+- [ ] `tesla teslaMate heatmap` — calendar grid of driving days (ASCII art)
+- [ ] `tesla vehicle watch` — continuous monitoring mode: prints alerts on state changes (battery drop, door opened, etc.)
+- [ ] Complete competitor feature parity audit + gap-close sprint
