@@ -3011,3 +3011,561 @@ class TestItalianI18n:
         from tesla_cli.i18n import _STRINGS
         for lang in ["en", "es", "pt", "fr", "de", "it"]:
             assert lang in _STRINGS, f"Language '{lang}' missing from _STRINGS"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — Charge Departure
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeDeparture:
+    """Tests for `tesla charge departure`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _run_departure(self, mock_backend, *args):
+        cfg = self._cfg()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+        ):
+            return _run("charge", "departure", *args)
+
+    def test_departure_success(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        result = self._run_departure(mock, "07:30")
+        assert result.exit_code == 0
+        assert "07:30" in result.output
+
+    def test_departure_parses_time_to_minutes(self):
+        """07:30 → 450 minutes after midnight."""
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        result = self._run_departure(mock, "-j", "07:30")
+        # -j must come before subcommand
+        cfg = self._cfg()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "charge", "departure", "07:30")
+        data = json.loads(result.output)
+        assert data["time_minutes"] == 450  # 7*60+30
+        assert data["time"] == "07:30"
+        assert data["scheduled_departure"] is True
+
+    def test_departure_with_precondition(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        result = self._run_departure(mock, "08:00", "--precondition")
+        assert result.exit_code == 0
+        assert "precondition" in result.output.lower()
+
+    def test_departure_disable(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        result = self._run_departure(mock, "--disable", "ignored")
+        assert result.exit_code == 0
+        assert "disabled" in result.output.lower()
+
+    def test_departure_disable_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        self._run_departure(mock, "--disable", "00:00")
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_scheduled_departure", enable=False, departure_time=0
+        )
+
+    def test_departure_json_disable(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        cfg = self._cfg()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "charge", "departure", "--disable", "00:00")
+        data = json.loads(result.output)
+        assert data["scheduled_departure"] is False
+
+    def test_departure_off_peak(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        result = self._run_departure(mock, "06:00", "--off-peak", "--off-peak-end", "07:00")
+        assert result.exit_code == 0
+
+    def test_departure_in_help(self):
+        result = _run("charge", "--help")
+        assert "departure" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — Vehicle Precondition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehiclePrecondition:
+    """Tests for `tesla vehicle precondition`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_precondition_on(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "precondition", "true")
+        assert result.exit_code == 0
+        assert "enabled" in result.output.lower()
+
+    def test_precondition_off(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "precondition", "false")
+        assert result.exit_code == 0
+        assert "disabled" in result.output.lower()
+
+    def test_precondition_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("vehicle", "precondition", "true")
+        mock.command.assert_called_once_with(MOCK_VIN, "set_preconditioning_max", on=True)
+
+    def test_precondition_json(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "precondition", "true")
+        data = json.loads(result.output)
+        assert data["preconditioning_max"] is True
+
+    def test_precondition_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "precondition" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — Vehicle Screenshot
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleScreenshot:
+    """Tests for `tesla vehicle screenshot`."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_screenshot_success(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "screenshot")
+        assert result.exit_code == 0
+        assert "screenshot" in result.output.lower()
+
+    def test_screenshot_calls_correct_command(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            _run("vehicle", "screenshot")
+        mock.command.assert_called_once_with(MOCK_VIN, "trigger_vehicle_screenshot")
+
+    def test_screenshot_json(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "screenshot")
+        data = json.loads(result.output)
+        assert data["screenshot"] == "triggered"
+
+    def test_screenshot_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "screenshot" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — Vehicle Tonneau
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleTonneau:
+    """Tests for `tesla vehicle tonneau` (Cybertruck tonneau cover)."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_tonneau_open(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tonneau", "open")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "tonneau_open")
+
+    def test_tonneau_close(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tonneau", "close")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "tonneau_close")
+
+    def test_tonneau_stop(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tonneau", "stop")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "tonneau_stop")
+
+    def test_tonneau_status(self):
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = {
+            "tonneau_open": False,
+            "tonneau_door_state": "closed",
+        }
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tonneau", "status")
+        assert result.exit_code == 0
+        assert "tonneau" in result.output.lower() or "closed" in result.output.lower()
+
+    def test_tonneau_status_json(self):
+        mock = MagicMock()
+        mock.get_vehicle_state.return_value = {
+            "tonneau_open": True,
+            "tonneau_door_state": "open",
+        }
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "tonneau", "status")
+        data = json.loads(result.output)
+        assert data["tonneau_open"] is True
+        assert data["door_state"] == "open"
+
+    def test_tonneau_json_action(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "tonneau", "open")
+        data = json.loads(result.output)
+        assert data["tonneau"] == "open"
+
+    def test_tonneau_invalid_action(self):
+        mock = MagicMock()
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "tonneau", "fly")
+        assert result.exit_code != 0
+
+    def test_tonneau_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "tonneau" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — TeslaMate Geo
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTeslaMatGeo:
+    """Tests for `tesla teslaMate geo`."""
+
+    MOCK_LOCATIONS = [
+        {"location": "Home", "visit_count": 142, "latitude": 37.42, "longitude": -122.08, "max_arrival_pct": 80, "min_arrival_pct": 20},
+        {"location": "Work - Downtown", "visit_count": 98, "latitude": 37.78, "longitude": -122.42, "max_arrival_pct": 70, "min_arrival_pct": 45},
+        {"location": "Supercharger - I-5 N", "visit_count": 12, "latitude": 38.10, "longitude": -121.50, "max_arrival_pct": 95, "min_arrival_pct": 15},
+    ]
+
+    def test_geo_success(self):
+        mock = MagicMock()
+        mock.get_top_locations.return_value = self.MOCK_LOCATIONS
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("teslaMate", "geo")
+        assert result.exit_code == 0
+        assert "Home" in result.output
+
+    def test_geo_json_output(self):
+        mock = MagicMock()
+        mock.get_top_locations.return_value = self.MOCK_LOCATIONS
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("-j", "teslaMate", "geo")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 3
+        assert data[0]["location"] == "Home"
+        assert data[0]["visit_count"] == 142
+
+    def test_geo_limit_option(self):
+        mock = MagicMock()
+        mock.get_top_locations.return_value = self.MOCK_LOCATIONS[:2]
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            _run("teslaMate", "geo", "--limit", "2")
+        mock.get_top_locations.assert_called_once_with(limit=2)
+
+    def test_geo_empty_data(self):
+        mock = MagicMock()
+        mock.get_top_locations.return_value = []
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+            result = _run("teslaMate", "geo")
+        assert result.exit_code == 0
+        assert "no" in result.output.lower() or "found" in result.output.lower()
+
+    def test_geo_csv_export(self):
+        mock = MagicMock()
+        mock.get_top_locations.return_value = self.MOCK_LOCATIONS
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            csv_path = f.name
+        try:
+            with patch("tesla_cli.commands.teslaMate._backend", return_value=mock):
+                result = _run("teslaMate", "geo", "--csv", csv_path)
+            assert result.exit_code == 0
+            content = Path(csv_path).read_text()
+            assert "Home" in content
+            assert "visit_count" in content
+        finally:
+            Path(csv_path).unlink(missing_ok=True)
+
+    def test_geo_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "geo" in result.output
+
+    def test_geo_backend_method(self):
+        """TeslaMateBacked.get_top_locations returns list of dicts."""
+        from tesla_cli.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        backend._car_id = 1
+        mock_rows = [
+            {"location": "Home", "visit_count": 50, "latitude": 37.42, "longitude": -122.08,
+             "max_arrival_pct": 80, "min_arrival_pct": 20},
+        ]
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        backend._cursor = MagicMock(return_value=mock_ctx)
+        result = backend.get_top_locations(limit=10)
+        assert len(result) == 1
+        assert result[0]["location"] == "Home"
+        assert result[0]["visit_count"] == 50
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.4.0 Tests — AES-256-GCM Token Encryption
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTokenEncryption:
+    """Tests for tesla_cli.auth.encryption module."""
+
+    def test_is_encrypted_true(self):
+        from tesla_cli.auth.encryption import is_encrypted
+        assert is_encrypted("enc1:abc123") is True
+
+    def test_is_encrypted_false_plain(self):
+        from tesla_cli.auth.encryption import is_encrypted
+        assert is_encrypted("eyJhbGciOiJSUzI1NiJ9.plain_token") is False
+
+    def test_is_encrypted_false_empty(self):
+        from tesla_cli.auth.encryption import is_encrypted
+        assert is_encrypted("") is False
+
+    def test_is_encrypted_false_none_like(self):
+        from tesla_cli.auth.encryption import is_encrypted
+        assert is_encrypted("plain_text_token") is False
+
+    def test_encrypt_produces_enc1_prefix(self):
+        from tesla_cli.auth.encryption import encrypt_token
+        result = encrypt_token("my-secret", "password")
+        assert result.startswith("enc1:")
+
+    def test_roundtrip_encrypt_decrypt(self):
+        from tesla_cli.auth.encryption import decrypt_token, encrypt_token
+        original = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test_token_value"
+        encrypted = encrypt_token(original, "test_password_123")
+        assert encrypted != original
+        decrypted = decrypt_token(encrypted, "test_password_123")
+        assert decrypted == original
+
+    def test_wrong_password_raises_value_error(self):
+        from tesla_cli.auth.encryption import decrypt_token, encrypt_token
+        encrypted = encrypt_token("secret", "correct_password")
+        with pytest.raises(ValueError, match="Decryption failed"):
+            decrypt_token(encrypted, "wrong_password")
+
+    def test_decrypt_non_encrypted_raises(self):
+        from tesla_cli.auth.encryption import decrypt_token
+        with pytest.raises(ValueError, match="Not an encrypted token"):
+            decrypt_token("plain_token", "password")
+
+    def test_different_calls_produce_different_ciphertext(self):
+        """Each encryption call uses a random nonce — same input → different ciphertext."""
+        from tesla_cli.auth.encryption import encrypt_token
+        c1 = encrypt_token("same_plaintext", "same_password")
+        c2 = encrypt_token("same_plaintext", "same_password")
+        assert c1 != c2  # different nonce each time
+
+    def test_encrypted_token_is_string(self):
+        from tesla_cli.auth.encryption import encrypt_token
+        result = encrypt_token("token", "pass")
+        assert isinstance(result, str)
+
+    def test_unicode_token_roundtrip(self):
+        from tesla_cli.auth.encryption import decrypt_token, encrypt_token
+        original = "tëst-tökën-wïth-ünicode-chäracters"
+        encrypted = encrypt_token(original, "password")
+        assert decrypt_token(encrypted, "password") == original
+
+
+class TestConfigEncryptDecryptCommands:
+    """Tests for `tesla config encrypt-token` and `decrypt-token`."""
+
+    def test_encrypt_token_command_success(self):
+        from tesla_cli.auth import tokens as tok_module
+
+        with (
+            patch.object(tok_module, "get_token", return_value="plain_token_value"),
+            patch.object(tok_module, "set_token") as mock_store,
+        ):
+            result = _run("config", "encrypt-token", "order_refresh_token", "--password", "mypass")
+
+        assert result.exit_code == 0
+        mock_store.assert_called_once()
+        stored_value = mock_store.call_args[0][1]
+        assert stored_value.startswith("enc1:")
+
+    def test_encrypt_token_already_encrypted(self):
+        from tesla_cli.auth import tokens as tok_module
+
+        with patch.object(tok_module, "get_token", return_value="enc1:already_encrypted"):
+            result = _run("config", "encrypt-token", "some_key", "--password", "pass")
+
+        assert result.exit_code == 0
+        assert "already encrypted" in result.output.lower()
+
+    def test_encrypt_token_not_found(self):
+        from tesla_cli.auth import tokens as tok_module
+
+        with patch.object(tok_module, "get_token", return_value=None):
+            result = _run("config", "encrypt-token", "missing_key", "--password", "pass")
+
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+
+    def test_decrypt_token_command_success(self):
+        from tesla_cli.auth import tokens as tok_module
+        from tesla_cli.auth.encryption import encrypt_token
+
+        original = "my_plain_token"
+        encrypted = encrypt_token(original, "testpass")
+
+        with (
+            patch.object(tok_module, "get_token", return_value=encrypted),
+            patch.object(tok_module, "set_token") as mock_store,
+        ):
+            result = _run("config", "decrypt-token", "order_refresh_token", "--password", "testpass")
+
+        assert result.exit_code == 0
+        stored_value = mock_store.call_args[0][1]
+        assert stored_value == original
+
+    def test_decrypt_token_wrong_password(self):
+        from tesla_cli.auth import tokens as tok_module
+        from tesla_cli.auth.encryption import encrypt_token
+
+        encrypted = encrypt_token("secret", "correct")
+
+        with patch.object(tok_module, "get_token", return_value=encrypted):
+            result = _run("config", "decrypt-token", "some_key", "--password", "wrong")
+
+        assert result.exit_code != 0
+        assert "failed" in result.output.lower() or "error" in result.output.lower()
+
+    def test_decrypt_token_not_encrypted(self):
+        from tesla_cli.auth import tokens as tok_module
+
+        with patch.object(tok_module, "get_token", return_value="plain_not_encrypted"):
+            result = _run("config", "decrypt-token", "some_key", "--password", "pass")
+
+        assert result.exit_code == 0
+        assert "not encrypted" in result.output.lower()
+
+    def test_encrypt_decrypt_commands_in_help(self):
+        result = _run("config", "--help")
+        assert "encrypt-token" in result.output
+        assert "decrypt-token" in result.output

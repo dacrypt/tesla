@@ -154,6 +154,57 @@ def config_import(
     render_success(f"Config imported from {source}" + (" (merged)" if merge else " (replaced)"))
 
 
+@config_app.command("encrypt-token")
+def config_encrypt_token(
+    key_name: str = typer.Argument(..., help="Token key name (e.g. order_refresh_token)"),
+    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Encryption password"),
+) -> None:
+    """Encrypt a stored token with AES-256-GCM (for headless/server deployments).
+
+    tesla config encrypt-token order_refresh_token --password mypass
+    tesla config encrypt-token fleet_access_token -p mypass
+    """
+    from tesla_cli.auth.encryption import encrypt_token, is_encrypted
+
+    raw = tokens.get_token(key_name)
+    if not raw:
+        console.print(f"[red]Token not found:[/red] {key_name}")
+        raise typer.Exit(1)
+    if is_encrypted(raw):
+        console.print(f"[yellow]Token '{key_name}' is already encrypted.[/yellow]")
+        return
+    encrypted = encrypt_token(raw, password)
+    tokens.set_token(key_name, encrypted)
+    render_success(f"Token '{key_name}' encrypted with AES-256-GCM")
+
+
+@config_app.command("decrypt-token")
+def config_decrypt_token(
+    key_name: str = typer.Argument(..., help="Token key name to decrypt"),
+    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Decryption password"),
+) -> None:
+    """Decrypt an AES-256-GCM encrypted token back to plaintext in the keyring.
+
+    tesla config decrypt-token order_refresh_token --password mypass
+    """
+    from tesla_cli.auth.encryption import decrypt_token, is_encrypted
+
+    raw = tokens.get_token(key_name)
+    if not raw:
+        console.print(f"[red]Token not found:[/red] {key_name}")
+        raise typer.Exit(1)
+    if not is_encrypted(raw):
+        console.print(f"[yellow]Token '{key_name}' is not encrypted.[/yellow]")
+        return
+    try:
+        plaintext = decrypt_token(raw, password)
+    except ValueError as exc:
+        console.print(f"[red]Decryption failed:[/red] {exc}")
+        raise typer.Exit(1)
+    tokens.set_token(key_name, plaintext)
+    render_success(f"Token '{key_name}' decrypted and restored to keyring")
+
+
 @config_app.command("auth")
 def config_auth(
     backend: str = typer.Argument(help="Backend to authenticate: order, tessie, fleet"),

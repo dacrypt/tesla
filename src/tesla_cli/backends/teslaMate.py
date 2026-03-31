@@ -249,6 +249,28 @@ class TeslaMateBacked:
             "daily": rows,
         }
 
+    def get_top_locations(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Most visited start/end locations from drives."""
+        sql = """
+            SELECT
+                a.display_name                                          AS location,
+                a.latitude,
+                a.longitude,
+                COUNT(*)                                                AS visit_count,
+                ROUND(MAX(d.end_battery_level)::numeric, 0)            AS max_arrival_pct,
+                ROUND(MIN(d.end_battery_level)::numeric, 0)            AS min_arrival_pct
+            FROM drives d
+            JOIN addresses a ON a.id = d.end_address_id
+            WHERE d.car_id = %s
+              AND a.display_name IS NOT NULL
+            GROUP BY a.display_name, a.latitude, a.longitude
+            ORDER BY visit_count DESC
+            LIMIT %s
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, limit))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:
