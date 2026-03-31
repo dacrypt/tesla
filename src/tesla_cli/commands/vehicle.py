@@ -829,3 +829,96 @@ def vehicle_rename(
         console.print(_json.dumps({"name": name}, indent=2))
         return
     render_success(f"Vehicle renamed to '{name}'")
+
+
+@vehicle_app.command("precondition")
+def vehicle_precondition(
+    on: bool = typer.Argument(..., help="Enable or disable max preconditioning"),
+    vin: str | None = VinOption,
+) -> None:
+    """Toggle max preconditioning (blast heat/cool before a trip).
+
+    tesla vehicle precondition true
+    tesla vehicle precondition false
+    tesla -j vehicle precondition true
+    """
+    import json as _json
+
+    v = _vin(vin)
+    _with_wake(lambda b, v: b.command(v, "set_preconditioning_max", on=on), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"preconditioning_max": on}, indent=2))
+        return
+    status = "enabled" if on else "disabled"
+    render_success(f"Max preconditioning {status}")
+
+
+@vehicle_app.command("screenshot")
+def vehicle_screenshot(
+    vin: str | None = VinOption,
+) -> None:
+    """Trigger a screenshot of the vehicle's display (saves to TeslaConnect).
+
+    tesla vehicle screenshot
+    tesla -j vehicle screenshot
+    """
+    import json as _json
+
+    v = _vin(vin)
+    _with_wake(lambda b, v: b.command(v, "trigger_vehicle_screenshot"), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"screenshot": "triggered"}, indent=2))
+        return
+    render_success("Screenshot triggered — check the TeslaConnect mobile app")
+
+
+@vehicle_app.command("tonneau")
+def vehicle_tonneau(
+    action: str = typer.Argument(..., help="Action: open|close|stop|status"),
+    vin: str | None = VinOption,
+) -> None:
+    """Control the Cybertruck tonneau cover.
+
+    tesla vehicle tonneau open
+    tesla vehicle tonneau close
+    tesla vehicle tonneau stop
+    tesla vehicle tonneau status
+    tesla -j vehicle tonneau status
+    """
+    import json as _json
+
+    v = _vin(vin)
+    action = action.lower()
+
+    if action == "status":
+        state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
+        tonneau_open = state.get("tonneau_open")
+        door_state = state.get("tonneau_door_state", "unknown")
+        data = {
+            "tonneau_open": tonneau_open,
+            "door_state": door_state,
+        }
+        if is_json_mode():
+            console.print(_json.dumps(data, indent=2, default=str))
+            return
+        render_dict(data, title="Tonneau Cover Status")
+        return
+
+    command_map = {
+        "open": "tonneau_open",
+        "close": "tonneau_close",
+        "stop": "tonneau_stop",
+    }
+    if action not in command_map:
+        from tesla_cli.output import console as _console
+        _console.print(f"[red]Unknown action:[/red] {action}. Use: open|close|stop|status")
+        raise typer.Exit(1)
+
+    _with_wake(lambda b, v: b.command(v, command_map[action]), v)
+
+    if is_json_mode():
+        console.print(_json.dumps({"tonneau": action}, indent=2))
+        return
+    render_success(f"Tonneau cover {action} command sent")

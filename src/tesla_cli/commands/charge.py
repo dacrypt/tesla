@@ -8,7 +8,7 @@ from tesla_cli.backends import get_vehicle_backend
 from tesla_cli.commands.vehicle import _with_wake
 from tesla_cli.config import load_config, resolve_vin
 from tesla_cli.models.charge import ChargeState
-from tesla_cli.output import render_dict, render_model, render_success, render_table
+from tesla_cli.output import is_json_mode, render_dict, render_model, render_success, render_table
 
 charge_app = typer.Typer(name="charge", help="Battery and charging management.")
 
@@ -110,6 +110,78 @@ def charge_schedule(
     )
     status = "enabled" if enable else "disabled"
     render_success(f"Scheduled charging {status}")
+
+
+@charge_app.command("departure")
+def charge_departure(
+    time: str = typer.Argument(..., help="Departure time (HH:MM, 24h)"),
+    precondition: bool = typer.Option(False, "--precondition/--no-precondition", help="Enable cabin preconditioning"),
+    off_peak: bool = typer.Option(False, "--off-peak/--no-off-peak", help="Enable off-peak charging window"),
+    off_peak_end: str = typer.Option("07:00", "--off-peak-end", help="Off-peak charging end time (HH:MM)"),
+    disable: bool = typer.Option(False, "--disable", help="Disable scheduled departure"),
+    vin: str | None = VinOption,
+) -> None:
+    """Set scheduled departure time with optional preconditioning and off-peak charging.
+
+    tesla charge departure 07:30
+    tesla charge departure 08:00 --precondition
+    tesla charge departure 06:00 --off-peak --off-peak-end 07:00
+    tesla charge departure --disable
+    """
+    import json as _json
+
+    v = _vin(vin)
+
+    def _parse_time(t: str) -> int:
+        """Convert HH:MM to minutes after midnight."""
+        h, m = t.split(":")
+        return int(h) * 60 + int(m)
+
+    if disable:
+        _with_wake(
+            lambda b, v: b.command(v, "set_scheduled_departure", enable=False, departure_time=0),
+            v,
+        )
+        if is_json_mode():
+            from tesla_cli.output import console
+            console.print(_json.dumps({"scheduled_departure": False}, indent=2))
+            return
+        render_success("Scheduled departure disabled")
+        return
+
+    dep_minutes = _parse_time(time)
+    end_minutes = _parse_time(off_peak_end)
+
+    _with_wake(
+        lambda b, v: b.command(
+            v,
+            "set_scheduled_departure",
+            enable=True,
+            departure_time=dep_minutes,
+            preconditioning_enabled=precondition,
+            off_peak_charging_enabled=off_peak,
+            end_off_peak_time=end_minutes,
+        ),
+        v,
+    )
+
+    if is_json_mode():
+        from tesla_cli.output import console
+        console.print(_json.dumps({
+            "scheduled_departure": True,
+            "time": time,
+            "time_minutes": dep_minutes,
+            "precondition": precondition,
+            "off_peak": off_peak,
+        }, indent=2))
+        return
+
+    msg = f"Scheduled departure set to {time}"
+    if precondition:
+        msg += " with preconditioning"
+    if off_peak:
+        msg += f" (off-peak until {off_peak_end})"
+    render_success(msg)
 
 
 @charge_app.command("history")

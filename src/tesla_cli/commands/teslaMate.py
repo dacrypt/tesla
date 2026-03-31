@@ -9,7 +9,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, is_json_mode, render_success
+from tesla_cli.output import console, is_json_mode, render_success, render_table
 
 teslaMate_app = typer.Typer(
     name="teslaMate",
@@ -465,6 +465,55 @@ def teslaMate_vampire(
             f"[{pph_color}]{pph:.3f}[/{pph_color}]",
         )
     console.print(table)
+
+
+@teslaMate_app.command("geo")
+def teslaMate_geo(
+    limit: int = typer.Option(10, "--limit", "-n", help="Number of top locations to show"),
+    csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
+) -> None:
+    """Show most-visited locations from TeslaMate.
+
+    tesla teslaMate geo
+    tesla teslaMate geo --limit 20
+    tesla -j teslaMate geo | jq '.[] | select(.visit_count > 5)'
+    """
+    import json as _json
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+        p.add_task("Loading location data...", total=None)
+        locations = backend.get_top_locations(limit=limit)
+
+    if not locations:
+        console.print("[yellow]No location data found in TeslaMate.[/yellow]")
+        return
+
+    if csv_out:
+        import csv as _csv
+        from pathlib import Path  # noqa: F401
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            writer = _csv.DictWriter(fh, fieldnames=list(locations[0].keys()))
+            writer.writeheader()
+            writer.writerows([{k: str(v) for k, v in row.items()} for row in locations])
+        console.print(f"  [green]\u2713[/green] Saved {len(locations)} rows to [bold]{csv_out}[/bold]")
+        return
+
+    if is_json_mode():
+        console.print(_json.dumps(locations, indent=2, default=str))
+        return
+
+    render_table(
+        [{
+            "location": r["location"][:40] if r["location"] else "\u2014",
+            "visits": r["visit_count"],
+            "lat": f"{r['latitude']:.4f}" if r.get("latitude") else "\u2014",
+            "lon": f"{r['longitude']:.4f}" if r.get("longitude") else "\u2014",
+            "arrival_pct": f"{r['min_arrival_pct']}\u2013{r['max_arrival_pct']}%",
+        } for r in locations],
+        columns=["location", "visits", "lat", "lon", "arrival_pct"],
+        title=f"Top {len(locations)} Most Visited Locations",
+    )
 
 
 # ── helpers ──
