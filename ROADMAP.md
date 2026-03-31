@@ -208,9 +208,15 @@ No competing tool combines all of these in one CLI:
 - [x] `tesla teslaMate stats` — lifetime driving + charging stats with efficiency banner
 - [x] 471 tests, ruff clean
 
-### v1.8.0 — Next Milestone
+### v1.8.0 — Bio, Graph, HTML Themes, Cabin Protection ✅ SHIPPED
+- [x] `tesla vehicle bio` — 5-panel comprehensive vehicle profile (identity/battery/climate/drive/scheduling)
+- [x] `tesla teslaMate graph` — ASCII bar chart of charging sessions (kWh, color-coded, terminal-scaled)
+- [x] `tesla dossier export-html --theme light|dark` — light mode with WCAG-AA deep red `#c0001a`
+- [x] `tesla vehicle cabin-protection` — show/set/toggle Cabin Overheat Protection
+- [x] 501 tests, ruff clean
+
+### v1.9.0 — Next Milestone
 - [ ] WebSocket streaming backend (real-time Fleet API telemetry — upgrade `stream live` from REST polling)
-- [ ] `tesla vehicle bio` — comprehensive single-screen vehicle profile (all states in one panel)
-- [ ] `tesla dossier export-html --theme light` — light mode variant
-- [ ] `tesla charge graph` — ASCII bar chart of last N charging sessions
+- [ ] `tesla vehicle charge-history-graph` — ASCII graph of per-day energy added (TeslaMate)
+- [ ] `tesla order eta` — smarter ETA prediction combining ship position + customs delays + historical delivery windows
 - [ ] Submit Homebrew formula to official tap

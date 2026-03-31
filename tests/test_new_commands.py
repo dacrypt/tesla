@@ -4739,3 +4739,394 @@ class TestTeslaMateStats:
     def test_stats_in_help(self):
         result = _run("teslaMate", "--help")
         assert "stats" in result.output
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1.8.0 — vehicle bio, teslaMate graph, export-html --theme, cabin-protection
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ── vehicle bio ───────────────────────────────────────────────────────────────
+
+
+class TestVehicleBio:
+    """Tests for tesla vehicle bio."""
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_bio_renders_panels(self):
+        mock = MagicMock()
+        from tests.conftest import MOCK_VEHICLE_DATA
+        mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "bio")
+        assert result.exit_code == 0
+        # 5 panels
+        assert "Battery" in result.output
+        assert "Climate" in result.output
+        assert "Drive State" in result.output
+        assert "Scheduling" in result.output
+
+    def test_bio_json_structure(self):
+        mock = MagicMock()
+        from tests.conftest import MOCK_VEHICLE_DATA
+        mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "bio")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "battery" in data
+        assert "climate" in data
+        assert "drive" in data
+        assert "identity" in data
+        assert "scheduling" in data
+
+    def test_bio_json_battery_level(self):
+        mock = MagicMock()
+        from tests.conftest import MOCK_VEHICLE_DATA
+        mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "bio")
+        data = json.loads(result.output)
+        assert data["battery"]["battery_level"] == 72
+
+    def test_bio_json_vin(self):
+        mock = MagicMock()
+        from tests.conftest import MOCK_VEHICLE_DATA
+        mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "bio")
+        data = json.loads(result.output)
+        assert data["vin"] == MOCK_VIN
+
+    def test_bio_sparse_data_no_crash(self):
+        """Vehicle data with no sub-dicts should not crash."""
+        mock = MagicMock()
+        mock.get_vehicle_data.return_value = {"vin": MOCK_VIN, "state": "online"}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "bio")
+        assert result.exit_code == 0
+
+    def test_bio_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "bio" in result.output
+
+
+# ── teslaMate graph ───────────────────────────────────────────────────────────
+
+
+MOCK_CHARGING_SESSIONS_GRAPH = [
+    {
+        "id": 1, "start_date": "2026-03-01 20:00", "end_date": "2026-03-01 22:00",
+        "energy_added_kwh": 45.2, "cost": 9.04,
+        "start_battery_level": 20, "end_battery_level": 90, "location": "Home",
+    },
+    {
+        "id": 2, "start_date": "2026-03-05 08:00", "end_date": "2026-03-05 08:30",
+        "energy_added_kwh": 12.0, "cost": 2.40,
+        "start_battery_level": 60, "end_battery_level": 80, "location": "Supercharger",
+    },
+    {
+        "id": 3, "start_date": "2026-03-10 19:00", "end_date": "2026-03-10 20:00",
+        "energy_added_kwh": 0.0, "cost": None,
+        "start_battery_level": 80, "end_battery_level": 80, "location": None,
+    },
+]
+
+
+class TestTeslaMateGraph:
+    """Tests for tesla teslaMate graph."""
+
+    def _patched(self, sessions=None):
+        if sessions is None:
+            sessions = MOCK_CHARGING_SESSIONS_GRAPH
+        mock_backend = MagicMock()
+        mock_backend.get_charging_sessions.return_value = sessions
+        return patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend)
+
+    def test_graph_renders_bars(self):
+        with self._patched():
+            result = _run("teslaMate", "graph")
+        assert result.exit_code == 0
+        assert "█" in result.output
+        assert "kWh" in result.output
+
+    def test_graph_summary_footer(self):
+        with self._patched():
+            result = _run("teslaMate", "graph")
+        assert "sessions" in result.output
+        assert "total" in result.output.lower()
+
+    def test_graph_json(self):
+        with self._patched():
+            result = _run("-j", "teslaMate", "graph")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["energy_added_kwh"] == 45.2
+
+    def test_graph_empty_sessions(self):
+        with self._patched(sessions=[]):
+            result = _run("teslaMate", "graph")
+        assert result.exit_code == 0
+        assert "No charging sessions" in result.output
+
+    def test_graph_zero_kwh_no_crash(self):
+        """A session where all kWh are 0 must not divide-by-zero."""
+        with self._patched(sessions=[MOCK_CHARGING_SESSIONS_GRAPH[2]]):
+            result = _run("teslaMate", "graph")
+        assert result.exit_code == 0
+
+    def test_graph_limit_flag(self):
+        mock_backend = MagicMock()
+        mock_backend.get_charging_sessions.return_value = MOCK_CHARGING_SESSIONS_GRAPH[:1]
+        with patch("tesla_cli.commands.teslaMate._backend", return_value=mock_backend):
+            result = _run("teslaMate", "graph", "--limit", "1")
+        assert result.exit_code == 0
+        mock_backend.get_charging_sessions.assert_called_once_with(limit=1)
+
+    def test_graph_none_location_no_crash(self):
+        """Sessions with location=None should render as 'Unknown'."""
+        with self._patched(sessions=[MOCK_CHARGING_SESSIONS_GRAPH[2]]):
+            result = _run("teslaMate", "graph")
+        assert result.exit_code == 0
+        assert "Unknown" in result.output or result.exit_code == 0
+
+    def test_graph_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert "graph" in result.output
+
+
+# ── dossier export-html --theme ───────────────────────────────────────────────
+
+
+class TestDossierExportHtmlTheme:
+    """Tests for --theme flag on tesla dossier export-html."""
+
+    def test_dark_theme_default_css(self, tmp_path):
+        out = str(tmp_path / "dark.html")
+        with patch("tesla_cli.config.load_config") as mock_lc:
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            result = _run("dossier", "export-html", "--output", out, "--theme", "dark")
+        assert result.exit_code == 0
+        html = Path(out).read_text()
+        assert "--bg: #0d0d0d" in html
+
+    def test_light_theme_bg_css(self, tmp_path):
+        out = str(tmp_path / "light.html")
+        with patch("tesla_cli.config.load_config") as mock_lc:
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            result = _run("dossier", "export-html", "--output", out, "--theme", "light")
+        assert result.exit_code == 0
+        html = Path(out).read_text()
+        assert "--bg: #f5f5f5" in html
+
+    def test_light_theme_card_css(self, tmp_path):
+        out = str(tmp_path / "light2.html")
+        with patch("tesla_cli.config.load_config") as mock_lc:
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", out, "--theme", "light")
+        html = Path(out).read_text()
+        assert "--card: #ffffff" in html
+
+    def test_light_theme_accent_css(self, tmp_path):
+        out = str(tmp_path / "light3.html")
+        with patch("tesla_cli.config.load_config") as mock_lc:
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            _run("dossier", "export-html", "--output", out, "--theme", "light")
+        html = Path(out).read_text()
+        assert "#c0001a" in html  # deep red light accent
+
+    def test_unknown_theme_falls_back_to_dark(self, tmp_path):
+        """Any unknown theme value should render the dark theme (else branch)."""
+        out = str(tmp_path / "unknown.html")
+        with patch("tesla_cli.config.load_config") as mock_lc:
+            mock_lc.return_value.general.default_vin = MOCK_VIN
+            result = _run("dossier", "export-html", "--output", out, "--theme", "blurple")
+        assert result.exit_code == 0
+        html = Path(out).read_text()
+        assert "--bg: #0d0d0d" in html
+
+    def test_both_themes_create_valid_html(self, tmp_path):
+        for t in ("dark", "light"):
+            out = str(tmp_path / f"{t}.html")
+            with patch("tesla_cli.config.load_config") as mock_lc:
+                mock_lc.return_value.general.default_vin = MOCK_VIN
+                result = _run("dossier", "export-html", "--output", out, "--theme", t)
+            assert result.exit_code == 0
+            html = Path(out).read_text()
+            assert "<!DOCTYPE html>" in html
+
+
+# ── vehicle cabin-protection ──────────────────────────────────────────────────
+
+
+class TestVehicleCabinProtection:
+    """Tests for tesla vehicle cabin-protection."""
+
+    CLIMATE_WITH_COP = {
+        "inside_temp": 22.5,
+        "outside_temp": 18.0,
+        "is_climate_on": False,
+        "cabin_overheat_protection": "FAN_ONLY",
+        "cabin_overheat_protection_actively_cooling": False,
+    }
+
+    def _cfg(self):
+        cfg = MagicMock()
+        cfg.general.backend = "fleet"
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def test_status_shows_cop(self):
+        mock = MagicMock()
+        mock.get_climate_state.return_value = self.CLIMATE_WITH_COP
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection")
+        assert result.exit_code == 0
+        assert "FAN_ONLY" in result.output
+
+    def test_status_json(self):
+        mock = MagicMock()
+        mock.get_climate_state.return_value = self.CLIMATE_WITH_COP
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "cabin-protection")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["cabin_overheat_protection"] == "FAN_ONLY"
+        assert "actively_cooling" in data
+
+    def test_enable(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--on")
+        assert result.exit_code == 0
+        assert "enabled" in result.output.lower()
+        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False)
+
+    def test_disable(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--off")
+        assert result.exit_code == 0
+        assert "disabled" in result.output.lower()
+        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=False, fan_only=False)
+
+    def test_level_fan_only(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--level", "FAN_ONLY")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=True)
+
+    def test_level_no_ac(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--level", "NO_AC")
+        assert result.exit_code == 0
+        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False)
+
+    def test_level_case_insensitive(self):
+        """--level should accept lowercase."""
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--level", "fan_only")
+        assert result.exit_code == 0
+
+    def test_level_invalid(self):
+        mock = MagicMock()
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "cabin-protection", "--level", "TURBO")
+        assert result.exit_code == 1
+        assert "Invalid level" in result.output
+
+    def test_level_json(self):
+        mock = MagicMock()
+        mock.command.return_value = {"result": True}
+        mock.wake_up.return_value = True
+        with (
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock),
+            patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("-j", "vehicle", "cabin-protection", "--level", "FAN_ONLY")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["cabin_overheat_protection"] == "FAN_ONLY"
+
+    def test_cabin_protection_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "cabin-protection" in result.output

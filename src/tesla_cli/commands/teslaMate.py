@@ -580,6 +580,64 @@ def teslaMate_report(
     console.print()
 
 
+@teslaMate_app.command("graph")
+def teslaMate_graph(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of recent sessions to chart"),
+) -> None:
+    """ASCII bar chart of recent charging sessions (kWh per session) from TeslaMate.
+
+    tesla teslaMate graph
+    tesla teslaMate graph --limit 30
+    tesla -j teslaMate graph | jq '.[0].energy_added_kwh'
+    """
+    import json as _json
+    import shutil
+
+    backend = _backend()
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Fetching last {limit} charging sessions...", total=None)
+        sessions = backend.get_charging_sessions(limit=limit)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(sessions, indent=2, default=str))
+        return
+
+    if not sessions:
+        console.print("[yellow]No charging sessions found in TeslaMate.[/yellow]")
+        return
+
+    terminal_cols = shutil.get_terminal_size((80, 24)).columns
+    BAR_MAX_WIDTH = max(10, min(terminal_cols - 32, 60))
+
+    kwh_values = [float(s.get("energy_added_kwh") or 0) for s in sessions]
+    max_kwh    = max(kwh_values) if any(v > 0 for v in kwh_values) else 1.0
+    total_kwh  = sum(kwh_values)
+    total_cost = sum(float(s.get("cost") or 0) for s in sessions)
+
+    console.print()
+    console.print(f"  [bold cyan]Charging Sessions — last {len(sessions)}[/bold cyan]")
+    console.print(f"  [dim]Scale: full bar = {max_kwh:.1f} kWh[/dim]")
+    console.print()
+
+    for s in sessions:
+        kwh  = float(s.get("energy_added_kwh") or 0)
+        date = str(s.get("start_date") or "")[:10]
+        loc  = (s.get("location") or "Unknown")[:16]
+        label = f"{date}  {loc:<16}"
+
+        bar_len = round((kwh / max_kwh) * BAR_MAX_WIDTH) if max_kwh > 0 else 0
+        bar     = "█" * bar_len
+
+        bc = "green" if kwh >= 30 else "yellow" if kwh >= 10 else "red"
+        console.print(f"  [dim]{label}[/dim]  [{bc}]{bar}[/{bc}] {kwh:.1f} kWh")
+
+    console.print()
+    parts = [f"{len(sessions)} sessions", f"{total_kwh:.1f} kWh total"]
+    if total_cost:
+        parts.append(f"${total_cost:.2f} total cost")
+    console.print(f"  [dim]{' │ '.join(parts)}[/dim]")
+
+
 @teslaMate_app.command("stats")
 def teslaMate_stats() -> None:
     """Show lifetime driving and charging statistics from TeslaMate.
