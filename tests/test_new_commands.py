@@ -5886,3 +5886,333 @@ class TestTeslaMateGrafana:
         result = _run("teslaMate", "--help")
         assert result.exit_code == 0
         assert "grafana" in result.output
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.3.0 Tests: vehicle map, geofence, Home Assistant
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestVehicleMap:
+    """Tests for `tesla vehicle map`."""
+
+    def _cfg(self):
+        from tesla_cli.config import Config
+        cfg = Config()
+        cfg.general.default_vin = MOCK_VIN
+        return cfg
+
+    def _drive_state(self, lat=37.4219, lon=-122.0840, heading=90, speed=0, shift="P"):
+        return {
+            "latitude": lat,
+            "longitude": lon,
+            "heading": heading,
+            "speed": speed,
+            "shift_state": shift,
+        }
+
+    def test_map_renders_grid(self):
+        mock_backend = MagicMock()
+        mock_backend.get_drive_state.return_value = self._drive_state()
+        with patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()), \
+             patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+            result = _run("vehicle", "map")
+        assert result.exit_code == 0
+        # Grid contains directional chars and coordinate labels
+        assert "N " in result.output or "°" in result.output
+
+    def test_map_json_output(self):
+        mock_backend = MagicMock()
+        mock_backend.get_drive_state.return_value = self._drive_state(lat=51.5074, lon=-0.1278, heading=270)
+        with patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()), \
+             patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+            result = _run("-j", "vehicle", "map")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["lat"] == 51.5074
+        assert data["lon"] == -0.1278
+        assert data["heading"] == 270
+
+    def test_map_no_gps_exits(self):
+        mock_backend = MagicMock()
+        mock_backend.get_drive_state.return_value = {"speed": 0}
+        with patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()), \
+             patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+            result = _run("vehicle", "map")
+        assert result.exit_code != 0
+        assert "GPS" in result.output or "No GPS" in result.output
+
+    def test_map_in_help(self):
+        result = _run("vehicle", "--help")
+        assert "map" in result.output
+
+    def test_map_custom_span(self):
+        mock_backend = MagicMock()
+        mock_backend.get_drive_state.return_value = self._drive_state()
+        with patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.vehicle.load_config", return_value=self._cfg()), \
+             patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+            result = _run("vehicle", "map", "--span", "0.02")
+        assert result.exit_code == 0
+
+
+class TestGeofenceCommands:
+    """Tests for `tesla geofence` command group."""
+
+    def _cfg(self, zones=None):
+        from tesla_cli.config import Config, GeofencesConfig
+        cfg = Config()
+        cfg.general.default_vin = MOCK_VIN
+        if zones:
+            cfg.geofences.zones = zones
+        return cfg
+
+    def test_geofence_add(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.geofence.save_config") as mock_save:
+            result = _run("geofence", "add", "home", "--lat", "37.4219", "--lon", "-122.0840")
+        assert result.exit_code == 0
+        assert "home" in result.output
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert "home" in saved.geofences.zones
+        assert saved.geofences.zones["home"]["lat"] == 37.4219
+
+    def test_geofence_add_with_radius(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.geofence.save_config") as mock_save:
+            result = _run("geofence", "add", "work", "--lat", "37.3382", "--lon", "-121.8863", "--radius", "0.3")
+        assert result.exit_code == 0
+        saved = mock_save.call_args[0][0]
+        assert saved.geofences.zones["work"]["radius_km"] == 0.3
+
+    def test_geofence_add_json(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.geofence.save_config"):
+            result = _run("-j", "geofence", "add", "home", "--lat", "37.4219", "--lon", "-122.0840")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["zone"] == "home"
+        assert data["status"] == "added"
+
+    def test_geofence_list_empty(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg):
+            result = _run("geofence", "list")
+        assert result.exit_code == 0
+        assert "No geofence" in result.output
+
+    def test_geofence_list_with_zones(self):
+        cfg = self._cfg(zones={
+            "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
+            "work": {"lat": 37.3382, "lon": -121.8863, "radius_km": 0.3},
+        })
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg):
+            result = _run("geofence", "list")
+        assert result.exit_code == 0
+        assert "home" in result.output
+        assert "work" in result.output
+
+    def test_geofence_list_json(self):
+        cfg = self._cfg(zones={"home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5}})
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg):
+            result = _run("-j", "geofence", "list")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert data[0]["name"] == "home"
+
+    def test_geofence_remove_existing(self):
+        cfg = self._cfg(zones={"home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5}})
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.geofence.save_config") as mock_save:
+            result = _run("geofence", "remove", "home")
+        assert result.exit_code == 0
+        assert "removed" in result.output.lower()
+        saved = mock_save.call_args[0][0]
+        assert "home" not in saved.geofences.zones
+
+    def test_geofence_remove_nonexistent(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg):
+            result = _run("geofence", "remove", "nonexistent")
+        assert result.exit_code != 0
+
+    def test_geofence_watch_no_zones_exits(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.geofence.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.geofence.resolve_vin", return_value=MOCK_VIN):
+            result = _run("geofence", "watch")
+        assert result.exit_code != 0
+        assert "No geofence" in result.output
+
+    def test_geofence_watch_detects_enter(self):
+        """Vehicle moves inside zone → ENTER event fired."""
+        cfg = self._cfg(zones={
+            "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
+        })
+        call_count = [0]
+        # First call: outside zone, second call: inside zone, third: interrupt
+        def _drive_side_effect(v):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return {"latitude": 37.4300, "longitude": -122.0900}  # ~1.2 km away
+            if call_count[0] == 2:
+                return {"latitude": 37.4219, "longitude": -122.0840}  # inside
+            raise KeyboardInterrupt
+
+        mock_backend = MagicMock()
+        mock_backend.get_drive_state.side_effect = _drive_side_effect
+
+        from contextlib import ExitStack
+        patches = [
+            patch("tesla_cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.commands.geofence.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("time.sleep"),
+        ]
+        with ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            result = _run("geofence", "watch", "--interval", "5")
+        assert result.exit_code == 0
+        assert "ENTER" in result.output
+
+    def test_geofence_in_help(self):
+        result = _run("geofence", "--help")
+        assert result.exit_code == 0
+        assert "add" in result.output
+        assert "watch" in result.output
+
+
+class TestHaCommands:
+    """Tests for `tesla ha` command group."""
+
+    def _cfg(self, url="http://ha.local:8123", token="ha_token_abc"):
+        from tesla_cli.config import Config
+        cfg = Config()
+        cfg.general.default_vin = MOCK_VIN
+        cfg.home_assistant.url   = url
+        cfg.home_assistant.token = token
+        return cfg
+
+    def _vehicle_data(self):
+        return {
+            "charge_state": {
+                "battery_level": 72,
+                "battery_range": 220.0,
+                "charging_state": "Disconnected",
+                "charge_limit_soc": 80,
+                "charge_energy_added": 5.2,
+                "charger_power": 0,
+            },
+            "drive_state": {
+                "speed": 0,
+                "shift_state": "P",
+                "latitude": 37.4219,
+                "longitude": -122.0840,
+                "heading": 90,
+            },
+            "climate_state": {
+                "inside_temp": 22.0,
+                "outside_temp": 18.5,
+                "is_climate_on": False,
+            },
+            "vehicle_state": {
+                "locked": True,
+                "odometer": 12500.0,
+                "software_version": "2024.14.3",
+                "is_user_present": False,
+            },
+        }
+
+    def test_ha_setup_saves_config(self):
+        cfg = self._cfg(url="", token="")
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ha.save_config") as mock_save:
+            result = _run("ha", "setup", "http://ha.local:8123", "my_ha_token")
+        assert result.exit_code == 0
+        saved = mock_save.call_args[0][0]
+        assert saved.home_assistant.url == "http://ha.local:8123"
+        assert saved.home_assistant.token == "my_ha_token"
+
+    def test_ha_status_not_configured(self):
+        cfg = self._cfg(url="", token="")
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg):
+            result = _run("ha", "status")
+        assert result.exit_code == 0
+        assert "Not configured" in result.output or "not set" in result.output
+
+    def test_ha_status_configured_json(self):
+        cfg = self._cfg()
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg):
+            result = _run("-j", "ha", "status")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["configured"] is True
+        assert data["token_set"] is True
+        assert "ha.local" in data["url"]
+
+    def test_ha_push_no_config_fails(self):
+        cfg = self._cfg(url="", token="")
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ha.resolve_vin", return_value=MOCK_VIN):
+            result = _run("ha", "push")
+        assert result.exit_code != 0
+        assert "not configured" in result.output.lower()
+
+    def test_ha_push_success(self):
+        cfg = self._cfg()
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.ha._push_state", return_value={"entity_id": "sensor.tesla_battery_level", "state": "72"}):
+            result = _run("ha", "push")
+        assert result.exit_code == 0
+        assert "Pushed" in result.output
+
+    def test_ha_push_json(self):
+        cfg = self._cfg()
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.ha._push_state", return_value={"state": "ok"}):
+            result = _run("-j", "ha", "push")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "pushed" in data
+        assert data["pushed"] > 0
+        assert "results" in data
+
+    def test_ha_push_partial_failure(self):
+        """Some pushes fail → errors reported but exit 0."""
+        cfg = self._cfg()
+        mock_backend = MagicMock()
+        mock_backend.get_vehicle_data.return_value = self._vehicle_data()
+        call_count = [0]
+        def _push_side(base, tok, eid, state, attrs):
+            call_count[0] += 1
+            if call_count[0] % 3 == 0:
+                raise ConnectionError("HA unreachable")
+            return {"state": state}
+        with patch("tesla_cli.commands.ha.load_config", return_value=cfg), \
+             patch("tesla_cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
+             patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.commands.ha._push_state", side_effect=_push_side):
+            result = _run("ha", "push")
+        assert result.exit_code == 0  # partial failure is warned, not fatal
+
+    def test_ha_in_help(self):
+        result = _run("ha", "--help")
+        assert result.exit_code == 0
+        assert "push" in result.output
+        assert "sync" in result.output

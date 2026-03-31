@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-03-30
+
+### Added — Vehicle Map, Geofencing, Home Assistant
+
+- **`tesla vehicle map`** — ASCII terminal map centered on current GPS position; `--span` controls degree window (default 0.05 ≈ 5 km); overlays named geofence zones as `░` fill; heading arrow (↑↗→↘↓↙←↖▲), shift state, speed; JSON mode returns `{lat, lon, heading, speed, shift_state}`
+- **`tesla geofence add <name> --lat <lat> --lon <lon>`** — add a named geographic zone; `--radius` in km (default 0.5); stored in config
+- **`tesla geofence list`** — table of all zones; JSON mode
+- **`tesla geofence remove <name>`** — delete a zone
+- **`tesla geofence watch`** — continuous polling (default 30s); prints `ENTER`/`EXIT` events when vehicle crosses zone boundaries; `--notify URL` Apprise alerts; first poll establishes baseline silently; JSON mode emits `{ts, lat, lon, inside, events}` each cycle
+- **`tesla ha setup <URL> <TOKEN>`** — configure Home Assistant URL and long-lived access token
+- **`tesla ha status`** — show HA config + live connectivity check; JSON mode
+- **`tesla ha push`** — one-shot push of 18 vehicle sensor entities to HA REST API (`sensor.tesla_*`); reports per-entity errors gracefully; JSON mode
+- **`tesla ha sync`** — continuous HA push loop; `--interval` seconds (default 60); `--notify URL` error alerts; JSON mode
+
+### Config
+
+- `GeofencesConfig(zones: dict)` — named zone store for geofencing; serialized to `[geofences]` in config.toml
+
+### Tests
+
+- 640 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+
+---
+
 ## [2.2.0] - 2026-03-30
 
 ### Added — Ecosystem Hub: ABRP + BLE + Grafana
