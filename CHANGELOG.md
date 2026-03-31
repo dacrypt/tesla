@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-03-30
+
+### Added — Provider Architecture
+
+- **Provider ABC** (`tesla_cli/providers/base.py`) — `Provider`, `ProviderResult`, `Capability` (11 capability constants), `ProviderPriority` (CRITICAL/HIGH/MEDIUM/LOW/MINIMAL) standardise how every data source and sink is represented
+- **ProviderRegistry** (`tesla_cli/providers/registry.py`) — single orchestration hub:
+  - `get(capability)` → highest-priority available provider; raises `CapabilityNotAvailableError` if none
+  - `fetch_with_fallback()` / `execute_with_fallback()` — try providers in priority order, return first success
+  - `fanout(capability, operation)` — execute against ALL available providers simultaneously (telemetry sinks, notifications)
+  - `status()` / `health_report()` / `capability_map()` — full ecosystem observability
+- **6 provider implementations** across 4 priority layers:
+  - **L0 `BleProvider`** (CRITICAL=100) — `VEHICLE_COMMAND`; wraps `tesla-control` binary; available when binary + key present
+  - **L1 `VehicleApiProvider`** (HIGH=80) — `VEHICLE_STATE`, `VEHICLE_COMMAND`, `VEHICLE_LOCATION`; wraps Owner/Tessie/Fleet backends
+  - **L2 `TeslaMateProvider`** (MEDIUM=60) — `HISTORY_TRIPS`, `HISTORY_CHARGES`, `HISTORY_STATS`; wraps TeslaMate PostgreSQL
+  - **L3 `AbrpProvider`** (LOW=40) — `TELEMETRY_PUSH`; translates vehicle state to ABRP `/1/tlm/send` format
+  - **L3 `HomeAssistantProvider`** (LOW=40) — `HOME_SYNC`; pushes 18 `sensor.tesla_*` entities to HA REST API
+  - **L3 `AppriseProvider`** (LOW=40) — `NOTIFY`; multi-channel notification via Apprise
+- **`tesla providers status`** — rich table of all registered providers (layer, availability, capabilities) + capability routing summary showing which provider wins each capability
+- **`tesla providers test`** — runs `health_check()` on every provider with Rich progress spinner; shows latency + detail
+- **`tesla providers capabilities`** — full capability map: which providers serve which operations
+- **`GET /api/providers`** + **`GET /api/providers/capabilities`** — provider registry exposed via REST API
+- **SSE fan-out** — `/api/vehicle/stream?fanout=true` pushes each polling tick to all configured telemetry + home-sync sinks (ABRP + HA simultaneously)
+- **Singleton registry** via `get_registry()` in `tesla_cli/providers/__init__.py` — lazy-loaded, force-reloadable
+
+### Tests
+
+- 732 unit tests passing, 2 skipped (fpdf2 optional), ruff clean
+- `tests/test_providers.py` — 61 tests covering: Capability, ProviderResult, ProviderRegistry (routing, fallback, fanout, unregister), all 6 provider implementations, loader, and CLI commands
+
+---
+
 ## [2.4.0] - 2026-03-30
 
 ### Added — API Server + Web Dashboard (`tesla serve`)
