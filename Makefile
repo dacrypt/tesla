@@ -17,7 +17,7 @@ ui: ## Start frontend dev server only (with proxy to backend)
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
-build: ## Build UI into the Python package (src/tesla_cli/server/ui_dist/)
+build: ## Build UI into the Python package (src/tesla_cli/api/ui_dist/)
 	npm --prefix ui run build
 
 install: ## Install all dependencies (Python + Node)
@@ -41,7 +41,7 @@ lint-fix: ## Auto-fix lint issues
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 
 clean: ## Remove build artifacts
-	rm -rf src/tesla_cli/server/ui_dist/*
+	rm -rf src/tesla_cli/api/ui_dist/*
 	rm -rf ui/node_modules/.vite
 
 # ── Production ───────────────────────────────────────────────────────────────

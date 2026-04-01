@@ -26,7 +26,12 @@ import httpx
 from rich.prompt import Prompt
 
 from tesla_cli.core.exceptions import AuthenticationError
-from tesla_cli.cli.output import console
+
+
+def _console():
+    """Lazy import to avoid circular dependency core -> cli."""
+    from tesla_cli.cli.output import console
+    return console
 
 # Tesla OAuth2 endpoints
 AUTH_BASE = "https://auth.tesla.com/oauth2/v3"
@@ -52,7 +57,7 @@ def run_tesla_oauth_flow(
     scopes: str | None = None,
 ) -> dict[str, Any]:
     """Run Tesla auth. Returns dict with access_token and refresh_token."""
-    console.print(
+    _console().print(
         "\n[bold]Tesla Authentication[/bold]\n"
         "\nElige método:\n"
         "  [cyan]1[/cyan] - Login via browser (OAuth2 + PKCE)\n"
@@ -100,8 +105,8 @@ def _oauth_pkce_flow(
     }
     auth_url = f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
 
-    console.print("\n[bold]Abriendo browser para login de Tesla...[/bold]")
-    console.print(
+    _console().print("\n[bold]Abriendo browser para login de Tesla...[/bold]")
+    _console().print(
         "\nDespués de hacer login, Tesla te redirige a una página en blanco.\n"
         "[bold yellow]Copia la URL completa de esa página[/bold yellow] y pégala aquí.\n"
         "La URL se ve algo así: https://auth.tesla.com/void/callback?code=...&state=...\n"
@@ -116,7 +121,7 @@ def _oauth_pkce_flow(
     code = _extract_code_from_url(redirect_url.strip())
 
     # Exchange code for tokens
-    console.print("[dim]Intercambiando código por tokens...[/dim]")
+    _console().print("[dim]Intercambiando código por tokens...[/dim]")
     return _exchange_code(code, client_id, verifier, VOID_REDIRECT_URI)
 
 
@@ -129,7 +134,7 @@ def _refresh_token_flow(client_id: str | None = None) -> dict[str, Any]:
     3. Look for requests to auth.tesla.com with token responses
     4. Or use another tool (TeslaMate, Tessie, etc.) to export it
     """
-    console.print(
+    _console().print(
         "\n[bold]Refresh Token Directo[/bold]\n"
         "\nCómo obtener tu refresh token:\n"
         "  1. Ve a [link=https://tesla.com]tesla.com[/link] y haz login\n"
@@ -142,7 +147,7 @@ def _refresh_token_flow(client_id: str | None = None) -> dict[str, Any]:
         raise AuthenticationError("No token provided.")
 
     # Validate by refreshing
-    console.print("[dim]Validando refresh token...[/dim]")
+    _console().print("[dim]Validando refresh token...[/dim]")
     try:
         token_data = refresh_access_token(token.strip(), client_id)
     except httpx.HTTPStatusError as e:
