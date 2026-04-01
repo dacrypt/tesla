@@ -1,0 +1,70 @@
+{
+  "general": {
+    "default_vin": "LRWYGCEK3TC512197",
+    "backend": "fleet",
+    "cost_per_kwh": 0.0
+  },
+  "order": {
+    "reservation_number": "RN126460939"
+  },
+  "tessie": {
+    "configured": false
+  },
+  "fleet": {
+    "region": "na",
+    "client_id": "b2fe1e83-1b39-42da-8d55-40e30b10e3d6",
+    "domain": "dacrypt.github.io"
+  },
+  "notifications": {
+    "enabled": true,
+    "apprise_urls": [
+      "tgram://8533659059:AAFe4j5GCdJNt1lAUg0fvG76cwvKlBSaFiw/8572985298"
+    ],
+    "message_template": "{event}: {vehicle} \u2014 {detail}"
+  },
+  "vehicles": {
+    "aliases": {
+      "modely": "LRWYGCEK3TC512197"
+    }
+  },
+  "teslaMate": {
+    "database_url": "",
+    "car_id": 1
+  },
+  "geofences": {
+    "zones": {}
+  },
+  "abrp": {
+    "api_key": "[REDACTED]",
+    "user_token": "[REDACTED]"
+  },
+  "ble": {
+    "key_path": "[REDACTED]",
+    "ble_mac": ""
+  },
+  "home_assistant": {
+    "url": "",
+    "token": "[REDACTED]"
+  },
+  "grafana": {
+    "url": "http://localhost:3000"
+  },
+  "mqtt": {
+    "broker": "",
+    "port": 1883,
+    "topic_prefix": "tesla",
+    "username": "",
+    "password": "[REDACTED]",
+    "qos": 0,
+    "retain": false,
+    "tls": false
+  },
+  "server": {
+    "api_key": "[REDACTED]",
+    "pid_file": "/Users/david/.tesla-cli/server.pid"
+  },
+  "_meta": {
+    "backup_version": "1",
+    "tesla_cli_version": "1.9.0"
+  }
+}

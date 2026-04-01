@@ -113,7 +113,7 @@ def srv_tm():
     patches = [
         patch("tesla_cli.api.app.load_config", return_value=cfg),
         patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-        patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm_backend),
+        patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
     ]
     for p in patches:
         p.start()
@@ -127,14 +127,11 @@ def srv_tm():
 @pytest.fixture
 def srv_no_tm():
     """Server fixture with NO TeslaMate configured."""
-    from fastapi import HTTPException
     cfg = _make_cfg()
 
     patches = [
         patch("tesla_cli.api.app.load_config", return_value=cfg),
         patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-        patch("tesla_cli.api.routes.teslaMate._backend",
-              side_effect=HTTPException(status_code=503, detail="Telemetry database not found.")),
     ]
     for p in patches:
         p.start()
@@ -149,7 +146,9 @@ def srv_no_tm():
 
 class TestChargingLocations:
     def _run_cmd(self, tm_mock, extra_args=None):
-        with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm_mock):
+        cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
+        with patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg), \
+             patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_mock):
             return _run("teslaMate", "charging-locations", *(extra_args or []))
 
     def test_charging_locations_output(self):
@@ -162,7 +161,9 @@ class TestChargingLocations:
 
     def test_charging_locations_json(self):
         tm = _make_tm_backend()
-        with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm):
+        cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
+        with patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg), \
+             patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm):
             result = _run("-j", "teslaMate", "charging-locations")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -195,11 +196,11 @@ class TestChargingLocations:
         assert "charging-locations" in result.output
 
     def test_charging_locations_backend_method(self):
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        assert hasattr(TelemetryBackend, "get_charging_locations")
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        assert hasattr(TeslaMateBacked, "get_charging_locations")
 
     def test_charging_locations_sql(self):
-        src = Path(__file__).parent.parent / "src" / "tesla_cli" / "core" / "backends" / "telemetry.py"
+        src = Path(__file__).parent.parent / "src" / "tesla_cli" / "core" / "backends" / "teslaMate.py"
         text = src.read_text()
         assert "charge_energy_added" in text
         assert "GROUP BY" in text

@@ -45,24 +45,59 @@ const Settings: React.FC = () => {
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState<{ message: string; color: string } | null>(null);
 
-  // Telemetry
-  const [telemetry, setTelemetry] = useState<any>(null);
+  // TeslaMate stack
+  const [stack, setStack] = useState<StackStatus | null>(null);
+  const [stackCmd, setStackCmd] = useState<string | null>(null);
+  const [stackLogs, setStackLogs] = useState<string>('');
+  const [logsService, setLogsService] = useState('');
+  const [showLogs, setShowLogs] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s, c, p, tm] = await Promise.allSettled([
+      const [s, c, p, st] = await Promise.allSettled([
         api.getStatus(), api.getConfig(), api.getProviders(), api.getStackStatus(),
       ]);
       if (s.status === 'fulfilled') setStatus(s.value);
       if (c.status === 'fulfilled') setConfig(c.value);
       if (p.status === 'fulfilled') setProviders(Array.isArray(p.value) ? p.value : []);
-      if (tm.status === 'fulfilled') setTelemetry(tm.value);
+      if (st.status === 'fulfilled') setStack(st.value);
     } finally {
       setLoading(false);
     }
   };
 
+  const runStackAction = async (action: 'start' | 'stop' | 'restart' | 'update') => {
+    setStackCmd(action);
+    try {
+      if (action === 'start') await api.stackStart();
+      else if (action === 'stop') await api.stackStop();
+      else if (action === 'restart') await api.stackRestart();
+      else if (action === 'update') await api.stackUpdate();
+      setToast({ message: `Stack ${action} OK`, color: 'success' });
+      setTimeout(async () => {
+        try {
+          const st = await api.getStackStatus();
+          setStack(st);
+        } catch { /* ignore */ }
+      }, 2500);
+    } catch (e: any) {
+      setToast({ message: `Stack ${action} failed: ${e.message || e}`, color: 'danger' });
+    } finally {
+      setStackCmd(null);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const data = await api.getStackLogs(logsService || undefined);
+      setStackLogs(data.logs || '(no output)');
+      setShowLogs(true);
+    } catch (e: any) {
+      setStackLogs(`Error: ${e.message || e}`);
+      setShowLogs(true);
+    }
+  };
 
   const testConnection = async () => {
     setTesting(true);
@@ -200,46 +235,126 @@ const Settings: React.FC = () => {
                 </div>
               )}
 
-              {/* ---- Telemetry ---- */}
-              {(telemetry || !loading) && (
+              {/* ---- TeslaMate Stack ---- */}
+              {(stack || !loading) && (
                 <div className="tesla-card">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(5,196,107,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#05C46B' }}>
                       <DockerIcon />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Telemetry</div>
-                      <div style={{ color: '#86888f', fontSize: 12 }}>Native data logger (SQLite)</div>
+                      <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>TeslaMate Stack</div>
+                      <div style={{ color: '#86888f', fontSize: 12 }}>Docker Compose managed services</div>
                     </div>
-                    {telemetry && (
+                    {stack?.managed && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: telemetry.running ? '#0BE881' : '#FF6B6B', boxShadow: `0 0 6px ${telemetry.running ? '#0BE881' : '#FF6B6B'}` }} />
-                        <span style={{ color: telemetry.running ? '#0BE881' : '#FF6B6B', fontSize: 12, fontWeight: 600 }}>
-                          {telemetry.running ? 'Running' : 'Stopped'}
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: stack.running ? '#0BE881' : '#FF6B6B', boxShadow: `0 0 6px ${stack.running ? '#0BE881' : '#FF6B6B'}` }} />
+                        <span style={{ color: stack.running ? '#0BE881' : '#FF6B6B', fontSize: 12, fontWeight: 600 }}>
+                          {stack.running ? 'Running' : 'Stopped'}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {!telemetry ? (
+                  {!stack ? (
                     <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                      <div style={{ color: '#86888f', fontSize: 13 }}>Connect to API to see telemetry status</div>
+                      <div style={{ color: '#86888f', fontSize: 13 }}>Connect to API first to manage TeslaMate stack</div>
+                    </div>
+                  ) : !stack.managed ? (
+                    <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                      <div style={{ color: '#86888f', fontSize: 13, marginBottom: 6 }}>Not installed</div>
+                      <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+                        Run <code style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>tesla teslaMate install</code> from CLI
+                      </div>
                     </div>
                   ) : (
                     <>
-                      {[
-                        { label: 'Poll Interval', value: `${telemetry.poll_interval || 30}s` },
-                        { label: 'Database', value: telemetry.db_exists ? 'Active' : 'Not created yet' },
-                        { label: 'DB Size', value: telemetry.db_stats?.db_size_mb ? `${telemetry.db_stats.db_size_mb} MB` : '--' },
-                        { label: 'Positions', value: telemetry.db_stats?.positions?.toLocaleString() || '0' },
-                        { label: 'Drives', value: telemetry.db_stats?.drives?.toLocaleString() || '0' },
-                        { label: 'Charges', value: telemetry.db_stats?.charges?.toLocaleString() || '0' },
-                      ].map((item) => (
-                        <div key={item.label} className="stat-row">
-                          <span className="label-sm">{item.label}</span>
-                          <span style={{ color: '#ffffff', fontSize: 12 }}>{item.value}</span>
+                      {/* Service cards */}
+                      {stack.services.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                          {stack.services.map((svc) => (
+                            <div key={svc.name} style={{
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid rgba(255,255,255,0.07)',
+                              borderRadius: 8, padding: '10px 12px',
+                            }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 2 }}>{svc.name}</div>
+                              <div style={{ fontSize: 10, color: '#86888f', marginBottom: 4 }}>{svc.image || ''}</div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: svc.state === 'running' ? '#0BE881' : '#FF6B6B' }}>
+                                {svc.state}{svc.status ? ` — ${svc.status}` : ''}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
+                        {(['start', 'stop', 'restart', 'update'] as const).map((action) => {
+                          const disabled = stackCmd !== null || (action === 'start' && stack.running) || (action === 'stop' && !stack.running);
+                          const label = action === 'update' ? 'Update' : action.charAt(0).toUpperCase() + action.slice(1);
+                          return (
+                            <button
+                              key={action}
+                              onClick={() => runStackAction(action)}
+                              disabled={disabled}
+                              className={`tesla-btn${action === 'start' ? '' : ' secondary'}`}
+                              style={{ fontSize: 12, padding: '8px 4px' }}
+                            >
+                              {stackCmd === action ? <Spin /> : label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Quick links */}
+                      {stack.ports && (
+                        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                          <a href={`http://localhost:${stack.ports.teslamate}`} target="_blank" rel="noreferrer"
+                            style={{ color: '#0FBCF9', fontSize: 13, textDecoration: 'none' }}>
+                            TeslaMate UI ↗
+                          </a>
+                          <a href={`http://localhost:${stack.ports.grafana}`} target="_blank" rel="noreferrer"
+                            style={{ color: '#0FBCF9', fontSize: 13, textDecoration: 'none' }}>
+                            Grafana ↗
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Logs */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <LogIcon />
+                        <span style={{ fontSize: 12, color: '#86888f' }}>Logs</span>
+                        <select
+                          value={logsService}
+                          onChange={(e) => setLogsService(e.target.value)}
+                          style={{
+                            background: 'rgba(255,255,255,0.05)', color: '#fff',
+                            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4,
+                            padding: '3px 6px', fontSize: 11, marginLeft: 4,
+                          }}
+                        >
+                          <option value="">All</option>
+                          <option value="teslamate">teslamate</option>
+                          <option value="postgres">postgres</option>
+                          <option value="grafana">grafana</option>
+                          <option value="mosquitto">mosquitto</option>
+                        </select>
+                        <button onClick={fetchLogs} className="tesla-btn secondary" style={{ fontSize: 11, padding: '4px 10px', marginLeft: 'auto' }}>
+                          {showLogs ? 'Refresh' : 'View'}
+                        </button>
+                      </div>
+                      {showLogs && (
+                        <pre style={{
+                          background: '#0a0b0e', color: '#aaa',
+                          fontFamily: 'SF Mono, Menlo, monospace', fontSize: 10,
+                          lineHeight: 1.5, borderRadius: 8, padding: 10,
+                          maxHeight: 200, overflowY: 'auto', marginTop: 8,
+                          whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                        }}>
+                          {stackLogs}
+                        </pre>
+                      )}
                     </>
                   )}
                 </div>

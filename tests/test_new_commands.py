@@ -3,7 +3,6 @@ anonymize mode, VIN decoder, option code decoder, i18n, and TeslaMate config."""
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import tempfile
 from pathlib import Path
@@ -551,6 +550,7 @@ class TestTeslamateConfig:
     def test_teslaMate_app_registered(self):
         result = _run("teslaMate", "--help")
         assert result.exit_code == 0
+        assert "connect" in result.output
         assert "status" in result.output
         assert "trips" in result.output
         assert "charging" in result.output
@@ -561,18 +561,22 @@ class TestTeslamateConfig:
         # Should fail with a helpful message since not configured
         assert "teslaMate" in result.output.lower() or "configured" in result.output.lower() or result.exit_code != 0
 
-    def test_teslaMate_backend_uses_sqlite(self):
-        """TelemetryBackend uses sqlite3 (stdlib), no external DB driver needed."""
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        import sqlite3
-        import tempfile, os
-        db_path = os.path.join(tempfile.mkdtemp(), "test.db")
-        backend = TelemetryBackend(db_path)
-        # sqlite3 is stdlib — _get_conn should create the file, not raise ImportError
-        conn = backend._get_conn()
-        assert isinstance(conn, sqlite3.Connection)
-        conn.close()
-        os.unlink(db_path)
+    def test_teslaMate_backend_raises_import_error(self):
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked("postgresql://localhost/test")
+        # Without psycopg2 (or with a bad URL), ping should fail
+        # We test that the ImportError is raised when psycopg2 is not available
+        import sys
+        original = sys.modules.get("psycopg2")
+        sys.modules["psycopg2"] = None  # type: ignore[assignment]
+        try:
+            with pytest.raises((ImportError, TypeError)):
+                backend._get_conn()
+        finally:
+            if original is None:
+                del sys.modules["psycopg2"]
+            else:
+                sys.modules["psycopg2"] = original
 
 
 # ── Order Watch Changes Display ──────────────────────────────────────────────
@@ -1261,7 +1265,7 @@ class TestTeslaMatEfficiency:
 
         return (
             patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock_backend),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend),
             mock_backend,
         )
 
@@ -2620,12 +2624,12 @@ class TestTeslaMatVampireDrain:
         assert "vampire" in result.output
 
     def test_vampire_backend_method_returns_structure(self):
-        """TelemetryBackend.get_vampire_drain returns expected dict structure."""
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        backend = TelemetryBackend.__new__(TelemetryBackend)
+        """TeslaMateBacked.get_vampire_drain returns expected dict structure."""
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
         mock_rows = [
-            {"date": "2024-06-01", "avg_drain_km": 1.0, "avg_parked_hours": 8.0, "periods": 2},
+            {"date": "2024-06-01", "avg_drain_pct": 1.0, "avg_parked_hours": 8.0, "pct_per_hour": 0.125, "periods": 2},
         ]
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
@@ -2635,7 +2639,7 @@ class TestTeslaMatVampireDrain:
         backend._cursor = MagicMock(return_value=mock_ctx)
         result = backend.get_vampire_drain(days=30)
         assert result["days_analyzed"] == 30
-        assert "daily" in result
+        assert "avg_pct_per_hour" in result
         assert len(result["daily"]) == 1
 
 
@@ -3401,9 +3405,9 @@ class TestTeslaMatGeo:
         assert "geo" in result.output
 
     def test_geo_backend_method(self):
-        """TelemetryBackend.get_top_locations returns list of dicts."""
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        backend = TelemetryBackend.__new__(TelemetryBackend)
+        """TeslaMateBacked.get_top_locations returns list of dicts."""
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
         mock_rows = [
             {"location": "Home", "visit_count": 50, "latitude": 37.42, "longitude": -122.08,
@@ -3862,31 +3866,38 @@ class TestTeslaMatReport:
         assert "report" in result.output
 
     def test_report_backend_method(self):
-        """TelemetryBackend.get_monthly_report returns expected structure."""
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        backend = TelemetryBackend.__new__(TelemetryBackend)
+        """TeslaMateBacked.get_monthly_report returns expected structure."""
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
 
-        # The actual SQL returns these column names (see telemetry.py)
-        mock_drive_row = {"trips": 10, "total_km": 300.0, "total_drive_min": 240}
-        mock_charge_row = {"sessions": 5, "total_kwh_charged": 60.0, "total_cost": 9.0}
+        mock_drive_row = {
+            "trips": 10, "total_km": 300.0, "total_drive_min": 240,
+            "total_kwh_used": 45.0, "avg_km_per_trip": 30.0,
+            "longest_trip_km": 80.0, "avg_wh_per_km": 150.0,
+        }
+        mock_charge_row = {
+            "sessions": 5, "total_kwh_charged": 60.0, "total_cost": 9.0,
+            "avg_kwh_per_session": 12.0, "dc_fast_sessions": 1, "ac_sessions": 4,
+        }
 
-        # Both queries execute inside a single _cursor() context manager
-        fetchone_results = [mock_drive_row, mock_charge_row]
-        call_idx = {"n": 0}
+        call_count = {"n": 0}
 
-        mock_cur = MagicMock()
-        def fake_fetchone():
-            idx = call_idx["n"]
-            call_idx["n"] += 1
-            return fetchone_results[idx]
-        mock_cur.fetchone = fake_fetchone
+        def make_ctx(row):
+            cur = MagicMock()
+            cur.fetchone.return_value = row
+            ctx = MagicMock()
+            ctx.__enter__ = MagicMock(return_value=cur)
+            ctx.__exit__ = MagicMock(return_value=False)
+            return ctx
 
-        mock_ctx = MagicMock()
-        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
-        mock_ctx.__exit__ = MagicMock(return_value=False)
-        backend._cursor = MagicMock(return_value=mock_ctx)
+        def fake_cursor():
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return make_ctx(mock_drive_row)
+            return make_ctx(mock_charge_row)
 
+        backend._cursor = fake_cursor
         result = backend.get_monthly_report(month="2024-06")
         assert result["month"] == "2024-06"
         assert result["driving"]["trips"] == 10
@@ -6209,10 +6220,6 @@ class TestHaCommands:
 
 # ─── tesla query ─────────────────────────────────────────────────────────────
 
-_has_openquery = importlib.util.find_spec("openquery") is not None
-
-
-@pytest.mark.skipif(not _has_openquery, reason="openquery not installed")
 class TestQueryCommand:
     """Tests for tesla query (openquery integration)."""
 
