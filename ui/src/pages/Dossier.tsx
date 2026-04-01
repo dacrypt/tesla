@@ -22,12 +22,14 @@ function Spin() {
 
 /* ── Helpers ── */
 
-function KV({ label, value, mono, color }: { label: string; value?: string | number | null; mono?: boolean; color?: string }) {
+function KV({ label, value, mono, color }: { label: string; value?: unknown; mono?: boolean; color?: string }) {
   if (value == null || value === '' || value === 0) return null;
+  // Safely convert objects to string to avoid React "Objects are not valid as a React child" crash
+  const display = typeof value === 'object' ? JSON.stringify(value) : String(value);
   return (
     <div className="stat-row">
       <span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>{label}</span>
-      <span style={{ color: color || 'var(--tesla-text)', fontSize: 12, fontWeight: 500, fontFamily: mono ? "'SF Mono', monospace" : undefined }}>{value}</span>
+      <span style={{ color: color || 'var(--tesla-text)', fontSize: 12, fontWeight: 500, fontFamily: mono ? "'SF Mono', monospace" : undefined }}>{display}</span>
     </div>
   );
 }
@@ -504,7 +506,7 @@ export default function Dossier() {
                         <span style={{ fontFamily: "'SF Mono', monospace", fontSize: 12, color: i === 0 ? '#0BE881' : 'var(--tesla-text)' }}>{v.version}</span>
                         <span style={{ fontSize: 10, color: 'var(--tesla-text-secondary)' }}>{v.first_seen ? new Date(v.first_seen).toLocaleDateString() : ''}</span>
                       </div>
-                      {v.release_notes && <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)', marginTop: 2, lineHeight: 1.4 }}>{v.release_notes}</div>}
+                      {v.release_notes && <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)', marginTop: 2, lineHeight: 1.4 }}>{typeof v.release_notes === 'string' ? v.release_notes : JSON.stringify(v.release_notes)}</div>}
                     </div>
                   ))
                 ) : (
