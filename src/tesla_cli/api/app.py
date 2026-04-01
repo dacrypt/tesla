@@ -51,7 +51,14 @@ def _auto_provision_teslamate() -> None:
         log.info("TeslaMate not configured — auto-installing managed stack...")
         try:
             from tesla_cli.core.config import save_config
-            result = stack.install()
+            # Pick free ports (avoid conflicts with host services)
+            ports = {"postgres_port": 5432, "grafana_port": 3000, "teslamate_port": 4000, "mqtt_port": 1883}
+            for key, default in ports.items():
+                port = default
+                while stack.port_in_use(port):
+                    port += 1
+                ports[key] = port
+            result = stack.install(**ports)
             cfg = load_config()
             cfg.teslaMate.database_url = result["database_url"]
             cfg.teslaMate.managed = True
