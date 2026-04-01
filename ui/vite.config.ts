@@ -20,7 +20,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../src/tesla_cli/server/ui_dist',
+    outDir: '../src/tesla_cli/api/ui_dist',
     emptyOutDir: true,
   },
   test: {
