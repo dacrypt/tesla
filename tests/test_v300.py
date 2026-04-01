@@ -221,7 +221,7 @@ class TestTeslaMateTimelineRoute:
         patches = [
             patch("tesla_cli.api.app.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
+            patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm_backend),
         ]
         for p in patches:
             p.start()
@@ -289,7 +289,7 @@ class TestTeslaMateTimelineRoute:
         tm = _make_tm_backend()
         with (
             patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm),
+            patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm),
         ):
             result = _run("teslaMate", "timeline")
             assert result.exit_code == 0

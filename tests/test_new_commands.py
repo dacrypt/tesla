@@ -562,8 +562,8 @@ class TestTeslamateConfig:
         assert "teslaMate" in result.output.lower() or "configured" in result.output.lower() or result.exit_code != 0
 
     def test_teslaMate_backend_raises_import_error(self):
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-        backend = TeslaMateBacked("postgresql://localhost/test")
+        from tesla_cli.core.backends.telemetry import TelemetryBackend
+        backend = TelemetryBackend("postgresql://localhost/test")
         # Without psycopg2 (or with a bad URL), ping should fail
         # We test that the ImportError is raised when psycopg2 is not available
         import sys
@@ -1265,7 +1265,7 @@ class TestTeslaMatEfficiency:
 
         return (
             patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock_backend),
             mock_backend,
         )
 
@@ -2624,9 +2624,9 @@ class TestTeslaMatVampireDrain:
         assert "vampire" in result.output
 
     def test_vampire_backend_method_returns_structure(self):
-        """TeslaMateBacked.get_vampire_drain returns expected dict structure."""
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        """TelemetryBackend.get_vampire_drain returns expected dict structure."""
+        from tesla_cli.core.backends.telemetry import TelemetryBackend
+        backend = TelemetryBackend.__new__(TelemetryBackend)
         backend._car_id = 1
         mock_rows = [
             {"date": "2024-06-01", "avg_drain_pct": 1.0, "avg_parked_hours": 8.0, "pct_per_hour": 0.125, "periods": 2},
@@ -3405,9 +3405,9 @@ class TestTeslaMatGeo:
         assert "geo" in result.output
 
     def test_geo_backend_method(self):
-        """TeslaMateBacked.get_top_locations returns list of dicts."""
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        """TelemetryBackend.get_top_locations returns list of dicts."""
+        from tesla_cli.core.backends.telemetry import TelemetryBackend
+        backend = TelemetryBackend.__new__(TelemetryBackend)
         backend._car_id = 1
         mock_rows = [
             {"location": "Home", "visit_count": 50, "latitude": 37.42, "longitude": -122.08,
@@ -3866,9 +3866,9 @@ class TestTeslaMatReport:
         assert "report" in result.output
 
     def test_report_backend_method(self):
-        """TeslaMateBacked.get_monthly_report returns expected structure."""
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        """TelemetryBackend.get_monthly_report returns expected structure."""
+        from tesla_cli.core.backends.telemetry import TelemetryBackend
+        backend = TelemetryBackend.__new__(TelemetryBackend)
         backend._car_id = 1
 
         mock_drive_row = {
@@ -6572,7 +6572,7 @@ class TestTeslaMatChargingLocationsApi:
             mock_backend.get_charging_locations.return_value = self.MOCK_LOCATIONS
         app = create_app()
         app.state.override_vin = MOCK_VIN
-        p = patch("tesla_cli.api.routes.teslaMate._backend", return_value=mock_backend)
+        p = patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock_backend)
         p.start()
         client = TestClient(app, raise_server_exceptions=raise_exceptions)
         return client, mock_backend, p

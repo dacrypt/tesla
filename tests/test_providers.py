@@ -401,7 +401,7 @@ class TestTeslaMateProvider:
         p = self._provider()
         mock_backend = MagicMock()
         mock_backend.get_trips.return_value = [{"id": 1, "km": 42}]
-        with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
+        with patch("tesla_cli.api.routes.teslaMate._backend", return_value=mock_backend):
             result = p.fetch("trips", limit=10)
         assert result.ok
         assert result.data[0]["km"] == 42
@@ -409,7 +409,7 @@ class TestTeslaMateProvider:
     def test_fetch_unknown_operation(self):
         p = self._provider()
         mock_backend = MagicMock()
-        with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
+        with patch("tesla_cli.api.routes.teslaMate._backend", return_value=mock_backend):
             result = p.fetch("nonexistent")
         assert not result.ok
 

@@ -353,5 +353,11 @@ No competing tool combines all of these in one CLI:
 - [x] `GET /api/teslaMate/trip-stats` — trip aggregate REST endpoint; `?days=N`; returns `{summary, top_routes, days}`
 - [x] ~1090+ tests, ruff clean
 
-### v3.5.0 — Next Milestone
+### v3.5.0 — Energy Report, Charging-Locations API, Odometer API ✅ SHIPPED
+- [x] `tesla teslaMate energy-report` — monthly kWh + km + Wh/km summary aggregated from TeslaMate daily data; `--months N`; JSON mode
+- [x] `GET /api/teslaMate/charging-locations` — top charging locations REST endpoint; `?days=N&limit=N`; 503 when TeslaMate not configured
+- [x] `GET /api/vehicle/odometer` — odometer + firmware version REST endpoint; `{vin, odometer_miles, car_version, queried_at}`; 503 when asleep
+- [x] 1132 tests, 2 skipped, ruff clean
+
+### v3.6.0 — Next Milestone
 - [ ] TBD

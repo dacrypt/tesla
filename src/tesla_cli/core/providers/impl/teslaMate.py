@@ -38,58 +38,27 @@ class TeslaMateProvider(Provider):
         self._cfg = config
 
     def _backend(self):
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-        return TeslaMateBacked(
-            self._cfg.teslaMate.database_url,
-            car_id=self._cfg.teslaMate.car_id,
-        )
+        from pathlib import Path
+        from tesla_cli.core.backends.telemetry import TelemetryBackend
+        db_path = self._cfg.teslaMate.db_path or str(Path.home() / ".tesla-cli" / "telemetry.db")
+        return TelemetryBackend(db_path=db_path, car_id=self._cfg.teslaMate.car_id)
 
     def is_available(self) -> bool:
-        if not self._cfg.teslaMate.database_url:
-            return False
-        # If managed stack, check it's running
-        if self._cfg.teslaMate.managed:
-            try:
-                from pathlib import Path
-                from tesla_cli.infra.teslamate_stack import TeslaMateStack
-                stack = TeslaMateStack(
-                    Path(self._cfg.teslaMate.stack_dir)
-                    if self._cfg.teslaMate.stack_dir else None
-                )
-                return stack.is_running()
-            except Exception:  # noqa: BLE001
-                return False
-        return True
+        from pathlib import Path
+        db_path = self._cfg.teslaMate.db_path or str(Path.home() / ".tesla-cli" / "telemetry.db")
+        return Path(db_path).exists()
 
     def health_check(self) -> dict:
-        if not self._cfg.teslaMate.database_url:
-            return {"status": "down", "latency_ms": 0, "detail": "database_url not configured"}
-        # Managed stack health
-        stack_health = {}
-        if self._cfg.teslaMate.managed:
-            try:
-                from pathlib import Path
-                from tesla_cli.infra.teslamate_stack import TeslaMateStack
-                stack = TeslaMateStack(
-                    Path(self._cfg.teslaMate.stack_dir)
-                    if self._cfg.teslaMate.stack_dir else None
-                )
-                stack_health = stack.health_check()
-            except Exception:  # noqa: BLE001
-                pass
+        if not self.is_available():
+            return {"status": "down", "latency_ms": 0, "detail": "telemetry.db not found"}
         try:
             backend = self._backend()
             ok, ms  = self._timed(backend.ping)
-            detail = f"car_id={self._cfg.teslaMate.car_id}"
-            if self._cfg.teslaMate.managed:
-                detail += " (managed)"
             result = {
                 "status":     "ok" if ok else "down",
                 "latency_ms": round(ms, 1),
-                "detail":     detail,
+                "detail":     f"car_id={self._cfg.teslaMate.car_id} (native SQLite)",
             }
-            if stack_health:
-                result["stack"] = stack_health
             return result
         except Exception as exc:  # noqa: BLE001
             return {"status": "down", "latency_ms": 0, "detail": str(exc)}
