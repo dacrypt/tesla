@@ -8,14 +8,14 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 _runner = CliRunner()
 
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     for k, v in overrides.items():
@@ -31,7 +31,7 @@ def _make_cfg(**overrides):
 
 class TestMqttConfig:
     def test_defaults(self):
-        from tesla_cli.config import MqttConfig
+        from tesla_cli.core.config import MqttConfig
         mc = MqttConfig()
         assert mc.broker == ""
         assert mc.port == 1883
@@ -41,13 +41,13 @@ class TestMqttConfig:
         assert mc.tls is False
 
     def test_config_has_mqtt_field(self):
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
         cfg = Config()
         assert hasattr(cfg, "mqtt")
         assert cfg.mqtt.broker == ""
 
     def test_custom_values(self):
-        from tesla_cli.config import MqttConfig
+        from tesla_cli.core.config import MqttConfig
         mc = MqttConfig(broker="mqtt.example.com", port=8883, tls=True, username="user")
         assert mc.broker == "mqtt.example.com"
         assert mc.port == 8883
@@ -59,18 +59,18 @@ class TestMqttConfig:
 
 class TestMqttProvider:
     def _provider(self, broker="mqtt.example.com", **kwargs):
-        from tesla_cli.providers.impl.mqtt import MqttProvider
+        from tesla_cli.core.providers.impl.mqtt import MqttProvider
         cfg = _make_cfg(**{"mqtt.broker": broker}, **{f"mqtt.{k}": v for k, v in kwargs.items()})
         return MqttProvider(cfg)
 
     def test_capabilities(self):
-        from tesla_cli.providers.base import Capability
-        from tesla_cli.providers.impl.mqtt import MqttProvider
+        from tesla_cli.core.providers.base import Capability
+        from tesla_cli.core.providers.impl.mqtt import MqttProvider
         assert Capability.TELEMETRY_PUSH in MqttProvider.capabilities
 
     def test_layer_and_priority(self):
-        from tesla_cli.providers.base import ProviderPriority
-        from tesla_cli.providers.impl.mqtt import MqttProvider
+        from tesla_cli.core.providers.base import ProviderPriority
+        from tesla_cli.core.providers.impl.mqtt import MqttProvider
         assert MqttProvider.layer == 3
         assert MqttProvider.priority == ProviderPriority.LOW
 
@@ -168,8 +168,8 @@ class TestMqttProvider:
         assert "mqtt.example.com" in row["detail"]
 
     def test_loader_includes_mqtt(self):
-        from tesla_cli.providers.loader import build_registry
-        with patch("tesla_cli.auth.tokens.get_token", return_value=None):
+        from tesla_cli.core.providers.loader import build_registry
+        with patch("tesla_cli.core.auth.tokens.get_token", return_value=None):
             reg = build_registry(_make_cfg())
         names = {p.name for p in reg.all()}
         assert "mqtt" in names
@@ -192,7 +192,7 @@ class TestInstallService:
         assert "ProgramArguments" in result.output
 
     def test_install_systemd(self, tmp_path):
-        with patch("tesla_cli.commands.serve.Path.home", return_value=tmp_path):
+        with patch("tesla_cli.cli.commands.serve.Path.home", return_value=tmp_path):
             result = _runner.invoke(
                 cli_app,
                 ["serve", "install-service", "--platform", "systemd"],
@@ -201,7 +201,7 @@ class TestInstallService:
         assert "✓" in result.output or "Systemd" in result.output
 
     def test_install_launchd(self, tmp_path):
-        with patch("tesla_cli.commands.serve.Path.home", return_value=tmp_path):
+        with patch("tesla_cli.cli.commands.serve.Path.home", return_value=tmp_path):
             result = _runner.invoke(
                 cli_app,
                 ["serve", "install-service", "--platform", "launchd"],
@@ -215,7 +215,7 @@ class TestInstallService:
         assert "unknown" in result.output.lower() or "unsupported" in result.output.lower()
 
     def test_systemd_content(self):
-        from tesla_cli.commands.serve import _systemd_unit
+        from tesla_cli.cli.commands.serve import _systemd_unit
         content = _systemd_unit("/usr/local/bin/tesla", 8080, "127.0.0.1")
         assert "[Unit]" in content
         assert "[Service]" in content
@@ -225,7 +225,7 @@ class TestInstallService:
         assert "Restart=on-failure" in content
 
     def test_launchd_content(self):
-        from tesla_cli.commands.serve import _launchd_plist
+        from tesla_cli.cli.commands.serve import _launchd_plist
         content = _launchd_plist("/usr/local/bin/tesla", 9090, "0.0.0.0")
         assert "com.tesla-cli.server" in content
         assert "9090" in content
@@ -234,37 +234,3 @@ class TestInstallService:
         assert "KeepAlive" in content
 
 
-# ── Tests: Dashboard HTML ─────────────────────────────────────────────────────
-
-class TestDashboardHtml:
-    def _html(self):
-        p = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        return p.read_text()
-
-    def test_teslaMate_section_present(self):
-        assert "tm-section" in self._html()
-
-    def test_teslaMate_fetch_function(self):
-        assert "fetchTeslaMate" in self._html()
-
-    def test_trips_table_element(self):
-        assert "tm-trips-table" in self._html()
-
-    def test_charges_table_element(self):
-        assert "tm-charges-table" in self._html()
-
-    def test_energy_chart_element(self):
-        assert "tm-energy-chart" in self._html()
-
-    def test_stats_bar_element(self):
-        assert "tm-stats-bar" in self._html()
-
-    def test_geofence_sse_handler(self):
-        assert "geofence" in self._html()
-        assert "addEventListener" in self._html()
-
-    def test_vehicle_sse_handler(self):
-        assert "addEventListener('vehicle'" in self._html()
-
-    def test_bar_chart_function(self):
-        assert "tmBarChart" in self._html()

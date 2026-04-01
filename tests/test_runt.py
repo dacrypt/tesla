@@ -1,253 +1,182 @@
-"""Unit tests for RUNT backend."""
+"""Unit tests for RUNT backend (openquery delegation)."""
 
 from __future__ import annotations
 
-import io
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tesla_cli.backends.runt import RuntBackend, RuntError
-from tesla_cli.models.dossier import RuntData
+from tesla_cli.core.backends.runt import RuntBackend, RuntError
+from tesla_cli.core.models.dossier import RuntData
 
 
-class TestSolveCaptcha:
-    """Test captcha solving."""
+def _mock_runt_result(extra_fields: dict | None = None) -> MagicMock:
+    """Return a mock openquery RuntResult with sensible defaults."""
+    now = datetime.now(UTC)
+    fields = dict(
+        estado="REGISTRADO",
+        placa="XYZ123",
+        marca="TESLA",
+        linea="MODELO Y",
+        modelo_ano="2026",
+        color="GRIS GRAFITO",
+        clase_vehiculo="CAMIONETA",
+        tipo_servicio="PARTICULAR",
+        tipo_combustible="ELECTRICO",
+        tipo_carroceria="SUV",
+        numero_vin="LRWYGCEK3TC512197",
+        numero_chasis="LRWYGCEK3TC512197",
+        numero_motor="",
+        cilindraje="0",
+        puertas=4,
+        peso_bruto_kg=1992,
+        capacidad_pasajeros=5,
+        numero_ejes=2,
+        gravamenes=False,
+        prendas=False,
+        repotenciado=False,
+        fecha_matricula="2025-01-15",
+        autoridad_transito="SECRETARÍA DE TRÁNSITO",
+        nombre_pais="COLOMBIA",
+        queried_at=now,
+        # openquery extra fields (superset)
+        soat_vigente=True,
+        soat_aseguradora="SURA",
+        soat_vencimiento="2026-12-31",
+        tecnomecanica_vigente=True,
+        tecnomecanica_vencimiento="2026-06-30",
+    )
+    if extra_fields:
+        fields.update(extra_fields)
+    result = MagicMock()
+    result.model_dump.return_value = fields
+    return result
 
-    def test_solve_returns_alphanumeric(self):
-        """Solve should return only alphanumeric chars."""
-        # Create a simple test image with PIL
-        from PIL import Image, ImageDraw, ImageFont
 
-        img = Image.new("RGB", (200, 60), color="white")
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
-        except OSError:
-            font = ImageFont.load_default()
-        draw.text((20, 10), "AB12C", fill="black", font=font)
+def _mock_source(result: MagicMock) -> MagicMock:
+    src = MagicMock()
+    src.query.return_value = result
+    return src
 
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        image_bytes = buf.getvalue()
 
+class TestRuntBackendInit:
+    def test_default_timeout(self):
         backend = RuntBackend()
-        result = backend._solve_captcha(image_bytes)
+        assert backend._timeout == 30.0
 
-        # Should be alphanumeric only
-        assert result.isalnum(), f"Expected alphanumeric, got: '{result}'"
-        # Should be at most 5 chars (we truncate)
-        assert len(result) <= 5
-
-    def test_solve_empty_image_raises(self):
-        """Too-small OCR result should raise."""
-        # Blank white image — OCR returns empty
-        from PIL import Image
-
-        img = Image.new("RGB", (50, 20), color="white")
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-
-        backend = RuntBackend()
-        with pytest.raises(RuntError, match="too few characters"):
-            backend._solve_captcha(buf.getvalue())
+    def test_custom_timeout(self):
+        backend = RuntBackend(timeout=60.0)
+        assert backend._timeout == 60.0
 
 
-class TestQuery:
-    """Test _query method with mocked Playwright page."""
+class TestRuntBackendDelegation:
+    """Test that RuntBackend delegates to openquery co.runt."""
 
-    def test_query_success(self):
-        """Successful query returns parsed data."""
-        import json as _json
+    def test_query_by_vin_delegates_to_openquery(self):
+        result = _mock_runt_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = RuntBackend().query_by_vin("LRWYGCEK3TC512197")
+        assert isinstance(data, RuntData)
+        assert data.marca == "TESLA"
+        assert data.estado == "REGISTRADO"
 
-        backend = RuntBackend()
-        mock_page = MagicMock()
-        mock_page.evaluate.return_value = {
-            "status": 200,
-            "body": _json.dumps({
-                "infoVehiculo": {
-                    "estadoAutomotor": "REGISTRADO",
-                    "marca": "TESLA",
-                    "linea": "MODELO Y",
-                    "modelo": "2026",
-                    "color": "GRIS GRAFITO",
-                    "vin": "5YJ3E1EA1PF000001",
-                    "numChasis": "5YJ3E1EA1PF000001",
-                    "tipoCombustible": "ELECTRICO",
-                    "tipoCarroceria": "SUV",
-                    "clase": "CAMIONETA",
-                    "puertas": "4",
-                    "pesoBruto": "1992",
-                    "pasajerosSentados": "5",
-                    "numeroEjes": "2",
-                    "gravamenes": "NO",
-                }
-            }),
-        }
+    def test_query_by_plate_delegates_to_openquery(self):
+        result = _mock_runt_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = RuntBackend().query_by_plate("XYZ123")
+        assert isinstance(data, RuntData)
+        assert data.placa == "XYZ123"
 
-        result = backend._query(mock_page, "5YJ3E1EA1PF000001", "abc12", "test-uuid")
-        assert result["infoVehiculo"]["marca"] == "TESLA"
+    def test_raises_runt_error_on_source_exception(self):
+        src = MagicMock()
+        src.query.side_effect = RuntimeError("timeout")
+        with patch("openquery.sources.get_source", return_value=src), pytest.raises(RuntError, match="RUNT query failed"):
+            RuntBackend().query_by_vin("VIN123")
 
-    def test_query_captcha_fail_raises(self):
-        """401 response raises RuntError."""
-        backend = RuntBackend()
-        mock_page = MagicMock()
-        mock_page.evaluate.return_value = {
-            "status": 401,
-            "body": "Unauthorized",
-        }
+    def test_raises_runt_error_when_openquery_not_installed(self):
+        import builtins
+        real_import = builtins.__import__
 
-        with pytest.raises(RuntError, match="Captcha verification failed"):
-            backend._query(mock_page, "VIN", "bad", "uuid")
+        def mock_import(name, *args, **kwargs):
+            if name.startswith("openquery"):
+                raise ImportError("No module named 'openquery'")
+            return real_import(name, *args, **kwargs)
 
-    def test_query_server_error_raises(self):
-        """500 response raises RuntError."""
-        backend = RuntBackend()
-        mock_page = MagicMock()
-        mock_page.evaluate.return_value = {
-            "status": 500,
-            "body": "Internal Server Error",
-        }
+        with patch("builtins.__import__", side_effect=mock_import), pytest.raises(RuntError, match="openquery is required"):
+            RuntBackend().query_by_vin("VIN123")
 
-        with pytest.raises(RuntError, match="500"):
-            backend._query(mock_page, "VIN", "abc", "uuid")
+    def test_runt_data_fields_mapped_correctly(self):
+        result = _mock_runt_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = RuntBackend().query_by_vin("LRWYGCEK3TC512197")
+        assert data.linea == "MODELO Y"
+        assert data.modelo_ano == "2026"
+        assert data.tipo_combustible == "ELECTRICO"
+        assert data.gravamenes is False
+        assert data.puertas == 4
+        assert data.capacidad_pasajeros == 5
 
+    def test_extra_openquery_fields_ignored_gracefully(self):
+        """Fields in openquery result not in RuntData.model_fields are discarded."""
+        result = _mock_runt_result(extra_fields={
+            "unknown_extra_field": "some_value",
+            "another_unknown": 42,
+        })
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = RuntBackend().query_by_plate("XYZ123")
+        assert isinstance(data, RuntData)
+        assert not hasattr(data, "unknown_extra_field")
 
-class TestRetryLogic:
-    """Test that query_by_vin retries on failure.
+    def test_vin_doc_type_passed_to_openquery(self):
+        """query_by_vin must use DocumentType.VIN."""
+        from openquery.sources.base import DocumentType, QueryInput
+        result = _mock_runt_result()
+        src = _mock_source(result)
+        with patch("openquery.sources.get_source", return_value=src):
+            RuntBackend().query_by_vin("LRWYGCEK3TC512197")
+        call_args = src.query.call_args[0][0]
+        assert isinstance(call_args, QueryInput)
+        assert call_args.document_type == DocumentType.VIN
+        assert call_args.document_number == "LRWYGCEK3TC512197"
 
-    query_by_vin launches Playwright internally. We mock sync_playwright
-    to provide a fake page, and mock the internal methods with correct
-    signatures (they now take a `page` argument).
-    """
+    def test_plate_doc_type_passed_to_openquery(self):
+        """query_by_plate must use DocumentType.PLATE."""
+        from openquery.sources.base import DocumentType
+        result = _mock_runt_result()
+        src = _mock_source(result)
+        with patch("openquery.sources.get_source", return_value=src):
+            RuntBackend().query_by_plate("XYZ123")
+        call_args = src.query.call_args[0][0]
+        assert call_args.document_type == DocumentType.PLATE
+        assert call_args.document_number == "XYZ123"
 
-    def test_retries_on_captcha_failure(self):
-        """Should retry up to MAX_RETRIES times."""
-        backend = RuntBackend()
-        call_count = 0
-
-        def mock_generate(page):
-            nonlocal call_count
-            call_count += 1
-            return ("uuid-" + str(call_count), b"\x89PNG" + b"\x00" * 200)
-
-        def mock_query(page, vin, captcha, cid):
-            raise RuntError("Captcha error")
-
-        # Mock Playwright so query_by_vin can create its page
-        mock_page = MagicMock()
-        mock_browser = MagicMock()
-        mock_browser.new_page.return_value = mock_page
-        mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
-
-        with patch("tesla_cli.backends.runt.sync_playwright") as mock_sp, \
-             patch.object(backend, "_generate_captcha", side_effect=mock_generate), \
-             patch.object(backend, "_solve_captcha", return_value="abc12"), \
-             patch.object(backend, "_query", side_effect=mock_query):
-            mock_sp.return_value.__enter__ = MagicMock(return_value=mock_pw)
-            mock_sp.return_value.__exit__ = MagicMock(return_value=False)
-
-            with pytest.raises(RuntError, match="All 3 attempts failed"):
-                backend.query_by_vin("TESTVIN")
-
-        assert call_count == 3
-
-    def test_succeeds_on_second_attempt(self):
-        """Should succeed if second attempt works."""
-        backend = RuntBackend()
-        attempt = 0
-
-        def mock_generate(page):
-            return ("uuid", b"\x89PNG" + b"\x00" * 200)
-
-        def mock_query(page, vin, captcha, cid):
-            nonlocal attempt
-            attempt += 1
-            if attempt == 1:
-                raise RuntError("Captcha failed")
-            return {
-                "infoVehiculo": {
-                    "estadoAutomotor": "REGISTRADO",
-                    "marca": "TESLA",
-                    "linea": "MODELO Y",
-                    "modelo": "2026",
-                    "vin": vin,
-                }
-            }
-
-        mock_page = MagicMock()
-        mock_browser = MagicMock()
-        mock_browser.new_page.return_value = mock_page
-        mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
-
-        with patch("tesla_cli.backends.runt.sync_playwright") as mock_sp, \
-             patch.object(backend, "_generate_captcha", side_effect=mock_generate), \
-             patch.object(backend, "_solve_captcha", return_value="abc12"), \
-             patch.object(backend, "_query", side_effect=mock_query):
-            mock_sp.return_value.__enter__ = MagicMock(return_value=mock_pw)
-            mock_sp.return_value.__exit__ = MagicMock(return_value=False)
-
-            result = backend.query_by_vin("TESTVIN")
-
-        assert result.marca == "TESLA"
-        assert attempt == 2
+    def test_co_runt_source_name_used(self):
+        """Must request the 'co.runt' source specifically."""
+        result = _mock_runt_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)) as mock_gs:
+            RuntBackend().query_by_vin("LRWYGCEK3TC512197")
+        mock_gs.assert_called_once_with("co.runt")
 
 
-class TestParseResponse:
-    """Test response parsing into RuntData."""
+class TestRuntData:
+    """Test RuntData model."""
 
-    def test_parse_with_info_vehiculo(self):
-        """Parse response with infoVehiculo wrapper."""
-        backend = RuntBackend()
-        data = {
-            "infoVehiculo": {
-                "estadoAutomotor": "REGISTRADO",
-                "marca": "TESLA",
-                "linea": "MODELO Y",
-                "modelo": "2026",
-                "color": "GRIS GRAFITO",
-                "vin": "5YJ3E1EA1PF000001",
-                "numChasis": "5YJ3E1EA1PF000001",
-                "tipoCombustible": "ELECTRICO",
-                "tipoCarroceria": "SUV",
-                "clase": "CAMIONETA",
-                "puertas": "4",
-                "pesoBruto": "1992",
-                "pasajerosSentados": "5",
-                "numeroEjes": "2",
-                "gravamenes": "NO",
-            }
-        }
+    def test_default_values(self):
+        data = RuntData()
+        assert data.marca == ""
+        assert data.gravamenes is False
+        assert data.prendas is False
 
-        result = backend._parse_response(data, "5YJ3E1EA1PF000001")
-
-        assert isinstance(result, RuntData)
-        assert result.estado == "REGISTRADO"
-        assert result.marca == "TESLA"
-        assert result.linea == "MODELO Y"
-        assert result.modelo_ano == "2026"
-        assert result.color == "GRIS GRAFITO"
-        assert result.tipo_combustible == "ELECTRICO"
-        assert result.tipo_carroceria == "SUV"
-        assert result.clase_vehiculo == "CAMIONETA"
-        assert result.puertas == 4
-        assert result.peso_bruto_kg == 1992
-        assert result.capacidad_pasajeros == 5
-        assert result.numero_ejes == 2
-        assert result.gravamenes is False
-
-    def test_parse_flat_response(self):
-        """Parse flat response (no infoVehiculo wrapper)."""
-        backend = RuntBackend()
-        data = {
-            "estadoAutomotor": "MATRICULADO",
-            "marca": "CHEVROLET",
-            "placa": "ABC123",
-        }
-
-        result = backend._parse_response(data, "")
-        assert result.estado == "MATRICULADO"
-        assert result.marca == "CHEVROLET"
-        assert result.placa == "ABC123"
+    def test_serialization_round_trip(self):
+        now = datetime.now(UTC)
+        data = RuntData(
+            estado="REGISTRADO",
+            marca="TESLA",
+            linea="MODELO Y",
+            modelo_ano="2026",
+            queried_at=now,
+        )
+        restored = RuntData.model_validate_json(data.model_dump_json())
+        assert restored.marca == "TESLA"
+        assert restored.estado == "REGISTRADO"

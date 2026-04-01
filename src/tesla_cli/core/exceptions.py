@@ -52,6 +52,20 @@ class ExternalToolNotFoundError(TeslaCliError):
         super().__init__(msg)
 
 
+class DockerNotFoundError(TeslaCliError):
+    """Docker or docker compose not available."""
+
+    def __init__(self, detail: str = "") -> None:
+        msg = "Docker is required but not found."
+        if detail:
+            msg += f" {detail}"
+        super().__init__(msg)
+
+
+class TeslaMateStackError(TeslaCliError):
+    """Error managing the TeslaMate Docker stack."""
+
+
 class BackendNotSupportedError(TeslaCliError):
     """Feature not available on the current vehicle backend.
 

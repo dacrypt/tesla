@@ -1,0 +1,805 @@
+/* Tesla Design System v2 — Cockpit Dark */
+:root {
+  /* ── Background ── */
+  --tesla-bg: #0d0e11;
+  --tesla-surface: #13151a;
+  --tesla-card: #181b21;
+  --tesla-card-secondary: #1e2128;
+  --tesla-card-border: rgba(255, 255, 255, 0.07);
+  --tesla-card-border-hover: rgba(255, 255, 255, 0.13);
+
+  /* ── Brand (Moody palette) ── */
+  --tesla-red: #05C46B;
+  --tesla-red-hover: #04a85c;
+  --tesla-red-dim: rgba(5, 196, 107, 0.14);
+  --tesla-red-glow: rgba(5, 196, 107, 0.35);
+
+  /* ── Semantic ── */
+  --tesla-green: #0BE881;
+  --tesla-green-dim: rgba(11, 232, 129, 0.14);
+  --tesla-green-glow: rgba(11, 232, 129, 0.4);
+  --tesla-blue: #0FBCF9;
+  --tesla-blue-dim: rgba(15, 188, 249, 0.14);
+  --tesla-blue-glow: rgba(15, 188, 249, 0.4);
+  --tesla-orange: #F99716;
+  --tesla-orange-dim: rgba(249, 151, 22, 0.14);
+  --tesla-orange-glow: rgba(249, 151, 22, 0.4);
+  --tesla-turquoise: #00D8D6;
+  --tesla-turquoise-dim: rgba(0, 216, 214, 0.14);
+  --tesla-warm: #FACC48;
+  --tesla-danger: #FF6B6B;
+
+  /* ── Text ── */
+  --tesla-text: #f5f5f7;
+  --tesla-text-secondary: #86888f;
+  --tesla-text-dim: rgba(255, 255, 255, 0.35);
+
+  /* ── Borders ── */
+  --tesla-border: rgba(255, 255, 255, 0.08);
+  --tesla-border-solid: #252830;
+
+  /* ── Shadows ── */
+  --tesla-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --tesla-shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --tesla-shadow-card: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.6);
+
+  /* ── Geometry ── */
+  --tesla-radius-card: 16px;
+  --tesla-radius-btn: 12px;
+  --tesla-radius-sm: 10px;
+  --tesla-radius-xs: 8px;
+
+  /* ── Motion ── */
+  --tesla-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --tesla-transition-fast: all 0.12s ease;
+  --tesla-spring: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Ionic overrides ── */
+  --ion-background-color: #0d0e11;
+  --ion-background-color-rgb: 13, 14, 17;
+  --ion-text-color: #f5f5f7;
+  --ion-text-color-rgb: 245, 245, 247;
+  --ion-color-primary: #05C46B;
+  --ion-color-primary-rgb: 5, 196, 107;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #04a85c;
+  --ion-color-primary-tint: #1ed47d;
+
+  --ion-color-secondary: #0FBCF9;
+  --ion-color-secondary-rgb: 15, 188, 249;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #0da6db;
+  --ion-color-secondary-tint: #27c4fa;
+
+  --ion-color-success: #0BE881;
+  --ion-color-success-rgb: 11, 232, 129;
+  --ion-color-success-contrast: #000000;
+  --ion-color-success-contrast-rgb: 0, 0, 0;
+  --ion-color-success-shade: #09c76e;
+  --ion-color-success-tint: #23eb8f;
+
+  --ion-color-warning: #F99716;
+  --ion-color-warning-rgb: 249, 151, 22;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade: #db8413;
+  --ion-color-warning-tint: #faa32e;
+
+  --ion-color-danger: #FF6B6B;
+  --ion-color-danger-rgb: 255, 107, 107;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #e05a5a;
+  --ion-color-danger-tint: #ff7d7d;
+
+  --ion-color-dark: #1c1c1e;
+  --ion-color-dark-rgb: 28, 28, 30;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #18181a;
+  --ion-color-dark-tint: #2c2c2e;
+
+  --ion-color-medium: #86888f;
+  --ion-color-medium-rgb: 134, 136, 143;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #76787f;
+  --ion-color-medium-tint: #92949b;
+
+  --ion-color-light: #252830;
+  --ion-color-light-rgb: 37, 40, 48;
+  --ion-color-light-contrast: #ffffff;
+  --ion-color-light-contrast-rgb: 255, 255, 255;
+  --ion-color-light-shade: #20232a;
+  --ion-color-light-tint: #3a3d47;
+
+  --ion-tab-bar-background: #111316;
+  --ion-tab-bar-border-color: rgba(255, 255, 255, 0.05);
+  --ion-tab-bar-color: #5a5c63;
+  --ion-tab-bar-color-selected: #05C46B;
+
+  --ion-toolbar-background: #111316;
+  --ion-toolbar-color: #f5f5f7;
+  --ion-toolbar-border-color: rgba(255, 255, 255, 0.05);
+
+  --ion-item-background: #181b21;
+  --ion-item-border-color: rgba(255, 255, 255, 0.06);
+  --ion-card-background: #181b21;
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+}
+
+/* ---- GLOBAL RESETS ---- */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--tesla-bg);
+  font-family: var(--ion-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+ion-content {
+  --background: var(--tesla-bg);
+}
+
+ion-toolbar {
+  --background: #111316;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --color: #f5f5f7;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --min-height: 52px;
+}
+
+ion-header ion-toolbar:last-child {
+  --border-width: 0 0 1px;
+}
+
+ion-tab-bar {
+  --background: #111316;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  height: 60px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+ion-tab-button {
+  --color: #5a5c63;
+  --color-selected: #05C46B;
+  transition: color 0.15s;
+}
+
+ion-tab-button svg {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+ion-tab-button.tab-selected svg {
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 6px rgba(5,196,107,0.5));
+}
+
+ion-card {
+  --background: #181b21;
+  border-radius: var(--tesla-radius-card);
+  box-shadow: var(--tesla-shadow-sm);
+  border: 1px solid var(--tesla-card-border);
+  margin: 6px 12px;
+}
+
+ion-item {
+  --background: #181b21;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --color: #f5f5f7;
+  --detail-icon-color: #86888f;
+}
+
+ion-label {
+  color: #f5f5f7;
+}
+
+ion-range {
+  --bar-background: rgba(255, 255, 255, 0.08);
+  --bar-background-active: var(--tesla-red);
+  --knob-box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(5,196,107,0.3);
+  --bar-height: 4px;
+  --bar-border-radius: 4px;
+  --knob-background: #ffffff;
+  --knob-size: 22px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+ion-toggle {
+  --track-background: rgba(255, 255, 255, 0.1);
+  --track-background-checked: var(--tesla-red);
+  --handle-background: #ffffff;
+  --handle-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+ion-input {
+  --background: rgba(255, 255, 255, 0.06);
+  --color: #f5f5f7;
+  --placeholder-color: #86888f;
+  --padding-start: 14px;
+  --padding-end: 14px;
+  border-radius: var(--tesla-radius-sm);
+  border: 1px solid var(--tesla-border);
+}
+
+ion-select {
+  --background: rgba(255, 255, 255, 0.06);
+  --color: #f5f5f7;
+}
+
+ion-spinner {
+  color: #05C46B;
+}
+
+/* ---- CARD ---- */
+.tesla-card {
+  background: var(--tesla-card);
+  border-radius: var(--tesla-radius-card);
+  border: 1px solid var(--tesla-card-border);
+  box-shadow: var(--tesla-shadow-card);
+  padding: 18px;
+  margin: 0 0 10px 0;
+  transition: border-color 0.2s;
+}
+
+.tesla-card-flush {
+  background: var(--tesla-card);
+  border-radius: var(--tesla-radius-card);
+  border: 1px solid var(--tesla-card-border);
+  overflow: hidden;
+  margin: 0 0 10px 0;
+}
+
+/* Hero card — used for primary info display */
+.tesla-hero-card {
+  background: linear-gradient(160deg, #1a1e26 0%, #141720 100%);
+  border-radius: var(--tesla-radius-card);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: var(--tesla-shadow-card);
+  padding: 0;
+  margin: 0 0 10px 0;
+  overflow: hidden;
+}
+
+/* ---- BUTTONS ---- */
+.tesla-btn {
+  background: var(--tesla-red);
+  color: #fff;
+  border: none;
+  border-radius: var(--tesla-radius-btn);
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--ion-font-family);
+  cursor: pointer;
+  transition: var(--tesla-transition);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 16px rgba(5, 196, 107, 0.3);
+}
+
+.tesla-btn:active {
+  background: var(--tesla-red-hover);
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(5, 196, 107, 0.2);
+}
+
+.tesla-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.tesla-btn.secondary {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--tesla-text);
+  border: 1px solid var(--tesla-border);
+  box-shadow: none;
+}
+
+.tesla-btn.secondary:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tesla-btn.ghost {
+  background: transparent;
+  color: var(--tesla-red);
+  border: 1px solid rgba(5, 196, 107, 0.3);
+  box-shadow: none;
+}
+
+.tesla-btn.blue {
+  background: var(--tesla-blue);
+  box-shadow: 0 4px 16px rgba(74, 158, 255, 0.3);
+}
+
+.tesla-btn.blue:active { background: #3a8ee0; }
+
+.tesla-btn.green {
+  background: var(--tesla-green);
+  color: #000;
+  box-shadow: 0 4px 16px rgba(60, 215, 132, 0.3);
+}
+
+/* ---- ACTION GRID BUTTON ---- */
+.action-btn {
+  background: var(--tesla-card-secondary);
+  border: 1px solid var(--tesla-card-border);
+  border-radius: var(--tesla-radius-card);
+  padding: 16px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: var(--tesla-transition);
+  width: 100%;
+  min-height: 84px;
+  font-family: var(--ion-font-family);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.1), transparent 70%);
+  transition: opacity 0.3s;
+}
+
+.action-btn:active::after { opacity: 1; }
+.action-btn:active { transform: scale(0.94); }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.action-btn.active {
+  border-color: rgba(5, 196, 107, 0.35);
+  background: rgba(5, 196, 107, 0.08);
+}
+
+.action-btn .icon-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-btn .btn-label {
+  color: var(--tesla-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+/* ---- SEAT HEATER BUTTON ---- */
+.seat-btn {
+  border-radius: 10px;
+  padding: 10px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: var(--tesla-transition);
+  flex: 1;
+  min-height: 80px;
+  font-family: var(--ion-font-family);
+  border: 2px solid transparent;
+}
+
+.seat-btn:active {
+  transform: scale(0.94);
+}
+
+.seat-btn:disabled {
+  opacity: 0.5;
+}
+
+.seat-btn .seat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ---- HERO TYPOGRAPHY ---- */
+.hero-number {
+  font-size: 80px;
+  font-weight: 700;
+  letter-spacing: -4px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-number-lg {
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -3px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-number-md {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -2px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-number-sm {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- GLOW EFFECTS ---- */
+.glow-red   { filter: drop-shadow(0 0 8px rgba(5,196,107,0.6)); }
+.glow-green { filter: drop-shadow(0 0 8px rgba(11,232,129,0.6)); }
+.glow-blue  { filter: drop-shadow(0 0 8px rgba(15,188,249,0.6)); }
+.glow-orange{ filter: drop-shadow(0 0 8px rgba(249,151,22,0.6)); }
+
+.ring-red    { box-shadow: 0 0 0 1px rgba(5,196,107,0.4), 0 0 20px rgba(5,196,107,0.2); }
+.ring-green  { box-shadow: 0 0 0 1px rgba(11,232,129,0.4), 0 0 20px rgba(11,232,129,0.2); }
+.ring-blue   { box-shadow: 0 0 0 1px rgba(15,188,249,0.4), 0 0 20px rgba(15,188,249,0.2); }
+.ring-orange { box-shadow: 0 0 0 1px rgba(249,151,22,0.4), 0 0 20px rgba(249,151,22,0.2); }
+
+/* ---- PROGRESS BAR ---- */
+.progress-track {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 100px;
+  height: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-fill.green { background: var(--tesla-green); }
+.progress-fill.orange { background: var(--tesla-orange); }
+.progress-fill.red { background: var(--tesla-red); }
+.progress-fill.blue { background: var(--tesla-blue); }
+
+.progress-fill.charging {
+  background: linear-gradient(90deg, #0BE881, #7eedb0, #0BE881);
+  background-size: 200% 100%;
+  animation: chargeFlow 2s linear infinite;
+}
+
+@keyframes chargeFlow {
+  0% { background-position: 200% 0; }
+  100% { background-position: 0 0; }
+}
+
+/* ---- PILLS & BADGES ---- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 100px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.status-pill.online {
+  background: rgba(60, 215, 132, 0.12);
+  color: #3cd784;
+  border-color: rgba(60, 215, 132, 0.25);
+}
+
+.status-pill.asleep,
+.status-pill.sleeping {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
+  border-color: rgba(255, 159, 10, 0.25);
+}
+
+.status-pill.charging {
+  background: rgba(74, 158, 255, 0.12);
+  color: #4a9eff;
+  border-color: rgba(74, 158, 255, 0.25);
+}
+
+.status-pill.offline,
+.status-pill.unknown {
+  background: rgba(134, 136, 143, 0.1);
+  color: #86888f;
+  border-color: rgba(134, 136, 143, 0.2);
+}
+
+/* ---- TYPOGRAPHY UTILITIES ---- */
+.text-secondary { color: var(--tesla-text-secondary) !important; }
+.text-green { color: var(--tesla-green) !important; }
+.text-red { color: var(--tesla-red) !important; }
+.text-orange { color: var(--tesla-orange) !important; }
+.text-blue { color: var(--tesla-blue) !important; }
+.text-white { color: #f5f5f7 !important; }
+.text-center { text-align: center !important; }
+
+.label-xs {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--tesla-text-secondary);
+}
+
+.label-sm {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tesla-text-secondary);
+}
+
+.value-xl {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -2px;
+  line-height: 1;
+  color: #f5f5f7;
+}
+
+.value-lg {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  color: #f5f5f7;
+}
+
+.value-md {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: #f5f5f7;
+}
+
+/* ---- SECTION TITLE ---- */
+.section-title {
+  color: var(--tesla-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 16px 0 8px;
+  margin: 0;
+}
+
+/* ---- PAGE LAYOUT ---- */
+.page-pad {
+  padding: 8px 12px 60px;
+}
+
+.page-pad-flush {
+  padding: 0 0 60px;
+}
+
+/* ---- STAT ROW ---- */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--tesla-card-border);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ---- DIVIDER ---- */
+.divider {
+  height: 1px;
+  background: var(--tesla-card-border);
+  margin: 12px 0;
+}
+
+/* ---- INPUT ---- */
+.tesla-input {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--tesla-text);
+  border: 1px solid var(--tesla-border);
+  border-radius: var(--tesla-radius-sm);
+  padding: 13px 14px;
+  font-size: 15px;
+  font-family: var(--ion-font-family);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.tesla-input:focus {
+  border-color: rgba(5, 196, 107, 0.5);
+  box-shadow: 0 0 0 3px rgba(5,196,107,0.1);
+}
+
+.tesla-input::placeholder {
+  color: var(--tesla-text-secondary);
+}
+
+.tesla-input.mono {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 14px;
+}
+
+/* ---- TIME INPUT ---- */
+input[type="time"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f5f7;
+  border: 1px solid var(--tesla-border);
+  border-radius: var(--tesla-radius-sm);
+  padding: 12px 14px;
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--ion-font-family);
+  width: 100%;
+  outline: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
+}
+
+input[type="time"]:focus {
+  border-color: rgba(5, 196, 107, 0.5);
+}
+
+/* ---- INFO BOX ---- */
+.info-box {
+  background: rgba(255, 159, 10, 0.07);
+  border: 1px solid rgba(255, 159, 10, 0.18);
+  border-radius: var(--tesla-radius-sm);
+  padding: 10px 12px;
+  color: var(--tesla-orange);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.info-box.blue {
+  background: rgba(74, 158, 255, 0.07);
+  border-color: rgba(74, 158, 255, 0.18);
+  color: var(--tesla-blue);
+}
+
+/* ---- LOADING STATE ---- */
+.loading-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px;
+}
+
+/* ---- EMPTY STATE ---- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 12px;
+  text-align: center;
+}
+
+.empty-state .empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+/* ---- MEDIA BUTTON ---- */
+.media-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--tesla-transition);
+  color: var(--tesla-text);
+}
+
+.media-btn:active {
+  transform: scale(0.88);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.media-btn.primary {
+  background: var(--tesla-red);
+  border-color: transparent;
+  box-shadow: 0 4px 20px rgba(5, 196, 107, 0.4);
+}
+
+.media-btn.primary:active {
+  background: var(--tesla-red-hover);
+  box-shadow: 0 2px 10px rgba(5, 196, 107, 0.3);
+}
+
+/* ---- SCROLLABLE TABS ---- */
+.sub-tab-bar {
+  display: flex;
+  background: var(--tesla-card);
+  border-bottom: 1px solid var(--tesla-card-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sub-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.sub-tab {
+  flex: 1;
+  min-width: 72px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tesla-text-secondary);
+  padding: 12px 8px;
+  cursor: pointer;
+  font-family: var(--ion-font-family);
+  font-weight: 500;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.sub-tab.active {
+  color: var(--tesla-red);
+  border-bottom-color: var(--tesla-red);
+  /* Uses --tesla-red which is now green */
+  font-weight: 600;
+}
+
+/* ---- TAB LABEL SIZING (9 tabs) ---- */
+ion-tab-button ion-label {
+  font-size: 9px !important;
+  letter-spacing: 0;
+  margin-top: 2px;
+}
+
+/* ---- COUNTDOWN DISPLAY ---- */
+.countdown-digits {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}

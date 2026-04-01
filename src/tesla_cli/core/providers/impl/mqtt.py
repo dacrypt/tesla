@@ -19,8 +19,8 @@ from __future__ import annotations
 import json
 import time
 
-from tesla_cli.config import Config
-from tesla_cli.providers.base import (
+from tesla_cli.core.config import Config
+from tesla_cli.core.providers.base import (
     Capability,
     Provider,
     ProviderPriority,

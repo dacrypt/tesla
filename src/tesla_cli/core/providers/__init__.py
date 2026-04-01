@@ -14,7 +14,7 @@ L3  External     ABRP, Home Assistant, Grafana, Apprise — ecosystem bridges
 
 Usage
 -----
-    from tesla_cli.providers import get_registry
+    from tesla_cli.core.providers import get_registry
     registry = get_registry()
 
     # Get data from best available provider
@@ -27,8 +27,8 @@ Usage
     report = registry.status()
 """
 
-from tesla_cli.providers.base import Capability, Provider, ProviderPriority, ProviderResult
-from tesla_cli.providers.registry import ProviderRegistry
+from tesla_cli.core.providers.base import Capability, Provider, ProviderPriority, ProviderResult
+from tesla_cli.core.providers.registry import ProviderRegistry
 
 __all__ = [
     "Capability",
@@ -46,6 +46,6 @@ def get_registry(force_reload: bool = False) -> ProviderRegistry:
     """Return the singleton ProviderRegistry, building it from config on first call."""
     global _registry
     if _registry is None or force_reload:
-        from tesla_cli.providers.loader import build_registry
+        from tesla_cli.core.providers.loader import build_registry
         _registry = build_registry()
     return _registry

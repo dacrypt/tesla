@@ -8,15 +8,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
-from tesla_cli.providers.base import Capability, Provider, ProviderPriority, ProviderResult
-from tesla_cli.providers.registry import CapabilityNotAvailableError, ProviderRegistry
+from tesla_cli.cli.app import app as cli_app
+from tesla_cli.core.providers.base import Capability, Provider, ProviderPriority, ProviderResult
+from tesla_cli.core.providers.registry import CapabilityNotAvailableError, ProviderRegistry
 from tests.conftest import MOCK_VIN
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -264,7 +264,7 @@ class TestProviderRegistry:
 
 class TestVehicleApiProvider:
     def _provider(self, **cfg_overrides):
-        from tesla_cli.providers.impl.vehicle_api import VehicleApiProvider
+        from tesla_cli.core.providers.impl.vehicle_api import VehicleApiProvider
         return VehicleApiProvider(_make_cfg(**cfg_overrides))
 
     def test_capabilities(self):
@@ -292,8 +292,8 @@ class TestVehicleApiProvider:
         p = self._provider()
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = {"battery_level": 72}
-        with patch("tesla_cli.backends.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN):
+        with patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN):
             result = p.fetch("vehicle_data", vin=MOCK_VIN)
         assert result.ok
         assert result.data["battery_level"] == 72
@@ -302,8 +302,8 @@ class TestVehicleApiProvider:
     def test_fetch_unknown_operation(self):
         p = self._provider()
         mock_backend = MagicMock()
-        with patch("tesla_cli.backends.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN):
+        with patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN):
             result = p.fetch("nonexistent_op", vin=MOCK_VIN)
         assert not result.ok
         assert "Unknown" in result.error
@@ -312,8 +312,8 @@ class TestVehicleApiProvider:
         p = self._provider()
         mock_backend = MagicMock()
         mock_backend.command.return_value = {"result": True}
-        with patch("tesla_cli.backends.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN):
+        with patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_backend), \
+             patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN):
             result = p.execute("lock", vin=MOCK_VIN)
         assert result.ok
         mock_backend.command.assert_called_once_with(MOCK_VIN, "lock")
@@ -321,7 +321,7 @@ class TestVehicleApiProvider:
 
 class TestBleProvider:
     def _provider(self, key_path="", binary="/usr/bin/tesla-control"):
-        from tesla_cli.providers.impl.ble import BleProvider
+        from tesla_cli.core.providers.impl.ble import BleProvider
         return BleProvider(_make_cfg(**{"ble.key_path": key_path}))
 
     def test_capabilities(self):
@@ -335,17 +335,17 @@ class TestBleProvider:
 
     def test_unavailable_without_binary(self):
         p = self._provider(key_path="/tmp/key.pem")
-        with patch("tesla_cli.providers.impl.ble.shutil.which", return_value=None):
+        with patch("tesla_cli.core.providers.impl.ble.shutil.which", return_value=None):
             assert p.is_available() is False
 
     def test_unavailable_without_key(self):
         p = self._provider(key_path="")
-        with patch("tesla_cli.providers.impl.ble.shutil.which", return_value="/bin/tc"):
+        with patch("tesla_cli.core.providers.impl.ble.shutil.which", return_value="/bin/tc"):
             assert p.is_available() is False
 
     def test_available_with_both(self):
         p = self._provider(key_path="/tmp/key.pem")
-        with patch("tesla_cli.providers.impl.ble.shutil.which", return_value="/bin/tc"):
+        with patch("tesla_cli.core.providers.impl.ble.shutil.which", return_value="/bin/tc"):
             assert p.is_available() is True
 
     def test_execute_lock(self):
@@ -354,8 +354,8 @@ class TestBleProvider:
         mock_run.returncode = 0
         mock_run.stdout = "ok"
         mock_run.stderr = ""
-        with patch("tesla_cli.providers.impl.ble.shutil.which", return_value="/bin/tc"), \
-             patch("tesla_cli.providers.impl.ble.subprocess.run", return_value=mock_run):
+        with patch("tesla_cli.core.providers.impl.ble.shutil.which", return_value="/bin/tc"), \
+             patch("tesla_cli.core.providers.impl.ble.subprocess.run", return_value=mock_run):
             result = p.execute("lock", vin=MOCK_VIN)
         assert result.ok
         assert result.provider == "ble"
@@ -366,8 +366,8 @@ class TestBleProvider:
         mock_run.returncode = 1
         mock_run.stdout = ""
         mock_run.stderr = "BLE error"
-        with patch("tesla_cli.providers.impl.ble.shutil.which", return_value="/bin/tc"), \
-             patch("tesla_cli.providers.impl.ble.subprocess.run", return_value=mock_run):
+        with patch("tesla_cli.core.providers.impl.ble.shutil.which", return_value="/bin/tc"), \
+             patch("tesla_cli.core.providers.impl.ble.subprocess.run", return_value=mock_run):
             result = p.execute("lock", vin=MOCK_VIN)
         assert not result.ok
         assert "BLE error" in result.error
@@ -375,7 +375,7 @@ class TestBleProvider:
 
 class TestTeslaMateProvider:
     def _provider(self, url="postgresql://localhost/tm"):
-        from tesla_cli.providers.impl.teslaMate import TeslaMateProvider
+        from tesla_cli.core.providers.impl.teslaMate import TeslaMateProvider
         return TeslaMateProvider(_make_cfg(**{"teslaMate.database_url": url}))
 
     def test_capabilities(self):
@@ -401,7 +401,7 @@ class TestTeslaMateProvider:
         p = self._provider()
         mock_backend = MagicMock()
         mock_backend.get_trips.return_value = [{"id": 1, "km": 42}]
-        with patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
+        with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
             result = p.fetch("trips", limit=10)
         assert result.ok
         assert result.data[0]["km"] == 42
@@ -409,14 +409,14 @@ class TestTeslaMateProvider:
     def test_fetch_unknown_operation(self):
         p = self._provider()
         mock_backend = MagicMock()
-        with patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
+        with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=mock_backend):
             result = p.fetch("nonexistent")
         assert not result.ok
 
 
 class TestAbrpProvider:
     def _provider(self, token="mytoken"):
-        from tesla_cli.providers.impl.abrp import AbrpProvider
+        from tesla_cli.core.providers.impl.abrp import AbrpProvider
         return AbrpProvider(_make_cfg(**{"abrp.user_token": token}))
 
     def test_capabilities(self):
@@ -457,7 +457,7 @@ class TestAbrpProvider:
 
 class TestHomeAssistantProvider:
     def _provider(self, url="http://ha.local:8123", token="ha_token"):
-        from tesla_cli.providers.impl.ha import HomeAssistantProvider
+        from tesla_cli.core.providers.impl.ha import HomeAssistantProvider
         return HomeAssistantProvider(_make_cfg(**{
             "home_assistant.url": url,
             "home_assistant.token": token,
@@ -496,7 +496,7 @@ class TestHomeAssistantProvider:
 
 class TestAppriseProvider:
     def _provider(self, enabled=True, urls=None):
-        from tesla_cli.providers.impl.apprise_notify import AppriseProvider
+        from tesla_cli.core.providers.impl.apprise_notify import AppriseProvider
         cfg = _make_cfg()
         cfg.notifications.enabled = enabled
         cfg.notifications.apprise_urls = urls or ["tgram://botid/chatid"]
@@ -534,17 +534,17 @@ class TestAppriseProvider:
 
 class TestLoader:
     def test_build_registry_returns_registry(self):
-        from tesla_cli.providers.loader import build_registry
-        from tesla_cli.providers.registry import ProviderRegistry
+        from tesla_cli.core.providers.loader import build_registry
+        from tesla_cli.core.providers.registry import ProviderRegistry
         cfg = _make_cfg()
-        with patch("tesla_cli.auth.tokens.get_token", return_value=None):
+        with patch("tesla_cli.core.auth.tokens.get_token", return_value=None):
             reg = build_registry(cfg)
         assert isinstance(reg, ProviderRegistry)
 
     def test_all_provider_types_registered(self):
-        from tesla_cli.providers.loader import build_registry
+        from tesla_cli.core.providers.loader import build_registry
         cfg = _make_cfg()
-        with patch("tesla_cli.auth.tokens.get_token", return_value=None):
+        with patch("tesla_cli.core.auth.tokens.get_token", return_value=None):
             reg = build_registry(cfg)
         names = {p.name for p in reg.all()}
         assert "vehicle-api"     in names
@@ -556,9 +556,9 @@ class TestLoader:
         assert "mqtt"            in names
 
     def test_seven_providers_registered(self):
-        from tesla_cli.providers.loader import build_registry
+        from tesla_cli.core.providers.loader import build_registry
         cfg = _make_cfg()
-        with patch("tesla_cli.auth.tokens.get_token", return_value=None):
+        with patch("tesla_cli.core.auth.tokens.get_token", return_value=None):
             reg = build_registry(cfg)
         assert len(reg.all()) == 7
 
@@ -573,7 +573,7 @@ def _cli(*args):
 
 
 def _mock_registry():
-    from tesla_cli.providers.impl.vehicle_api import VehicleApiProvider
+    from tesla_cli.core.providers.impl.vehicle_api import VehicleApiProvider
     cfg = _make_cfg()
     reg = ProviderRegistry()
     p = VehicleApiProvider(cfg)
@@ -584,7 +584,7 @@ def _mock_registry():
 
 class TestProvidersCommand:
     def test_providers_status(self):
-        with patch("tesla_cli.providers.get_registry") as mock_reg:
+        with patch("tesla_cli.core.providers.get_registry") as mock_reg:
             mock_reg.return_value.status.return_value = [
                 {"name": "vehicle-api", "layer": "L1", "priority": 80,
                  "available": True, "capabilities": ["vehicle.state"], "description": "test"}
@@ -599,7 +599,7 @@ class TestProvidersCommand:
     def test_providers_status_json(self):
         rows = [{"name": "ble", "layer": "L0", "priority": 100,
                  "available": False, "capabilities": ["vehicle.command"], "description": "BLE"}]
-        with patch("tesla_cli.providers.get_registry") as mock_reg:
+        with patch("tesla_cli.core.providers.get_registry") as mock_reg:
             mock_reg.return_value.status.return_value = rows
             result = _cli("-j", "providers", "status")
         assert result.exit_code == 0
@@ -607,13 +607,13 @@ class TestProvidersCommand:
         assert data[0]["name"] == "ble"
 
     def test_providers_test(self):
-        with patch("tesla_cli.providers.get_registry") as mock_reg:
+        with patch("tesla_cli.core.providers.get_registry") as mock_reg:
             mock_reg.return_value.all.return_value = []
             result = _cli("providers", "test")
         assert result.exit_code == 0
 
     def test_providers_capabilities(self):
-        with patch("tesla_cli.providers.get_registry") as mock_reg:
+        with patch("tesla_cli.core.providers.get_registry") as mock_reg:
             mock_reg.return_value.for_capability.return_value = []
             result = _cli("providers", "capabilities")
         assert result.exit_code == 0

@@ -5,9 +5,9 @@ from __future__ import annotations
 import typer
 from rich.prompt import Prompt
 
-from tesla_cli.auth import tokens
-from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, is_json_mode, render_dict, render_success
+from tesla_cli.core.auth import tokens
+from tesla_cli.core.config import load_config, save_config
+from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success
 
 config_app = typer.Typer(name="config", help="Manage tesla-cli configuration.")
 
@@ -25,7 +25,7 @@ def config_show() -> None:
     }
 
     # Show delivery cache status
-    from tesla_cli.backends.order import DELIVERY_CACHE_FILE
+    from tesla_cli.core.backends.order import DELIVERY_CACHE_FILE
     if DELIVERY_CACHE_FILE.exists():
         import json
         cached = json.loads(DELIVERY_CACHE_FILE.read_text())
@@ -93,7 +93,7 @@ def config_export(
     tesla config export -o backup.toml    → write to file
     """
 
-    from tesla_cli.config import CONFIG_FILE
+    from tesla_cli.core.config import CONFIG_FILE
 
     if not CONFIG_FILE.exists():
         console.print("[yellow]No config file found. Run[/yellow] [bold]tesla setup[/bold] [yellow]first.[/yellow]")
@@ -121,7 +121,7 @@ def config_import(
     """
     from pathlib import Path
 
-    from tesla_cli.config import CONFIG_FILE, Config
+    from tesla_cli.core.config import CONFIG_FILE, Config
 
     src = Path(source)
     if not src.exists():
@@ -164,7 +164,7 @@ def config_encrypt_token(
     tesla config encrypt-token order_refresh_token --password mypass
     tesla config encrypt-token fleet_access_token -p mypass
     """
-    from tesla_cli.auth.encryption import encrypt_token, is_encrypted
+    from tesla_cli.core.auth.encryption import encrypt_token, is_encrypted
 
     raw = tokens.get_token(key_name)
     if not raw:
@@ -187,7 +187,7 @@ def config_decrypt_token(
 
     tesla config decrypt-token order_refresh_token --password mypass
     """
-    from tesla_cli.auth.encryption import decrypt_token, is_encrypted
+    from tesla_cli.core.auth.encryption import decrypt_token, is_encrypted
 
     raw = tokens.get_token(key_name)
     if not raw:
@@ -291,6 +291,46 @@ def config_restore(
     save_config(cfg)
     console.print(f"  [green]\u2713[/green] Config restored from [bold]{src}[/bold]")
     console.print("  [dim]Note: tokens were not restored (they must be re-authenticated)[/dim]")
+
+
+@config_app.command("register")
+def config_register(
+    region: str = typer.Option("na", "--region", "-r", help="Fleet API region: na, eu, cn"),
+) -> None:
+    """Register this app as a Fleet API partner in a region (one-time setup).
+
+    Required after first `tesla config auth fleet` — Tesla needs this before
+    the user token can call vehicle endpoints.
+
+    \b
+    tesla config register           → register in NA (default)
+    tesla config register --region eu
+    """
+    from tesla_cli.core.auth.oauth import register_fleet_partner
+
+    cfg = load_config()
+    client_id = cfg.fleet.client_id or ""
+    if not client_id:
+        console.print("[red]No client_id configured.[/red] Run: tesla config auth fleet")
+        raise typer.Exit(1)
+
+    client_secret = tokens.get_token(tokens.FLEET_CLIENT_SECRET)
+    if not client_secret:
+        client_secret = Prompt.ask("Client Secret", password=True)
+        if not client_secret.strip():
+            console.print("[red]No client secret provided.[/red]")
+            raise typer.Exit(1)
+        tokens.set_token(tokens.FLEET_CLIENT_SECRET, client_secret.strip())
+
+    console.print(f"[dim]Registrando partner account en Fleet API región '{region}'...[/dim]")
+    try:
+        result = register_fleet_partner(client_id, client_secret, region=region)
+        console.print(f"  [green]✓[/green] Partner registrado: {result}")
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    render_success(f"Partner account registrado en región '{region}'. Ejecuta: tesla vehicle info")
 
 
 @config_app.command("auth")
@@ -410,7 +450,7 @@ def config_doctor() -> None:
         _check("TeslaMate DB", "warn", "Not configured (optional)", "Run: tesla teslaMate connect <url>")
     else:
         try:
-            from tesla_cli.backends.teslaMate import TeslaMateBacked
+            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
             tm = TeslaMateBacked(tm_url, car_id=cfg.teslaMate.car_id)
             if tm.ping():
                 _check("TeslaMate DB", "ok", f"Connected: {tm_url[:40]}...")
@@ -423,7 +463,7 @@ def config_doctor() -> None:
 
     # ── 7. Config file ───────────────────────────────────────────────────────
     try:
-        from tesla_cli.config import CONFIG_PATH
+        from tesla_cli.core.config import CONFIG_PATH
         if CONFIG_PATH.exists():
             _check("Config file", "ok", f"Found: {CONFIG_PATH}")
         else:
@@ -479,7 +519,7 @@ def config_migrate(
     import json as _json
     import shutil
 
-    from tesla_cli.config import CONFIG_FILE, Config
+    from tesla_cli.core.config import CONFIG_FILE, Config
 
     cfg_old = load_config()
     old_dict = cfg_old.model_dump()
@@ -725,7 +765,7 @@ def _run_config_checks(cfg) -> list[dict]:
 
 def _auth_order() -> None:
     """Run Tesla OAuth2+PKCE flow for order tracking."""
-    from tesla_cli.auth.oauth import run_tesla_oauth_flow
+    from tesla_cli.core.auth.oauth import run_tesla_oauth_flow
 
     console.print("[bold]Authenticating with Tesla for order tracking...[/bold]")
     token_data = run_tesla_oauth_flow()
@@ -755,23 +795,47 @@ def _auth_tessie() -> None:
 def _auth_fleet() -> None:
     """Configure Fleet API credentials."""
     console.print(
-        "[bold]Fleet API Authentication[/bold]\n"
-        "Register your app at: [link=https://developer.tesla.com]developer.tesla.com[/link]"
+        "[bold]Fleet API Authentication[/bold]\n\n"
+        "Necesitas un [bold]client_id[/bold] registrado en developer.tesla.com.\n\n"
+        "[bold cyan]Pasos para registrar tu app (gratis):[/bold cyan]\n"
+        "  1. Ve a [link=https://developer.tesla.com]developer.tesla.com[/link] → Create App\n"
+        "  2. Nombre: cualquiera (ej. tesla-cli-personal)\n"
+        "  3. [bold]Redirect URI:[/bold] [yellow]https://auth.tesla.com/void/callback[/yellow]\n"
+        "  4. Scopes: [yellow]vehicle_device_data  vehicle_cmds  vehicle_charging_cmds[/yellow]\n"
+        "  5. Copia el [bold]client_id[/bold] y [bold]client_secret[/bold] que te dan\n"
     )
     client_id = Prompt.ask("Client ID")
     if not client_id.strip():
         console.print("[red]No client ID provided.[/red]")
         raise typer.Exit(1)
+    client_secret = Prompt.ask("Client Secret", password=True)
+    if not client_secret.strip():
+        console.print("[red]No client secret provided.[/red]")
+        raise typer.Exit(1)
+
     cfg = load_config()
     cfg.fleet.client_id = client_id.strip()
     save_config(cfg)
+    tokens.set_token(tokens.FLEET_CLIENT_SECRET, client_secret.strip())
 
-    from tesla_cli.auth.oauth import run_tesla_oauth_flow
+    from tesla_cli.core.auth.oauth import FLEET_SCOPES, register_fleet_partner, run_tesla_oauth_flow
 
-    console.print("[bold]Running OAuth2 flow...[/bold]")
-    token_data = run_tesla_oauth_flow(client_id=client_id.strip())
+    # Step 1: Register partner account (one-time, uses client_credentials)
+    console.print("[dim]Registrando partner account en Fleet API (región NA)...[/dim]")
+    try:
+        register_fleet_partner(client_id.strip(), client_secret.strip(), region="na")
+        console.print("  [green]✓[/green] Partner account registrado en región NA")
+    except Exception as exc:
+        if "already" in str(exc).lower() or "204" in str(exc):
+            console.print("  [dim]✓ Partner ya registrado (OK)[/dim]")
+        else:
+            console.print(f"  [yellow]⚠[/yellow] Registro de partner: {exc}\n  Continuando con autenticación de usuario...")
+
+    # Step 2: User OAuth2 PKCE for vehicle access
+    console.print("[bold]Iniciando OAuth2 con scopes de vehículo...[/bold]")
+    token_data = run_tesla_oauth_flow(client_id=client_id.strip(), scopes=FLEET_SCOPES)
     tokens.set_token(tokens.FLEET_ACCESS_TOKEN, token_data["access_token"])
     tokens.set_token(tokens.FLEET_REFRESH_TOKEN, token_data["refresh_token"])
     cfg.general.backend = "fleet"
     save_config(cfg)
-    render_success("Fleet API authentication complete. Backend set to 'fleet'.")
+    render_success("Fleet API autenticado. Backend configurado como 'fleet'.")

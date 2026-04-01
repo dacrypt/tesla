@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.core.config import load_config, save_config
+from tesla_cli.cli.output import console, is_json_mode
 
 mqtt_app = typer.Typer(
     name="mqtt",
@@ -166,7 +166,7 @@ def mqtt_setup(
     cfg.mqtt.tls          = tls
     save_config(cfg)
 
-    from tesla_cli.output import render_success
+    from tesla_cli.cli.output import render_success
     render_success(
         f"MQTT configured: [bold]{broker}:{port}[/bold]  "
         f"prefix=[bold]{topic_prefix}[/bold]\n"
@@ -309,13 +309,13 @@ def mqtt_publish(
     if not _require_paho():
         raise typer.Exit(1)
 
-    from tesla_cli.commands.vehicle import _with_wake
-    from tesla_cli.config import resolve_vin
+    from tesla_cli.cli.commands.vehicle import _with_wake
+    from tesla_cli.core.config import resolve_vin
 
     v    = resolve_vin(cfg, vin)
     data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
 
-    from tesla_cli.providers.impl.mqtt import MqttProvider
+    from tesla_cli.core.providers.impl.mqtt import MqttProvider
     provider = MqttProvider(cfg)
     result   = provider.execute("push", data=data, vin=v)
 
@@ -374,7 +374,7 @@ def mqtt_ha_discovery(vin: str | None = VinOption) -> None:
     if not _require_paho():
         raise typer.Exit(1)
 
-    from tesla_cli.config import resolve_vin
+    from tesla_cli.core.config import resolve_vin
 
     v = resolve_vin(cfg, vin)
 

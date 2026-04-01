@@ -6,9 +6,9 @@ import time
 
 import typer
 
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.output import render_success
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.cli.output import render_success
 
 nav_app = typer.Typer(name="nav", help="Navigation and destination controls.")
 

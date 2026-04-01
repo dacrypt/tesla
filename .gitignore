@@ -49,6 +49,12 @@ IMPLEMENTATION-PLAN.md
 .claude/settings.local.json
 .claude/
 
+# UI (React frontend)
+ui/node_modules/
+ui/dist/
+ui/.vscode/
+src/tesla_cli/server/ui_dist/
+
 # Temp
 fix-live-sources.py
 superchargers-co.json

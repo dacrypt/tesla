@@ -8,8 +8,8 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.backends.dossier import DossierBackend
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.core.backends.dossier import DossierBackend
+from tesla_cli.cli.output import console, is_json_mode
 
 dossier_app = typer.Typer(name="dossier", help="Complete vehicle intelligence dossier.")
 
@@ -764,7 +764,7 @@ def dossier_history() -> None:
 @dossier_app.command("ships")
 def dossier_ships() -> None:
     """Show Tesla car carrier ships currently being tracked."""
-    from tesla_cli.backends.dossier import fetch_tesla_ships
+    from tesla_cli.core.backends.dossier import fetch_tesla_ships
 
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
@@ -823,8 +823,8 @@ def dossier_vin(
     vin: str = typer.Argument(None, help="VIN to decode (default: configured VIN)"),
 ) -> None:
     """Decode a Tesla VIN position by position."""
-    from tesla_cli.backends.dossier import decode_vin
-    from tesla_cli.config import load_config
+    from tesla_cli.core.backends.dossier import decode_vin
+    from tesla_cli.core.config import load_config
 
     if not vin:
         cfg = load_config()
@@ -1333,7 +1333,7 @@ def dossier_option_codes() -> None:
 
     from rich.table import Table
 
-    from tesla_cli.backends.dossier import decode_option_codes
+    from tesla_cli.core.backends.dossier import decode_option_codes
 
     backend = DossierBackend()
     dossier = backend._load_dossier()
@@ -1425,7 +1425,7 @@ def dossier_clean(
     """
     import json as _json
 
-    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+    from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
 
     if not SNAPSHOTS_DIR.exists():
         console.print("[yellow]No snapshots directory found.[/yellow]")
@@ -1482,7 +1482,7 @@ def dossier_battery_health(
     import json as _json
     import statistics
 
-    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+    from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
 
     if not SNAPSHOTS_DIR.exists():
         console.print("[yellow]No snapshots found. Run: tesla dossier build[/yellow]")
@@ -1595,7 +1595,7 @@ def dossier_export_pdf(
     import json as _json
     from pathlib import Path
 
-    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+    from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
 
     # Load the latest snapshot if available
     snap_data: dict = {}
@@ -1616,7 +1616,7 @@ def dossier_export_pdf(
     generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
 
     # Resolve VIN
-    from tesla_cli.config import load_config
+    from tesla_cli.core.config import load_config
     cfg = load_config()
     resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
 
@@ -1739,7 +1739,7 @@ def dossier_export_html(
     import json as _json
     from pathlib import Path
 
-    from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+    from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
 
     # Load the latest snapshot if available
     snap_data: dict = {}
@@ -1759,7 +1759,7 @@ def dossier_export_html(
     vin_decoded  = snap_data.get("vin_decode") or {}
     generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
 
-    from tesla_cli.config import load_config as _lc
+    from tesla_cli.core.config import load_config as _lc
     cfg = _lc()
     resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
 

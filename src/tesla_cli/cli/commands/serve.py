@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from tesla_cli.output import console
+from tesla_cli.cli.output import console
 
 serve_app = typer.Typer(name="serve", help="Launch local API server and web dashboard.")
 
@@ -24,7 +24,7 @@ _DEFAULT_HOST = "127.0.0.1"
 def _pid_file_path() -> Path:
     """Return the PID file path from config (or default)."""
     try:
-        from tesla_cli.config import load_config
+        from tesla_cli.core.config import load_config
         return Path(load_config().server.pid_file)
     except Exception:  # noqa: BLE001
         return _DEFAULT_PID_FILE
@@ -264,11 +264,14 @@ def serve(
                                 help="Run server in background (detached)"),
     api_key: str | None = typer.Option(None, "--api-key",
                                        help="Require this key on all /api/* requests"),
+    build_ui: bool = typer.Option(False, "--build-ui",
+                                  help="Run npm build in ui/ before starting"),
 ) -> None:
-    """Start the tesla-cli API server and open the web dashboard.
+    """Start the tesla-cli API server.
 
     \b
-    tesla serve                          # localhost:8080
+    tesla serve                          # localhost:8080, serves ui/dist/ if built
+    tesla serve --build-ui               # build React app first, then serve
     tesla serve --port 3000              # custom port
     tesla serve --host 0.0.0.0           # LAN-accessible (add --api-key for security)
     tesla serve --no-open                # headless
@@ -278,16 +281,38 @@ def serve(
     tesla serve stop                     # stop background daemon
     tesla serve status                   # check daemon status
 
-    The dashboard will be available at http://localhost:<PORT>/
     API docs at http://localhost:<PORT>/api/docs
     """
     if ctx.invoked_subcommand is not None:
         return
 
+    # ── Build UI if requested ────────────────────────────────────────────────
+    if build_ui:
+        # Walk up from src/tesla_cli/commands/ to project root, then into ui/
+        _here = Path(__file__).resolve().parent
+        for _candidate in [_here.parent.parent.parent / "ui", Path.cwd() / "ui"]:
+            if (_candidate / "package.json").exists():
+                ui_dir = _candidate
+                break
+        else:
+            console.print("[red]ui/ directory not found.[/red] Cannot build frontend.")
+            raise typer.Exit(1)
+        console.print("[dim]Building React UI...[/dim]")
+        result = subprocess.run(
+            ["npm", "run", "build"],
+            cwd=ui_dir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            console.print(f"[red]UI build failed:[/red]\n{result.stderr}")
+            raise typer.Exit(1)
+        console.print("[green]UI built successfully.[/green]")
+
     # Persist --api-key into config if provided
     if api_key:
         try:
-            from tesla_cli.config import load_config, save_config
+            from tesla_cli.core.config import load_config, save_config
             cfg = load_config()
             cfg.server.api_key = api_key
             save_config(cfg)
@@ -345,7 +370,7 @@ def serve(
         )
         raise typer.Exit(1)
 
-    from tesla_cli.server.app import create_app
+    from tesla_cli.api.app import create_app
 
     console.print(
         f"\n  [bold]tesla-cli API server[/bold]\n\n"
@@ -365,8 +390,8 @@ def serve(
 
         threading.Thread(target=_open, daemon=True).start()
 
-    from tesla_cli.config import load_config
-    from tesla_cli.config import resolve_vin as _resolve_vin
+    from tesla_cli.core.config import load_config
+    from tesla_cli.core.config import resolve_vin as _resolve_vin
 
     try:
         cfg = load_config()

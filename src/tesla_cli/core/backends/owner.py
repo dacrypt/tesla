@@ -22,10 +22,10 @@ from typing import Any
 import httpx
 import jwt
 
-from tesla_cli.auth import tokens
-from tesla_cli.auth.oauth import refresh_access_token
-from tesla_cli.backends.base import VehicleBackend
-from tesla_cli.exceptions import ApiError, AuthenticationError, VehicleAsleepError
+from tesla_cli.core.auth import tokens
+from tesla_cli.core.auth.oauth import refresh_access_token
+from tesla_cli.core.backends.base import VehicleBackend
+from tesla_cli.core.exceptions import ApiError, AuthenticationError, VehicleAsleepError
 
 logger = logging.getLogger(__name__)
 

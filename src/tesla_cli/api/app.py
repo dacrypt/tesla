@@ -9,16 +9,77 @@ import time
 from pathlib import Path
 from typing import Any
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from tesla_cli import __version__
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
 
 # ── App factory ───────────────────────────────────────────────────────────────
+
+def _auto_provision_teslamate() -> None:
+    """Install or start the managed TeslaMate stack if Docker is available."""
+    log = logging.getLogger("tesla-cli.teslamate-auto")
+    cfg = load_config()
+
+    try:
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+        stack = TeslaMateStack(
+            Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
+        )
+        stack.check_docker()
+        stack.check_docker_compose()
+    except Exception:
+        return  # Docker not available — skip silently
+
+    if cfg.teslaMate.managed and stack.is_installed():
+        # Already managed — ensure it's running
+        if not stack.is_running():
+            log.info("TeslaMate stack installed but stopped — starting...")
+            try:
+                stack.start()
+                log.info("TeslaMate stack started.")
+            except Exception as exc:
+                log.warning("Failed to start TeslaMate stack: %s", exc)
+    elif not cfg.teslaMate.managed and not cfg.teslaMate.database_url:
+        # Not configured at all — auto-install
+        log.info("TeslaMate not configured — auto-installing managed stack...")
+        try:
+            from tesla_cli.core.config import save_config
+            result = stack.install()
+            cfg = load_config()
+            cfg.teslaMate.database_url = result["database_url"]
+            cfg.teslaMate.managed = True
+            cfg.teslaMate.stack_dir = result["stack_dir"]
+            cfg.teslaMate.postgres_port = result["postgres_port"]
+            cfg.teslaMate.grafana_port = result["grafana_port"]
+            cfg.teslaMate.teslamate_port = result["teslamate_port"]
+            cfg.teslaMate.mqtt_port = result["mqtt_port"]
+            cfg.grafana.url = f"http://localhost:{result['grafana_port']}"
+            cfg.mqtt.broker = "localhost"
+            cfg.mqtt.port = result["mqtt_port"]
+            save_config(cfg)
+            health = "healthy" if result["healthy"] else "starting"
+            log.info(
+                "TeslaMate stack installed (%s). "
+                "UI: http://localhost:%s  Grafana: http://localhost:%s",
+                health, result["teslamate_port"], result["grafana_port"],
+            )
+        except Exception as exc:
+            log.warning("Auto-install of TeslaMate stack failed: %s", exc)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle for the API server."""
+    _auto_provision_teslamate()
+    yield
+
 
 def create_app(vin: str | None = None) -> FastAPI:
     app = FastAPI(
@@ -28,6 +89,7 @@ def create_app(vin: str | None = None) -> FastAPI:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
+        lifespan=_lifespan,
     )
 
     app.add_middleware(
@@ -38,7 +100,7 @@ def create_app(vin: str | None = None) -> FastAPI:
     )
 
     # API Key auth middleware (no-op when key not configured)
-    from tesla_cli.server.auth import ApiKeyMiddleware
+    from tesla_cli.api.auth import ApiKeyMiddleware
     cfg0 = load_config()
     app.add_middleware(ApiKeyMiddleware, api_key=cfg0.server.api_key)
 
@@ -46,16 +108,18 @@ def create_app(vin: str | None = None) -> FastAPI:
     app.state.override_vin = vin
 
     # ── Register routes ───────────────────────────────────────────────────────
-    from tesla_cli.server.routes.charge import router as charge_router
-    from tesla_cli.server.routes.climate import router as climate_router
-    from tesla_cli.server.routes.order import router as order_router
-    from tesla_cli.server.routes.teslaMate import router as teslaMate_router
-    from tesla_cli.server.routes.vehicle import router as vehicle_router
+    from tesla_cli.api.routes.charge import router as charge_router
+    from tesla_cli.api.routes.climate import router as climate_router
+    from tesla_cli.api.routes.dossier import router as dossier_router
+    from tesla_cli.api.routes.order import router as order_router
+    from tesla_cli.api.routes.teslaMate import router as teslaMate_router
+    from tesla_cli.api.routes.vehicle import router as vehicle_router
 
     app.include_router(vehicle_router,   prefix="/api/vehicle",    tags=["Vehicle"])
     app.include_router(charge_router,    prefix="/api/charge",     tags=["Charge"])
     app.include_router(climate_router,   prefix="/api/climate",    tags=["Climate"])
     app.include_router(order_router,     prefix="/api/order",      tags=["Order"])
+    app.include_router(dossier_router,   prefix="/api/dossier",    tags=["Dossier"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate",  tags=["TeslaMate"])
 
     # ── System endpoints ──────────────────────────────────────────────────────
@@ -106,14 +170,14 @@ def create_app(vin: str | None = None) -> FastAPI:
     @app.get("/api/providers", tags=["System"])
     def api_providers() -> list:
         """Ecosystem provider status — availability and capabilities."""
-        from tesla_cli.providers import get_registry
+        from tesla_cli.core.providers import get_registry
         return get_registry().status()
 
     @app.get("/api/providers/capabilities", tags=["System"])
     def api_provider_capabilities() -> dict:
         """Capability map — which providers serve which capabilities."""
-        from tesla_cli.providers import get_registry
-        from tesla_cli.providers.base import Capability
+        from tesla_cli.core.providers import get_registry
+        from tesla_cli.core.providers.base import Capability
         registry = get_registry()
         out = {}
         for cap in sorted(Capability.all()):
@@ -188,7 +252,7 @@ def create_app(vin: str | None = None) -> FastAPI:
 
         Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
         """
-        from tesla_cli.commands.config_cmd import _run_config_checks
+        from tesla_cli.cli.commands.config_cmd import _run_config_checks
         cfg = load_config()
         checks = _run_config_checks(cfg)
         errors   = sum(1 for c in checks if c["status"] == "error")
@@ -317,36 +381,32 @@ def create_app(vin: str | None = None) -> FastAPI:
             },
         )
 
-    # ── Web UI ────────────────────────────────────────────────────────────────
-    _static_dir = Path(__file__).parent / "static"
+    # ── Root redirect to API docs ────────────────────────────────────────────
+    # ── Serve React UI build (production) or redirect to docs ────────────────
+    _ui_dist = Path(__file__).resolve().parent / "ui_dist"
 
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    def web_ui() -> str:
-        html_file = _static_dir / "index.html"
-        if html_file.exists():
-            return html_file.read_text()
-        return "<h1>tesla-cli API</h1><p><a href='/api/docs'>API Docs →</a></p>"
+    if _ui_dist.exists() and (_ui_dist / "index.html").exists():
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
 
-    @app.get("/manifest.json", include_in_schema=False)
-    def pwa_manifest() -> JSONResponse:
-        manifest = {
-            "name":             "Tesla Dashboard",
-            "short_name":       "Tesla",
-            "description":      "tesla-cli vehicle dashboard",
-            "start_url":        "/",
-            "display":          "standalone",
-            "background_color": "#0d0d0d",
-            "theme_color":      "#e82127",
-            "icons": [
-                {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-                {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
-            ],
-        }
-        return JSONResponse(manifest)
+        # Serve static assets (js, css, images) under /assets/
+        _assets = _ui_dist / "assets"
+        if _assets.exists():
+            app.mount("/assets", StaticFiles(directory=str(_assets)), name="ui-assets")
 
-    # Serve remaining static files (sw.js, icons, etc.)
-    if _static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+        @app.get("/{path:path}", include_in_schema=False)
+        def spa_fallback(path: str):
+            """Serve React SPA — static files or fallback to index.html."""
+            file = _ui_dist / path
+            if file.is_file() and ".." not in path:
+                return FileResponse(file)
+            return FileResponse(_ui_dist / "index.html")
+    else:
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/", include_in_schema=False)
+        def root_redirect():
+            return RedirectResponse(url="/api/docs")
 
     return app
 
@@ -355,8 +415,8 @@ def create_app(vin: str | None = None) -> FastAPI:
 
 def _fanout_telemetry(data: dict, vin: str, cfg) -> None:
     """Push vehicle state to all configured telemetry/home-sync sinks."""
-    from tesla_cli.providers.base import Capability
-    from tesla_cli.providers.loader import build_registry
+    from tesla_cli.core.providers.base import Capability
+    from tesla_cli.core.providers.loader import build_registry
     registry = build_registry(cfg)
     registry.fanout(Capability.TELEMETRY_PUSH, "push", data=data, vin=vin)
     registry.fanout(Capability.HOME_SYNC,      "push", data=data, vin=vin)

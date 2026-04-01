@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.exceptions import VehicleAsleepError
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.exceptions import VehicleAsleepError
 
 router = APIRouter()
 
@@ -86,6 +86,28 @@ def vehicle_list(request: Request) -> list:
 class CommandRequest(BaseModel):
     command: str
     params:  dict = {}
+
+
+@router.get("/odometer")
+def vehicle_odometer(request: Request) -> dict:
+    """Current odometer reading and software version.
+
+    Returns {vin, odometer_miles, car_version, queried_at}.
+    """
+    backend, v = _backend_and_vin(request)
+    try:
+        vs = backend.get_vehicle_state(v)
+        from datetime import UTC, datetime
+        return {
+            "vin":           v,
+            "odometer_miles": vs.get("odometer"),
+            "car_version":    vs.get("car_version"),
+            "queried_at":     datetime.now(UTC).isoformat(),
+        }
+    except VehicleAsleepError:
+        raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/command")

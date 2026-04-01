@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-04-01
+
+### Architecture — Clean Architecture + Monorepo + TeslaMate Managed Stack
+
+- **Clean architecture restructuring** — reorganized `tesla_cli` package into 4 layers:
+  - `core/` — business logic (config, exceptions, auth, backends, models, providers) with zero framework deps
+  - `cli/` — CLI layer (Typer app, commands, output, i18n)
+  - `api/` — API layer (FastAPI factory, auth middleware, routes, UI build serving)
+  - `infra/` — infrastructure orchestration (TeslaMate Docker Compose stack)
+- **Monorepo** — React frontend (`tesla-app`) moved into `ui/` directory inside the main project
+  - Vite proxy: `/api` requests proxied to backend in development
+  - Production: `tesla serve --build-ui` builds React app and serves from FastAPI on single port
+  - `Makefile` with unified commands: `make dev`, `make build`, `make test`, `make serve`
+- **TeslaMate managed stack** — full Docker Compose lifecycle management:
+  - 7 new CLI commands: `install`, `start`, `stop`, `restart`, `update`, `logs`, `uninstall`
+  - Auto-provisioning on server startup (installs if Docker available and TeslaMate not configured)
+  - Credentials stored in system keyring, Tesla tokens forwarded to TeslaMate container
+  - Settings page in React app with container status, action buttons, log viewer
+  - 6 new API endpoints: `stack/status`, `stack/start`, `stack/stop`, `stack/restart`, `stack/update`, `stack/logs`
+- **Removed** vanilla JS dashboard (`index.html`) — React app is the single UI
+
+### Tests
+
+- 1113 unit tests passing, 34 new TeslaMate stack tests
+
+## [3.5.0] - 2026-03-31
+
+### Added — Energy Report, Charging-Locations API, Odometer API
+
+- **`tesla teslaMate energy-report`** — monthly energy usage summary aggregated from TeslaMate daily data; columns: Month, kWh, km, Wh/km; totals row; `--months N` (default 6, max 24); JSON returns list of `{month, kwh, km, wh_per_km}`; empty-data graceful fallback
+- **`GET /api/teslaMate/charging-locations`** — top charging locations REST endpoint; `?days=N` (default 90) and `?limit=N` (default 10); returns list of `{location, sessions, kwh_total, last_visit}`; 503 when TeslaMate not configured; 502 on backend error
+- **`GET /api/vehicle/odometer`** — current odometer reading REST endpoint; returns `{vin, odometer_miles, car_version, queried_at}`; 503 when vehicle is asleep; 502 on other errors
+
+### Tests
+
+- 1132 unit tests passing, 2 skipped, ruff clean
+- `TestTeslaMateEnergyReport` (8 tests), `TestTeslaMatChargingLocationsApi` (3 tests), `TestVehicleOdometerApi` (4 tests) in `tests/test_new_commands.py`
+
 ## [3.4.0] - 2026-03-31
 
 ### Added — Charging Locations, Vehicle Health Check, Charging Animation, Trip-Stats API

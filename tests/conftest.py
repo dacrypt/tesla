@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tesla_cli.backends.fleet import FleetBackend
+from tesla_cli.core.backends.fleet import FleetBackend
 
 MOCK_VIN = "5YJ3E1EA1PF000001"
 
@@ -75,8 +75,8 @@ MOCK_COMMAND_OK = {"result": True, "reason": ""}
 def mock_config():
     """Patch load_config and resolve_vin to return test defaults."""
     with (
-        patch("tesla_cli.config.load_config") as mock_load,
-        patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.core.config.load_config") as mock_load,
+        patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
     ):
         cfg = MagicMock()
         cfg.general.backend = "fleet"

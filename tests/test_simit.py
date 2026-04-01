@@ -1,18 +1,46 @@
-"""Unit tests for SIMIT backend."""
+"""Unit tests for SIMIT backend (openquery delegation)."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
-from tesla_cli.backends.simit import SimitBackend
-from tesla_cli.models.dossier import SimitData
+import pytest
+
+from tesla_cli.core.backends.simit import SimitBackend, SimitError
+from tesla_cli.core.models.dossier import SimitData
+
+
+def _mock_simit_result(extra_fields: dict | None = None) -> MagicMock:
+    """Return a mock openquery SimitResult with sensible defaults."""
+    now = datetime.now(UTC)
+    fields = dict(
+        cedula="12345678",
+        comparendos=0,
+        multas=0,
+        acuerdos_pago=0,
+        total_deuda=0.0,
+        paz_y_salvo=True,
+        historial=[],
+        queried_at=now,
+    )
+    if extra_fields:
+        fields.update(extra_fields)
+    result = MagicMock()
+    result.model_dump.return_value = fields
+    return result
+
+
+def _mock_source(result: MagicMock) -> MagicMock:
+    src = MagicMock()
+    src.query.return_value = result
+    return src
 
 
 class TestSimitData:
     """Test SimitData model."""
 
     def test_default_values(self):
-        """Default SimitData should be paz y salvo."""
         data = SimitData()
         assert data.comparendos == 0
         assert data.multas == 0
@@ -54,129 +82,107 @@ class TestSimitData:
         assert data.paz_y_salvo is False
 
 
-class TestParseResults:
-    """Test result parsing logic."""
-
-    def test_parse_paz_y_salvo(self):
-        """Should detect paz y salvo from page content."""
-        backend = SimitBackend()
-
-        # Mock page with paz y salvo
-        mock_page = MagicMock()
-        mock_page.query_selector.side_effect = lambda sel: (
-            MagicMock() if "Paz y Salvo" in sel else None
-        )
-        mock_page.inner_text.return_value = (
-            "Resumen\n"
-            "Comparendos: 0\n"
-            "Multas: 0\n"
-            "Acuerdos de pago: 0\n"
-            "Total: $ 0\n"
-        )
-
-        result = backend._parse_results(mock_page, "12345678")
-
-        assert result.paz_y_salvo is True
-        assert result.comparendos == 0
-        assert result.multas == 0
-        assert result.total_deuda == 0.0
-
-    def test_parse_with_fines(self):
-        """Should parse comparendos and multas correctly."""
-        backend = SimitBackend()
-
-        mock_page = MagicMock()
-        mock_page.query_selector.return_value = None  # No paz y salvo
-        mock_page.inner_text.return_value = (
-            "Resumen\n"
-            "Comparendos: 3\n"
-            "Multas: 2\n"
-            "Acuerdos de pago: 1\n"
-            "Total: $ 1.500.000\n"
-        )
-
-        result = backend._parse_results(mock_page, "12345678")
-
-        assert result.comparendos == 3
-        assert result.multas == 2
-        assert result.acuerdos_pago == 1
-        assert result.total_deuda == 1500000.0
-        assert result.paz_y_salvo is False
-
-
-class TestParseHistorial:
-    """Test historial parsing."""
-
-    def test_no_historial_button(self):
-        """Should return empty list if no historial button."""
-        backend = SimitBackend()
-
-        mock_page = MagicMock()
-        mock_page.query_selector.return_value = None
-
-        result = backend._parse_historial(mock_page)
-        assert result == []
-
-    def test_parse_historial_rows(self):
-        """Should parse table rows from historial."""
-        backend = SimitBackend()
-
-        mock_btn = MagicMock()
-        mock_btn.inner_text.return_value = "Ver historial (2)"
-
-        # Create mock cells
-        def make_cell(text):
-            c = MagicMock()
-            c.inner_text.return_value = text
-            return c
-
-        row1_cells = [
-            make_cell("05001000000051651111"),
-            make_cell("Medellin 05001000"),
-            make_cell("11/03/2026"),
-            make_cell("4777749"),
-            make_cell("Medellin"),
-            make_cell("CIA CIACON S.A.S."),
-            make_cell("11/03/2026"),
-            make_cell("Aplicado"),
-        ]
-        row2_cells = [
-            make_cell("05088000000053773128"),
-            make_cell("Bello 05088000"),
-            make_cell("11/03/2026"),
-            make_cell("4775948"),
-            make_cell("Medellin"),
-            make_cell("CIA CIACON S.A.S."),
-            make_cell("11/03/2026"),
-            make_cell("Aplicado"),
-        ]
-
-        mock_row1 = MagicMock()
-        mock_row1.query_selector_all.return_value = row1_cells
-        mock_row2 = MagicMock()
-        mock_row2.query_selector_all.return_value = row2_cells
-
-        mock_page = MagicMock()
-        mock_page.query_selector.return_value = mock_btn
-        mock_page.query_selector_all.return_value = [mock_row1, mock_row2]
-
-        result = backend._parse_historial(mock_page)
-        assert len(result) == 2
-        assert result[0]["comparendo"] == "05001000000051651111"
-        assert result[0]["secretaria"] == "Medellin 05001000"
-        assert result[0]["estado"] == "Aplicado"
-        assert result[1]["comparendo"] == "05088000000053773128"
-
-
 class TestSimitBackendInit:
-    """Test backend initialization."""
-
     def test_default_timeout(self):
-        """Default timeout should be 30 seconds."""
         backend = SimitBackend()
         assert backend._timeout == 30.0
 
     def test_custom_timeout(self):
-        """Custom timeout should be respected."""
         backend = SimitBackend(timeout=60.0)
         assert backend._timeout == 60.0
+
+
+class TestSimitBackendDelegation:
+    """Test that SimitBackend delegates to openquery co.simit."""
+
+    def test_query_by_cedula_delegates_to_openquery(self):
+        result = _mock_simit_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = SimitBackend().query_by_cedula("12345678")
+        assert isinstance(data, SimitData)
+        assert data.cedula == "12345678"
+        assert data.paz_y_salvo is True
+
+    def test_query_by_placa_delegates_to_openquery(self):
+        result = _mock_simit_result(extra_fields={"cedula": "XYZ123", "paz_y_salvo": False,
+                                                   "comparendos": 2, "total_deuda": 500000.0})
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = SimitBackend().query_by_placa("XYZ123")
+        assert isinstance(data, SimitData)
+        assert data.paz_y_salvo is False
+        assert data.comparendos == 2
+
+    def test_raises_simit_error_on_source_exception(self):
+        src = MagicMock()
+        src.query.side_effect = RuntimeError("connection refused")
+        with patch("openquery.sources.get_source", return_value=src), pytest.raises(SimitError, match="SIMIT query failed"):
+            SimitBackend().query_by_cedula("12345678")
+
+    def test_raises_simit_error_when_openquery_not_installed(self):
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name.startswith("openquery"):
+                raise ImportError("No module named 'openquery'")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import), pytest.raises(SimitError, match="openquery is required"):
+            SimitBackend().query_by_cedula("12345678")
+
+    def test_simit_data_fields_mapped_correctly(self):
+        result = _mock_simit_result(extra_fields={
+            "comparendos": 3,
+            "multas": 1,
+            "total_deuda": 750000.0,
+            "paz_y_salvo": False,
+            "historial": [{"comparendo": "ABC123", "estado": "Pendiente"}],
+        })
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = SimitBackend().query_by_cedula("12345678")
+        assert data.comparendos == 3
+        assert data.multas == 1
+        assert data.total_deuda == 750000.0
+        assert data.paz_y_salvo is False
+        assert len(data.historial) == 1
+
+    def test_extra_openquery_fields_ignored_gracefully(self):
+        """Fields not in SimitData.model_fields are silently discarded."""
+        result = _mock_simit_result(extra_fields={
+            "unknown_field": "surprise",
+            "another_extra": 999,
+        })
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)):
+            data = SimitBackend().query_by_placa("XYZ123")
+        assert isinstance(data, SimitData)
+        assert not hasattr(data, "unknown_field")
+
+    def test_cedula_doc_type_passed_to_openquery(self):
+        """query_by_cedula must use DocumentType.CEDULA."""
+        from openquery.sources.base import DocumentType, QueryInput
+        result = _mock_simit_result()
+        src = _mock_source(result)
+        with patch("openquery.sources.get_source", return_value=src):
+            SimitBackend().query_by_cedula("12345678")
+        call_args = src.query.call_args[0][0]
+        assert isinstance(call_args, QueryInput)
+        assert call_args.document_type == DocumentType.CEDULA
+        assert call_args.document_number == "12345678"
+
+    def test_plate_doc_type_passed_to_openquery(self):
+        """query_by_placa must use DocumentType.PLATE."""
+        from openquery.sources.base import DocumentType
+        result = _mock_simit_result()
+        src = _mock_source(result)
+        with patch("openquery.sources.get_source", return_value=src):
+            SimitBackend().query_by_placa("XYZ123")
+        call_args = src.query.call_args[0][0]
+        assert call_args.document_type == DocumentType.PLATE
+        assert call_args.document_number == "XYZ123"
+
+    def test_co_simit_source_name_used(self):
+        """Must request the 'co.simit' source specifically."""
+        result = _mock_simit_result()
+        with patch("openquery.sources.get_source", return_value=_mock_source(result)) as mock_gs:
+            SimitBackend().query_by_cedula("12345678")
+        mock_gs.assert_called_once_with("co.simit")

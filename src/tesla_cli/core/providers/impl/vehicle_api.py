@@ -7,8 +7,8 @@ vehicle state and commands when internet is available.
 
 from __future__ import annotations
 
-from tesla_cli.config import Config
-from tesla_cli.providers.base import (
+from tesla_cli.core.config import Config
+from tesla_cli.core.providers.base import (
     Capability,
     Provider,
     ProviderPriority,
@@ -37,11 +37,11 @@ class VehicleApiProvider(Provider):
         self._cfg = config
 
     def _backend(self):
-        from tesla_cli.backends import get_vehicle_backend
+        from tesla_cli.core.backends import get_vehicle_backend
         return get_vehicle_backend(self._cfg)
 
     def _vin(self, vin: str | None) -> str:
-        from tesla_cli.config import resolve_vin
+        from tesla_cli.core.config import resolve_vin
         return resolve_vin(self._cfg, vin)
 
     # ── Availability ─────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ class VehicleApiProvider(Provider):
     def is_available(self) -> bool:
         backend_name = self._cfg.general.backend
         try:
-            from tesla_cli.auth.tokens import (
+            from tesla_cli.core.auth.tokens import (
                 FLEET_ACCESS_TOKEN,
                 ORDER_ACCESS_TOKEN,
                 TESSIE_TOKEN,

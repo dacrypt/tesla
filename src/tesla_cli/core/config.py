@@ -37,6 +37,7 @@ class TessieConfig(BaseModel):
 class FleetConfig(BaseModel):
     region: str = "na"  # "na" | "eu" | "cn"
     client_id: str = ""
+    domain: str = "dacrypt.github.io"  # Domain registered in partner_accounts (bare, no https://)
 
 
 class NotificationsConfig(BaseModel):
@@ -52,6 +53,12 @@ class VehiclesConfig(BaseModel):
 class TeslamateConfig(BaseModel):
     database_url: str = ""  # postgresql://user:pass@host:5432/teslaMate
     car_id: int = 1  # TeslaMate car ID (1-based)
+    managed: bool = False  # True = stack managed by CLI via Docker Compose
+    stack_dir: str = ""  # ~/.tesla-cli/teslamate (set during install)
+    postgres_port: int = 5432
+    grafana_port: int = 3000
+    teslamate_port: int = 4000
+    mqtt_port: int = 1883
 
 
 class GeofencesConfig(BaseModel):
@@ -137,7 +144,7 @@ def resolve_vin(config: Config, vin: str | None) -> str:
     """Resolve a VIN from alias, explicit value, or default."""
     if vin is None:
         if not config.general.default_vin:
-            from tesla_cli.exceptions import ConfigurationError
+            from tesla_cli.core.exceptions import ConfigurationError
 
             raise ConfigurationError("No VIN configured. Run: tesla config set default-vin <VIN>")
         return config.general.default_vin

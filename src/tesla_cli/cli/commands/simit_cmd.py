@@ -8,7 +8,7 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode
 
 simit_app = typer.Typer(name="simit", help="SIMIT — Colombia traffic fines queries.")
 
@@ -52,13 +52,24 @@ def _resolve_cedula() -> str:
     return DEFAULT_CEDULA
 
 
+EnrichOption = typer.Option(
+    True, "--enrich/--no-enrich",
+    help="Also query Procuraduría and Policía when querying by cédula (default: on)",
+)
+
+
 @simit_app.command("query")
 def simit_query(
     cedula: str | None = CedulaOption,
     placa: str | None = PlacaOption,
+    enrich: bool = EnrichOption,
 ) -> None:
-    """Query SIMIT for traffic fines by cédula or plate."""
-    from tesla_cli.backends.simit import SimitBackend, SimitError
+    """Query SIMIT for traffic fines by cédula or plate.
+
+    When querying by cédula and openquery is installed, also shows
+    Procuraduría (disciplinary) and Policía (criminal) background records.
+    """
+    from tesla_cli.core.backends.simit import SimitBackend, SimitError
 
     backend = SimitBackend()
 
@@ -131,3 +142,50 @@ def simit_query(
             )
 
         console.print(hist_table)
+
+    # ── Enrichment: Procuraduría + Policía (cédula queries only) ─────────────
+    effective_cedula = None if placa else (cedula or _resolve_cedula())
+    if enrich and effective_cedula:
+        _show_background_checks(effective_cedula)
+
+
+def _show_background_checks(cedula: str) -> None:
+    """Query Procuraduría and Policía antecedentes via openquery."""
+    try:
+        from openquery.sources import get_source
+        from openquery.sources.base import DocumentType, QueryInput
+    except ImportError:
+        return  # openquery not installed — skip silently
+
+    console.print()
+
+    for source_name, title in [
+        ("co.procuraduria", "Procuraduría — antecedentes disciplinarios"),
+        ("co.policia",      "Policía — antecedentes judiciales"),
+    ]:
+        try:
+            with Progress(SpinnerColumn(), TextColumn("[dim]{task.description}"),
+                          transient=True, disable=is_json_mode()) as p:
+                p.add_task(f"{title}…", total=None)
+                result = get_source(source_name).query(
+                    QueryInput(document_type=DocumentType.CEDULA, document_number=cedula))
+
+            d = result.model_dump(exclude={"audit", "queried_at"})
+            t = Table(title=title, show_header=False, box=None, padding=(0, 2),
+                      border_style="green" if d.get("sin_antecedentes") else "yellow")
+            t.add_column("k", style="bold dim", width=28)
+            t.add_column("v")
+            for k, v in d.items():
+                if v is None or v == "" or v == []:
+                    continue
+                if isinstance(v, bool):
+                    v_str = ("[green]Sí ✓[/green]" if v else "[red]No ✗[/red]")
+                elif isinstance(v, list):
+                    v_str = f"[dim]({len(v)} items)[/dim]"
+                else:
+                    v_str = str(v)
+                t.add_row(k.replace("_", " ").title(), v_str)
+            console.print(t)
+        except Exception as exc:
+            console.print(f"[dim]{title}: {exc}[/dim]")
+        console.print()

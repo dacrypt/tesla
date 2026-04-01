@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 
-from tesla_cli.providers.base import Provider, ProviderResult
+from tesla_cli.core.providers.base import Provider, ProviderResult
 
 
 class CapabilityNotAvailableError(Exception):

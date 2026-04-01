@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.exceptions import VehicleAsleepError
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.exceptions import VehicleAsleepError
 
 router = APIRouter()
 

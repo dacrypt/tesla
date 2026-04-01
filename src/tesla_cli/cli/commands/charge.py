@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.models.charge import ChargeState
-from tesla_cli.output import (
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.models.charge import ChargeState
+from tesla_cli.cli.output import (
     console,
     is_json_mode,
     render_dict,
@@ -33,7 +33,7 @@ def _vin(vin: str | None) -> str:
 @charge_app.command("status")
 def charge_status(vin: str | None = VinOption) -> None:
     """Show current charge state."""
-    from tesla_cli.output import console
+    from tesla_cli.cli.output import console
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_charge_state(v), v)
     state = ChargeState.model_validate(data)
@@ -190,7 +190,7 @@ def charge_departure(
             v,
         )
         if is_json_mode():
-            from tesla_cli.output import console
+            from tesla_cli.cli.output import console
             console.print(_json.dumps({"scheduled_departure": False}, indent=2))
             return
         render_success("Scheduled departure disabled")
@@ -213,7 +213,7 @@ def charge_departure(
     )
 
     if is_json_mode():
-        from tesla_cli.output import console
+        from tesla_cli.cli.output import console
         console.print(_json.dumps({
             "scheduled_departure": True,
             "time": time,
@@ -259,7 +259,7 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
         return f"{int(mins) // 60:02d}:{int(mins) % 60:02d}"
 
     if is_json_mode():
-        from tesla_cli.output import console as _con
+        from tesla_cli.cli.output import console as _con
         _con.print(_json.dumps({
             "scheduled_charging_mode": sched_mode,
             "scheduled_charging_start": _minutes_to_hhmm(sched_start),
@@ -276,7 +276,7 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
     from rich.panel import Panel
     from rich.table import Table
 
-    from tesla_cli.output import console as _con
+    from tesla_cli.cli.output import console as _con
 
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("Key", style="dim", width=32)
@@ -322,7 +322,7 @@ def charge_profile(
     """
     import json as _json
 
-    from tesla_cli.exceptions import VehicleAsleepError
+    from tesla_cli.core.exceptions import VehicleAsleepError
 
     cfg = load_config()
     v   = resolve_vin(cfg, vin)
@@ -512,8 +512,8 @@ def charge_forecast(vin: str | None = VinOption) -> None:
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
-    from tesla_cli.exceptions import BackendNotSupportedError
-    from tesla_cli.output import console
+    from tesla_cli.core.exceptions import BackendNotSupportedError
+    from tesla_cli.cli.output import console
 
     backend = _backend()
     try:

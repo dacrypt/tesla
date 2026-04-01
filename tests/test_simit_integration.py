@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from tesla_cli.backends.simit import SimitBackend
-from tesla_cli.models.dossier import SimitData
+from tesla_cli.core.backends.simit import SimitBackend
+from tesla_cli.core.models.dossier import SimitData
 
 # Mark all tests in this module as integration
 pytestmark = pytest.mark.integration

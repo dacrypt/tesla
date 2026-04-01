@@ -8,8 +8,8 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, is_json_mode, render_success, render_table
+from tesla_cli.core.config import load_config, save_config
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
 
 teslaMate_app = typer.Typer(
     name="teslaMate",
@@ -18,15 +18,26 @@ teslaMate_app = typer.Typer(
 
 
 def _backend():
-    from tesla_cli.backends.teslaMate import TeslaMateBacked
+    from tesla_cli.core.backends.teslaMate import TeslaMateBacked
     cfg = load_config()
     url = cfg.teslaMate.database_url
     if not url:
         console.print(
             "[red]TeslaMate not configured.[/red]\n"
-            "Run: [bold]tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate[/bold]"
+            "Run: [bold]tesla teslaMate install[/bold] to set up a managed stack,\n"
+            "  or [bold]tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate[/bold] for an external DB."
         )
         raise typer.Exit(1)
+    # Warn if managed stack is installed but not running
+    if cfg.teslaMate.managed:
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+        from pathlib import Path
+        stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+        if stack.is_installed() and not stack.is_running():
+            console.print(
+                "[yellow]TeslaMate stack is installed but not running.[/yellow]\n"
+                "Start it with: [bold]tesla teslaMate start[/bold]\n"
+            )
     return TeslaMateBacked(url, car_id=cfg.teslaMate.car_id)
 
 
@@ -47,7 +58,7 @@ def teslaMate_connect(
     cfg.teslaMate.car_id = car_id
 
     # Test connection
-    from tesla_cli.backends.teslaMate import TeslaMateBacked
+    from tesla_cli.core.backends.teslaMate import TeslaMateBacked
     backend = TeslaMateBacked(database_url, car_id=car_id)
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
@@ -86,6 +97,19 @@ def teslaMate_status() -> None:
         cars = backend.get_cars() if ok else []
 
     cfg = load_config()
+
+    # Managed stack info
+    stack_info: dict = {}
+    if cfg.teslaMate.managed:
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+        from pathlib import Path
+        stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+        stack_info = {
+            "managed": True,
+            "installed": stack.is_installed(),
+            "services": stack.status(),
+        }
+
     status_data = {
         "connected": ok,
         "database_url": cfg.teslaMate.database_url.split("@")[-1] if "@" in cfg.teslaMate.database_url else cfg.teslaMate.database_url,
@@ -99,19 +123,36 @@ def teslaMate_status() -> None:
         "total_kwh_charged": str(charge_stats.get("total_kwh_added", 0)),
         "total_charging_cost": f"${charge_stats.get('total_cost', 0):.2f}",
     }
+    if stack_info:
+        status_data["stack"] = stack_info
 
     if is_json_mode():
         console.print_json(json.dumps(status_data, indent=2, default=str))
         return
 
     from rich.panel import Panel
-    status_icon = "[green]✅ Connected[/green]" if ok else "[red]❌ Not connected[/red]"
+    status_icon = "[green]Connected[/green]" if ok else "[red]Not connected[/red]"
+    mode_label = "[cyan]managed[/cyan]" if cfg.teslaMate.managed else "[dim]external[/dim]"
     console.print()
     console.print(Panel(
-        f"{status_icon}  │  DB: [dim]{status_data['database_url']}[/dim]  │  Car ID: [cyan]{cfg.teslaMate.car_id}[/cyan]",
+        f"{status_icon}  |  Mode: {mode_label}  |  DB: [dim]{status_data['database_url']}[/dim]  |  Car ID: [cyan]{cfg.teslaMate.car_id}[/cyan]",
         title="[bold]TeslaMate Integration[/bold]",
         border_style="cyan",
     ))
+
+    # Show managed stack container status
+    if stack_info and stack_info.get("services"):
+        console.print("\n[bold]Docker Stack[/bold]")
+        st = Table(show_header=True, box=None, padding=(0, 2))
+        st.add_column("Service", style="bold")
+        st.add_column("State")
+        st.add_column("Image", style="dim")
+        st.add_column("Status")
+        for svc in stack_info["services"]:
+            state = svc.get("state", "unknown")
+            state_styled = f"[green]{state}[/green]" if state == "running" else f"[red]{state}[/red]"
+            st.add_row(svc["name"], state_styled, svc.get("image", ""), svc.get("status", ""))
+        console.print(st)
 
     if ok:
         console.print("\n[bold]Driving[/bold]")
@@ -135,7 +176,7 @@ def teslaMate_status() -> None:
     if cars:
         console.print("\n[bold]Cars in DB[/bold]")
         for car in cars:
-            active = " ← [bold cyan]active[/bold cyan]" if car["id"] == cfg.teslaMate.car_id else ""
+            active = " <- [bold cyan]active[/bold cyan]" if car["id"] == cfg.teslaMate.car_id else ""
             console.print(f"  [{car['id']}] {car.get('name') or '(unnamed)'}  VIN: [dim]{car.get('vin', '?')}[/dim]{active}")
 
 
@@ -1211,6 +1252,332 @@ def teslaMate_grafana(
 
     console.print(f"Opening [bold cyan]{key}[/bold cyan] dashboard…  [dim]{url}[/dim]")
     webbrowser.open(url)
+
+
+@teslaMate_app.command("energy-report")
+def teslaMate_energy_report(
+    months: int = typer.Option(6, "--months", "-m", min=1, max=24, help="Number of months to summarise"),
+) -> None:
+    """Monthly energy usage summary from TeslaMate.
+
+    tesla teslaMate energy-report
+    tesla teslaMate energy-report --months 12
+    tesla -j teslaMate energy-report | jq '.[0].kwh'
+    """
+    import json as _json
+    from collections import defaultdict
+
+    backend = _backend()
+    days = months * 31
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+                  transient=True, disable=is_json_mode()) as p:
+        p.add_task(f"Fetching energy data for last {months} months…", total=None)
+        daily = backend.get_daily_energy(days=days)
+
+    # Aggregate by YYYY-MM
+    by_month: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "km": 0.0, "days": 0})
+    for row in daily:
+        ym   = str(row.get("date") or "")[:7]
+        kwh  = float(row.get("kwh") or 0)
+        km   = float(row.get("km") or row.get("distance") or 0)
+        if ym:
+            by_month[ym]["kwh"]  = round(by_month[ym]["kwh"] + kwh, 3)
+            by_month[ym]["km"]   = round(by_month[ym]["km"]  + km,  1)
+            by_month[ym]["days"] += 1
+
+    rows = [
+        {"month": ym, "kwh": d["kwh"], "km": d["km"],
+         "wh_per_km": round(d["kwh"] * 1000 / d["km"], 1) if d["km"] > 0 else None}
+        for ym, d in sorted(by_month.items(), reverse=True)
+    ]
+
+    if is_json_mode():
+        console.print(_json.dumps(rows, indent=2))
+        return
+
+    if not rows:
+        console.print("[yellow]No energy data found in TeslaMate.[/yellow]")
+        return
+
+    table = Table(title=f"Energy Report — last {months} months", border_style="green")
+    table.add_column("Month",    style="bold cyan", width=10)
+    table.add_column("kWh",      justify="right")
+    table.add_column("km",       justify="right")
+    table.add_column("Wh/km",    justify="right")
+
+    for r in rows:
+        wh_str = f"{r['wh_per_km']:.1f}" if r["wh_per_km"] is not None else "—"
+        table.add_row(
+            r["month"],
+            f"{r['kwh']:.1f}",
+            f"{r['km']:.0f}",
+            wh_str,
+        )
+
+    total_kwh = sum(r["kwh"] for r in rows)
+    total_km  = sum(r["km"]  for r in rows)
+    avg_wh = round(total_kwh * 1000 / total_km, 1) if total_km > 0 else 0
+    table.add_section()
+    table.add_row("[bold]Total[/bold]", f"[bold]{total_kwh:.1f}[/bold]",
+                  f"[bold]{total_km:.0f}[/bold]", f"[bold]{avg_wh:.1f}[/bold]")
+
+    console.print(table)
+
+
+# ── managed stack lifecycle ──
+
+
+@teslaMate_app.command("install")
+def teslaMate_install(
+    postgres_port: int = typer.Option(5432, "--postgres-port", help="PostgreSQL port"),
+    grafana_port: int = typer.Option(3000, "--grafana-port", help="Grafana port"),
+    teslamate_port: int = typer.Option(4000, "--teslamate-port", help="TeslaMate web UI port"),
+    mqtt_port: int = typer.Option(1883, "--mqtt-port", help="Mosquitto MQTT port"),
+    timezone: str = typer.Option("America/Bogota", "--tz", help="Timezone for TeslaMate"),
+    force: bool = typer.Option(False, "--force", help="Reinstall even if already installed"),
+) -> None:
+    """Install and start a fully managed TeslaMate stack (Docker Compose).
+
+    Sets up PostgreSQL, TeslaMate, Grafana, and Mosquitto. Credentials are
+    generated automatically and stored in the system keyring.
+
+    tesla teslaMate install
+    tesla teslaMate install --grafana-port 3001 --tz America/New_York
+    """
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from tesla_cli.core.exceptions import DockerNotFoundError, TeslaMateStackError
+
+    stack = TeslaMateStack()
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        task = p.add_task("Checking Docker...", total=None)
+
+        # Port conflict check
+        conflicts = stack.check_ports(postgres_port, grafana_port, teslamate_port, mqtt_port)
+        if conflicts:
+            names = ", ".join(f"{n} (:{p})" for n, p in conflicts)
+            console.print(f"[red]Port conflict:[/red] {names} already in use.")
+            console.print("[dim]Use --postgres-port, --grafana-port, etc. to pick different ports.[/dim]")
+            raise typer.Exit(1)
+
+        p.update(task, description="Installing TeslaMate stack...")
+        try:
+            result = stack.install(
+                postgres_port=postgres_port,
+                grafana_port=grafana_port,
+                teslamate_port=teslamate_port,
+                mqtt_port=mqtt_port,
+                timezone=timezone,
+                force=force,
+            )
+        except (DockerNotFoundError, TeslaMateStackError) as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1)
+
+    # Auto-configure tesla-cli
+    cfg = load_config()
+    cfg.teslaMate.database_url = result["database_url"]
+    cfg.teslaMate.managed = True
+    cfg.teslaMate.stack_dir = result["stack_dir"]
+    cfg.teslaMate.postgres_port = result["postgres_port"]
+    cfg.teslaMate.grafana_port = result["grafana_port"]
+    cfg.teslaMate.teslamate_port = result["teslamate_port"]
+    cfg.teslaMate.mqtt_port = result["mqtt_port"]
+    cfg.grafana.url = f"http://localhost:{result['grafana_port']}"
+    cfg.mqtt.broker = "localhost"
+    cfg.mqtt.port = result["mqtt_port"]
+    save_config(cfg)
+
+    health_icon = "[green]healthy[/green]" if result["healthy"] else "[yellow]starting...[/yellow]"
+    render_success("TeslaMate stack installed and running")
+    console.print(f"\n  Stack health: {health_icon}")
+    console.print(f"  TeslaMate UI: [link]http://localhost:{teslamate_port}[/link]")
+    console.print(f"  Grafana:      [link]http://localhost:{grafana_port}[/link]  (admin / {result['grafana_password']})")
+    console.print(f"  PostgreSQL:   localhost:{postgres_port}")
+    console.print(f"  MQTT:         localhost:{mqtt_port}")
+
+    if not result["has_tesla_tokens"]:
+        console.print(
+            "\n[yellow]No Tesla tokens found in keyring.[/yellow]\n"
+            f"Link your Tesla account at: [link]http://localhost:{teslamate_port}[/link]"
+        )
+    console.print()
+
+
+@teslaMate_app.command("start")
+def teslaMate_start() -> None:
+    """Start the managed TeslaMate stack.
+
+    tesla teslaMate start
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        console.print("Run [bold]tesla teslaMate install[/bold] to set up a managed stack.")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        p.add_task("Starting TeslaMate stack...", total=None)
+        try:
+            stack.start()
+        except TeslaMateStackError as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1)
+
+    render_success("TeslaMate stack started")
+
+
+@teslaMate_app.command("stop")
+def teslaMate_stop() -> None:
+    """Stop the managed TeslaMate stack.
+
+    tesla teslaMate stop
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+    stack.stop()
+    render_success("TeslaMate stack stopped")
+
+
+@teslaMate_app.command("restart")
+def teslaMate_restart() -> None:
+    """Restart the managed TeslaMate stack.
+
+    tesla teslaMate restart
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        p.add_task("Restarting TeslaMate stack...", total=None)
+        try:
+            stack.restart()
+        except TeslaMateStackError as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1)
+
+    render_success("TeslaMate stack restarted")
+
+
+@teslaMate_app.command("update")
+def teslaMate_update() -> None:
+    """Pull latest Docker images and recreate containers.
+
+    tesla teslaMate update
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        p.add_task("Pulling latest images & restarting...", total=None)
+        output = stack.update()
+
+    render_success("TeslaMate stack updated")
+    if output:
+        for line in output.strip().splitlines()[-5:]:
+            console.print(f"  [dim]{line}[/dim]")
+
+
+@teslaMate_app.command("logs")
+def teslaMate_logs(
+    service: str | None = typer.Option(None, "--service", "-s", help="Service: teslamate, postgres, grafana, mosquitto"),
+    lines: int = typer.Option(100, "--lines", "-n", help="Number of log lines"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
+) -> None:
+    """Show logs from the managed TeslaMate stack.
+
+    tesla teslaMate logs
+    tesla teslaMate logs --service teslamate --lines 50
+    tesla teslaMate logs -f
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+
+    try:
+        result = stack.logs(service=service, lines=lines, follow=follow)
+        if follow:
+            # Streaming mode — forward output until Ctrl+C
+            try:
+                for line in result.stdout:  # type: ignore[union-attr]
+                    console.print(line, end="", highlight=False)
+            except KeyboardInterrupt:
+                result.terminate()  # type: ignore[union-attr]
+        else:
+            if result.stdout:  # type: ignore[union-attr]
+                console.print(result.stdout, highlight=False)  # type: ignore[union-attr]
+    except TeslaMateStackError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+
+@teslaMate_app.command("uninstall")
+def teslaMate_uninstall(
+    remove_data: bool = typer.Option(False, "--remove-data", help="Also remove database volumes (destructive)"),
+) -> None:
+    """Stop and remove managed TeslaMate containers.
+
+    tesla teslaMate uninstall
+    tesla teslaMate uninstall --remove-data
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
+        raise typer.Exit(1)
+
+    if remove_data:
+        console.print("[red]WARNING: This will permanently delete all TeslaMate data (trips, charging history, etc.)[/red]")
+        confirm = typer.confirm("Are you sure?")
+        if not confirm:
+            raise typer.Abort()
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+    stack.uninstall(remove_volumes=remove_data)
+
+    cfg.teslaMate.managed = False
+    cfg.teslaMate.database_url = ""
+    cfg.teslaMate.stack_dir = ""
+    save_config(cfg)
+
+    render_success("TeslaMate stack removed" + (" (data deleted)" if remove_data else " (data volumes preserved)"))
 
 
 # ── helpers ──

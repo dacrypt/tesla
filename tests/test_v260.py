@@ -15,8 +15,8 @@ pytest.importorskip("httpx")
 from fastapi.testclient import TestClient  # noqa: E402
 from typer.testing import CliRunner  # noqa: E402
 
-from tesla_cli.app import app as cli_app  # noqa: E402
-from tesla_cli.server.app import create_app  # noqa: E402
+from tesla_cli.cli.app import app as cli_app  # noqa: E402
+from tesla_cli.api.app import create_app  # noqa: E402
 from tests.conftest import MOCK_VIN  # noqa: E402
 
 _runner = CliRunner()
@@ -25,7 +25,7 @@ _runner = CliRunner()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -70,12 +70,12 @@ def srv():
     app = create_app(vin=None)
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.app.resolve_vin", return_value=MOCK_VIN),
-        patch("tesla_cli.server.app.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.vehicle.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.app.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.vehicle.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
     ]
     for p in patches:
         p.start()
@@ -95,12 +95,12 @@ def srv_auth():
     backend = _make_backend()
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.app.resolve_vin", return_value=MOCK_VIN),
-        patch("tesla_cli.server.app.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.vehicle.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.app.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.vehicle.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
     ]
     for p in patches:
         p.start()
@@ -118,10 +118,10 @@ def srv_tm():
     tm_backend = _make_tm_backend()
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
         # TeslaMateBacked is imported inline inside _backend(), so patch source
-        patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
+        patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
     ]
     for p in patches:
         p.start()
@@ -192,8 +192,8 @@ class TestTeslaMateRoutes:
     def test_no_teslaMate_returns_503(self):
         cfg = _make_cfg()  # no database_url
         patches = [
-            patch("tesla_cli.server.app.load_config", return_value=cfg),
-            patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
         ]
         for p in patches:
             p.start()
@@ -240,17 +240,18 @@ class TestAuthMiddleware:
         r = client.get("/api/status", headers={"X-API-Key": "wrong-key"})
         assert r.status_code == 401
 
-    def test_dashboard_always_allowed(self, srv_auth):
-        """/ (web dashboard) is never blocked by auth."""
+    def test_root_serves_ui_or_redirects(self, srv_auth):
+        """/ serves the React SPA or redirects to docs."""
         client, _ = srv_auth
-        r = client.get("/")
-        assert r.status_code == 200
+        r = client.get("/", follow_redirects=False)
+        # 200 if ui/dist/ built, redirect if not
+        assert r.status_code in (200, 301, 302, 303, 307, 308)
 
     def test_env_var_overrides_config(self):
         """TESLA_API_KEY env var takes precedence over config."""
         cfg = _make_cfg(**{"server.api_key": "config-key"})
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.server.app.load_config", return_value=cfg)]
+        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
@@ -282,7 +283,7 @@ class TestGeofencesEndpoint:
             "work": {"lat": 37.3382, "lon": -121.8863, "radius_km": 0.3},
         }
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.server.app.load_config", return_value=cfg)]
+        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
@@ -300,7 +301,7 @@ class TestGeofencesEndpoint:
         cfg = _make_cfg()
         cfg.geofences.zones = {"home": {"lat": 1.0, "lon": 2.0, "radius_km": 0.5}}
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.server.app.load_config", return_value=cfg)]
+        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
@@ -319,17 +320,17 @@ class TestGeofencesEndpoint:
 
 class TestHaversine:
     def test_same_point_is_zero(self):
-        from tesla_cli.server.app import _haversine_km
+        from tesla_cli.api.app import _haversine_km
         assert _haversine_km(0, 0, 0, 0) == pytest.approx(0.0)
 
     def test_known_distance(self):
-        from tesla_cli.server.app import _haversine_km
+        from tesla_cli.api.app import _haversine_km
         # NYC (40.7128, -74.0060) to LA (34.0522, -118.2437) ≈ 3940 km
         d = _haversine_km(40.7128, -74.0060, 34.0522, -118.2437)
         assert 3900 < d < 4000
 
     def test_small_distance(self):
-        from tesla_cli.server.app import _haversine_km
+        from tesla_cli.api.app import _haversine_km
         d = _haversine_km(37.4219, -122.0840, 37.4220, -122.0841)
         assert d < 0.1  # less than 100m
 
@@ -338,17 +339,17 @@ class TestHaversine:
 
 class TestApiKeyMiddlewareUnit:
     def test_enabled_when_key_set(self):
-        from tesla_cli.server.auth import ApiKeyMiddleware
+        from tesla_cli.api.auth import ApiKeyMiddleware
         m = ApiKeyMiddleware(app=MagicMock(), api_key="mykey")
         assert m.enabled is True
 
     def test_disabled_when_no_key(self):
-        from tesla_cli.server.auth import ApiKeyMiddleware
+        from tesla_cli.api.auth import ApiKeyMiddleware
         m = ApiKeyMiddleware(app=MagicMock(), api_key="")
         assert m.enabled is False
 
     def test_env_var_overrides_empty_config(self):
-        from tesla_cli.server.auth import ApiKeyMiddleware
+        from tesla_cli.api.auth import ApiKeyMiddleware
         with patch.dict(os.environ, {"TESLA_API_KEY": "fromenv"}):
             m = ApiKeyMiddleware(app=MagicMock(), api_key="")
         assert m.enabled is True
@@ -359,17 +360,17 @@ class TestApiKeyMiddlewareUnit:
 
 class TestServerConfig:
     def test_default_api_key_is_empty(self):
-        from tesla_cli.config import ServerConfig
+        from tesla_cli.core.config import ServerConfig
         sc = ServerConfig()
         assert sc.api_key == ""
 
     def test_default_pid_file_in_tesla_dir(self):
-        from tesla_cli.config import ServerConfig
+        from tesla_cli.core.config import ServerConfig
         sc = ServerConfig()
         assert ".tesla-cli" in sc.pid_file
 
     def test_config_has_server_field(self):
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
         cfg = Config()
         assert hasattr(cfg, "server")
         assert cfg.server.api_key == ""
@@ -377,7 +378,7 @@ class TestServerConfig:
     def test_auth_enabled_in_api_config(self):
         cfg = _make_cfg(**{"server.api_key": "k"})
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.server.app.load_config", return_value=cfg)]
+        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
@@ -391,31 +392,31 @@ class TestServerConfig:
 
 class TestDaemonHelpers:
     def test_read_pid_no_file(self, tmp_path):
-        from tesla_cli.commands.serve import _read_pid
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=tmp_path / "server.pid"):
+        from tesla_cli.cli.commands.serve import _read_pid
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=tmp_path / "server.pid"):
             assert _read_pid() is None
 
     def test_write_and_read_pid(self, tmp_path):
-        from tesla_cli.commands.serve import _read_pid, _write_pid
+        from tesla_cli.cli.commands.serve import _read_pid, _write_pid
         pf = tmp_path / "server.pid"
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             _write_pid(12345)
             assert _read_pid() == 12345
 
     def test_clear_pid(self, tmp_path):
-        from tesla_cli.commands.serve import _clear_pid, _read_pid, _write_pid
+        from tesla_cli.cli.commands.serve import _clear_pid, _read_pid, _write_pid
         pf = tmp_path / "server.pid"
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             _write_pid(99)
             _clear_pid()
             assert _read_pid() is None
 
     def test_is_running_own_process(self):
-        from tesla_cli.commands.serve import _is_running
+        from tesla_cli.cli.commands.serve import _is_running
         assert _is_running(os.getpid()) is True
 
     def test_is_running_dead_pid(self):
-        from tesla_cli.commands.serve import _is_running
+        from tesla_cli.cli.commands.serve import _is_running
         # PID 0 cannot be signalled by regular users → ProcessLookupError or PermissionError
         # Use a very high PID unlikely to exist
         assert _is_running(9999999) is False
@@ -426,7 +427,7 @@ class TestDaemonHelpers:
 class TestServeCli:
     def test_serve_status_not_running(self, tmp_path):
         pf = tmp_path / "server.pid"
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             result = _runner.invoke(cli_app, ["serve", "status"])
         assert result.exit_code == 0
         assert "not running" in result.output.lower()
@@ -435,7 +436,7 @@ class TestServeCli:
         pf = tmp_path / "server.pid"
         own_pid = os.getpid()
         pf.write_text(str(own_pid))
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             result = _runner.invoke(cli_app, ["serve", "status"])
         assert result.exit_code == 0
         assert str(own_pid) in result.output
@@ -443,7 +444,7 @@ class TestServeCli:
     def test_serve_status_json(self, tmp_path):
         import json
         pf = tmp_path / "server.pid"
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             result = _runner.invoke(cli_app, ["serve", "status", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -451,7 +452,7 @@ class TestServeCli:
 
     def test_serve_stop_no_pid(self, tmp_path):
         pf = tmp_path / "server.pid"
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             result = _runner.invoke(cli_app, ["serve", "stop"])
         assert result.exit_code != 0
         assert "no running" in result.output.lower()
@@ -462,7 +463,7 @@ class TestServeCli:
         pf.write_text(str(own_pid))
         # Patch os.kill so we don't actually kill ourselves.
         # os.kill is called twice: once for _is_running (sig 0) and once for SIGTERM.
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf), \
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf), \
              patch("os.kill") as mock_kill:
             result = _runner.invoke(cli_app, ["serve", "stop"])
         assert result.exit_code == 0
@@ -472,7 +473,7 @@ class TestServeCli:
         pf = tmp_path / "server.pid"
         own_pid = os.getpid()
         pf.write_text(str(own_pid))
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf):
             result = _runner.invoke(cli_app, ["serve", "--daemon"])
         assert result.exit_code != 0
         assert "already running" in result.output.lower()
@@ -481,9 +482,9 @@ class TestServeCli:
         pf = tmp_path / "server.pid"
         mock_proc = MagicMock()
         mock_proc.pid = 54321
-        with patch("tesla_cli.commands.serve._pid_file_path", return_value=pf), \
-             patch("tesla_cli.commands.serve.subprocess.Popen", return_value=mock_proc), \
-             patch("tesla_cli.commands.serve._read_pid", return_value=None):
+        with patch("tesla_cli.cli.commands.serve._pid_file_path", return_value=pf), \
+             patch("tesla_cli.cli.commands.serve.subprocess.Popen", return_value=mock_proc), \
+             patch("tesla_cli.cli.commands.serve._read_pid", return_value=None):
             result = _runner.invoke(cli_app, ["serve", "--daemon"])
         assert result.exit_code == 0
         assert "54321" in result.output
