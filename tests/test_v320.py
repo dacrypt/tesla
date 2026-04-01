@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 _runner = CliRunner()
@@ -19,7 +19,7 @@ pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tesla_cli.server.app import create_app  # noqa: E402
+from tesla_cli.api.app import create_app  # noqa: E402
 
 
 def _run(*args):
@@ -27,7 +27,7 @@ def _run(*args):
 
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -59,7 +59,7 @@ class TestWatchAllNotify:
         """When label is set, notifier title is 'Tesla Watch — {label}'."""
         import inspect
 
-        import tesla_cli.commands.vehicle as vmod
+        import tesla_cli.cli.commands.vehicle as vmod
 
         source = inspect.getsource(vmod.vehicle_watch)
         assert "Tesla Watch —" in source
@@ -68,7 +68,7 @@ class TestWatchAllNotify:
         """When label is empty, title falls back to 'Tesla Watch'."""
         import inspect
 
-        import tesla_cli.commands.vehicle as vmod
+        import tesla_cli.cli.commands.vehicle as vmod
 
         source = inspect.getsource(vmod.vehicle_watch)
         # The fallback branch is present
@@ -76,7 +76,7 @@ class TestWatchAllNotify:
 
     def test_all_notify_in_docstring(self):
         """vehicle_watch docstring mentions --all --notify example."""
-        import tesla_cli.commands.vehicle as vmod
+        import tesla_cli.cli.commands.vehicle as vmod
         doc = vmod.vehicle_watch.__doc__ or ""
         assert "--all --notify" in doc
 
@@ -90,7 +90,7 @@ class TestWatchAllNotify:
         """vehicle.py source contains 'Tesla Watch —' string."""
         import inspect
 
-        import tesla_cli.commands.vehicle as vmod
+        import tesla_cli.cli.commands.vehicle as vmod
         src = inspect.getsource(vmod)
         assert "Tesla Watch —" in src
 
@@ -132,10 +132,10 @@ class TestWatchAllNotify:
         mock_notifier.notify.side_effect = lambda title, body: (notify_calls.append(title), stop_event.set())
 
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.time") as mock_time,
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.time") as mock_time,
             patch.dict("sys.modules", {"apprise": MagicMock(Apprise=mock_apprise_cls)}),
         ):
             mock_time.sleep.side_effect = KeyboardInterrupt
@@ -156,9 +156,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("charge", "schedule-amps", "02:00", "8")
         assert result.exit_code == 0
@@ -170,9 +170,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("charge", "schedule-amps", "02:00", "8")
         backend.set_scheduled_charging.assert_called_once_with(MOCK_VIN, enable=True, time_minutes=120)
@@ -182,9 +182,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("charge", "schedule-amps", "23:30", "16")
         backend.set_scheduled_charging.assert_called_once_with(MOCK_VIN, enable=True, time_minutes=1410)
@@ -194,9 +194,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("-j", "charge", "schedule-amps", "02:00", "8")
         assert result.exit_code == 0
@@ -211,9 +211,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("charge", "schedule-amps", "25:00", "8")
         assert result.exit_code == 1
@@ -223,9 +223,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("charge", "schedule-amps", "02:00", "0")
         assert result.exit_code == 1
@@ -235,9 +235,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("charge", "schedule-amps", "02:00", "49")
         assert result.exit_code == 1
@@ -247,9 +247,9 @@ class TestChargeScheduleAmps:
         cfg = _make_cfg()
         backend = self._make_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("charge", "schedule-amps", "02:00", "8")
         assert result.exit_code == 0
@@ -288,8 +288,8 @@ class TestHeatmapYear:
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
         backend = self._make_tm_backend()
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=backend),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=backend),
         ):
             result = _run("teslaMate", "heatmap", "--year", "2025")
         assert result.exit_code == 0
@@ -301,8 +301,8 @@ class TestHeatmapYear:
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
         backend = self._make_tm_backend()
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=backend),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=backend),
         ):
             result = _run("teslaMate", "heatmap")
         assert result.exit_code == 0
@@ -314,8 +314,8 @@ class TestHeatmapYear:
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
         backend = self._make_tm_backend()
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=backend),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=backend),
         ):
             result = _run("-j", "teslaMate", "heatmap", "--year", "2025")
         assert result.exit_code == 0
@@ -325,14 +325,14 @@ class TestHeatmapYear:
 
     def test_heatmap_year_backend_method_exists(self):
         """TeslaMateBacked has get_drive_days_year method."""
-        from tesla_cli.backends.teslaMate import TeslaMateBacked
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
         assert hasattr(TeslaMateBacked, "get_drive_days_year")
 
     def test_drive_days_year_sql_structure(self):
         """get_drive_days_year source uses _dt.date."""
         import inspect
 
-        from tesla_cli.backends.teslaMate import TeslaMateBacked
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
         src = inspect.getsource(TeslaMateBacked.get_drive_days_year)
         assert "_dt.date" in src
 
@@ -340,7 +340,7 @@ class TestHeatmapYear:
         """For a past year, start is Jan 1 of that year."""
         import inspect
 
-        import tesla_cli.commands.teslaMate as tmmod
+        import tesla_cli.cli.commands.teslaMate as tmmod
         src = inspect.getsource(tmmod.teslaMate_heatmap)
         assert "date(year, 1, 1)" in src
 
@@ -348,7 +348,7 @@ class TestHeatmapYear:
         """For a past year, end is Dec 31."""
         import inspect
 
-        import tesla_cli.commands.teslaMate as tmmod
+        import tesla_cli.cli.commands.teslaMate as tmmod
         src = inspect.getsource(tmmod.teslaMate_heatmap)
         assert "date(year, 12, 31)" in src
 
@@ -361,8 +361,8 @@ class TestApiConfigValidate:
         cfg = _make_cfg()
         app = create_app(vin=None)
         patches = [
-            patch("tesla_cli.server.app.load_config", return_value=cfg),
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
         ]
         for p in patches:
             p.start()
@@ -424,13 +424,13 @@ class TestApiConfigValidate:
 
     def test_validate_run_config_checks_importable(self):
         """_run_config_checks is importable from config_cmd."""
-        from tesla_cli.commands.config_cmd import _run_config_checks
+        from tesla_cli.cli.commands.config_cmd import _run_config_checks
         assert callable(_run_config_checks)
 
     def test_validate_run_config_checks_returns_list(self):
         """_run_config_checks(Config()) returns list of dicts."""
-        from tesla_cli.commands.config_cmd import _run_config_checks
-        from tesla_cli.config import Config
+        from tesla_cli.cli.commands.config_cmd import _run_config_checks
+        from tesla_cli.core.config import Config
         result = _run_config_checks(Config())
         assert isinstance(result, list)
         assert len(result) > 0

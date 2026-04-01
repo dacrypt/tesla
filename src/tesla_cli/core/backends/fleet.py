@@ -6,8 +6,8 @@ from typing import Any
 
 import httpx
 
-from tesla_cli.backends.base import VehicleBackend
-from tesla_cli.exceptions import ApiError, AuthenticationError, VehicleAsleepError
+from tesla_cli.core.backends.base import VehicleBackend
+from tesla_cli.core.exceptions import ApiError, AuthenticationError, VehicleAsleepError
 
 FLEET_API_REGIONS = {
     "na": "https://fleet-api.prd.na.vn.cloud.tesla.com",

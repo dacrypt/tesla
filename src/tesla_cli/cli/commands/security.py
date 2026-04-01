@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.output import render_success
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.cli.output import render_success
 
 security_app = typer.Typer(name="security", help="Security, sentry, and access controls.")
 
@@ -135,10 +135,10 @@ def security_remote_start(
     """
     import json as _json
 
-    from tesla_cli.output import console, is_json_mode, render_success
+    from tesla_cli.cli.output import console, is_json_mode, render_success
 
     v = _vin(vin)
-    from tesla_cli.commands.vehicle import _with_wake
+    from tesla_cli.cli.commands.vehicle import _with_wake
     _with_wake(lambda b, v: b.command(v, "remote_start_drive"), v)
 
     if is_json_mode():

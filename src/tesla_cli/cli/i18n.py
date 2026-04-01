@@ -1,7 +1,7 @@
 """Internationalization — minimal i18n for tesla-cli.
 
 Usage:
-    from tesla_cli.i18n import t
+    from tesla_cli.cli.i18n import t
     console.print(t("order.watching", rn="RN123"))
 
 Supported languages: en (default), es

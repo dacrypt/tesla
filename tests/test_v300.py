@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 _runner = CliRunner()
@@ -20,12 +20,12 @@ pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tesla_cli.server.app import create_app  # noqa: E402
+from tesla_cli.api.app import create_app  # noqa: E402
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -83,12 +83,12 @@ def srv():
     app = create_app(vin=None)
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.app.resolve_vin", return_value=MOCK_VIN),
-        patch("tesla_cli.server.app.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.vehicle.get_vehicle_backend", return_value=backend),
-        patch("tesla_cli.server.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.app.resolve_vin", return_value=MOCK_VIN),
+        patch("tesla_cli.api.app.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.vehicle.get_vehicle_backend", return_value=backend),
+        patch("tesla_cli.api.routes.vehicle.resolve_vin", return_value=MOCK_VIN),
     ]
     for p in patches:
         p.start()
@@ -121,7 +121,7 @@ class TestMultiVehicleDashboard:
         cfg = _make_cfg()
         cfg.general.default_vin = ""
         app = create_app(vin=None)
-        with patch("tesla_cli.server.app.load_config", return_value=cfg):
+        with patch("tesla_cli.api.app.load_config", return_value=cfg):
             client = TestClient(app, raise_server_exceptions=False)
             r = client.get("/api/vehicles")
             assert r.status_code == 200
@@ -132,7 +132,7 @@ class TestMultiVehicleDashboard:
         cfg.general.default_vin = MOCK_VIN
         cfg.vehicles.aliases = {"mycar": "5YJ3E1EA1PF999999"}
         app = create_app(vin=None)
-        with patch("tesla_cli.server.app.load_config", return_value=cfg):
+        with patch("tesla_cli.api.app.load_config", return_value=cfg):
             client = TestClient(app, raise_server_exceptions=False)
             r = client.get("/api/vehicles")
             assert r.status_code == 200
@@ -141,27 +141,9 @@ class TestMultiVehicleDashboard:
             assert "mycar" in aliases
             assert "default" in aliases
 
-    def test_vin_select_in_html(self):
-        html_path = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        if html_path.exists():
-            content = html_path.read_text()
-            assert 'id="vin-select"' in content
-
-    def test_switch_vin_function_in_html(self):
-        html_path = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        if html_path.exists():
-            content = html_path.read_text()
-            assert "switchVin" in content
-
-    def test_load_vehicle_list_function_in_html(self):
-        html_path = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        if html_path.exists():
-            content = html_path.read_text()
-            assert "loadVehicleList" in content
-
     def test_vehicle_route_reads_query_vin(self):
         """Check that _backend_and_vin reads from request.query_params."""
-        source = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "routes" / "vehicle.py"
+        source = Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "routes" / "vehicle.py"
         content = source.read_text()
         assert "query_params.get" in content
         assert "vin_override" in content
@@ -175,9 +157,9 @@ class TestVehicleScheduleUpdate:
         backend = _make_vehicle_backend()
         backend.schedule_software_update.return_value = True
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
         ):
             result = _run("vehicle", "schedule-update")
             assert result.exit_code == 0
@@ -188,9 +170,9 @@ class TestVehicleScheduleUpdate:
         backend = _make_vehicle_backend()
         backend.schedule_software_update.return_value = True
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
         ):
             result = _run("vehicle", "schedule-update", "--delay", "30")
             assert result.exit_code == 0
@@ -201,9 +183,9 @@ class TestVehicleScheduleUpdate:
         backend = _make_vehicle_backend()
         backend.schedule_software_update.return_value = True
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
         ):
             result = _run("-j", "vehicle", "schedule-update", "--delay", "10")
             assert result.exit_code == 0
@@ -217,9 +199,9 @@ class TestVehicleScheduleUpdate:
         backend = _make_vehicle_backend()
         backend.schedule_software_update.return_value = False
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
         ):
             result = _run("vehicle", "schedule-update")
             assert result.exit_code == 1
@@ -237,9 +219,9 @@ class TestTeslaMateTimelineRoute:
         app = create_app(vin=None)
 
         patches = [
-            patch("tesla_cli.server.app.load_config", return_value=cfg),
-            patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
         ]
         for p in patches:
             p.start()
@@ -272,8 +254,8 @@ class TestTeslaMateTimelineRoute:
         cfg = _make_cfg()  # no database_url
         app = create_app(vin=None)
         with (
-            patch("tesla_cli.server.app.load_config", return_value=cfg),
-            patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
         ):
             client = TestClient(app, raise_server_exceptions=False)
             r = client.get("/api/teslaMate/timeline")
@@ -306,8 +288,8 @@ class TestTeslaMateTimelineRoute:
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
         tm = _make_tm_backend()
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=tm),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm),
         ):
             result = _run("teslaMate", "timeline")
             assert result.exit_code == 0
@@ -317,7 +299,7 @@ class TestTeslaMateTimelineRoute:
 
 class TestNotificationTemplates:
     def test_default_template_in_config(self):
-        from tesla_cli.config import NotificationsConfig
+        from tesla_cli.core.config import NotificationsConfig
         n = NotificationsConfig()
         assert "{event}" in n.message_template
         assert "{vehicle}" in n.message_template
@@ -327,8 +309,8 @@ class TestNotificationTemplates:
         cfg = _make_cfg()
         new_tmpl = "{event}: {vehicle} at {detail}"
         with (
-            patch("tesla_cli.commands.notify.load_config", return_value=cfg),
-            patch("tesla_cli.commands.notify.save_config") as mock_save,
+            patch("tesla_cli.cli.commands.notify.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.notify.save_config") as mock_save,
         ):
             result = _run("notify", "set-template", new_tmpl)
             assert result.exit_code == 0
@@ -338,14 +320,14 @@ class TestNotificationTemplates:
 
     def test_show_template_default(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.notify.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.notify.load_config", return_value=cfg):
             result = _run("notify", "show-template")
             assert result.exit_code == 0
             assert "{event}" in result.output
 
     def test_show_template_json(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.notify.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.notify.load_config", return_value=cfg):
             result = _run("-j", "notify", "show-template")
             assert result.exit_code == 0
             data = json.loads(result.output.strip())
@@ -355,7 +337,7 @@ class TestNotificationTemplates:
         cfg = _make_cfg()
         custom = "Alert: {event} on {vehicle}"
         cfg.notifications.message_template = custom
-        with patch("tesla_cli.commands.notify.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.notify.load_config", return_value=cfg):
             result = _run("notify", "show-template")
             assert result.exit_code == 0
             assert "Alert:" in result.output
@@ -369,7 +351,7 @@ class TestNotificationTemplates:
         assert "show-template" in result.output
 
     def test_template_format(self):
-        from tesla_cli.config import NotificationsConfig
+        from tesla_cli.core.config import NotificationsConfig
         n = NotificationsConfig()
         tmpl = n.message_template
         import time
@@ -389,8 +371,8 @@ class TestConfigMigrate:
     def test_migrate_up_to_date(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.config_cmd.save_config"),
         ):
             result = _run("config", "migrate")
             assert result.exit_code == 0
@@ -402,13 +384,13 @@ class TestConfigMigrate:
         old_dict = cfg.model_dump()
         del old_dict["notifications"]["message_template"]
 
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
         old_cfg = Config.model_validate(old_dict)
         # Re-add a field to new that old is missing by patching
         # We patch load_config to return old_cfg and check additions shown
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=old_cfg),
-            patch("tesla_cli.commands.config_cmd.save_config") as mock_save,
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=old_cfg),
+            patch("tesla_cli.cli.commands.config_cmd.save_config") as mock_save,
         ):
             result = _run("config", "migrate", "--dry-run")
             assert result.exit_code == 0
@@ -418,8 +400,8 @@ class TestConfigMigrate:
     def test_migrate_json_mode(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.config_cmd.save_config"),
         ):
             result = _run("-j", "config", "migrate")
             assert result.exit_code == 0
@@ -434,9 +416,9 @@ class TestConfigMigrate:
         fake_config.write_text("[general]\ndefault_vin = 'TEST'\n")
 
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.config_cmd.save_config"),
-            patch("tesla_cli.config.CONFIG_FILE", fake_config),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.core.config.CONFIG_FILE", fake_config),
         ):
             result = _run("config", "migrate")
             # Should complete without error (even if no additions)
@@ -448,7 +430,7 @@ class TestConfigMigrate:
 
     def test_migrate_adds_new_fields(self):
         """When new Config() has more fields than old config, additions are shown."""
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
 
         # Create a "new" config mock with an extra field compared to old
         cfg_old = _make_cfg()
@@ -459,9 +441,9 @@ class TestConfigMigrate:
         new_cfg_mock.model_dump.return_value = new_dict
 
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg_old),
-            patch("tesla_cli.commands.config_cmd.save_config"),
-            patch("tesla_cli.config.Config", return_value=new_cfg_mock),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg_old),
+            patch("tesla_cli.cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.core.config.Config", return_value=new_cfg_mock),
         ):
             result = _run("-j", "config", "migrate")
             assert result.exit_code == 0
@@ -472,8 +454,8 @@ class TestConfigMigrate:
     def test_migrate_saves_merged_config(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.config_cmd.save_config"),
         ):
             # When already up to date, save is not called (shows "up to date")
             result = _run("config", "migrate")

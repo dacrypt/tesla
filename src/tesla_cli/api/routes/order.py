@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from tesla_cli.config import load_config
+from tesla_cli.core.config import load_config
 
 router = APIRouter()
 
@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("/status")
 def order_status() -> dict:
     """Current order / delivery status."""
-    from tesla_cli.backends.order import OrderBackend
+    from tesla_cli.core.backends.order import OrderBackend
     cfg = load_config()
     rn  = cfg.order.reservation_number
     if not rn:

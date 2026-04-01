@@ -9,9 +9,9 @@ from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
 
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.cli.output import console, is_json_mode
 
 dashboard_app = typer.Typer(name="dashboard", help="Unified vehicle status dashboard.")
 

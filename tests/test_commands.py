@@ -8,30 +8,30 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app
-from tesla_cli.backends.fleet import FleetBackend
+from tesla_cli.cli.app import app
+from tesla_cli.core.backends.fleet import FleetBackend
 from tests.conftest import MOCK_VIN
 
 runner = CliRunner()
 
 # All modules that import get_vehicle_backend / load_config / resolve_vin
 _BACKEND_MODULES = [
-    "tesla_cli.backends",
-    "tesla_cli.commands.vehicle",
-    "tesla_cli.commands.charge",
-    "tesla_cli.commands.sharing",
+    "tesla_cli.core.backends",
+    "tesla_cli.cli.commands.vehicle",
+    "tesla_cli.cli.commands.charge",
+    "tesla_cli.cli.commands.sharing",
 ]
 
 _CONFIG_MODULES = [
-    "tesla_cli.config",
-    "tesla_cli.commands.vehicle",
-    "tesla_cli.commands.charge",
-    "tesla_cli.commands.climate",
-    "tesla_cli.commands.security",
-    "tesla_cli.commands.media",
-    "tesla_cli.commands.nav",
-    "tesla_cli.commands.sharing",
-    "tesla_cli.commands.dashboard",
+    "tesla_cli.core.config",
+    "tesla_cli.cli.commands.vehicle",
+    "tesla_cli.cli.commands.charge",
+    "tesla_cli.cli.commands.climate",
+    "tesla_cli.cli.commands.security",
+    "tesla_cli.cli.commands.media",
+    "tesla_cli.cli.commands.nav",
+    "tesla_cli.cli.commands.sharing",
+    "tesla_cli.cli.commands.dashboard",
 ]
 
 

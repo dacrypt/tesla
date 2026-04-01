@@ -6,7 +6,7 @@ import time
 
 import typer
 
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode
 
 stream_app = typer.Typer(name="stream", help="Real-time vehicle telemetry.")
 
@@ -35,9 +35,9 @@ def stream_live(
     from rich.table import Table
     from rich.text import Text
 
-    from tesla_cli.backends import get_vehicle_backend
-    from tesla_cli.config import load_config, resolve_vin
-    from tesla_cli.exceptions import VehicleAsleepError
+    from tesla_cli.core.backends import get_vehicle_backend
+    from tesla_cli.core.config import load_config, resolve_vin
+    from tesla_cli.core.exceptions import VehicleAsleepError
 
     cfg = load_config()
     v = resolve_vin(cfg, vin)

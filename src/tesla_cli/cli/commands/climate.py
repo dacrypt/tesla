@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.models.climate import ClimateState
-from tesla_cli.output import console, is_json_mode, render_model, render_success
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.models.climate import ClimateState
+from tesla_cli.cli.output import console, is_json_mode, render_model, render_success
 
 climate_app = typer.Typer(name="climate", help="Climate and HVAC controls.")
 

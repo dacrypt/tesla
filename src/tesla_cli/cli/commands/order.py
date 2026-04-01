@@ -7,9 +7,9 @@ import time
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from tesla_cli.backends.order import OrderBackend
-from tesla_cli.config import load_config
-from tesla_cli.output import (
+from tesla_cli.core.backends.order import OrderBackend
+from tesla_cli.core.config import load_config
+from tesla_cli.cli.output import (
     console,
     is_json_mode,
     render_dict,
@@ -243,7 +243,7 @@ def _show_changes(changes: list, notify: bool) -> None:
     """Display changes and optionally send notifications."""
     from rich.table import Table
 
-    from tesla_cli.models.order import OrderChange
+    from tesla_cli.core.models.order import OrderChange
 
     console.print(f"\n[bold yellow]● Changes detected at {time.strftime('%H:%M:%S')}[/bold yellow]")
 
@@ -331,7 +331,7 @@ def order_timeline() -> None:
 
     from rich.table import Table
 
-    from tesla_cli.backends.dossier import DossierBackend
+    from tesla_cli.core.backends.dossier import DossierBackend
 
     backend = DossierBackend()
     history = backend.get_history()
@@ -682,7 +682,7 @@ def order_eta() -> None:
     try:
         import json as _j
 
-        from tesla_cli.backends.dossier import SNAPSHOTS_DIR
+        from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
         if SNAPSHOTS_DIR.exists():
             snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
             if snaps:
@@ -699,7 +699,7 @@ def order_eta() -> None:
             cfg = load_config()
             rn = cfg.order.reservation_number
             if rn:
-                from tesla_cli.backends.order import OrderBackend
+                from tesla_cli.core.backends.order import OrderBackend
                 status = OrderBackend().get_order_status(rn)
                 raw_phase = (getattr(status, "order_status", None) or "").lower()
                 # Map Tesla order status → our phase vocabulary

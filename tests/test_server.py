@@ -12,7 +12,7 @@ pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tesla_cli.server.app import create_app  # noqa: E402
+from tesla_cli.api.app import create_app  # noqa: E402
 from tests.conftest import MOCK_VIN  # noqa: E402
 
 # ── Shared mock data ──────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ MOCK_VEHICLE_DATA = {
 
 
 def _make_cfg(vin=MOCK_VIN):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = vin
     cfg.general.backend     = "owner"
@@ -84,17 +84,17 @@ def srv():
     app     = create_app(vin=None)
 
     targets = [
-        ("tesla_cli.server.routes.vehicle.load_config",         cfg),
-        ("tesla_cli.server.routes.vehicle.get_vehicle_backend", backend),
-        ("tesla_cli.server.routes.vehicle.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.server.routes.charge.load_config",          cfg),
-        ("tesla_cli.server.routes.charge.get_vehicle_backend",  backend),
-        ("tesla_cli.server.routes.charge.resolve_vin",          MOCK_VIN),
-        ("tesla_cli.server.routes.climate.load_config",         cfg),
-        ("tesla_cli.server.routes.climate.get_vehicle_backend", backend),
-        ("tesla_cli.server.routes.climate.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.server.app.load_config",                    cfg),
-        ("tesla_cli.server.app.resolve_vin",                    MOCK_VIN),
+        ("tesla_cli.api.routes.vehicle.load_config",         cfg),
+        ("tesla_cli.api.routes.vehicle.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.vehicle.resolve_vin",         MOCK_VIN),
+        ("tesla_cli.api.routes.charge.load_config",          cfg),
+        ("tesla_cli.api.routes.charge.get_vehicle_backend",  backend),
+        ("tesla_cli.api.routes.charge.resolve_vin",          MOCK_VIN),
+        ("tesla_cli.api.routes.climate.load_config",         cfg),
+        ("tesla_cli.api.routes.climate.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.climate.resolve_vin",         MOCK_VIN),
+        ("tesla_cli.api.app.load_config",                    cfg),
+        ("tesla_cli.api.app.resolve_vin",                    MOCK_VIN),
     ]
 
     patches = []
@@ -119,7 +119,7 @@ def srv():
 @pytest.fixture
 def srv_asleep():
     """Server with sleeping vehicle."""
-    from tesla_cli.exceptions import VehicleAsleepError
+    from tesla_cli.core.exceptions import VehicleAsleepError
     cfg     = _make_cfg()
     backend = MagicMock()
     backend.get_vehicle_data.side_effect  = VehicleAsleepError("asleep")
@@ -129,13 +129,13 @@ def srv_asleep():
     app = create_app(vin=None)
 
     targets = [
-        ("tesla_cli.server.routes.vehicle.load_config",         cfg),
-        ("tesla_cli.server.routes.vehicle.get_vehicle_backend", backend),
-        ("tesla_cli.server.routes.vehicle.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.server.routes.charge.load_config",          cfg),
-        ("tesla_cli.server.routes.charge.get_vehicle_backend",  backend),
-        ("tesla_cli.server.routes.charge.resolve_vin",          MOCK_VIN),
-        ("tesla_cli.server.app.load_config",                    cfg),
+        ("tesla_cli.api.routes.vehicle.load_config",         cfg),
+        ("tesla_cli.api.routes.vehicle.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.vehicle.resolve_vin",         MOCK_VIN),
+        ("tesla_cli.api.routes.charge.load_config",          cfg),
+        ("tesla_cli.api.routes.charge.get_vehicle_backend",  backend),
+        ("tesla_cli.api.routes.charge.resolve_vin",          MOCK_VIN),
+        ("tesla_cli.api.app.load_config",                    cfg),
     ]
     patches = [patch(t, return_value=rv) for t, rv in targets]
     for p in patches:
@@ -176,21 +176,11 @@ class TestSystemEndpoints:
         assert "/api/vehicle/state" in schema["paths"]
         assert "/api/charge/status" in schema["paths"]
 
-    def test_web_ui_root(self, srv):
+    def test_root_serves_ui_or_redirects(self, srv):
         client, _, _ = srv
-        r = client.get("/")
-        assert r.status_code == 200
-        # Should return HTML (either full page or fallback)
-        assert "text/html" in r.headers.get("content-type", "")
-
-    def test_manifest_json(self, srv):
-        client, _, _ = srv
-        r = client.get("/manifest.json")
-        assert r.status_code == 200
-        data = r.json()
-        assert data["name"] == "Tesla Dashboard"
-        assert data["display"] == "standalone"
-        assert data["theme_color"] == "#e82127"
+        r = client.get("/", follow_redirects=False)
+        # Serves SPA if ui/dist/ exists, otherwise redirects to docs
+        assert r.status_code in (200, 301, 302, 303, 307, 308)
 
     def test_api_docs_redirect(self, srv):
         client, _, _ = srv

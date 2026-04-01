@@ -1,6 +1,6 @@
 [project]
 name = "tesla-cli"
-version = "3.4.0"
+version = "4.0.0"
 description = "CLI tool for Tesla order tracking and vehicle control"
 readme = "README.md"
 license = { text = "MIT" }
@@ -35,10 +35,11 @@ fleet = ["tesla-fleet-api>=1.0"]
 teslaMate = ["psycopg2-binary>=2.9"]
 pdf = ["fpdf2>=2.7"]
 serve = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+query = ["openquery"]
 dev = ["pytest>=8", "pytest-httpx>=0.35", "ruff>=0.9"]
 
 [project.scripts]
-tesla = "tesla_cli.app:main"
+tesla = "tesla_cli.cli.app:main"
 
 [project.urls]
 Homepage = "https://github.com/dacrypt/tesla"
@@ -72,3 +73,6 @@ ignore = [
     "SIM105",  # contextlib.suppress (pre-existing pattern)
     "E731",    # lambda expressions used as closures capturing local variables
 ]
+
+[tool.uv.sources]
+openquery = { git = "https://github.com/dacrypt/openquery" }

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode
 
 providers_app = typer.Typer(
     name="providers",
@@ -25,8 +25,8 @@ def providers_status() -> None:
     """
     import json as _json
 
-    from tesla_cli.providers import get_registry
-    from tesla_cli.providers.base import Capability
+    from tesla_cli.core.providers import get_registry
+    from tesla_cli.core.providers.base import Capability
 
     registry = get_registry()
     rows = registry.status()
@@ -97,7 +97,7 @@ def providers_test() -> None:
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
-    from tesla_cli.providers import get_registry
+    from tesla_cli.core.providers import get_registry
 
     registry = get_registry()
     all_providers = registry.all()
@@ -152,8 +152,8 @@ def providers_capabilities() -> None:
     """
     import json as _json
 
-    from tesla_cli.providers import get_registry
-    from tesla_cli.providers.base import Capability
+    from tesla_cli.core.providers import get_registry
+    from tesla_cli.core.providers.base import Capability
 
     registry = get_registry()
 

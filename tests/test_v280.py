@@ -7,14 +7,14 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 _runner = CliRunner()
 
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     for k, v in overrides.items():
@@ -36,8 +36,8 @@ class TestMqttSetup:
     def test_setup_saves_broker(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd.save_config") as mock_save,
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd.save_config") as mock_save,
         ):
             r = _run("mqtt", "setup", "localhost")
         assert r.exit_code == 0
@@ -48,8 +48,8 @@ class TestMqttSetup:
     def test_setup_custom_port_and_prefix(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd.save_config"),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd.save_config"),
         ):
             r = _run("mqtt", "setup", "broker.local", "--port", "8883", "--prefix", "myhome", "--tls")
         assert r.exit_code == 0
@@ -60,8 +60,8 @@ class TestMqttSetup:
     def test_setup_with_credentials(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd.save_config"),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd.save_config"),
         ):
             r = _run("mqtt", "setup", "mqtt.example.com", "--username", "user", "--password", "pass")
         assert r.exit_code == 0
@@ -71,8 +71,8 @@ class TestMqttSetup:
     def test_setup_shows_success(self):
         cfg = _make_cfg()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd.save_config"),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd.save_config"),
         ):
             r = _run("mqtt", "setup", "mybroker")
         assert "MQTT configured" in r.output or "configured" in r.output.lower()
@@ -83,7 +83,7 @@ class TestMqttSetup:
 class TestMqttStatus:
     def test_status_not_configured(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("mqtt", "status")
         assert r.exit_code == 0
         assert "not set" in r.output or "Not configured" in r.output
@@ -92,7 +92,7 @@ class TestMqttStatus:
         cfg = _make_cfg()
         cfg.mqtt.broker = "test.broker.io"
         cfg.mqtt.port = 1883
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("mqtt", "status")
         assert r.exit_code == 0
         assert "test.broker.io" in r.output
@@ -101,7 +101,7 @@ class TestMqttStatus:
         cfg = _make_cfg()
         cfg.mqtt.broker = "mqtt.local"
         cfg.mqtt.port = 1883
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("-j", "mqtt", "status")
         assert r.exit_code == 0
         data = json.loads(r.output)
@@ -110,7 +110,7 @@ class TestMqttStatus:
 
     def test_status_json_unconfigured(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("-j", "mqtt", "status")
         assert r.exit_code == 0
         data = json.loads(r.output)
@@ -122,7 +122,7 @@ class TestMqttStatus:
 class TestMqttTest:
     def test_test_not_configured_exits(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("mqtt", "test")
         assert r.exit_code != 0
         assert "not configured" in r.output.lower() or "MQTT" in r.output
@@ -135,9 +135,9 @@ class TestMqttTest:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
         ):
             r = _run("mqtt", "test")
         assert r.exit_code == 0
@@ -152,9 +152,9 @@ class TestMqttTest:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
         ):
             r = _run("-j", "mqtt", "test")
         assert r.exit_code == 0
@@ -172,9 +172,9 @@ class TestMqttTest:
         mock_client = MagicMock()
         mock_client.connect.side_effect = ConnectionRefusedError("refused")
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
         ):
             r = _run("-j", "mqtt", "test")
         assert r.exit_code != 0
@@ -187,13 +187,13 @@ class TestMqttTest:
 class TestMqttPublish:
     def test_publish_not_configured_exits(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("mqtt", "publish")
         assert r.exit_code != 0
 
     def test_publish_success(self, mock_config, mock_fleet_backend):
-        from tesla_cli.config import Config
-        from tesla_cli.providers.base import ProviderResult
+        from tesla_cli.core.config import Config
+        from tesla_cli.core.providers.base import ProviderResult
 
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
@@ -207,11 +207,11 @@ class TestMqttPublish:
         mock_result.error = None
 
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.providers.impl.mqtt.MqttProvider") as MockProvider,
-            patch("tesla_cli.commands.vehicle._with_wake", return_value={}),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.core.providers.impl.mqtt.MqttProvider") as MockProvider,
+            patch("tesla_cli.cli.commands.vehicle._with_wake", return_value={}),
         ):
             MockProvider.return_value.execute.return_value = mock_result
             r = _run("mqtt", "publish")
@@ -219,8 +219,8 @@ class TestMqttPublish:
         assert "Published" in r.output or "5" in r.output
 
     def test_publish_json_mode(self, mock_config, mock_fleet_backend):
-        from tesla_cli.config import Config
-        from tesla_cli.providers.base import ProviderResult
+        from tesla_cli.core.config import Config
+        from tesla_cli.core.providers.base import ProviderResult
 
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
@@ -234,11 +234,11 @@ class TestMqttPublish:
         mock_result.error = None
 
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.providers.impl.mqtt.MqttProvider") as MockProvider,
-            patch("tesla_cli.commands.vehicle._with_wake", return_value={}),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.core.providers.impl.mqtt.MqttProvider") as MockProvider,
+            patch("tesla_cli.cli.commands.vehicle._with_wake", return_value={}),
         ):
             MockProvider.return_value.execute.return_value = mock_result
             r = _run("-j", "mqtt", "publish")
@@ -253,7 +253,7 @@ class TestMqttPublish:
 class TestMqttHaDiscovery:
     def test_ha_discovery_not_configured_exits(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg):
             r = _run("mqtt", "ha-discovery")
         assert r.exit_code != 0
 
@@ -266,10 +266,10 @@ class TestMqttHaDiscovery:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
             r = _run("mqtt", "ha-discovery")
         assert r.exit_code == 0
@@ -284,10 +284,10 @@ class TestMqttHaDiscovery:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
             r = _run("-j", "mqtt", "ha-discovery")
         assert r.exit_code == 0
@@ -304,10 +304,10 @@ class TestMqttHaDiscovery:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("mqtt", "ha-discovery")
 
@@ -329,10 +329,10 @@ class TestMqttHaDiscovery:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("mqtt", "ha-discovery")
 
@@ -349,10 +349,10 @@ class TestMqttHaDiscovery:
 
         mock_client = MagicMock()
         with (
-            patch("tesla_cli.commands.mqtt_cmd.load_config", return_value=cfg),
-            patch("tesla_cli.commands.mqtt_cmd._require_paho", return_value=True),
-            patch("tesla_cli.commands.mqtt_cmd._make_client", return_value=mock_client),
-            patch("tesla_cli.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.mqtt_cmd._require_paho", return_value=True),
+            patch("tesla_cli.cli.commands.mqtt_cmd._make_client", return_value=mock_client),
+            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("mqtt", "ha-discovery")
 
@@ -391,7 +391,7 @@ class TestSSETopicFiltering:
 
     def _server_src(self) -> str:
         from pathlib import Path
-        return (Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "app.py").read_text()
+        return (Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "app.py").read_text()
 
     def test_battery_topic_in_source(self):
         src = self._server_src()
@@ -446,42 +446,6 @@ class TestSSETopicFiltering:
         assert '"lon":' in src
         assert '"heading":' in src
         assert '"speed":' in src
-
-
-# ── Tests: dashboard geofence overlay HTML ────────────────────────────────────
-
-class TestDashboardGeofenceOverlay:
-    def _html(self) -> str:
-        from pathlib import Path
-        html_path = Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        return html_path.read_text()
-
-    def test_geofence_overlay_div_present(self):
-        assert 'id="geofence-overlay"' in self._html()
-
-    def test_gf_zone_css_present(self):
-        html = self._html()
-        assert ".gf-zone" in html
-
-    def test_gf_inside_css_class(self):
-        assert ".gf-zone.inside" in self._html()
-
-    def test_load_geofence_zones_function(self):
-        assert "loadGeofenceZones" in self._html()
-
-    def test_update_geofence_zone_function(self):
-        assert "updateGeofenceZone" in self._html()
-
-    def test_geofence_fetch_api_endpoint(self):
-        assert "/api/geofences" in self._html()
-
-    def test_init_calls_load_geofences(self):
-        html = self._html()
-        assert "loadGeofenceZones()" in html
-
-    def test_sse_geofence_calls_update(self):
-        html = self._html()
-        assert "updateGeofenceZone(gf.zone" in html
 
 
 # ── Tests: version 2.8.0 ─────────────────────────────────────────────────────

@@ -13,9 +13,9 @@ import time
 
 import typer
 
-from tesla_cli.commands.vehicle import _with_wake
-from tesla_cli.config import load_config, resolve_vin, save_config
-from tesla_cli.output import console, is_json_mode, render_success
+from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.core.config import load_config, resolve_vin, save_config
+from tesla_cli.cli.output import console, is_json_mode, render_success
 
 ha_app = typer.Typer(
     name="ha",

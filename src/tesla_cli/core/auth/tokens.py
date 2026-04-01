@@ -10,6 +10,12 @@ ORDER_REFRESH_TOKEN = "order-refresh-token"
 TESSIE_TOKEN = "tessie-token"
 FLEET_ACCESS_TOKEN = "fleet-access-token"
 FLEET_REFRESH_TOKEN = "fleet-refresh-token"
+FLEET_CLIENT_SECRET = "fleet-client-secret"
+
+# TeslaMate managed stack credentials
+TESLAMATE_DB_PASSWORD = "teslamate-db-password"
+TESLAMATE_GRAFANA_PASSWORD = "teslamate-grafana-password"
+TESLAMATE_ENCRYPTION_KEY = "teslamate-encryption-key"
 
 
 def get_token(key: str) -> str | None:

@@ -1,7 +1,7 @@
 """Tessie authentication helpers."""
 
-from tesla_cli.auth.tokens import TESSIE_TOKEN, get_token
-from tesla_cli.exceptions import AuthenticationError
+from tesla_cli.core.auth.tokens import TESSIE_TOKEN, get_token
+from tesla_cli.core.exceptions import AuthenticationError
 
 
 def get_tessie_token() -> str:

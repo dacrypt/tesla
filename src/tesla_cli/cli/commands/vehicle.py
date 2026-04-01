@@ -7,13 +7,13 @@ import time
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from tesla_cli.backends import get_vehicle_backend
-from tesla_cli.config import load_config, resolve_vin
-from tesla_cli.exceptions import VehicleAsleepError
-from tesla_cli.models.charge import ChargeState
-from tesla_cli.models.climate import ClimateState
-from tesla_cli.models.drive import Location
-from tesla_cli.output import (
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.exceptions import VehicleAsleepError
+from tesla_cli.core.models.charge import ChargeState
+from tesla_cli.core.models.climate import ClimateState
+from tesla_cli.core.models.drive import Location
+from tesla_cli.cli.output import (
     console,
     is_json_mode,
     render_dict,
@@ -640,7 +640,7 @@ def vehicle_alerts(
 
     v = _vin(vin)
 
-    from tesla_cli.exceptions import BackendNotSupportedError
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
     try:
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
@@ -696,7 +696,7 @@ def vehicle_release_notes(
 
     v = _vin(vin)
 
-    from tesla_cli.exceptions import BackendNotSupportedError
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
     try:
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
@@ -1039,7 +1039,7 @@ def vehicle_tonneau(
         "stop": "tonneau_stop",
     }
     if action not in command_map:
-        from tesla_cli.output import console as _console
+        from tesla_cli.cli.output import console as _console
         _console.print(f"[red]Unknown action:[/red] {action}. Use: open|close|stop|status")
         raise typer.Exit(1)
 
@@ -1066,7 +1066,7 @@ def vehicle_sentry_events(
     """
     import json as _json
 
-    from tesla_cli.exceptions import BackendNotSupportedError
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
     v = _vin(vin)
     try:

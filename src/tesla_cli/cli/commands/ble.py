@@ -14,9 +14,9 @@ import subprocess
 
 import typer
 
-from tesla_cli.config import load_config, resolve_vin, save_config
-from tesla_cli.exceptions import ExternalToolNotFoundError
-from tesla_cli.output import console, is_json_mode, render_success
+from tesla_cli.core.config import load_config, resolve_vin, save_config
+from tesla_cli.core.exceptions import ExternalToolNotFoundError
+from tesla_cli.cli.output import console, is_json_mode, render_success
 
 ble_app = typer.Typer(
     name="ble",

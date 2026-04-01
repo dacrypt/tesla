@@ -25,8 +25,8 @@ from typing import Any
 import httpx
 from rich.prompt import Prompt
 
-from tesla_cli.exceptions import AuthenticationError
-from tesla_cli.output import console
+from tesla_cli.core.exceptions import AuthenticationError
+from tesla_cli.cli.output import console
 
 # Tesla OAuth2 endpoints
 AUTH_BASE = "https://auth.tesla.com/oauth2/v3"
@@ -39,6 +39,12 @@ VOID_REDIRECT_URI = "https://auth.tesla.com/void/callback"
 # Tesla app client IDs
 DEFAULT_CLIENT_ID = "ownerapi"
 DEFAULT_SCOPES = "openid email offline_access"
+
+# Fleet API scopes — required for vehicle data + commands
+FLEET_SCOPES = (
+    "openid email offline_access "
+    "vehicle_device_data vehicle_cmds vehicle_charging_cmds"
+)
 
 
 def run_tesla_oauth_flow(
@@ -185,6 +191,73 @@ def _exchange_code(
                 f"Error intercambiando código: {resp.status_code}\n{resp.text}"
             )
         return resp.json()
+
+
+def get_client_credentials_token(
+    client_id: str,
+    client_secret: str,
+    scopes: str | None = None,
+) -> dict[str, Any]:
+    """Get an access token via client_credentials grant (server-to-server, no user).
+
+    Required for Fleet API partner registration.
+    """
+    scopes = scopes or "openid vehicle_device_data vehicle_cmds vehicle_charging_cmds"
+    payload = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": scopes,
+        "audience": "https://fleet-api.prd.na.vn.cloud.tesla.com",
+    }
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(TOKEN_URL, data=payload)
+        if resp.status_code != 200:
+            raise AuthenticationError(
+                f"Error obteniendo client_credentials token: {resp.status_code}\n{resp.text}"
+            )
+        return resp.json()
+
+
+def register_fleet_partner(
+    client_id: str,
+    client_secret: str,
+    region: str = "na",
+) -> dict[str, Any]:
+    """Register partner account in a Fleet API region (one-time per app per region).
+
+    Tesla requires this before any user can use the Fleet API with the app.
+    Calls POST /api/1/partner_accounts with the app's registered domain.
+    """
+    from tesla_cli.core.backends.fleet import FLEET_API_REGIONS
+
+    base_url = FLEET_API_REGIONS.get(region, FLEET_API_REGIONS["na"])
+
+    # Get client_credentials token (not user token)
+    token_data = get_client_credentials_token(client_id, client_secret)
+    access_token = token_data["access_token"]
+
+    # Load registered domain from config
+    from tesla_cli.core.config import load_config
+    cfg = load_config()
+    raw_domain = getattr(cfg.fleet, "domain", None) or "dacrypt.github.io"
+    # Strip any https:// prefix — Tesla expects bare domain (e.g. dacrypt.github.io)
+    domain = raw_domain.removeprefix("https://").removeprefix("http://").rstrip("/")
+
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(
+            f"{base_url}/api/1/partner_accounts",
+            json={"domain": domain},
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+        )
+        if resp.status_code not in (200, 204):
+            raise AuthenticationError(
+                f"Partner registration failed: {resp.status_code}\n{resp.text}"
+            )
+        return resp.json() if resp.content else {"registered": True}
 
 
 def refresh_access_token(

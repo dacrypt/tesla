@@ -1,7 +1,7 @@
 """Optional AES-256-GCM encryption for tokens stored on headless servers.
 
 Usage:
-    from tesla_cli.auth.encryption import encrypt_token, decrypt_token, is_encrypted
+    from tesla_cli.core.auth.encryption import encrypt_token, decrypt_token, is_encrypted
 
     ciphertext = encrypt_token("my-secret-token", password="s3cr3t")
     plaintext  = decrypt_token(ciphertext, password="s3cr3t")

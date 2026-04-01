@@ -5,9 +5,9 @@ from __future__ import annotations
 import typer
 
 from tesla_cli import __version__
-from tesla_cli.commands.config_cmd import config_app
-from tesla_cli.exceptions import TeslaCliError
-from tesla_cli.output import render_error, set_json_mode
+from tesla_cli.cli.commands.config_cmd import config_app
+from tesla_cli.core.exceptions import TeslaCliError
+from tesla_cli.cli.output import render_error, set_json_mode
 
 app = typer.Typer(
     name="tesla",
@@ -38,11 +38,11 @@ def global_options(
     """Tesla CLI - Order tracking and vehicle control."""
     set_json_mode(json_output)
     if lang:
-        from tesla_cli.i18n import set_lang
+        from tesla_cli.cli.i18n import set_lang
         set_lang(lang)
     if anon:
-        from tesla_cli.config import load_config
-        from tesla_cli.output import set_anon_mode
+        from tesla_cli.core.config import load_config
+        from tesla_cli.cli.output import set_anon_mode
         cfg = load_config()
         set_anon_mode(
             True,
@@ -62,20 +62,21 @@ def main() -> None:
 
 # Lazy-register order and vehicle commands to avoid import cost at startup
 def _register_commands() -> None:
-    from tesla_cli.commands.charge import charge_app
-    from tesla_cli.commands.climate import climate_app
-    from tesla_cli.commands.dashboard import dashboard_app
-    from tesla_cli.commands.dossier import dossier_app
-    from tesla_cli.commands.media import media_app
-    from tesla_cli.commands.nav import nav_app
-    from tesla_cli.commands.notify import notify_app
-    from tesla_cli.commands.order import order_app
-    from tesla_cli.commands.runt_cmd import runt_app
-    from tesla_cli.commands.security import security_app
-    from tesla_cli.commands.sharing import sharing_app
-    from tesla_cli.commands.simit_cmd import simit_app
-    from tesla_cli.commands.stream import stream_app
-    from tesla_cli.commands.vehicle import vehicle_app
+    from tesla_cli.cli.commands.charge import charge_app
+    from tesla_cli.cli.commands.climate import climate_app
+    from tesla_cli.cli.commands.dashboard import dashboard_app
+    from tesla_cli.cli.commands.dossier import dossier_app
+    from tesla_cli.cli.commands.media import media_app
+    from tesla_cli.cli.commands.nav import nav_app
+    from tesla_cli.cli.commands.notify import notify_app
+    from tesla_cli.cli.commands.order import order_app
+    from tesla_cli.cli.commands.query_cmd import query_app
+    from tesla_cli.cli.commands.runt_cmd import runt_app
+    from tesla_cli.cli.commands.security import security_app
+    from tesla_cli.cli.commands.sharing import sharing_app
+    from tesla_cli.cli.commands.simit_cmd import simit_app
+    from tesla_cli.cli.commands.stream import stream_app
+    from tesla_cli.cli.commands.vehicle import vehicle_app
 
     app.add_typer(order_app, name="order")
     app.add_typer(vehicle_app, name="vehicle")
@@ -91,16 +92,17 @@ def _register_commands() -> None:
     app.add_typer(notify_app, name="notify")
     app.add_typer(runt_app, name="runt")
     app.add_typer(simit_app, name="simit")
+    app.add_typer(query_app, name="query")
 
-    from tesla_cli.commands.abrp import abrp_app
-    from tesla_cli.commands.ble import ble_app
-    from tesla_cli.commands.geofence import geofence_app
-    from tesla_cli.commands.ha import ha_app
-    from tesla_cli.commands.mqtt_cmd import mqtt_app
-    from tesla_cli.commands.providers_cmd import providers_app
-    from tesla_cli.commands.serve import serve_app
-    from tesla_cli.commands.setup import setup_wizard
-    from tesla_cli.commands.teslaMate import teslaMate_app
+    from tesla_cli.cli.commands.abrp import abrp_app
+    from tesla_cli.cli.commands.ble import ble_app
+    from tesla_cli.cli.commands.geofence import geofence_app
+    from tesla_cli.cli.commands.ha import ha_app
+    from tesla_cli.cli.commands.mqtt_cmd import mqtt_app
+    from tesla_cli.cli.commands.providers_cmd import providers_app
+    from tesla_cli.cli.commands.serve import serve_app
+    from tesla_cli.cli.commands.setup import setup_wizard
+    from tesla_cli.cli.commands.teslaMate import teslaMate_app
     app.command("setup")(setup_wizard)
     app.add_typer(teslaMate_app, name="teslaMate")
     app.add_typer(abrp_app, name="abrp")

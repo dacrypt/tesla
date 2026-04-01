@@ -14,10 +14,10 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
-from tesla_cli.auth import tokens
-from tesla_cli.config import load_config, save_config
-from tesla_cli.exceptions import AuthenticationError, TeslaCliError
-from tesla_cli.output import console
+from tesla_cli.core.auth import tokens
+from tesla_cli.core.config import load_config, save_config
+from tesla_cli.core.exceptions import AuthenticationError, TeslaCliError
+from tesla_cli.cli.output import console
 
 
 def setup_wizard(
@@ -64,7 +64,7 @@ def setup_wizard(
         console.print("[green]✓ Already authenticated — skipping.[/green]")
     else:
         try:
-            from tesla_cli.commands.config_cmd import _auth_order
+            from tesla_cli.cli.commands.config_cmd import _auth_order
             _auth_order()
         except AuthenticationError as e:
             console.print(f"\n[red]Authentication failed:[/red] {e}")
@@ -86,7 +86,7 @@ def setup_wizard(
         try:
             import httpx
 
-            from tesla_cli.backends.order import OrderBackend
+            from tesla_cli.core.backends.order import OrderBackend
             orders = OrderBackend().get_orders()
         except AuthenticationError as e:
             console.print(f"[red]Auth error:[/red] {e}")
@@ -180,13 +180,13 @@ def setup_wizard(
             console.print("[green]✓ Vehicle backend set to 'owner' — no extra setup needed.[/green]")
         elif choice == "tessie":
             try:
-                from tesla_cli.commands.config_cmd import _auth_tessie
+                from tesla_cli.cli.commands.config_cmd import _auth_tessie
                 _auth_tessie()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
                 console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth tessie[/bold]")
         elif choice == "fleet":
             try:
-                from tesla_cli.commands.config_cmd import _auth_fleet
+                from tesla_cli.cli.commands.config_cmd import _auth_fleet
                 _auth_fleet()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
                 console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth fleet[/bold]")
@@ -205,13 +205,13 @@ def setup_wizard(
         try:
             with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
                 p.add_task("Querying all data sources...", total=None)
-                from tesla_cli.backends.dossier import DossierBackend
+                from tesla_cli.core.backends.dossier import DossierBackend
                 DossierBackend().build_dossier()
 
             console.print("[green]✓ Dossier built successfully.[/green]\n")
 
             # Show the dossier
-            from tesla_cli.commands.dossier import dossier_show
+            from tesla_cli.cli.commands.dossier import dossier_show
             dossier_show()
 
         except AuthenticationError as e:

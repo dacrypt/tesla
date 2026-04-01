@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 # Skip server tests if fastapi not installed
@@ -17,14 +17,14 @@ pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from tesla_cli.server.app import create_app  # noqa: E402
+from tesla_cli.api.app import create_app  # noqa: E402
 
 _runner = CliRunner()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -87,9 +87,9 @@ def srv_tm():
     tm_backend = _make_tm_backend()
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
-        patch("tesla_cli.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
+        patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
     ]
     for p in patches:
         p.start()
@@ -106,8 +106,8 @@ def srv_no_tm():
     cfg = _make_cfg()
 
     patches = [
-        patch("tesla_cli.server.app.load_config", return_value=cfg),
-        patch("tesla_cli.server.routes.teslaMate.load_config", return_value=cfg),
+        patch("tesla_cli.api.app.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
     ]
     for p in patches:
         p.start()
@@ -129,9 +129,9 @@ class TestChargeForecast:
         backend.get_charge_state.return_value = cs
 
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             args = ["charge", "forecast"] + (extra_args or [])
             return _runner.invoke(cli_app, args)
@@ -151,10 +151,10 @@ class TestChargeForecast:
         backend.get_charge_state.return_value = cs
 
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.output.is_json_mode", return_value=True),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.output.is_json_mode", return_value=True),
         ):
             result = _runner.invoke(cli_app, ["-j", "charge", "forecast"])
         assert result.exit_code == 0
@@ -188,10 +188,10 @@ class TestChargeForecast:
         backend.get_charge_state.return_value = cs
 
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.output.is_json_mode", return_value=True),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.output.is_json_mode", return_value=True),
         ):
             result = _runner.invoke(cli_app, ["-j", "charge", "forecast"])
         assert result.exit_code == 0
@@ -207,10 +207,10 @@ class TestChargeForecast:
         backend.get_charge_state.return_value = cs
 
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.output.is_json_mode", return_value=True),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.output.is_json_mode", return_value=True),
         ):
             result = _runner.invoke(cli_app, ["-j", "charge", "forecast"])
         data = json.loads(result.output.strip())
@@ -224,7 +224,7 @@ class TestChargeForecast:
         """Source code should have yellow color for Complete state."""
         import inspect
 
-        from tesla_cli.commands import charge
+        from tesla_cli.cli.commands import charge
         src = inspect.getsource(charge)
         assert "Complete" in src
         assert "yellow" in src
@@ -241,8 +241,8 @@ class TestTeslaMateTripsStats:
         cfg.teslaMate.car_id = 1
 
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=tm_backend),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm_backend),
         ):
             args = ["teslaMate", "trip-stats"] + (extra_args or [])
             return _runner.invoke(cli_app, args)
@@ -261,9 +261,9 @@ class TestTeslaMateTripsStats:
         cfg.teslaMate.car_id = 1
 
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=tm),
-            patch("tesla_cli.output.is_json_mode", return_value=True),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm),
+            patch("tesla_cli.cli.output.is_json_mode", return_value=True),
         ):
             result = _runner.invoke(cli_app, ["-j", "teslaMate", "trip-stats"])
         assert result.exit_code == 0
@@ -284,8 +284,8 @@ class TestTeslaMateTripsStats:
         cfg.teslaMate.car_id = 1
 
         with (
-            patch("tesla_cli.commands.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.commands.teslaMate._backend", return_value=tm),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm),
         ):
             _runner.invoke(cli_app, ["teslaMate", "trip-stats", "--days", "90"])
         tm.get_trip_stats.assert_called_with(days=90)
@@ -299,7 +299,7 @@ class TestTeslaMateTripsStats:
         assert "No trip data" in result.output or result.exit_code == 0
 
     def test_trip_stats_backend_method(self):
-        from tesla_cli.backends.teslaMate import TeslaMateBacked
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
         assert hasattr(TeslaMateBacked, "get_trip_stats")
 
     def test_trip_stats_in_help(self):
@@ -309,42 +309,12 @@ class TestTeslaMateTripsStats:
     def test_get_trip_stats_sql(self):
         import inspect
 
-        from tesla_cli.backends import teslaMate as tm_mod
+        from tesla_cli.core.backends import teslaMate as tm_mod
         src = inspect.getsource(tm_mod)
         assert "total_trips" in src
         assert "routes_sql" in src
 
 
-# ── TestDashboardHealthBadge ──────────────────────────────────────────────────
-
-class TestDashboardHealthBadge:
-    @pytest.fixture(autouse=True)
-    def _html(self):
-        import pathlib
-        html_path = pathlib.Path(__file__).parent.parent / "src" / "tesla_cli" / "server" / "static" / "index.html"
-        self.html = html_path.read_text(encoding="utf-8")
-
-    def test_health_badge_div_present(self):
-        assert 'id="health-badge"' in self.html
-
-    def test_load_health_badge_function(self):
-        assert "loadHealthBadge" in self.html
-
-    def test_health_badge_css(self):
-        assert "#health-badge.ok" in self.html
-
-    def test_health_badge_error_class(self):
-        assert "badge.className = 'err'" in self.html
-
-    def test_health_badge_warn_class(self):
-        assert "badge.className = 'warn'" in self.html
-
-    def test_health_badge_called_on_load(self):
-        # Find DOMContentLoaded block and verify loadHealthBadge() is called within it
-        dom_idx = self.html.rfind("DOMContentLoaded")
-        assert dom_idx != -1
-        after_dom = self.html[dom_idx:]
-        assert "loadHealthBadge()" in after_dom
 
 
 # ── TestApiCostReport ─────────────────────────────────────────────────────────

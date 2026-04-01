@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from tesla_cli.app import app as cli_app
+from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
 
 _runner = CliRunner()
@@ -24,7 +24,7 @@ def _run(*args):
 
 
 def _make_cfg(**overrides):
-    from tesla_cli.config import Config
+    from tesla_cli.core.config import Config
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -68,10 +68,10 @@ class TestVehicleWatchAll:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.time") as mock_time,
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.time") as mock_time,
         ):
             mock_time.sleep.side_effect = KeyboardInterrupt
             result = _run("vehicle", "watch")
@@ -94,10 +94,10 @@ class TestVehicleWatchAll:
             pass
 
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.time") as mock_time,
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.time") as mock_time,
             patch.object(_threading.Thread, "start", _fake_start),
             patch.object(_threading.Thread, "join", _fake_join),
         ):
@@ -123,10 +123,10 @@ class TestVehicleWatchAll:
             pass
 
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
-            patch("tesla_cli.commands.vehicle.get_vehicle_backend", return_value=backend),
-            patch("tesla_cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.vehicle.time") as mock_time,
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.time") as mock_time,
             patch.object(_threading.Thread, "start", _fake_start),
             patch.object(_threading.Thread, "join", _fake_join),
         ):
@@ -138,12 +138,12 @@ class TestVehicleWatchAll:
 
     def test_watch_all_no_vins(self):
         """--all with no VINs configured exits with an error."""
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
         cfg = Config()  # no default_vin, no aliases
         cfg.general.backend = "owner"
 
         with (
-            patch("tesla_cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
         ):
             result = _run("vehicle", "watch", "--all")
 
@@ -152,7 +152,7 @@ class TestVehicleWatchAll:
 
     def test_watch_all_uses_threading(self):
         """Source code contains threading.Thread."""
-        src = Path("src/tesla_cli/commands/vehicle.py").read_text()
+        src = Path("src/tesla_cli/cli/commands/vehicle.py").read_text()
         assert "threading.Thread" in src
 
 
@@ -163,9 +163,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile")
         assert result.exit_code == 0
@@ -175,9 +175,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("-j", "charge", "profile")
         assert result.exit_code == 0
@@ -189,9 +189,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--limit", "80")
         assert result.exit_code == 0
@@ -201,9 +201,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--amps", "12")
         assert result.exit_code == 0
@@ -213,9 +213,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--schedule", "23:00")
         assert result.exit_code == 0
@@ -227,9 +227,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--schedule", "")
         assert result.exit_code == 0
@@ -241,9 +241,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--limit", "75", "--amps", "16", "--schedule", "22:30")
         assert result.exit_code == 0
@@ -253,9 +253,9 @@ class TestChargeProfile:
         cfg = _make_cfg()
         backend = _make_vehicle_backend()
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("-j", "charge", "profile", "--limit", "80")
         assert result.exit_code == 0
@@ -269,9 +269,9 @@ class TestChargeProfile:
         backend = _make_vehicle_backend()
         backend.command.return_value = {"result": False}
         with (
-            patch("tesla_cli.commands.charge.load_config", return_value=cfg),
-            patch("tesla_cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
-            patch("tesla_cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
             result = _run("charge", "profile", "--limit", "80")
         assert result.exit_code == 1
@@ -282,34 +282,6 @@ class TestChargeProfile:
         assert "profile" in result.output
 
 
-# ── TestDashboardBackoff ──────────────────────────────────────────────────────
-
-class TestDashboardBackoff:
-    @pytest.fixture(autouse=True)
-    def _html(self):
-        self.html = Path("src/tesla_cli/server/static/index.html").read_text()
-
-    def test_startstream_has_retry_var(self):
-        assert "_streamRetry" in self.html
-
-    def test_startstream_closes_existing(self):
-        assert "_streamEs.close()" in self.html
-
-    def test_startstream_exponential_delay(self):
-        assert "Math.pow(2, _streamRetry)" in self.html
-
-    def test_startstream_caps_retry(self):
-        assert "Math.min" in self.html
-
-    def test_startstream_resets_on_success(self):
-        assert "_streamRetry = 0" in self.html
-
-    def test_startstream_settimeout_reconnect(self):
-        assert "setTimeout" in self.html
-        assert "startStream(_streamInterval)" in self.html
-
-    def test_startstream_uses_active_vin(self):
-        assert "_activeVin" in self.html
 
 
 # ── TestConfigValidate ────────────────────────────────────────────────────────
@@ -317,14 +289,14 @@ class TestDashboardBackoff:
 class TestConfigValidate:
     def test_validate_clean_config(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 0
         assert "valid" in result.output.lower() or "✓" in result.output
 
     def test_validate_json_mode(self):
         cfg = _make_cfg()
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("-j", "config", "validate")
         assert result.exit_code == 0
         data = json.loads(result.output.replace("\n", ""))
@@ -335,7 +307,7 @@ class TestConfigValidate:
     def test_validate_bad_backend(self):
         cfg = _make_cfg()
         cfg.general.backend = "bad"
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 1
         assert "bad" in result.output or "fail" in result.output.lower() or "✗" in result.output
@@ -343,21 +315,21 @@ class TestConfigValidate:
     def test_validate_invalid_ha_url(self):
         cfg = _make_cfg()
         cfg.home_assistant.url = "homeassistant.local:8123"  # missing scheme
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 1
 
     def test_validate_invalid_teslaMate_url(self):
         cfg = _make_cfg()
         cfg.teslaMate.database_url = "mysql://localhost/teslaMate"
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 1
 
     def test_validate_negative_cost(self):
         cfg = _make_cfg()
         cfg.general.cost_per_kwh = -0.5
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 1
 
@@ -365,7 +337,7 @@ class TestConfigValidate:
         cfg = _make_cfg()
         cfg.mqtt.broker = "localhost"
         cfg.mqtt.qos = 5
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 1
 
@@ -373,17 +345,17 @@ class TestConfigValidate:
         cfg = _make_cfg()
         cfg.mqtt.broker = "localhost"
         cfg.mqtt.qos = 1
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 0
         assert "mqtt" in result.output.lower() or "broker" in result.output.lower()
 
     def test_validate_no_vin_is_warn(self):
-        from tesla_cli.config import Config
+        from tesla_cli.core.config import Config
         cfg = Config()
         cfg.general.backend = "owner"
         # no default_vin — should warn but not fail
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         assert result.exit_code == 0  # warn, not fail
 
@@ -395,7 +367,7 @@ class TestConfigValidate:
     def test_validate_summary_counts(self):
         cfg = _make_cfg()
         cfg.general.backend = "bad"  # 1 fail
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("-j", "config", "validate")
         assert result.exit_code == 1
         # Rich may wrap long JSON lines — collapse before parsing
@@ -406,7 +378,7 @@ class TestConfigValidate:
     def test_validate_apprise_url_no_scheme(self):
         cfg = _make_cfg()
         cfg.notifications.apprise_urls = ["slackhook-without-scheme"]
-        with patch("tesla_cli.commands.config_cmd.load_config", return_value=cfg):
+        with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
             result = _run("config", "validate")
         # warn not fail → exit 0
         assert result.exit_code == 0

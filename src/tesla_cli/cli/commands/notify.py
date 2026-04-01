@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.config import load_config, save_config
-from tesla_cli.output import console, is_json_mode, render_success, render_warning
+from tesla_cli.core.config import load_config, save_config
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning
 
 notify_app = typer.Typer(name="notify", help="Manage push notifications (Apprise).")
 
@@ -210,7 +210,7 @@ def notify_set_template(
     cfg = load_config()
     cfg.notifications.message_template = template
     save_config(cfg)
-    from tesla_cli.output import render_success as _render_success
+    from tesla_cli.cli.output import render_success as _render_success
     _render_success(f"Template saved: [bold]{template}[/bold]")
 
 

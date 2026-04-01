@@ -21,10 +21,10 @@ from typing import Any
 import httpx
 import jwt
 
-from tesla_cli.auth import tokens
-from tesla_cli.auth.oauth import refresh_access_token
-from tesla_cli.exceptions import ApiError, AuthenticationError, OrderNotFoundError
-from tesla_cli.models.order import (
+from tesla_cli.core.auth import tokens
+from tesla_cli.core.auth.oauth import refresh_access_token
+from tesla_cli.core.exceptions import ApiError, AuthenticationError, OrderNotFoundError
+from tesla_cli.core.models.order import (
     DeliveryAppointment,
     OrderChange,
     OrderDetails,
