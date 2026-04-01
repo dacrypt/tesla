@@ -12,10 +12,7 @@ import {
 import { IonReactRouter } from '@ionic/react-router';
 
 import Dashboard from './pages/Dashboard';
-import Controls from './pages/Controls';
-import Charge from './pages/Charge';
-import Climate from './pages/Climate';
-import Schedule from './pages/Schedule';
+import Vehicle from './pages/Vehicle';
 import Navigation from './pages/Navigation';
 import Dossier from './pages/Dossier';
 import Analytics from './pages/Analytics';
@@ -45,21 +42,9 @@ const HomeTabIcon = () => (
   </svg>
 );
 
-const ControlsTabIcon = () => (
+const VehicleTabIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-    <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/>
-  </svg>
-);
-
-const BatteryTabIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-    <path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zm-1.67 9h-2v2h-1v-2H9V12h2v-2h1v2h2v1z"/>
-  </svg>
-);
-
-const ClimateTabIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-    <path d="M22 11h-4.17l3.24-3.24-1.41-1.42L15 11h-2V9l4.66-4.66-1.42-1.41L13 6.17V2h-2v4.17L7.76 2.93 6.34 4.34 11 9v2H9L4.34 6.34 2.93 7.76 6.17 11H2v2h4.17l-3.24 3.24 1.41 1.42L9 13h2v2l-4.66 4.66 1.42 1.41L11 17.83V22h2v-4.17l3.24 3.24 1.42-1.41L13 15v-2h2l4.66 4.66 1.41-1.42L17.83 13H22z"/>
+    <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
   </svg>
 );
 
@@ -69,11 +54,6 @@ const NavTabIcon = () => (
   </svg>
 );
 
-const ScheduleTabIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-    <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
-  </svg>
-);
 
 const OrderTabIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
@@ -99,12 +79,9 @@ const App: React.FC = () => (
       <IonTabs>
         <IonRouterOutlet>
           <Route exact path="/dashboard"><Dashboard /></Route>
-          <Route exact path="/controls"><Controls /></Route>
-          <Route exact path="/charge"><Charge /></Route>
-          <Route exact path="/climate"><Climate /></Route>
-          <Route exact path="/schedule"><Schedule /></Route>
+          <Route exact path="/vehicle"><Vehicle /></Route>
           <Route exact path="/nav"><Navigation /></Route>
-          <Route exact path="/dossier"><Dossier /></Route>
+          <Route exact path="/info"><Dossier /></Route>
           <Route exact path="/analytics"><Analytics /></Route>
           <Route exact path="/settings"><Settings /></Route>
           <Route exact path="/"><Redirect to="/dashboard" /></Route>
@@ -115,29 +92,17 @@ const App: React.FC = () => (
             <HomeTabIcon />
             <IonLabel>Home</IonLabel>
           </IonTabButton>
-          <IonTabButton tab="controls" href="/controls">
-            <ControlsTabIcon />
-            <IonLabel>Controls</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="charge" href="/charge">
-            <BatteryTabIcon />
-            <IonLabel>Charge</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="climate" href="/climate">
-            <ClimateTabIcon />
-            <IonLabel>Climate</IonLabel>
+          <IonTabButton tab="vehicle" href="/vehicle">
+            <VehicleTabIcon />
+            <IonLabel>Vehicle</IonLabel>
           </IonTabButton>
           <IonTabButton tab="nav" href="/nav">
             <NavTabIcon />
             <IonLabel>Nav</IonLabel>
           </IonTabButton>
-          <IonTabButton tab="schedule" href="/schedule">
-            <ScheduleTabIcon />
-            <IonLabel>Schedule</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="dossier" href="/dossier">
+          <IonTabButton tab="info" href="/info">
             <OrderTabIcon />
-            <IonLabel>Dossier</IonLabel>
+            <IonLabel>Info</IonLabel>
           </IonTabButton>
           <IonTabButton tab="analytics" href="/analytics">
             <ChartTabIcon />

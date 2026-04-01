@@ -31,7 +31,10 @@ export default function SimitCard({ simit, loading, error, onRetry }: Props) {
     return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 16 }}>No SIMIT data available</div>;
   }
 
-  const isPazYSalvo = simit.paz_y_salvo;
+  // Backend may report paz_y_salvo=false even with 0 debt (e.g., query issues)
+  // Use actual numbers as ground truth
+  const totalFines = (simit.comparendos ?? 0) + (simit.multas ?? 0);
+  const isPazYSalvo = simit.paz_y_salvo || (totalFines === 0 && (simit.total_deuda ?? 0) === 0);
 
   return (
     <>
@@ -45,7 +48,7 @@ export default function SimitCard({ simit, loading, error, onRetry }: Props) {
           borderRadius: 100, padding: '8px 20px',
           fontSize: 14, fontWeight: 700,
         }}>
-          {isPazYSalvo ? '\u2713 Paz y Salvo' : '\u2717 Con Deudas'}
+          {isPazYSalvo ? '✓ Paz y Salvo' : '✗ Con Deudas'}
         </div>
       </div>
 
