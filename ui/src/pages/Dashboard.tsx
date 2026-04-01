@@ -195,35 +195,35 @@ function PreDeliveryMissionControl() {
         </div>
       )}
 
-      {/* ── Logistics / Ship Tracking ── */}
-      {logistics && (ship?.vessel_name || logistics.estimated_transit_days) && (
+      {/* ── Logistics / Ship Tracking — only if still in transit ── */}
+      {logistics && ship?.vessel_name && !status?.is_in_country && (
         <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
-          <div className="label-xs" style={{ marginBottom: 10 }}>Shipping</div>
-          {ship?.vessel_name && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{ship.vessel_name}</span>
-                {ship.tracking_url && <a href={ship.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#0FBCF9', fontSize: 11, textDecoration: 'none' }}>Track ↗</a>}
-              </div>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-                {ship.imo && <span style={{ color: '#86888f', fontSize: 11 }}>IMO {ship.imo}</span>}
-                {ship.eta && <span style={{ color: '#0BE881', fontSize: 11, fontWeight: 600 }}>ETA {ship.eta}</span>}
-                {ship.current_position?.speed_knots != null && ship.current_position.speed_knots > 0 && (
-                  <span style={{ color: '#86888f', fontSize: 11 }}>{ship.current_position.speed_knots.toFixed(1)} knots</span>
-                )}
-              </div>
-            </>
-          )}
+          <div className="label-xs" style={{ marginBottom: 10 }}>En Tránsito</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{ship.vessel_name}</span>
+            {ship.tracking_url && <a href={ship.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#0FBCF9', fontSize: 11, textDecoration: 'none' }}>Track ↗</a>}
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+            {ship.imo && <span style={{ color: '#86888f', fontSize: 11 }}>IMO {ship.imo}</span>}
+            {ship.eta && <span style={{ color: '#0BE881', fontSize: 11, fontWeight: 600 }}>ETA {ship.eta}</span>}
+            {ship.current_position?.speed_knots != null && ship.current_position.speed_knots > 0 && (
+              <span style={{ color: '#86888f', fontSize: 11 }}>{ship.current_position.speed_knots.toFixed(1)} knots</span>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
             {logistics.departure_port && <span style={{ color: '#86888f' }}>{logistics.departure_port}</span>}
             {logistics.arrival_port && <><span style={{ color: '#86888f' }}>→</span><span style={{ color: '#86888f' }}>{logistics.arrival_port}</span></>}
             {logistics.estimated_transit_days && <span style={{ color: '#F99716' }}>{logistics.estimated_transit_days} days</span>}
           </div>
-          {logistics.customs_status && (
-            <div style={{ marginTop: 6, fontSize: 11, color: logistics.customs_status === 'cleared' ? '#0BE881' : '#F99716' }}>
-              Customs: {logistics.customs_status}
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* ── Arrived: collapsed ship info as single line in Registro ── */}
+      {logistics && ship?.vessel_name && status?.is_in_country && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', marginBottom: 10, background: 'rgba(11,232,129,0.05)', borderRadius: 10, border: '1px solid rgba(11,232,129,0.1)' }}>
+          <span style={{ color: '#0BE881', fontSize: 11, fontWeight: 600 }}>✓ Arrived</span>
+          <span style={{ color: '#86888f', fontSize: 11 }}>via {ship.vessel_name}</span>
+          {logistics.departure_port && <span style={{ color: '#86888f', fontSize: 10 }}>({logistics.departure_port} → {logistics.arrival_port})</span>}
         </div>
       )}
 
