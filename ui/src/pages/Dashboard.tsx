@@ -103,7 +103,8 @@ function DeliveryCountdown() {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 function PreDeliveryMissionControl() {
-  const { dossier, loading: dossierLoading, refresh: refreshDossier } = useDossierData();
+  const { dossier, runtLive, loading: dossierLoading, refresh: refreshDossier } = useDossierData();
+  const runt = runtLive || dossier?.runt;
 
   const status = dossier?.real_status;
   const order = dossier?.order;
@@ -138,19 +139,19 @@ function PreDeliveryMissionControl() {
       {status && (
         <div className="tesla-card" style={{ padding: '14px 12px', marginBottom: 10 }}>
           <StatusPipeline status={status} />
-          {/* Multi-source flags */}
+          {/* Checklist flags as compact row */}
           {status && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10, justifyContent: 'center' }}>
               {[
                 { flag: status.vin_assigned, label: 'VIN' },
-                { flag: status.is_produced, label: 'Produced' },
-                { flag: status.is_shipped, label: 'Shipped' },
-                { flag: status.is_in_country, label: 'In Country' },
-                { flag: status.is_customs_cleared, label: 'Customs' },
+                { flag: status.is_produced, label: 'Producido' },
+                { flag: status.is_shipped, label: 'Enviado' },
+                { flag: status.is_in_country, label: 'En País' },
+                { flag: status.is_customs_cleared, label: 'Aduana' },
                 { flag: status.in_runt, label: 'RUNT' },
                 { flag: status.has_placa, label: 'Placa' },
                 { flag: status.has_soat, label: 'SOAT' },
-                { flag: status.is_delivery_scheduled, label: 'Scheduled' },
+                { flag: status.is_delivery_scheduled, label: 'Cita' },
               ].filter(f => f.flag != null).map(f => (
                 <span key={f.label} style={{
                   fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 100,
@@ -221,6 +222,84 @@ function PreDeliveryMissionControl() {
           {logistics.customs_status && (
             <div style={{ marginTop: 6, fontSize: 11, color: logistics.customs_status === 'cleared' ? '#0BE881' : '#F99716' }}>
               Customs: {logistics.customs_status}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Registro & Trámites (Colombia) ── */}
+      {(runt || status?.in_runt != null) && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 10 }}>Registro & Trámites</div>
+          {[
+            {
+              label: 'Nacionalización (DIAN)',
+              done: runt?.ver_valida_dian || runt?.validacion_dian === 'VALIDADO',
+              detail: runt?.subpartida ? `Subpartida: ${runt.subpartida}` : runt?.validacion_dian,
+              date: runt?.fecha_expedicion_lt_importacion,
+            },
+            {
+              label: 'Registro RUNT',
+              done: !!status?.in_runt || !!runt?.estado,
+              detail: runt?.estado ? `Estado: ${runt.estado}` : undefined,
+              date: runt?.fecha_registro,
+            },
+            {
+              label: 'Matrícula',
+              done: !!runt?.fecha_matricula,
+              detail: runt?.autoridad_transito ? `Autoridad: ${runt.autoridad_transito}` : undefined,
+              date: runt?.fecha_matricula,
+            },
+            {
+              label: 'Placa',
+              done: !!status?.has_placa || !!runt?.placa,
+              detail: runt?.placa || undefined,
+            },
+            {
+              label: 'SOAT (Seguro)',
+              done: runt?.soat_vigente ?? false,
+              detail: runt?.soat_aseguradora ? `${runt.soat_aseguradora}` : undefined,
+              date: runt?.soat_vencimiento ? `Vence: ${runt.soat_vencimiento}` : undefined,
+            },
+            {
+              label: 'Revisión Técnico-Mecánica',
+              done: runt?.tecnomecanica_vigente ?? false,
+              detail: undefined,
+              date: runt?.tecnomecanica_vencimiento ? `Vence: ${runt.tecnomecanica_vencimiento}` : undefined,
+            },
+            {
+              label: 'Gravámenes',
+              done: runt?.gravamenes === false,
+              detail: runt?.gravamenes ? 'Tiene gravámenes' : 'Libre de gravámenes',
+              pending: runt?.gravamenes == null,
+            },
+            {
+              label: 'Prendas',
+              done: runt?.prendas === false,
+              detail: runt?.prendas ? 'Tiene prendas' : 'Libre de prendas',
+              pending: runt?.prendas == null,
+            },
+          ].map((step, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                background: step.done ? 'rgba(11,232,129,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1.5px solid ${step.done ? '#0BE881' : 'rgba(255,255,255,0.1)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: step.done ? '#0BE881' : 'rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700,
+              }}>
+                {step.done ? '✓' : (step as any).pending ? '?' : '○'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: step.done ? '#fff' : '#86888f' }}>{step.label}</div>
+                {step.detail && <div style={{ fontSize: 11, color: step.done ? '#0BE881' : '#86888f', marginTop: 1 }}>{step.detail}</div>}
+                {step.date && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{step.date}</div>}
+              </div>
+            </div>
+          ))}
+          {runt?.queried_at && (
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: 4 }}>
+              RUNT consultado: {new Date(runt.queried_at).toLocaleDateString()}
             </div>
           )}
         </div>
