@@ -127,7 +127,7 @@ export default function Dossier() {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Dossier</IonTitle>
+          <IonTitle>Info</IonTitle>
           {loading && <div slot="end" style={{ paddingRight: 16 }}><Spin /></div>}
         </IonToolbar>
       </IonHeader>
@@ -206,8 +206,34 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               <StatusPipeline status={status} />
 
+              {/* Multi-source intelligence flags */}
+              {status && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0 4px', padding: '0 4px' }}>
+                  {[
+                    { flag: status.vin_assigned, label: 'VIN Assigned' },
+                    { flag: status.is_produced, label: 'Produced' },
+                    { flag: status.is_shipped, label: 'Shipped' },
+                    { flag: status.is_in_country, label: 'In Country' },
+                    { flag: status.is_customs_cleared, label: 'Customs' },
+                    { flag: status.in_runt, label: 'RUNT' },
+                    { flag: status.has_placa, label: 'Placa' },
+                    { flag: status.has_soat, label: 'SOAT' },
+                    { flag: status.is_registered, label: 'Registered' },
+                    { flag: status.is_delivery_scheduled, label: 'Delivery Sched.' },
+                    { flag: status.is_delivered, label: 'Delivered' },
+                  ].filter(f => f.flag != null).map(f => (
+                    <span key={f.label} style={{
+                      fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 100,
+                      background: f.flag ? 'rgba(11,232,129,0.1)' : 'rgba(255,255,255,0.04)',
+                      color: f.flag ? '#0BE881' : 'rgba(255,255,255,0.25)',
+                      border: `1px solid ${f.flag ? 'rgba(11,232,129,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                    }}>{f.flag ? '✓' : '○'} {f.label}</span>
+                  ))}
+                </div>
+              )}
+
               {/* ── VEHÍCULO ─────────────────────────────────────────────── */}
-              <SectionDivider label="Veh\u00edculo" />
+              <SectionDivider label="Vehículo" />
 
               {/* ════════════════════════════════════════════════════════════ */}
               {/* 3. IDENTIDAD                                               */}
@@ -230,7 +256,7 @@ export default function Dossier() {
                   <div style={{ background: 'var(--tesla-card-secondary)', borderRadius: 10, padding: '10px 14px', border: '1px solid var(--tesla-card-border)', textAlign: 'center' }}>
                     <div className="label-xs" style={{ marginBottom: 3 }}>Placa</div>
                     <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', color: runt?.placa ? 'var(--tesla-text)' : 'var(--tesla-text-dim)' }}>
-                      {runt?.placa || 'Pending'}
+                      {runt?.placa || 'Pendiente'}
                     </div>
                   </div>
                   <div style={{ background: 'var(--tesla-card-secondary)', borderRadius: 10, padding: '10px 14px', border: '1px solid var(--tesla-card-border)', textAlign: 'center' }}>
@@ -252,7 +278,9 @@ export default function Dossier() {
                     <KV label="Energy" value={dossier.vin_decode.energy_type} />
                     <KV label="Motor/Battery" value={dossier.vin_decode.motor_battery} />
                     <KV label="Chemistry" value={dossier.vin_decode.battery_chemistry} />
+                    <KV label="Restraint" value={dossier.vin_decode.restraint_system} />
                     <KV label="Year Code" value={dossier.vin_decode.model_year} />
+                    <KV label="Check Digit" value={dossier.vin_decode.check_digit} mono />
                     <KV label="Serial" value={dossier.vin_decode.serial_number} mono />
                   </>
                 )}
@@ -266,7 +294,7 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               {/* 4. CONFIGURACIÓN                                           */}
               {/* ════════════════════════════════════════════════════════════ */}
-              <CollapsibleSection title="Configuraci\u00f3n & Specs" defaultOpen>
+              <CollapsibleSection title="Configuración & Specs" defaultOpen>
                 <SpecsGrid specs={dossier.specs} />
 
                 {dossier.option_codes?.codes && dossier.option_codes.codes.length > 0 && (
@@ -325,8 +353,10 @@ export default function Dossier() {
                           <div style={{ width: 8, height: 8, borderRadius: '50%', background: i === 0 ? 'var(--tesla-green)' : 'var(--tesla-border)', marginTop: 5, flexShrink: 0 }} />
                           <div>
                             <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tesla-text)' }}>{snap.order_status}</div>
+                            {snap.order_substatus && <div style={{ fontSize: 10, color: 'var(--tesla-text-secondary)' }}>{snap.order_substatus}</div>}
                             <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)' }}>
                               {snap.timestamp ? new Date(snap.timestamp).toLocaleString() : '--'}
+                              {snap.delivery_window_start ? ` · ${snap.delivery_window_start}–${snap.delivery_window_end}` : ''}
                             </div>
                           </div>
                         </div>
@@ -339,7 +369,7 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               {/* 6. LOGÍSTICA                                               */}
               {/* ════════════════════════════════════════════════════════════ */}
-              <CollapsibleSection title="Log\u00edstica & Env\u00edo">
+              <CollapsibleSection title="Logística & Envío">
                 <LogisticsCard logistics={dossier.logistics} />
               </CollapsibleSection>
 
@@ -352,9 +382,11 @@ export default function Dossier() {
                   <KV label="Opciones" value={dossier.financial.options_total ? `$${dossier.financial.options_total.toLocaleString()}` : undefined} />
                   <KV label="Impuestos" value={dossier.financial.taxes ? `$${dossier.financial.taxes.toLocaleString()}` : undefined} />
                   <KV label="Total" value={dossier.financial.total_price ? `$${dossier.financial.total_price.toLocaleString()} ${dossier.financial.currency}` : undefined} color="#05C46B" />
-                  <KV label="M\u00e9todo" value={dossier.financial.payment_method} />
-                  <KV label="Dep\u00f3sito" value={dossier.financial.deposit_paid ? `$${dossier.financial.deposit_paid.toLocaleString()}` : undefined} />
+                  <KV label="Método" value={dossier.financial.payment_method} />
+                  <KV label="Depósito" value={dossier.financial.deposit_paid ? `$${dossier.financial.deposit_paid.toLocaleString()}` : undefined} />
                   <KV label="Saldo" value={dossier.financial.balance_due ? `$${dossier.financial.balance_due.toLocaleString()}` : undefined} color="#FF6B6B" />
+                  <KV label="Financiamiento" value={(dossier.financial as any).financing_details} />
+                  <KV label="Trade-in" value={(dossier.financial as any).trade_in ? `$${(dossier.financial as any).trade_in.toLocaleString()}` : undefined} />
                 </CollapsibleSection>
               )}
 
@@ -364,7 +396,7 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               {/* 8. RUNT — REGISTRO VEHICULAR                               */}
               {/* ════════════════════════════════════════════════════════════ */}
-              <CollapsibleSection title="RUNT \u2014 Registro Vehicular"
+              <CollapsibleSection title="RUNT — Registro Vehicular"
                 badge={runt?.estado ? (
                   <StatusPill ok={runt.estado === 'REGISTRADO' || runt.estado === 'MATRICULADO'} trueText={runt.estado} falseText={runt.estado || 'N/R'} />
                 ) : undefined}
@@ -381,7 +413,7 @@ export default function Dossier() {
               {/* 9. RUNT — LEGAL & IMPORTACIÓN                              */}
               {/* ════════════════════════════════════════════════════════════ */}
               {runt?.estado && (
-                <CollapsibleSection title="Legal & Importaci\u00f3n"
+                <CollapsibleSection title="Legal & Importación"
                   badge={
                     <div style={{ display: 'flex', gap: 4 }}>
                       <StatusPill ok={!runt.gravamenes} trueText="Sin Grav." falseText="Grav." />
@@ -391,20 +423,20 @@ export default function Dossier() {
                 >
                   <LegalFlags runt={runt} />
 
-                  <div className="label-xs" style={{ marginBottom: 6, marginTop: 8 }}>Importaci\u00f3n</div>
-                  <KV label="Pa\u00eds Origen" value={runt.nombre_pais} />
-                  <KV label="DIAN Validaci\u00f3n" value={runt.validacion_dian} />
-                  <KV label="DIAN V\u00e1lida" value={runt.ver_valida_dian ? 'S\u00ed' : 'No'} color={runt.ver_valida_dian ? '#0BE881' : '#FF6B6B'} />
+                  <div className="label-xs" style={{ marginBottom: 6, marginTop: 8 }}>Importación</div>
+                  <KV label="País Origen" value={runt.nombre_pais} />
+                  <KV label="DIAN Validación" value={runt.validacion_dian} />
+                  <KV label="DIAN Válida" value={runt.ver_valida_dian ? 'Sí' : 'No'} color={runt.ver_valida_dian ? '#0BE881' : '#FF6B6B'} />
                   <KV label="Subpartida" value={runt.subpartida} mono />
-                  <KV label="Lic. Import. Expedici\u00f3n" value={runt.fecha_expedicion_lt_importacion} />
+                  <KV label="Lic. Import. Expedición" value={runt.fecha_expedicion_lt_importacion} />
                   <KV label="Lic. Import. Vencimiento" value={runt.fecha_vencimiento_lt_importacion} />
 
                   <div className="label-xs" style={{ marginBottom: 6, marginTop: 12 }}>Registro</div>
-                  <KV label="Autoridad Tr\u00e1nsito" value={runt.autoridad_transito} />
-                  <KV label="Fecha Matr\u00edcula" value={runt.fecha_matricula} />
+                  <KV label="Autoridad Tránsito" value={runt.autoridad_transito} />
+                  <KV label="Fecha Matrícula" value={runt.fecha_matricula} />
                   <KV label="Fecha Registro" value={runt.fecha_registro} />
-                  <KV label="D\u00edas Matriculado" value={runt.dias_matriculado} />
-                  <KV label="Clasificaci\u00f3n" value={runt.clasificacion} />
+                  <KV label="Días Matriculado" value={runt.dias_matriculado} />
+                  <KV label="Clasificación" value={runt.clasificacion} />
                   <KV label="Tipo Servicio" value={runt.tipo_servicio} />
                 </CollapsibleSection>
               )}
@@ -412,10 +444,12 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               {/* 10. SIMIT — MULTAS                                         */}
               {/* ════════════════════════════════════════════════════════════ */}
-              <CollapsibleSection title="SIMIT \u2014 Multas"
-                badge={simit?.paz_y_salvo !== undefined ? (
-                  <StatusPill ok={simit.paz_y_salvo} trueText="Paz y Salvo" falseText="Con Deudas" />
-                ) : undefined}
+              <CollapsibleSection title="SIMIT — Multas"
+                badge={simit ? (() => {
+                  const totalFines = (simit.comparendos ?? 0) + (simit.multas ?? 0);
+                  const clean = simit.paz_y_salvo || (totalFines === 0 && (simit.total_deuda ?? 0) === 0);
+                  return <StatusPill ok={clean} trueText="Paz y Salvo" falseText="Con Deudas" />;
+                })() : undefined}
               >
                 <SimitCard simit={simit} loading={simitLoading} error={simitError} onRetry={refreshSimit} />
                 {!simitLoading && !simitError && (
@@ -446,7 +480,10 @@ export default function Dossier() {
                         <StatusPill ok={r.status === 'completed'} trueText="Fixed" falseText={r.status || 'Open'} />
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--tesla-text-secondary)', lineHeight: 1.4 }}>{r.description}</div>
-                      {r.date && <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)', marginTop: 4 }}>{r.date} &middot; {r.source}</div>}
+                      {r.remedy && <div style={{ fontSize: 11, color: '#0FBCF9', lineHeight: 1.4, marginTop: 4 }}>Remedy: {r.remedy}</div>}
+                      <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)', marginTop: 4 }}>
+                        {r.date}{r.source ? ` · ${r.source}` : ''}{r.nhtsa_id ? ` · NHTSA ${r.nhtsa_id}` : ''}
+                      </div>
                     </div>
                   ))
                 )}
@@ -461,10 +498,13 @@ export default function Dossier() {
                 ) : undefined}
               >
                 {dossier.software?.versions && dossier.software.versions.length > 0 ? (
-                  dossier.software.versions.map((v, i) => (
-                    <div key={i} className="stat-row">
-                      <span style={{ fontFamily: "'SF Mono', monospace", fontSize: 12, color: i === 0 ? '#0BE881' : 'var(--tesla-text)' }}>{v.version}</span>
-                      <span style={{ fontSize: 10, color: 'var(--tesla-text-secondary)' }}>{v.first_seen ? new Date(v.first_seen).toLocaleDateString() : ''}</span>
+                  dossier.software.versions.map((v: any, i: number) => (
+                    <div key={i} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: i < (dossier.software?.versions?.length ?? 0) - 1 ? '1px solid var(--tesla-card-border)' : 'none' }}>
+                      <div className="stat-row">
+                        <span style={{ fontFamily: "'SF Mono', monospace", fontSize: 12, color: i === 0 ? '#0BE881' : 'var(--tesla-text)' }}>{v.version}</span>
+                        <span style={{ fontSize: 10, color: 'var(--tesla-text-secondary)' }}>{v.first_seen ? new Date(v.first_seen).toLocaleDateString() : ''}</span>
+                      </div>
+                      {v.release_notes && <div style={{ fontSize: 10, color: 'var(--tesla-text-dim)', marginTop: 2, lineHeight: 1.4 }}>{v.release_notes}</div>}
                     </div>
                   ))
                 ) : (

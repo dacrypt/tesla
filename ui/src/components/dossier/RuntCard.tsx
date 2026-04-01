@@ -56,17 +56,25 @@ export default function RuntCard({ runt, loading, error, onRetry }: Props) {
     ['Placa', runt.placa || 'Sin asignar'],
     ['Marca', runt.marca],
     ['Linea', runt.linea],
-    ['A\u00f1o', runt.modelo_ano],
+    ['Año', runt.modelo_ano],
     ['Color', runt.color],
     ['Combustible', runt.tipo_combustible],
-    ['Carrocer\u00eda', runt.tipo_carroceria],
+    ['Carrocería', runt.tipo_carroceria],
+    ['Cilindraje', runt.cilindraje],
     ['Puertas', runt.puertas],
     ['Pasajeros', runt.capacidad_pasajeros],
     ['Peso Bruto', runt.peso_bruto_kg ? `${runt.peso_bruto_kg} kg` : undefined],
+    ['Capacidad Carga', runt.capacidad_carga],
     ['Ejes', runt.numero_ejes],
-    ['Matr\u00edcula', runt.fecha_matricula],
+    ['No. Serie', runt.numero_serie],
+    ['No. Motor', runt.numero_motor],
+    ['No. Chasis', runt.numero_chasis],
+    ['No. VIN', runt.numero_vin],
+    ['Clasificación', runt.clasificacion],
+    ['Tipo Servicio', runt.tipo_servicio],
+    ['Matrícula', runt.fecha_matricula],
     ['Autoridad', runt.autoridad_transito],
-    ['Pa\u00eds', runt.nombre_pais],
+    ['País', runt.nombre_pais],
   ];
 
   return (
@@ -74,10 +82,10 @@ export default function RuntCard({ runt, loading, error, onRetry }: Props) {
       {/* Status pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
         <StatusPill label="Estado" ok={runt.estado === 'REGISTRADO' || runt.estado === 'MATRICULADO'} trueText={runt.estado} falseText={runt.estado || 'N/R'} />
-        <StatusPill label="SOAT" ok={runt.soat_vigente} trueText="Vigente" falseText="Vencido" />
-        <StatusPill label="RTM" ok={runt.tecnomecanica_vigente} trueText="Vigente" falseText="Vencida" />
-        <StatusPill label="Grav\u00e1menes" ok={!runt.gravamenes} trueText="Libre" falseText="S\u00ed" />
-        <StatusPill label="Prendas" ok={!runt.prendas} trueText="Libre" falseText="S\u00ed" />
+        <StatusPill label="SOAT" ok={runt.soat_vigente} trueText="Vigente" falseText={runt.soat_aseguradora ? 'Vencido' : 'Pendiente'} />
+        <StatusPill label="RTM" ok={runt.tecnomecanica_vigente} trueText="Vigente" falseText={runt.tecnomecanica_vencimiento ? 'Vencida' : 'Pendiente'} />
+        <StatusPill label="Gravámenes" ok={!runt.gravamenes} trueText="Libre" falseText="Sí" />
+        <StatusPill label="Prendas" ok={!runt.prendas} trueText="Libre" falseText="Sí" />
       </div>
 
       {/* SOAT details */}

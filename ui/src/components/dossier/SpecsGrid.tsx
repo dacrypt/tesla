@@ -32,6 +32,7 @@ export default function SpecsGrid({ specs }: Props) {
     ['Autopilot', specs.autopilot_hardware],
     ['FSD', specs.has_fsd ? 'Yes' : 'No'],
     ['Charging', specs.supercharging],
+    ['Connectivity', (specs as any).connectivity],
   ];
 
   return (

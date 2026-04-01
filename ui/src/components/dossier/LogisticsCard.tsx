@@ -96,6 +96,32 @@ export default function LogisticsCard({ logistics }: Props) {
           <span style={{ color: 'var(--tesla-text)', fontSize: 12, fontWeight: 500, textTransform: 'capitalize' }}>{logistics.customs_status}</span>
         </div>
       )}
+      {logistics.last_mile_status && (
+        <div className="stat-row">
+          <span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Last Mile</span>
+          <span style={{ color: 'var(--tesla-text)', fontSize: 12, fontWeight: 500, textTransform: 'capitalize' }}>{logistics.last_mile_status}</span>
+        </div>
+      )}
+      {logistics.destination_country && (
+        <div className="stat-row">
+          <span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Destination</span>
+          <span style={{ color: 'var(--tesla-text)', fontSize: 12, fontWeight: 500 }}>{logistics.destination_country}</span>
+        </div>
+      )}
+      {ship?.mmsi && (
+        <div className="stat-row">
+          <span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>MMSI</span>
+          <span style={{ color: 'var(--tesla-text)', fontSize: 12, fontFamily: "'SF Mono', monospace" }}>{ship.mmsi}</span>
+        </div>
+      )}
+      {ship?.current_position?.latitude != null && (
+        <div className="stat-row">
+          <span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Position</span>
+          <span style={{ color: 'var(--tesla-text)', fontSize: 12, fontFamily: "'SF Mono', monospace" }}>
+            {ship.current_position.latitude.toFixed(4)}, {ship.current_position.longitude?.toFixed(4)}
+          </span>
+        </div>
+      )}
     </>
   );
 }
