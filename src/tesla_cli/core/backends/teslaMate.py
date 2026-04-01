@@ -63,13 +63,15 @@ class TeslaMateBacked:
         """Lifetime driving stats for the configured car."""
         sql = """
             SELECT
-                COUNT(*)                                    AS total_drives,
-                ROUND(SUM(distance)::numeric, 0)            AS total_km,
-                ROUND(SUM(energy_used)::numeric, 1)         AS total_kwh,
-                ROUND(AVG(distance)::numeric, 1)            AS avg_km_per_trip,
-                ROUND(MAX(distance)::numeric, 1)            AS longest_trip_km,
-                MIN(start_date)                             AS first_drive,
-                MAX(end_date)                               AS last_drive
+                COUNT(*)                                                    AS total_drives,
+                ROUND(COALESCE(SUM(distance), 0)::numeric, 0)              AS total_km,
+                ROUND(COALESCE(SUM(
+                    GREATEST(0, start_ideal_range_km - end_ideal_range_km) * 0.16
+                ), 0)::numeric, 1)                                          AS total_kwh,
+                ROUND(COALESCE(AVG(distance), 0)::numeric, 1)              AS avg_km_per_trip,
+                ROUND(COALESCE(MAX(distance), 0)::numeric, 1)              AS longest_trip_km,
+                MIN(start_date)                                             AS first_drive,
+                MAX(end_date)                                               AS last_drive
             FROM drives
             WHERE car_id = %s
         """
@@ -102,16 +104,17 @@ class TeslaMateBacked:
                 d.id,
                 d.start_date,
                 d.end_date,
-                d.start_address,
-                d.end_address,
+                a1.display_name                             AS start_address,
+                a2.display_name                             AS end_address,
                 ROUND(d.distance::numeric, 1)               AS distance_km,
                 d.duration_min,
-                d.start_battery_level,
-                d.end_battery_level,
                 ROUND(d.start_ideal_range_km::numeric, 0)   AS start_range_km,
                 ROUND(d.end_ideal_range_km::numeric, 0)     AS end_range_km,
-                ROUND(d.energy_used::numeric, 2)            AS energy_kwh
+                ROUND(GREATEST(0, d.start_ideal_range_km - d.end_ideal_range_km)::numeric * 0.16, 2)
+                                                            AS energy_kwh
             FROM drives d
+            LEFT JOIN addresses a1 ON a1.id = d.start_address_id
+            LEFT JOIN addresses a2 ON a2.id = d.end_address_id
             WHERE d.car_id = %s
             ORDER BY d.start_date DESC
             LIMIT %s
@@ -121,26 +124,27 @@ class TeslaMateBacked:
             return [dict(r) for r in cur.fetchall()]
 
     def get_efficiency(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Per-trip energy efficiency (kWh/100 km and Wh/mi)."""
+        """Per-trip energy efficiency (Wh/km and kWh/100mi)."""
         sql = """
             SELECT
                 d.start_date,
-                ROUND(d.distance::numeric, 1)                        AS distance_km,
-                ROUND(d.energy_used::numeric, 2)                     AS energy_kwh,
-                ROUND((d.energy_used / NULLIF(d.distance, 0) * 100)::numeric, 1)
-                                                                     AS wh_per_km,
-                ROUND((d.energy_used / NULLIF(d.distance * 1.60934, 0) * 100)::numeric, 1)
-                                                                     AS kwh_per_100mi,
-                d.start_battery_level,
-                d.end_battery_level,
-                a1.display_name                                      AS start_address,
-                a2.display_name                                      AS end_address
+                ROUND(d.distance::numeric, 1)                       AS distance_km,
+                d.duration_min,
+                ROUND(GREATEST(0, d.start_ideal_range_km - d.end_ideal_range_km)::numeric * 0.16, 2)
+                                                                    AS energy_kwh,
+                ROUND((GREATEST(0, d.start_ideal_range_km - d.end_ideal_range_km) * 0.16
+                    / NULLIF(d.distance, 0) * 1000)::numeric, 1)   AS wh_per_km,
+                ROUND((GREATEST(0, d.start_ideal_range_km - d.end_ideal_range_km) * 0.16
+                    / NULLIF(d.distance * 1.60934, 0) * 100)::numeric, 1)
+                                                                    AS kwh_per_100mi,
+                a1.display_name                                     AS start_address,
+                a2.display_name                                     AS end_address
             FROM drives d
             LEFT JOIN addresses a1 ON a1.id = d.start_address_id
             LEFT JOIN addresses a2 ON a2.id = d.end_address_id
             WHERE d.car_id = %s
               AND d.distance > 0
-              AND d.energy_used > 0
+              AND d.start_ideal_range_km > d.end_ideal_range_km
             ORDER BY d.start_date DESC
             LIMIT %s
         """
@@ -187,7 +191,7 @@ class TeslaMateBacked:
         """List all cars in the TeslaMate database."""
         sql = """
             SELECT id, vin, name, model, trim_badging, exterior_color,
-                   wheel_type, spoiler_type, efficiency_data
+                   wheel_type, spoiler_type, efficiency
             FROM cars
             ORDER BY id
         """
@@ -202,9 +206,8 @@ class TeslaMateBacked:
                 SELECT
                     start_date,
                     end_date,
-                    start_battery_level,
-                    end_battery_level,
-                    LEAD(start_battery_level) OVER (ORDER BY start_date)  AS next_start_level,
+                    end_ideal_range_km,
+                    LEAD(start_ideal_range_km) OVER (ORDER BY start_date)  AS next_start_range,
                     LEAD(start_date)           OVER (ORDER BY start_date)  AS next_start_date
                 FROM drives
                 WHERE car_id = %s
@@ -213,18 +216,18 @@ class TeslaMateBacked:
             SELECT
                 DATE(end_date)                                              AS date,
                 ROUND(AVG(
-                    GREATEST(0, end_battery_level - next_start_level)
-                )::numeric, 2)                                              AS avg_drain_pct,
+                    GREATEST(0, end_ideal_range_km - COALESCE(next_start_range, end_ideal_range_km))
+                )::numeric, 2)                                              AS avg_drain_km,
                 ROUND(AVG(
                     EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0
                 )::numeric, 1)                                              AS avg_parked_hours,
                 ROUND(AVG(
-                    GREATEST(0, end_battery_level - next_start_level) /
+                    GREATEST(0, end_ideal_range_km - COALESCE(next_start_range, end_ideal_range_km)) /
                     NULLIF(EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0, 0)
-                )::numeric, 4)                                              AS pct_per_hour,
+                )::numeric, 4)                                              AS km_per_hour,
                 COUNT(*)                                                    AS periods
             FROM ordered_drives
-            WHERE next_start_level IS NOT NULL
+            WHERE next_start_range IS NOT NULL
               AND next_start_date IS NOT NULL
               AND EXTRACT(EPOCH FROM (next_start_date - end_date)) / 3600.0 BETWEEN 0.5 AND 72
             GROUP BY DATE(end_date)
@@ -235,17 +238,17 @@ class TeslaMateBacked:
             rows = [dict(r) for r in cur.fetchall()]
 
         if not rows:
-            return {"days_analyzed": days, "daily": [], "avg_pct_per_hour": None}
+            return {"days_analyzed": days, "daily": [], "avg_km_per_hour": None}
 
-        avg_per_hour = None
-        valid = [float(r["pct_per_hour"]) for r in rows if r["pct_per_hour"] is not None]
+        avg = None
+        valid = [float(r["km_per_hour"]) for r in rows if r["km_per_hour"] is not None]
         if valid:
             import statistics
-            avg_per_hour = round(statistics.mean(valid), 4)
+            avg = round(statistics.mean(valid), 4)
 
         return {
             "days_analyzed": days,
-            "avg_pct_per_hour": avg_per_hour,
+            "avg_km_per_hour": avg,
             "daily": rows,
         }
 
@@ -257,8 +260,7 @@ class TeslaMateBacked:
                 a.latitude,
                 a.longitude,
                 COUNT(*)                                                AS visit_count,
-                ROUND(MAX(d.end_battery_level)::numeric, 0)            AS max_arrival_pct,
-                ROUND(MIN(d.end_battery_level)::numeric, 0)            AS min_arrival_pct
+                ROUND(AVG(d.end_ideal_range_km)::numeric, 0)           AS avg_arrival_range_km
             FROM drives d
             JOIN addresses a ON a.id = d.end_address_id
             WHERE d.car_id = %s
@@ -278,11 +280,13 @@ class TeslaMateBacked:
                 COUNT(*)                                    AS trips,
                 ROUND(SUM(distance)::numeric, 1)            AS total_km,
                 ROUND(SUM(duration_min)::numeric, 0)        AS total_drive_min,
-                ROUND(SUM(energy_used)::numeric, 2)         AS total_kwh_used,
+                ROUND(SUM(GREATEST(0, start_ideal_range_km - end_ideal_range_km) * 0.16)::numeric, 2)
+                                                            AS total_kwh_used,
                 ROUND(AVG(distance)::numeric, 1)            AS avg_km_per_trip,
                 ROUND(MAX(distance)::numeric, 1)            AS longest_trip_km,
                 ROUND(AVG(
-                    energy_used / NULLIF(distance, 0) * 100
+                    GREATEST(0, start_ideal_range_km - end_ideal_range_km) * 0.16
+                    / NULLIF(distance, 0) * 1000
                 )::numeric, 1)                              AS avg_wh_per_km
             FROM drives
             WHERE car_id = %s
@@ -293,9 +297,7 @@ class TeslaMateBacked:
                 COUNT(*)                                            AS sessions,
                 ROUND(SUM(charge_energy_added)::numeric, 2)         AS total_kwh_charged,
                 ROUND(SUM(cost)::numeric, 2)                        AS total_cost,
-                ROUND(AVG(charge_energy_added)::numeric, 2)         AS avg_kwh_per_session,
-                COUNT(*) FILTER (WHERE charger_power >= 50)         AS dc_fast_sessions,
-                COUNT(*) FILTER (WHERE charger_power < 50)          AS ac_sessions
+                ROUND(AVG(charge_energy_added)::numeric, 2)         AS avg_kwh_per_session
             FROM charging_processes
             WHERE car_id = %s
               AND DATE_TRUNC('month', start_date) = DATE_TRUNC('month', %s::date)
