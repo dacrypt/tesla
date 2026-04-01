@@ -95,10 +95,53 @@ function DeliveryCountdown() {
   );
 }
 
+const TeslaIcon = () => (
+  <svg width={48} height={48} viewBox="0 0 24 24" fill="#05C46B">
+    <path d="M12 3l-4 5h3v5H7l5 8 5-8h-4V8h3z"/>
+  </svg>
+);
+
 const Dashboard: React.FC = () => {
   const { state, charge, climate, loading, error, refresh, lastUpdated } = useVehicleData();
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authenticated, setAuthenticated] = useState(true); // Assume true initially
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showAuthInput, setShowAuthInput] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState('');
   const history = useHistory();
+
+  // Check auth status on mount
+  React.useEffect(() => {
+    api.getAuthStatus().then(s => {
+      setAuthenticated(s.authenticated);
+      setAuthChecked(true);
+    }).catch(() => setAuthChecked(true));
+  }, []);
+
+  const startLogin = async () => {
+    setAuthLoading(true);
+    try {
+      const data = await api.getAuthLogin();
+      setShowAuthInput(true);
+      window.open(data.auth_url, 'tesla-auth', 'width=600,height=700');
+    } catch { /* */ } finally { setAuthLoading(false); }
+  };
+
+  const submitCallback = async () => {
+    if (!callbackUrl.trim()) return;
+    setAuthLoading(true);
+    try {
+      const url = new URL(callbackUrl.trim());
+      const code = url.searchParams.get('code');
+      if (!code) return;
+      await api.postAuthCallback(code, url.searchParams.get('state') || '');
+      setAuthenticated(true);
+      setShowAuthInput(false);
+      setCallbackUrl('');
+      refresh();
+    } catch { /* */ } finally { setAuthLoading(false); }
+  };
 
   const handleCommand = async (command: string, params?: Record<string, unknown>, label?: string) => {
     const k = label || command;
@@ -201,7 +244,57 @@ const Dashboard: React.FC = () => {
           <IonRefresherContent />
         </IonRefresher>
 
-        {error && !state ? (
+        {/* ---- Onboarding: not authenticated ---- */}
+        {authChecked && !authenticated ? (
+          <div className="empty-state" style={{ minHeight: 'calc(100vh - 56px)', justifyContent: 'center' }}>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(5,196,107,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+              <TeslaIcon />
+            </div>
+            <div style={{ color: '#ffffff', fontWeight: 700, fontSize: 22, letterSpacing: '-0.5px' }}>Welcome to Tesla Control</div>
+            <div style={{ color: '#86888f', fontSize: 14, lineHeight: 1.6, maxWidth: 280, textAlign: 'center', margin: '8px 0 24px' }}>
+              Connect your Tesla account to monitor your vehicle, track deliveries, and access all features.
+            </div>
+
+            {!showAuthInput ? (
+              <button
+                onClick={startLogin}
+                disabled={authLoading}
+                className="tesla-btn"
+                style={{ width: '100%', maxWidth: 300, fontSize: 16, padding: '14px 24px', borderRadius: 12 }}
+              >
+                {authLoading ? <span style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} /> : 'Login with Tesla'}
+              </button>
+            ) : (
+              <div style={{ width: '100%', maxWidth: 320 }}>
+                <div style={{ color: '#86888f', fontSize: 12, marginBottom: 8, lineHeight: 1.5, textAlign: 'center' }}>
+                  After signing in, you'll see a blank page.<br />
+                  <strong style={{ color: '#fff' }}>Copy the full URL</strong> and paste it below.
+                </div>
+                <input
+                  type="url"
+                  value={callbackUrl}
+                  onChange={(e) => setCallbackUrl(e.target.value)}
+                  placeholder="https://auth.tesla.com/void/callback?code=..."
+                  className="tesla-input mono"
+                  style={{ marginBottom: 8, fontSize: 12 }}
+                />
+                <button
+                  onClick={submitCallback}
+                  disabled={authLoading || !callbackUrl.trim()}
+                  className="tesla-btn"
+                  style={{ width: '100%', fontSize: 14, padding: '12px 16px' }}
+                >
+                  {authLoading ? 'Connecting...' : 'Connect'}
+                </button>
+              </div>
+            )}
+
+            <div style={{ color: '#86888f', fontSize: 11, marginTop: 24, opacity: 0.5 }}>
+              Your credentials are sent directly to Tesla — we never see your password.
+            </div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        ) : error && !state ? (
           /* ---- Vehicle not connected / pre-delivery ---- */
           <div className="empty-state" style={{ minHeight: 'calc(100vh - 56px)', justifyContent: 'flex-start', paddingTop: '8vh' }}>
             {/* Car silhouette — fills upper space */}
