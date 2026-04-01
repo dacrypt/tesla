@@ -77,7 +77,8 @@ def _auto_provision_teslamate() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
-    _auto_provision_teslamate()
+    import threading
+    threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
     yield
 
 
