@@ -551,6 +551,16 @@ export const api = {
       params: { service: service || '', lines },
     }).then(r => r.data),
 
+  // Auth
+  getAuthLogin: () =>
+    client().get<{ auth_url: string; state: string }>('/api/auth/login').then(r => r.data),
+  postAuthCallback: (code: string, state: string) =>
+    client().post<{ ok: boolean; expires_in?: number }>('/api/auth/callback', { code, state }).then(r => r.data),
+  postAuthTessie: (token: string) =>
+    client().post<{ ok: boolean }>('/api/auth/tessie', { token }).then(r => r.data),
+  getAuthStatus: () =>
+    client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
+
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
 };

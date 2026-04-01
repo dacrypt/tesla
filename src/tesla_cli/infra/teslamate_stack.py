@@ -65,9 +65,7 @@ services:
     volumes:
       - teslamate-mosquitto-conf:/mosquitto/config
       - teslamate-mosquitto-data:/mosquitto/data
-    command: mosquitto -c /mosquitto-no-auth.conf
-    entrypoint: >
-      sh -c "printf 'listener 1883\\nallow_anonymous true\\n' > /mosquitto-no-auth.conf && exec mosquitto -c /mosquitto-no-auth.conf"
+    entrypoint: ["sh", "-c", "echo 'listener 1883' > /tmp/m.conf && echo 'allow_anonymous true' >> /tmp/m.conf && exec mosquitto -c /tmp/m.conf"]
 
   teslamate:
     image: teslamate/teslamate:latest
@@ -82,6 +80,10 @@ services:
       DATABASE_HOST: postgres
       MQTT_HOST: mosquitto
       ENCRYPTION_KEY: ${TM_ENCRYPTION_KEY}
+      TESLA_API_HOST: ${TM_TESLA_API_HOST:-https://fleet-api.prd.na.vn.cloud.tesla.com}
+      TESLA_AUTH_HOST: https://auth.tesla.com
+      TESLA_AUTH_PATH: /oauth2/v3
+      TESLA_AUTH_CLIENT_ID: ${TM_TESLA_CLIENT_ID:-}
       TZ: ${TM_TIMEZONE:-America/Bogota}
     ports:
       - "${TM_PORT:-4000}:4000"
@@ -242,6 +244,13 @@ class TeslaMateStack:
         self.stack_dir.mkdir(parents=True, exist_ok=True)
         self.compose_file.write_text(COMPOSE_TEMPLATE)
 
+        # Get Fleet API client_id from config for TeslaMate token refresh
+        try:
+            from tesla_cli.core.config import load_config as _lc
+            _fleet_client_id = _lc().fleet.client_id
+        except Exception:
+            _fleet_client_id = ""
+
         env_lines = [
             f"TM_DB_PASSWORD={db_password}",
             f"TM_GRAFANA_PASSWORD={grafana_password}",
@@ -251,11 +260,8 @@ class TeslaMateStack:
             f"TM_GRAFANA_PORT={grafana_port}",
             f"TM_MQTT_PORT={mqtt_port}",
             f"TM_TIMEZONE={timezone}",
+            f"TM_TESLA_CLIENT_ID={_fleet_client_id}",
         ]
-        if tesla_access:
-            env_lines.append(f"TESLA_ACCESS_TOKEN={tesla_access}")
-        if tesla_refresh:
-            env_lines.append(f"TESLA_REFRESH_TOKEN={tesla_refresh}")
 
         self.env_file.write_text("\n".join(env_lines) + "\n")
         # Restrict permissions on .env (contains secrets)
