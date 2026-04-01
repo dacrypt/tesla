@@ -791,10 +791,10 @@ input[type="time"]:focus {
   font-weight: 600;
 }
 
-/* ---- TAB LABEL SIZING (9 tabs) ---- */
+/* ---- TAB LABEL SIZING (6 tabs) ---- */
 ion-tab-button ion-label {
-  font-size: 9px !important;
-  letter-spacing: 0;
+  font-size: 11px !important;
+  letter-spacing: 0.01em;
   margin-top: 2px;
 }
 
