@@ -140,6 +140,7 @@ const Analytics: React.FC = () => {
         const [statsData, tsData] = await Promise.allSettled([api.getStats(), api.getTripStats()]);
         if (statsData.status === 'fulfilled') setStats(statsData.value as Stats);
         if (tsData.status === 'fulfilled') setTripStats(tsData.value);
+        if (statsData.status === 'rejected') { setNotConfigured(true); setLoading(false); return; }
       } else if (tab === 'trips') {
         const data = await api.getTrips();
         setTrips(Array.isArray(data) ? data : []);
@@ -156,6 +157,7 @@ const Analytics: React.FC = () => {
         const [enData, hmData] = await Promise.allSettled([api.getDailyEnergy(), api.getHeatmap()]);
         if (enData.status === 'fulfilled') setDailyEnergy(Array.isArray(enData.value) ? enData.value : []);
         if (hmData.status === 'fulfilled') setHeatmap(Array.isArray(hmData.value) ? hmData.value : []);
+        if (enData.status === 'rejected') { setNotConfigured(true); setLoading(false); return; }
       } else if (tab === 'cost') {
         const data = await api.getCostReport();
         setCostReport(data);
