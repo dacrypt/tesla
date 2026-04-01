@@ -390,8 +390,11 @@ class TestTeslaMateProvider:
         assert p.priority == ProviderPriority.MEDIUM
 
     def test_unavailable_without_url(self):
+        # With no db_path configured and no default telemetry.db file,
+        # the provider checks if the db file exists on disk
         p = self._provider(url="")
-        assert p.is_available() is False
+        with patch("pathlib.Path.exists", return_value=False):
+            assert p.is_available() is False
 
     def test_available_with_url(self):
         p = self._provider()
@@ -401,7 +404,7 @@ class TestTeslaMateProvider:
         p = self._provider()
         mock_backend = MagicMock()
         mock_backend.get_trips.return_value = [{"id": 1, "km": 42}]
-        with patch("tesla_cli.api.routes.teslaMate._backend", return_value=mock_backend):
+        with patch.object(p, "_backend", return_value=mock_backend):
             result = p.fetch("trips", limit=10)
         assert result.ok
         assert result.data[0]["km"] == 42

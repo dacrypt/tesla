@@ -323,18 +323,19 @@ class TestHeatmapYear:
         assert isinstance(data, list)
         assert len(data) == 2
 
-    def test_heatmap_year_backend_method_exists(self):
-        """TelemetryBackend has get_drive_days_year method."""
+    def test_heatmap_year_backend_has_get_drive_days(self):
+        """TelemetryBackend has get_drive_days method used by heatmap."""
         from tesla_cli.core.backends.telemetry import TelemetryBackend
-        assert hasattr(TelemetryBackend, "get_drive_days_year")
+        assert hasattr(TelemetryBackend, "get_drive_days")
 
-    def test_drive_days_year_sql_structure(self):
-        """get_drive_days_year source uses _dt.date."""
+    def test_drive_days_sql_structure(self):
+        """get_drive_days source queries drives table."""
         import inspect
 
         from tesla_cli.core.backends.telemetry import TelemetryBackend
-        src = inspect.getsource(TelemetryBackend.get_drive_days_year)
-        assert "_dt.date" in src
+        src = inspect.getsource(TelemetryBackend.get_drive_days)
+        assert "drives" in src
+        assert "GROUP BY" in src
 
     def test_heatmap_year_start_jan1(self):
         """For a past year, start is Jan 1 of that year."""
