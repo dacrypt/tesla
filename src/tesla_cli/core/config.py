@@ -50,15 +50,16 @@ class VehiclesConfig(BaseModel):
     aliases: dict[str, str] = Field(default_factory=dict)
 
 
-class TeslamateConfig(BaseModel):
-    database_url: str = ""  # postgresql://user:pass@host:5432/teslaMate
-    car_id: int = 1  # TeslaMate car ID (1-based)
-    managed: bool = False  # True = stack managed by CLI via Docker Compose
-    stack_dir: str = ""  # ~/.tesla-cli/teslamate (set during install)
-    postgres_port: int = 5432
-    grafana_port: int = 3000
-    teslamate_port: int = 4000
-    mqtt_port: int = 1883
+class TelemetryConfig(BaseModel):
+    enabled: bool = True  # Auto-start background data logger
+    db_path: str = ""  # default: ~/.tesla-cli/telemetry.db
+    database_url: str = ""  # backwards compat (ignored, kept for config file compat)
+    poll_interval: int = 30  # seconds between Fleet API polls
+    car_id: int = 1
+
+
+# Backwards compat alias
+TeslamateConfig = TelemetryConfig
 
 
 class GeofencesConfig(BaseModel):

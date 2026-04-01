@@ -120,8 +120,8 @@ def srv_tm():
     patches = [
         patch("tesla_cli.api.app.load_config", return_value=cfg),
         patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-        # TeslaMateBacked is imported inline inside _backend(), so patch source
-        patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
+        # TelemetryBackend is imported inline inside _backend(), so patch source
+        patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm_backend),
     ]
     for p in patches:
         p.start()
