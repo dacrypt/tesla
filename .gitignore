@@ -19,6 +19,7 @@ Thumbs.db
 
 # Secrets & tokens (NEVER commit)
 .tesla-cli/
+tesla-config-backup.json
 mitm-captures/
 *.flow
 
