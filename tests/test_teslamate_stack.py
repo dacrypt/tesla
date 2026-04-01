@@ -170,8 +170,8 @@ class TestInstall:
 
         result = stack.install()
         env = (stack_dir / ".env").read_text()
-        assert "TESLA_ACCESS_TOKEN=access123" in env
-        assert "TESLA_REFRESH_TOKEN=refresh456" in env
+        # Tokens are synced via RPC now, not env vars. Check client_id is in .env instead.
+        assert "TM_TESLA_CLIENT_ID=" in env
         assert result["has_tesla_tokens"] is True
 
     def test_install_already_installed_no_force(self, stack, stack_dir):

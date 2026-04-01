@@ -839,3 +839,14 @@ def _auth_fleet() -> None:
     cfg.general.backend = "fleet"
     save_config(cfg)
     render_success("Fleet API autenticado. Backend configurado como 'fleet'.")
+
+    # Auto-sync tokens to TeslaMate if managed stack is running
+    if cfg.teslaMate.managed:
+        try:
+            from pathlib import Path
+            from tesla_cli.infra.teslamate_stack import TeslaMateStack
+            stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+            if stack.is_running() and stack.sync_tokens_from_keyring():
+                console.print("  [green]Tokens synced to TeslaMate automatically.[/green]")
+        except Exception:
+            pass  # Non-critical

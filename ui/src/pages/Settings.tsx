@@ -45,6 +45,14 @@ const Settings: React.FC = () => {
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState<{ message: string; color: string } | null>(null);
 
+  // Auth
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean } | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authUrl, setAuthUrl] = useState('');
+  const [authState, setAuthState] = useState('');
+  const [showAuthInput, setShowAuthInput] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState('');
+
   // TeslaMate stack
   const [stack, setStack] = useState<StackStatus | null>(null);
   const [stackCmd, setStackCmd] = useState<string | null>(null);
@@ -55,15 +63,55 @@ const Settings: React.FC = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s, c, p, st] = await Promise.allSettled([
-        api.getStatus(), api.getConfig(), api.getProviders(), api.getStackStatus(),
+      const [s, c, p, st, au] = await Promise.allSettled([
+        api.getStatus(), api.getConfig(), api.getProviders(), api.getStackStatus(), api.getAuthStatus(),
       ]);
       if (s.status === 'fulfilled') setStatus(s.value);
       if (c.status === 'fulfilled') setConfig(c.value);
       if (p.status === 'fulfilled') setProviders(Array.isArray(p.value) ? p.value : []);
       if (st.status === 'fulfilled') setStack(st.value);
+      if (au.status === 'fulfilled') setAuthStatus(au.value);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startTeslaLogin = async () => {
+    setAuthLoading(true);
+    try {
+      const data = await api.getAuthLogin();
+      setAuthUrl(data.auth_url);
+      setAuthState(data.state);
+      setShowAuthInput(true);
+      window.open(data.auth_url, 'tesla-auth', 'width=600,height=700');
+    } catch (e: any) {
+      setToast({ message: 'Login failed: ' + (e.message || e), color: 'danger' });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const submitCallback = async () => {
+    if (!callbackUrl.trim()) return;
+    setAuthLoading(true);
+    try {
+      // Extract code and state from URL
+      const url = new URL(callbackUrl.trim());
+      const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state') || authState;
+      if (!code) {
+        setToast({ message: 'No code found in URL', color: 'danger' });
+        return;
+      }
+      await api.postAuthCallback(code, state);
+      setToast({ message: 'Tesla account connected!', color: 'success' });
+      setShowAuthInput(false);
+      setCallbackUrl('');
+      fetchAll();
+    } catch (e: any) {
+      setToast({ message: 'Auth failed: ' + (e.message || e), color: 'danger' });
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -180,6 +228,70 @@ const Settings: React.FC = () => {
                 Test
               </button>
             </div>
+          </div>
+
+          {/* ---- Tesla Account ---- */}
+          <div className="tesla-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: authStatus?.authenticated ? 'rgba(11,232,129,0.15)' : 'rgba(255,107,107,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: authStatus?.authenticated ? '#0BE881' : '#FF6B6B' }}>
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Tesla Account</div>
+                <div style={{ color: '#86888f', fontSize: 12 }}>
+                  {authStatus?.authenticated ? `Connected via ${authStatus.backend}` : 'Not connected'}
+                </div>
+              </div>
+              {authStatus?.authenticated && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0BE881', boxShadow: '0 0 6px #0BE881' }} />
+                  <span style={{ color: '#0BE881', fontSize: 12, fontWeight: 600 }}>Connected</span>
+                </div>
+              )}
+            </div>
+
+            {!authStatus?.authenticated && !showAuthInput && (
+              <button
+                onClick={startTeslaLogin}
+                disabled={authLoading}
+                className="tesla-btn"
+                style={{ width: '100%', fontSize: 14, padding: '12px 16px' }}
+              >
+                {authLoading ? <Spin /> : 'Login with Tesla'}
+              </button>
+            )}
+
+            {showAuthInput && (
+              <div>
+                <div style={{ color: '#86888f', fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
+                  A Tesla login window opened. After signing in, you'll see a blank page.
+                  <br /><strong style={{ color: '#fff' }}>Copy the full URL</strong> from that blank page and paste it below.
+                </div>
+                <input
+                  type="url"
+                  value={callbackUrl}
+                  onChange={(e) => setCallbackUrl(e.target.value)}
+                  placeholder="https://auth.tesla.com/void/callback?code=..."
+                  className="tesla-input mono"
+                  style={{ marginBottom: 8, fontSize: 12 }}
+                />
+                <button
+                  onClick={submitCallback}
+                  disabled={authLoading || !callbackUrl.trim()}
+                  className="tesla-btn"
+                  style={{ width: '100%', fontSize: 13 }}
+                >
+                  {authLoading ? <Spin /> : 'Connect'}
+                </button>
+              </div>
+            )}
+
+            {authStatus?.authenticated && (
+              <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+                {authStatus.has_fleet && <span style={{ color: '#0BE881' }}>Fleet API</span>}
+                {authStatus.has_tessie && <span style={{ color: '#0FBCF9' }}>Tessie</span>}
+              </div>
+            )}
           </div>
 
           {loading ? (
