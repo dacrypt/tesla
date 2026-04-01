@@ -349,6 +349,61 @@ class TeslaMateStack:
         self._docker_compose(*args)
 
     # ------------------------------------------------------------------
+    # Token injection
+    # ------------------------------------------------------------------
+
+    def sync_tokens(self, access_token: str, refresh_token: str) -> bool:
+        """Inject Tesla API tokens into TeslaMate via Ecto RPC.
+
+        TeslaMate stores tokens encrypted in private.tokens table via Cloak/Vault.
+        We use TeslaMate's own Elixir runtime to encrypt and insert them,
+        bypassing the LiveView sign-in UI entirely.
+        """
+        self._require_installed()
+        if not self.is_running():
+            raise TeslaMateStackError("TeslaMate stack must be running to sync tokens.")
+
+        # Escape tokens for Elixir string interpolation
+        access_escaped = access_token.replace('"', '\\"')
+        refresh_escaped = refresh_token.replace('"', '\\"')
+
+        elixir_code = (
+            'alias TeslaMate.Repo; '
+            'alias TeslaMate.Auth.Tokens; '
+            'Repo.delete_all(Tokens); '
+            '%Tokens{} '
+            f'|> Ecto.Changeset.change(%{{access: "{access_escaped}", refresh: "{refresh_escaped}"}}) '
+            '|> Repo.insert!(); '
+            'IO.puts("OK")'
+        )
+
+        try:
+            result = subprocess.run(
+                ["docker", "exec", "teslamate-teslamate-1", "bin/teslamate", "rpc", elixir_code],
+                capture_output=True, text=True, timeout=30,
+            )
+            if "OK" in (result.stdout or ""):
+                return True
+            # Log error for debugging
+            import logging
+            logging.getLogger("tesla-cli.teslamate").warning(
+                "Token injection RPC output: %s %s",
+                result.stdout[:200] if result.stdout else "",
+                result.stderr[:200] if result.stderr else "",
+            )
+            return False
+        except Exception:
+            return False
+
+    def sync_tokens_from_keyring(self) -> bool:
+        """Sync Tesla tokens from system keyring to TeslaMate."""
+        access = get_token(FLEET_ACCESS_TOKEN) or get_token(ORDER_ACCESS_TOKEN)
+        refresh = get_token(FLEET_REFRESH_TOKEN) or get_token(ORDER_REFRESH_TOKEN)
+        if not access or not refresh:
+            return False
+        return self.sync_tokens(access, refresh)
+
+    # ------------------------------------------------------------------
     # Status & health
     # ------------------------------------------------------------------
 

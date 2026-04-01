@@ -1327,6 +1327,39 @@ def teslaMate_energy_report(
 # ── managed stack lifecycle ──
 
 
+@teslaMate_app.command("sync-tokens")
+def teslaMate_sync_tokens() -> None:
+    """Sync Tesla API tokens from keyring to TeslaMate.
+
+    Injects the current Fleet API tokens into TeslaMate's database so it can
+    start collecting vehicle data without manual sign-in.
+
+    tesla teslaMate sync-tokens
+    """
+    cfg = load_config()
+    if not cfg.teslaMate.managed:
+        console.print("[yellow]TeslaMate is not managed by CLI.[/yellow]")
+        raise typer.Exit(1)
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
+    from pathlib import Path
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+    if not stack.is_running():
+        console.print("[yellow]TeslaMate stack is not running.[/yellow] Start with: tesla teslaMate start")
+        raise typer.Exit(1)
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        p.add_task("Syncing tokens...", total=None)
+        ok = stack.sync_tokens_from_keyring()
+
+    if ok:
+        render_success("Tokens synced to TeslaMate. It should start collecting data shortly.")
+    else:
+        console.print("[red]Token sync failed.[/red] Make sure you have valid Fleet API tokens (tesla config auth fleet).")
+        raise typer.Exit(1)
+
+
 @teslaMate_app.command("install")
 def teslaMate_install(
     postgres_port: int = typer.Option(5432, "--postgres-port", help="PostgreSQL port"),
@@ -1396,10 +1429,14 @@ def teslaMate_install(
     console.print(f"  PostgreSQL:   localhost:{postgres_port}")
     console.print(f"  MQTT:         localhost:{mqtt_port}")
 
-    if not result["has_tesla_tokens"]:
+    # Auto-sync tokens from keyring → TeslaMate
+    import time as _t
+    _t.sleep(5)  # Wait for TeslaMate to be ready
+    if stack.sync_tokens_from_keyring():
+        console.print("\n  [green]Tesla tokens synced automatically.[/green]")
+    elif not result["has_tesla_tokens"]:
         console.print(
-            "\n[yellow]No Tesla tokens found in keyring.[/yellow]\n"
-            f"Link your Tesla account at: [link]http://localhost:{teslamate_port}[/link]"
+            "\n[yellow]No Tesla tokens found.[/yellow] Run: tesla config auth fleet"
         )
     console.print()
 
@@ -1431,6 +1468,12 @@ def teslaMate_start() -> None:
             raise typer.Exit(1)
 
     render_success("TeslaMate stack started")
+
+    # Auto-sync tokens
+    import time as _t
+    _t.sleep(5)
+    if stack.sync_tokens_from_keyring():
+        console.print("  [green]Tokens synced.[/green]")
 
 
 @teslaMate_app.command("stop")
