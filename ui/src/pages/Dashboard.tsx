@@ -12,7 +12,9 @@ import {
 import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
 import StatusBadge from '../components/StatusBadge';
+import StatusPipeline from '../components/dossier/StatusPipeline';
 import { useVehicleData } from '../hooks/useVehicleData';
+import { useDossierData } from '../hooks/useDossierData';
 import { api } from '../api/client';
 
 // ---- SVG Icons ----
@@ -90,6 +92,247 @@ function DeliveryCountdown() {
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#05C46B', fontWeight: 700, fontSize: 36, lineHeight: 1, letterSpacing: '-1px' }}>{String(hours).padStart(2, '0')}</div>
         <div style={{ color: '#86888f', fontSize: 11, marginTop: 3 }}>hours</div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* PRE-DELIVERY MISSION CONTROL                                               */
+/* For the anxious customer obsessing over every detail of their order         */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+function PreDeliveryMissionControl() {
+  const { dossier, loading: dossierLoading, refresh: refreshDossier } = useDossierData();
+
+  const status = dossier?.real_status;
+  const order = dossier?.order;
+  const specs = dossier?.specs;
+  const logistics = dossier?.logistics;
+  const ship = logistics?.ship;
+  const financial = dossier?.financial;
+
+  const phase = status?.phase || 'ordered';
+  const phaseColors: Record<string, string> = {
+    ordered: '#0FBCF9', produced: '#F99716', shipped: '#F99716',
+    in_country: '#0BE881', registered: '#0BE881', delivery_scheduled: '#05C46B', delivered: '#05C46B',
+  };
+  const phaseColor = phaseColors[phase] || '#0FBCF9';
+
+  return (
+    <div className="page-pad" style={{ paddingTop: 8 }}>
+      {/* ── Hero: Car + Countdown ── */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ maxWidth: 280, margin: '0 auto', filter: 'drop-shadow(0 0 30px rgba(5,196,107,0.1))' }}>
+          <ModelYSilhouette locked={true} />
+        </div>
+        <DeliveryCountdown />
+        <div style={{ color: '#86888f', fontSize: 11, marginTop: 6 }}>
+          {order?.reservation_number ? `RN ${order.reservation_number}` : ''}
+          {specs?.exterior_color ? ` · ${specs.exterior_color}` : ''}
+          {specs?.variant ? ` · ${specs.variant}` : ''}
+        </div>
+      </div>
+
+      {/* ── Status Pipeline ── */}
+      {status && (
+        <div className="tesla-card" style={{ padding: '14px 12px', marginBottom: 10 }}>
+          <StatusPipeline status={status} />
+          {/* Multi-source flags */}
+          {status && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10, justifyContent: 'center' }}>
+              {[
+                { flag: status.vin_assigned, label: 'VIN' },
+                { flag: status.is_produced, label: 'Produced' },
+                { flag: status.is_shipped, label: 'Shipped' },
+                { flag: status.is_in_country, label: 'In Country' },
+                { flag: status.is_customs_cleared, label: 'Customs' },
+                { flag: status.in_runt, label: 'RUNT' },
+                { flag: status.has_placa, label: 'Placa' },
+                { flag: status.has_soat, label: 'SOAT' },
+                { flag: status.is_delivery_scheduled, label: 'Scheduled' },
+              ].filter(f => f.flag != null).map(f => (
+                <span key={f.label} style={{
+                  fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 100,
+                  background: f.flag ? 'rgba(11,232,129,0.1)' : 'rgba(255,255,255,0.03)',
+                  color: f.flag ? '#0BE881' : 'rgba(255,255,255,0.2)',
+                  border: `1px solid ${f.flag ? 'rgba(11,232,129,0.15)' : 'rgba(255,255,255,0.05)'}`,
+                }}>{f.flag ? '✓' : '○'} {f.label}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Order Status ── */}
+      {order?.current && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span className="label-xs">Order Status</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: phaseColor, background: `${phaseColor}15`, padding: '3px 10px', borderRadius: 100 }}>
+              {order.current.order_status}
+            </span>
+          </div>
+          {order.current.order_substatus && (
+            <div style={{ color: '#86888f', fontSize: 12, marginBottom: 6 }}>{order.current.order_substatus}</div>
+          )}
+          {order.current.delivery_window_start && (
+            <div style={{ background: 'rgba(5,196,107,0.07)', border: '1px solid rgba(5,196,107,0.15)', borderRadius: 10, padding: '10px 14px', marginBottom: 6 }}>
+              <div className="label-xs" style={{ color: '#05C46B', marginBottom: 4 }}>Delivery Window</div>
+              <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+                {order.current.delivery_window_start} — {order.current.delivery_window_end}
+              </div>
+            </div>
+          )}
+          {status?.delivery_date && (
+            <div style={{ background: 'rgba(5,196,107,0.12)', border: '1px solid rgba(5,196,107,0.25)', borderRadius: 10, padding: '10px 14px' }}>
+              <div className="label-xs" style={{ color: '#05C46B', marginBottom: 4 }}>Delivery Appointment</div>
+              <div style={{ color: '#05C46B', fontSize: 16, fontWeight: 700 }}>{status.delivery_date}</div>
+              {status.delivery_location && <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{status.delivery_location}</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Logistics / Ship Tracking ── */}
+      {logistics && (ship?.vessel_name || logistics.estimated_transit_days) && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 10 }}>Shipping</div>
+          {ship?.vessel_name && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{ship.vessel_name}</span>
+                {ship.tracking_url && <a href={ship.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#0FBCF9', fontSize: 11, textDecoration: 'none' }}>Track ↗</a>}
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+                {ship.imo && <span style={{ color: '#86888f', fontSize: 11 }}>IMO {ship.imo}</span>}
+                {ship.eta && <span style={{ color: '#0BE881', fontSize: 11, fontWeight: 600 }}>ETA {ship.eta}</span>}
+                {ship.current_position?.speed_knots != null && ship.current_position.speed_knots > 0 && (
+                  <span style={{ color: '#86888f', fontSize: 11 }}>{ship.current_position.speed_knots.toFixed(1)} knots</span>
+                )}
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+            {logistics.departure_port && <span style={{ color: '#86888f' }}>{logistics.departure_port}</span>}
+            {logistics.arrival_port && <><span style={{ color: '#86888f' }}>→</span><span style={{ color: '#86888f' }}>{logistics.arrival_port}</span></>}
+            {logistics.estimated_transit_days && <span style={{ color: '#F99716' }}>{logistics.estimated_transit_days} days</span>}
+          </div>
+          {logistics.customs_status && (
+            <div style={{ marginTop: 6, fontSize: 11, color: logistics.customs_status === 'cleared' ? '#0BE881' : '#F99716' }}>
+              Customs: {logistics.customs_status}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Specs Hero ── */}
+      {specs && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 10 }}>Your Vehicle</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+            {[
+              { val: specs.range_km, unit: 'km', label: 'Range' },
+              { val: specs.horsepower, unit: 'hp', label: 'Power' },
+              { val: specs.zero_to_100_kmh?.toFixed(1), unit: 's', label: '0-100' },
+            ].map(s => (
+              <div key={s.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 8px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px' }}>{s.val || '--'}</div>
+                <div style={{ fontSize: 10, color: '#86888f' }}>{s.unit}</div>
+                <div style={{ fontSize: 9, color: '#86888f', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {[
+              ['Model', specs.variant || specs.model],
+              ['Battery', specs.battery_capacity_kwh ? `${specs.battery_capacity_kwh} kWh` : specs.battery_type],
+              ['Motor', specs.motor_config],
+              ['Color', specs.exterior_color],
+              ['Wheels', specs.wheels],
+              ['Interior', specs.interior],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k as string} style={{ padding: '4px 0', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: '#86888f' }}>{k}</span>
+                <span style={{ color: '#fff', fontWeight: 500 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Financial ── */}
+      {financial?.total_price && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 8 }}>Financial</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <span style={{ color: '#86888f', fontSize: 13 }}>Total</span>
+            <span style={{ color: '#05C46B', fontSize: 22, fontWeight: 700 }}>${financial.total_price.toLocaleString()}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {[
+              ['Base', financial.base_price],
+              ['Options', financial.options_total],
+              ['Taxes', financial.taxes],
+              ['Deposit', financial.deposit_paid],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k as string} style={{ padding: '3px 0', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: '#86888f' }}>{k}</span>
+                <span style={{ color: '#fff' }}>${(v as number).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Order History ── */}
+      {order?.history && order.history.length > 1 && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 10 }}>Order History</div>
+          {order.history.slice().reverse().map((snap: any, i: number) => (
+            <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: i === 0 ? '#05C46B' : 'rgba(255,255,255,0.1)', marginTop: 4, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: i === 0 ? '#fff' : '#86888f' }}>{snap.order_status}</div>
+                {snap.order_substatus && <div style={{ fontSize: 10, color: '#86888f' }}>{snap.order_substatus}</div>}
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                  {snap.timestamp ? new Date(snap.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── VIN ── */}
+      {dossier?.vin && (
+        <div className="tesla-card" style={{ padding: 14, marginBottom: 10 }}>
+          <div className="label-xs" style={{ marginBottom: 6 }}>VIN</div>
+          <div style={{ fontFamily: "'SF Mono', monospace", fontSize: 14, fontWeight: 600, letterSpacing: '0.06em', color: '#fff', wordBreak: 'break-all' }}>
+            {dossier.vin}
+          </div>
+          {dossier.vin_decode && (
+            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {[
+                ['Plant', dossier.vin_decode.plant],
+                ['Chemistry', dossier.vin_decode.battery_chemistry],
+                ['Year', dossier.vin_decode.model_year],
+                ['Serial', dossier.vin_decode.serial_number],
+              ].filter(([, v]) => v).map(([k, v]) => (
+                <div key={k as string} style={{ fontSize: 10, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#86888f' }}>{k}</span>
+                  <span style={{ color: '#fff' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Pull to refresh hint ── */}
+      <div style={{ textAlign: 'center', padding: '8px 0 16px', fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>
+        {dossierLoading ? 'Loading...' : ''}
+        {dossier?.last_updated ? `Updated ${new Date(dossier.last_updated).toLocaleString()}` : ''}
       </div>
     </div>
   );
@@ -295,51 +538,8 @@ const Dashboard: React.FC = () => {
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : error && !state ? (
-          /* ---- Vehicle not connected / pre-delivery ---- */
-          <div className="empty-state" style={{ minHeight: 'calc(100vh - 56px)', justifyContent: 'flex-start', paddingTop: '8vh' }}>
-            {/* Car silhouette — fills upper space */}
-            <div style={{ width: '100%', maxWidth: 360, filter: 'drop-shadow(0 0 40px rgba(5,196,107,0.12))' }}>
-              <ModelYSilhouette locked={true} />
-            </div>
-
-            {/* Delivery countdown — hero element */}
-            <div style={{ width: '100%', maxWidth: 300, background: 'rgba(5,196,107,0.07)', border: '1px solid rgba(5,196,107,0.18)', borderRadius: 16, padding: '20px 24px', marginBottom: 4 }}>
-              <div style={{ color: '#86888f', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Your Model Y Arrives In</div>
-              <DeliveryCountdown />
-              <div style={{ color: '#86888f', fontSize: 11, marginTop: 12, textAlign: 'center' }}>
-                Apr 10, 2026 · RN126460939
-              </div>
-            </div>
-
-            {/* Status */}
-            <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 16, marginTop: 8 }}>
-              Vehicle Not Yet Delivered
-            </div>
-            <div style={{ color: '#86888f', fontSize: 13, lineHeight: 1.5 }}>
-              Controls will be available after delivery
-            </div>
-
-            {/* Action row */}
-            <div style={{ display: 'flex', gap: 8, maxWidth: 300, width: '100%', marginTop: 4 }}>
-              <button
-                onClick={handleWake}
-                disabled={cmdLoading === 'wake'}
-                className="tesla-btn secondary"
-                style={{ flex: 1, fontSize: 13 }}
-              >
-                {cmdLoading === 'wake' ? <Spin color="#fff" /> : <WakeIcon />}
-                {cmdLoading === 'wake' ? 'Waking...' : 'Try Wake'}
-              </button>
-              <button
-                onClick={() => history.push('/settings')}
-                className="tesla-btn secondary"
-                style={{ flex: 1, fontSize: 13 }}
-              >
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                Settings
-              </button>
-            </div>
-          </div>
+          /* ---- PRE-DELIVERY MISSION CONTROL ---- */
+          <PreDeliveryMissionControl />
         ) : (
           <div className="page-pad">
             {/* ---- Car silhouette card ---- */}
