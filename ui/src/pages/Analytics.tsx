@@ -117,7 +117,7 @@ function BarChart({ items, labelKey, valueKey, color = '#0FBCF9', unit = '' }: {
   );
 }
 
-const Analytics: React.FC = () => {
+const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [trips, setTrips] = useState<TripStat[]>([]);
   const [charges, setCharges] = useState<ChargeStat[]>([]);
@@ -185,16 +185,9 @@ const Analytics: React.FC = () => {
     { key: 'vampire', label: 'Vampire', icon: <BatDrainIcon /> },
   ];
 
-  return (
-    <IonPage>
-      <IonHeader>
-        <IonToolbar>
-          <IonTitle style={{ fontWeight: 700 }}>Analytics</IonTitle>
-        </IonToolbar>
-      </IonHeader>
-
-      <IonContent>
-        {/* Tab bar */}
+  const content = (
+    <>
+      {/* Tab bar */}
         <div className="sub-tab-bar">
           {tabs.map((tab) => (
             <button
@@ -511,6 +504,20 @@ const Analytics: React.FC = () => {
             </>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <IonPage>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle style={{ fontWeight: 700 }}>Analytics</IonTitle>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent>
+        {content}
       </IonContent>
     </IonPage>
   );

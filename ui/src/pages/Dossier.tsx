@@ -8,6 +8,7 @@ import OptionCodesPills from '../components/dossier/OptionCodesPills';
 import RuntCard from '../components/dossier/RuntCard';
 import SimitCard from '../components/dossier/SimitCard';
 import LogisticsCard from '../components/dossier/LogisticsCard';
+import Analytics from './Analytics';
 import type { RuntData } from '../api/client';
 
 function Spin() {
@@ -552,6 +553,43 @@ export default function Dossier() {
                   <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>No account data available</div>
                 )}
               </CollapsibleSection>
+
+              {/* ════════════════════════════════════════════════════════════ */}
+              {/* REGISTRO & TRÁMITES                                        */}
+              {/* ════════════════════════════════════════════════════════════ */}
+              {runt && (
+                <CollapsibleSection title="Registro & Trámites">
+                  {[
+                    { label: 'Nacionalización (DIAN)', done: runt.ver_valida_dian || runt.validacion_dian === 'VALIDADO', detail: runt.subpartida ? `Subpartida: ${runt.subpartida}` : runt.validacion_dian, date: runt.fecha_expedicion_lt_importacion },
+                    { label: 'Registro RUNT', done: !!runt.estado, detail: runt.estado ? `Estado: ${runt.estado}` : undefined, date: runt.fecha_registro },
+                    { label: 'Matrícula', done: !!runt.fecha_matricula, detail: runt.autoridad_transito, date: runt.fecha_matricula },
+                    { label: 'Placa', done: !!runt.placa, detail: runt.placa || 'Pendiente' },
+                    { label: 'SOAT', done: runt.soat_vigente ?? false, detail: runt.soat_aseguradora, date: runt.soat_vencimiento ? `Vence: ${runt.soat_vencimiento}` : undefined },
+                    { label: 'RTM', done: runt.tecnomecanica_vigente ?? false, date: runt.tecnomecanica_vencimiento ? `Vence: ${runt.tecnomecanica_vencimiento}` : undefined },
+                    { label: 'Gravámenes', done: runt.gravamenes === false, detail: runt.gravamenes ? 'Con gravámenes' : 'Libre' },
+                    { label: 'Prendas', done: runt.prendas === false, detail: runt.prendas ? 'Con prendas' : 'Libre' },
+                  ].map((s, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: s.done ? 'rgba(11,232,129,0.15)' : 'rgba(255,255,255,0.04)', border: `1.5px solid ${s.done ? '#0BE881' : 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.done ? '#0BE881' : 'rgba(255,255,255,0.2)', fontSize: 10, fontWeight: 700 }}>
+                        {s.done ? '✓' : '○'}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: s.done ? 'var(--tesla-text)' : 'var(--tesla-text-secondary)' }}>{s.label}</div>
+                        {s.detail && <div style={{ fontSize: 10, color: s.done ? '#0BE881' : 'var(--tesla-text-secondary)' }}>{s.detail}</div>}
+                        {s.date && <div style={{ fontSize: 9, color: 'var(--tesla-text-dim)' }}>{s.date}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </CollapsibleSection>
+              )}
+
+              {/* ════════════════════════════════════════════════════════════ */}
+              {/* ANALYTICS (embedded)                                       */}
+              {/* ════════════════════════════════════════════════════════════ */}
+              <SectionDivider label="Analytics" />
+              <div style={{ margin: '0 -16px' }}>
+                <Analytics embedded />
+              </div>
 
               {/* ── Metadata ── */}
               <div style={{ textAlign: 'center', padding: '16px 0 8px', fontSize: 10, color: 'var(--tesla-text-dim)' }}>
