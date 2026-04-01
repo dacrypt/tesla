@@ -221,7 +221,7 @@ class TestTeslaMateTimelineRoute:
         patches = [
             patch("tesla_cli.api.app.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm_backend),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
         ]
         for p in patches:
             p.start()
@@ -251,14 +251,11 @@ class TestTeslaMateTimelineRoute:
                 p.stop()
 
     def test_timeline_no_teslaMate_503(self):
-        from fastapi import HTTPException
-        cfg = _make_cfg()  # no database_url / db_path
+        cfg = _make_cfg()  # no database_url
         app = create_app(vin=None)
         with (
             patch("tesla_cli.api.app.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-            patch("tesla_cli.api.routes.teslaMate._backend",
-                  side_effect=HTTPException(status_code=503, detail="Telemetry database not found.")),
         ):
             client = TestClient(app, raise_server_exceptions=False)
             r = client.get("/api/teslaMate/timeline")
@@ -288,8 +285,12 @@ class TestTeslaMateTimelineRoute:
 
     def test_timeline_cli_command(self):
         """tesla teslaMate timeline renders table."""
+        cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
         tm = _make_tm_backend()
-        with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=tm):
+        with (
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm),
+        ):
             result = _run("teslaMate", "timeline")
             assert result.exit_code == 0
 

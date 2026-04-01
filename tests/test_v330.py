@@ -89,7 +89,7 @@ def srv_tm():
     patches = [
         patch("tesla_cli.api.app.load_config", return_value=cfg),
         patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-        patch("tesla_cli.api.routes.teslaMate._backend", return_value=tm_backend),
+        patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_backend),
     ]
     for p in patches:
         p.start()
@@ -103,14 +103,11 @@ def srv_tm():
 @pytest.fixture
 def srv_no_tm():
     """Server fixture with NO TeslaMate configured."""
-    from fastapi import HTTPException
     cfg = _make_cfg()
 
     patches = [
         patch("tesla_cli.api.app.load_config", return_value=cfg),
         patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
-        patch("tesla_cli.api.routes.teslaMate._backend",
-              side_effect=HTTPException(status_code=503, detail="Telemetry database not found.")),
     ]
     for p in patches:
         p.start()
@@ -302,8 +299,8 @@ class TestTeslaMateTripsStats:
         assert "No trip data" in result.output or result.exit_code == 0
 
     def test_trip_stats_backend_method(self):
-        from tesla_cli.core.backends.telemetry import TelemetryBackend
-        assert hasattr(TelemetryBackend, "get_trip_stats")
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        assert hasattr(TeslaMateBacked, "get_trip_stats")
 
     def test_trip_stats_in_help(self):
         result = _runner.invoke(cli_app, ["teslaMate", "--help"])
@@ -312,9 +309,10 @@ class TestTeslaMateTripsStats:
     def test_get_trip_stats_sql(self):
         import inspect
 
-        from tesla_cli.core.backends import telemetry as tm_mod
+        from tesla_cli.core.backends import teslaMate as tm_mod
         src = inspect.getsource(tm_mod)
-        assert "total_trips" in src or "get_trip_stats" in src
+        assert "total_trips" in src
+        assert "routes_sql" in src
 
 
 

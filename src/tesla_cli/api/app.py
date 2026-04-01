@@ -22,50 +22,70 @@ from tesla_cli.core.config import load_config, resolve_vin
 
 # ── App factory ───────────────────────────────────────────────────────────────
 
-_datalogger_instance = None
-
-
-def _start_datalogger() -> None:
-    """Start background telemetry data logger if Fleet API is configured."""
-    global _datalogger_instance
-    log = logging.getLogger("tesla-cli.datalogger")
+def _auto_provision_teslamate() -> None:
+    """Install or start the managed TeslaMate stack if Docker is available."""
+    log = logging.getLogger("tesla-cli.teslamate-auto")
     cfg = load_config()
 
-    if not cfg.teslaMate.enabled:
-        return
-
-    # Need Fleet API backend and a VIN
-    vin = cfg.general.default_vin
-    if not vin:
-        log.info("No VIN configured — data logger not started.")
-        return
-
     try:
-        from tesla_cli.core.backends import get_vehicle_backend
-        backend = get_vehicle_backend(cfg)
-    except Exception as exc:
-        log.warning("Cannot create vehicle backend for data logger: %s", exc)
-        return
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+        stack = TeslaMateStack(
+            Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
+        )
+        stack.check_docker()
+        stack.check_docker_compose()
+    except Exception:
+        return  # Docker not available — skip silently
 
-    db_path = cfg.teslaMate.db_path or str(Path.home() / ".tesla-cli" / "telemetry.db")
-    interval = cfg.teslaMate.poll_interval or 30
-
-    from tesla_cli.core.datalogger import DataLogger
-    _datalogger_instance = DataLogger(
-        db_path=db_path,
-        backend=backend,
-        vin=vin,
-        car_id=cfg.teslaMate.car_id,
-    )
-    log.info("Data logger starting (db=%s, interval=%ds)", db_path, interval)
-    _datalogger_instance.run(interval=interval)
+    if cfg.teslaMate.managed and stack.is_installed():
+        # Already managed — ensure it's running
+        if not stack.is_running():
+            log.info("TeslaMate stack installed but stopped — starting...")
+            try:
+                stack.start()
+                log.info("TeslaMate stack started.")
+            except Exception as exc:
+                log.warning("Failed to start TeslaMate stack: %s", exc)
+    elif not cfg.teslaMate.managed and not cfg.teslaMate.database_url:
+        # Not configured at all — auto-install
+        log.info("TeslaMate not configured — auto-installing managed stack...")
+        try:
+            from tesla_cli.core.config import save_config
+            # Pick free ports (avoid conflicts with host services)
+            ports = {"postgres_port": 5432, "grafana_port": 3000, "teslamate_port": 4000, "mqtt_port": 1883}
+            for key, default in ports.items():
+                port = default
+                while stack.port_in_use(port):
+                    port += 1
+                ports[key] = port
+            result = stack.install(**ports)
+            cfg = load_config()
+            cfg.teslaMate.database_url = result["database_url"]
+            cfg.teslaMate.managed = True
+            cfg.teslaMate.stack_dir = result["stack_dir"]
+            cfg.teslaMate.postgres_port = result["postgres_port"]
+            cfg.teslaMate.grafana_port = result["grafana_port"]
+            cfg.teslaMate.teslamate_port = result["teslamate_port"]
+            cfg.teslaMate.mqtt_port = result["mqtt_port"]
+            cfg.grafana.url = f"http://localhost:{result['grafana_port']}"
+            cfg.mqtt.broker = "localhost"
+            cfg.mqtt.port = result["mqtt_port"]
+            save_config(cfg)
+            health = "healthy" if result["healthy"] else "starting"
+            log.info(
+                "TeslaMate stack installed (%s). "
+                "UI: http://localhost:%s  Grafana: http://localhost:%s",
+                health, result["teslamate_port"], result["grafana_port"],
+            )
+        except Exception as exc:
+            log.warning("Auto-install of TeslaMate stack failed: %s", exc)
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
     import threading
-    threading.Thread(target=_start_datalogger, daemon=True).start()
+    threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
     yield
 
 
