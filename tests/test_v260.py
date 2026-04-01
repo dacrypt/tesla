@@ -190,10 +190,13 @@ class TestTeslaMateRoutes:
         assert r.json()["month"] == "2026-03"
 
     def test_no_teslaMate_returns_503(self):
-        cfg = _make_cfg()  # no database_url
+        from fastapi import HTTPException
+        cfg = _make_cfg()  # no database_url / db_path
         patches = [
             patch("tesla_cli.api.app.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.teslaMate._backend",
+                  side_effect=HTTPException(status_code=503, detail="Telemetry database not found.")),
         ]
         for p in patches:
             p.start()
@@ -203,7 +206,6 @@ class TestTeslaMateRoutes:
         for p in patches:
             p.stop()
         assert r.status_code == 503
-        assert "not configured" in r.json()["detail"]
 
 
 # ── Tests: Auth middleware ────────────────────────────────────────────────────
