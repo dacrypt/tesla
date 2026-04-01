@@ -82,7 +82,7 @@ async def _lifespan(app: FastAPI):
     yield
 
 
-def create_app(vin: str | None = None) -> FastAPI:
+def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     app = FastAPI(
         title="tesla-cli API",
         description="REST API for Tesla vehicle control and monitoring.",
@@ -382,15 +382,13 @@ def create_app(vin: str | None = None) -> FastAPI:
             },
         )
 
-    # ── Root redirect to API docs ────────────────────────────────────────────
-    # ── Serve React UI build (production) or redirect to docs ────────────────
+    # ── Serve React UI or redirect to docs ──────────────────────────────────
     _ui_dist = Path(__file__).resolve().parent / "ui_dist"
 
-    if _ui_dist.exists() and (_ui_dist / "index.html").exists():
+    if serve_ui and _ui_dist.exists() and (_ui_dist / "index.html").exists():
         from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
 
-        # Serve static assets (js, css, images) under /assets/
         _assets = _ui_dist / "assets"
         if _assets.exists():
             app.mount("/assets", StaticFiles(directory=str(_assets)), name="ui-assets")

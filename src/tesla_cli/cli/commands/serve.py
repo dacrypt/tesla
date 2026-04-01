@@ -265,7 +265,9 @@ def serve(
     api_key: str | None = typer.Option(None, "--api-key",
                                        help="Require this key on all /api/* requests"),
     build_ui: bool = typer.Option(False, "--build-ui",
-                                  help="Run npm build in ui/ before starting"),
+                                  help="Run npm build in ui/ before starting (implies --serve-ui)"),
+    serve_ui: bool = typer.Option(False, "--serve-ui",
+                                  help="Serve React app from ui/dist/ on the same port"),
 ) -> None:
     """Start the tesla-cli API server.
 
@@ -399,7 +401,7 @@ def serve(
     except Exception:  # noqa: BLE001
         resolved_vin = None
 
-    fastapi_app = create_app(vin=resolved_vin)
+    fastapi_app = create_app(vin=resolved_vin, serve_ui=serve_ui or build_ui)
 
     uvicorn.run(
         fastapi_app,
