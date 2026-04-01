@@ -127,6 +127,8 @@ const Analytics: React.FC = () => {
   const [dailyEnergy, setDailyEnergy] = useState<any[]>([]);
   const [costReport, setCostReport] = useState<any>(null);
   const [vampire, setVampire] = useState<any>(null);
+  const [tripStats, setTripStats] = useState<any>(null);
+  const [heatmap, setHeatmap] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
 
@@ -135,8 +137,9 @@ const Analytics: React.FC = () => {
     setNotConfigured(false);
     try {
       if (tab === 'overview') {
-        const data = await api.getStats();
-        setStats(data);
+        const [statsData, tsData] = await Promise.allSettled([api.getStats(), api.getTripStats()]);
+        if (statsData.status === 'fulfilled') setStats(statsData.value as Stats);
+        if (tsData.status === 'fulfilled') setTripStats(tsData.value);
       } else if (tab === 'trips') {
         const data = await api.getTrips();
         setTrips(Array.isArray(data) ? data : []);
@@ -150,8 +153,9 @@ const Analytics: React.FC = () => {
         const data = await api.getTimeline();
         setTimeline(Array.isArray(data) ? data : []);
       } else if (tab === 'energy') {
-        const data = await api.getDailyEnergy();
-        setDailyEnergy(Array.isArray(data) ? data : []);
+        const [enData, hmData] = await Promise.allSettled([api.getDailyEnergy(), api.getHeatmap()]);
+        if (enData.status === 'fulfilled') setDailyEnergy(Array.isArray(enData.value) ? enData.value : []);
+        if (hmData.status === 'fulfilled') setHeatmap(Array.isArray(hmData.value) ? hmData.value : []);
       } else if (tab === 'cost') {
         const data = await api.getCostReport();
         setCostReport(data);
@@ -213,13 +217,34 @@ const Analytics: React.FC = () => {
             <>
               {/* ---- Overview ---- */}
               {activeTab === 'overview' && stats && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <StatCard label="Total Trips" value={stats.total_trips?.toString() ?? '0'} color="#0FBCF9" icon={<RouteIcon />} />
-                  <StatCard label="Total Distance" value={formatDistance(stats.total_distance)} color="#0BE881" icon={<TrendIcon />} />
-                  <StatCard label="Total Energy" value={stats.total_energy ? `${stats.total_energy.toFixed(1)} kWh` : '--'} color="#F99716" icon={<BoltIcon />} />
-                  <StatCard label="Avg Efficiency" value={stats.avg_efficiency ? `${stats.avg_efficiency.toFixed(0)} Wh/km` : '--'} color="#05C46B" icon={<TrendIcon />} />
-                  <StatCard label="Total Charges" value={stats.total_charges?.toString() ?? '0'} color="#0FBCF9" icon={<BoltIcon />} />
-                  <StatCard label="Total Cost" value={stats.total_cost ? `$${stats.total_cost.toFixed(2)}` : '--'} color="#0BE881" icon={<CostIcon />} />
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <StatCard label="Total Trips" value={stats.total_trips?.toString() ?? '0'} color="#0FBCF9" icon={<RouteIcon />} />
+                    <StatCard label="Total Distance" value={formatDistance(stats.total_distance)} color="#0BE881" icon={<TrendIcon />} />
+                    <StatCard label="Total Energy" value={stats.total_energy ? `${stats.total_energy.toFixed(1)} kWh` : '--'} color="#F99716" icon={<BoltIcon />} />
+                    <StatCard label="Avg Efficiency" value={stats.avg_efficiency ? `${stats.avg_efficiency.toFixed(0)} Wh/km` : '--'} color="#05C46B" icon={<TrendIcon />} />
+                    <StatCard label="Total Charges" value={stats.total_charges?.toString() ?? '0'} color="#0FBCF9" icon={<BoltIcon />} />
+                    <StatCard label="Total Cost" value={stats.total_cost ? `$${stats.total_cost.toFixed(2)}` : '--'} color="#0BE881" icon={<CostIcon />} />
+                  </div>
+
+                  {/* Top routes from getTripStats */}
+                  {tripStats?.top_routes && Array.isArray(tripStats.top_routes) && tripStats.top_routes.length > 0 && (
+                    <div className="tesla-card" style={{ marginTop: 12, padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Top Routes</div>
+                      {tripStats.top_routes.slice(0, 5).map((route: any, i: number) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < Math.min(tripStats.top_routes.length, 5) - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: '#fff', fontSize: 13 }}>{route.route || route.start_address || 'Unknown'}</div>
+                            {route.end_address && <div style={{ color: '#86888f', fontSize: 11 }}>to {route.end_address}</div>}
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ color: '#0BE881', fontSize: 14, fontWeight: 600 }}>{route.count || route.trips || 0}x</div>
+                            {route.avg_km != null && <div style={{ color: '#86888f', fontSize: 11 }}>{route.avg_km.toFixed(0)} km avg</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -369,6 +394,40 @@ const Analytics: React.FC = () => {
                         icon={<TrendIcon />}
                       />
                     </div>
+
+                    {/* Driving Activity Heatmap (from getHeatmap) */}
+                    {heatmap.length > 0 && (
+                      <div className="tesla-card" style={{ marginTop: 10, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>
+                          Driving Activity — Last 12 Months
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                          {heatmap.slice(-365).map((day: any, i: number) => {
+                            const km = Number(day.km || day.distance_km || 0);
+                            const opacity = km === 0 ? 0.08 : Math.min(0.2 + (km / 200) * 0.8, 1);
+                            return (
+                              <div
+                                key={i}
+                                title={`${day.date}: ${km.toFixed(0)} km`}
+                                style={{
+                                  width: 10, height: 10, borderRadius: 2,
+                                  background: km === 0 ? 'rgba(255,255,255,0.06)' : `rgba(5,196,107,${opacity})`,
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                          <span style={{ fontSize: 10, color: '#86888f' }}>Less</span>
+                          <div style={{ display: 'flex', gap: 3 }}>
+                            {[0.08, 0.25, 0.5, 0.75, 1].map((o, i) => (
+                              <div key={i} style={{ width: 10, height: 10, borderRadius: 2, background: i === 0 ? 'rgba(255,255,255,0.06)' : `rgba(5,196,107,${o})` }} />
+                            ))}
+                          </div>
+                          <span style={{ fontSize: 10, color: '#86888f' }}>More</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               )}
