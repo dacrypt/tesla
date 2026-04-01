@@ -46,6 +46,16 @@ def _auto_provision_teslamate() -> None:
                 log.info("TeslaMate stack started.")
             except Exception as exc:
                 log.warning("Failed to start TeslaMate stack: %s", exc)
+        # Always sync tokens from keyring → TeslaMate
+        try:
+            import time as _t
+            _t.sleep(5)  # Wait for TeslaMate to be fully ready
+            if stack.sync_tokens_from_keyring():
+                log.info("Tesla tokens synced to TeslaMate.")
+            else:
+                log.debug("No tokens to sync or sync failed.")
+        except Exception as exc:
+            log.debug("Token sync skipped: %s", exc)
     elif not cfg.teslaMate.managed and not cfg.teslaMate.database_url:
         # Not configured at all — auto-install
         log.info("TeslaMate not configured — auto-installing managed stack...")
@@ -77,6 +87,11 @@ def _auto_provision_teslamate() -> None:
                 "UI: http://localhost:%s  Grafana: http://localhost:%s",
                 health, result["teslamate_port"], result["grafana_port"],
             )
+            # Sync tokens to TeslaMate after install
+            import time as _t
+            _t.sleep(8)  # Wait for TeslaMate to fully start
+            if stack.sync_tokens_from_keyring():
+                log.info("Tesla tokens synced to TeslaMate after install.")
         except Exception as exc:
             log.warning("Auto-install of TeslaMate stack failed: %s", exc)
 
