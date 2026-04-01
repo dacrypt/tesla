@@ -18,10 +18,10 @@ from pathlib import Path
 
 import httpx
 
-from tesla_cli.config import load_config
+from tesla_cli.core.config import load_config
 
 logger = logging.getLogger(__name__)
-from tesla_cli.models.dossier import (
+from tesla_cli.core.models.dossier import (
     Logistics,
     OptionCode,
     OptionCodes,
@@ -418,38 +418,72 @@ def decode_option_codes(raw: str) -> OptionCodes:
     return OptionCodes(raw_string=raw, codes=codes)
 
 
-# ── NHTSA API ───────────────────────────────────────────────────────────────
-
-NHTSA_BASE = "https://vpic.nhtsa.dot.gov/api"
+# ── NHTSA API (delegated to openquery) ────────────────────────────────────
 
 
 def fetch_nhtsa_decode(vin: str) -> dict[str, str]:
-    """Fetch VIN decode from NHTSA (free, no auth). Returns key-value pairs."""
+    """Fetch VIN decode from NHTSA via openquery (us.nhtsa_vin)."""
     try:
-        with httpx.Client(timeout=10) as client:
-            resp = client.get(f"{NHTSA_BASE}/vehicles/decodevin/{vin}?format=json")
-            if resp.status_code == 200:
-                data = resp.json()
-                results = {}
-                for item in data.get("Results", []):
-                    if item.get("Value") and item["Value"].strip():
-                        results[item["Variable"]] = item["Value"]
-                return results
+        from openquery.sources import get_source
+        from openquery.sources.base import DocumentType, QueryInput
+
+        src = get_source("us.nhtsa_vin")
+        result = src.query(QueryInput(document_type=DocumentType.VIN, document_number=vin))
+        return result.all_fields
+    except ImportError:
+        logger.warning("openquery not installed, falling back to direct NHTSA call")
+        try:
+            with httpx.Client(timeout=10) as client:
+                resp = client.get(f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/{vin}?format=json")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return {item["Variable"]: item["Value"] for item in data.get("Results", [])
+                            if item.get("Value") and item["Value"].strip()}
+        except Exception:
+            logger.warning("NHTSA VIN decode failed", exc_info=True)
     except Exception:
-        logger.warning("NHTSA VIN decode failed", exc_info=True)
+        logger.warning("NHTSA VIN decode via openquery failed", exc_info=True)
     return {}
 
 
 def fetch_nhtsa_recalls(make: str, model: str, year: str) -> list[dict]:
-    """Fetch recalls from NHTSA API."""
+    """Fetch recalls from NHTSA via openquery (us.nhtsa_recalls)."""
     try:
-        url = f"https://api.nhtsa.gov/recalls/recallsByVehicle?make={make}&model={model}&modelYear={year}"
-        with httpx.Client(timeout=10) as client:
-            resp = client.get(url)
-            if resp.status_code == 200:
-                return resp.json().get("results", [])
+        from openquery.sources import get_source
+        from openquery.sources.base import DocumentType, QueryInput
+
+        src = get_source("us.nhtsa_recalls")
+        result = src.query(QueryInput(
+            document_type=DocumentType.CUSTOM,
+            document_number=f"{make}-{model}-{year}",
+            extra={"make": make, "model": model, "year": year},
+        ))
+        # Convert back to raw dict format for compatibility
+        return [
+            {
+                "NHTSACampaignNumber": r.campaign_number,
+                "ReportReceivedDate": r.date_reported,
+                "Component": r.component,
+                "Summary": r.summary,
+                "Consequence": r.consequence,
+                "Remedy": r.remedy,
+                "Manufacturer": r.manufacturer,
+                "Notes": r.notes,
+            }
+            for r in result.recalls
+        ]
+    except ImportError:
+        logger.warning("openquery not installed, falling back to direct NHTSA call")
+        try:
+            url = f"https://api.nhtsa.gov/recalls/recallsByVehicle?make={make}&model={model}&modelYear={year}"
+            with httpx.Client(timeout=10) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    return resp.json().get("results", [])
+        except Exception:
+            logger.warning("NHTSA recalls fetch failed", exc_info=True)
     except Exception:
-        logger.warning("NHTSA recalls fetch failed", exc_info=True)
+        logger.warning("NHTSA recalls via openquery failed", exc_info=True)
     return []
 
 
@@ -479,53 +513,41 @@ def fetch_tesla_recalls(vin: str) -> list[Recall]:
 
 
 def fetch_tesla_ships() -> list[ShipTracking]:
-    """Fetch current Tesla car carrier positions from shipinfo.net."""
-    ships: list[ShipTracking] = []
+    """Fetch Tesla car carrier positions via openquery (intl.ship_tracking)."""
     try:
-        with httpx.Client(timeout=15, follow_redirects=True) as client:
-            resp = client.get(
-                "https://shipinfo.net/vessels_map_75",
-                headers={"User-Agent": "tesla-cli/0.1.0"},
-            )
-            if resp.status_code != 200:
+        from openquery.sources import get_source
+        from openquery.sources.base import DocumentType, QueryInput
+
+        src = get_source("intl.ship_tracking")
+        # Search for known Tesla carriers
+        for carrier_name in ["Grand Venus", "Silver Glory", "SFL Composer"]:
+            result = src.query(QueryInput(
+                document_type=DocumentType.CUSTOM,
+                document_number=carrier_name,
+                extra={"vessel_name": carrier_name},
+            ))
+            if result.vessels:
+                ships = []
+                for v in result.vessels:
+                    ships.append(ShipTracking(
+                        vessel_name=v.name,
+                        imo=v.imo,
+                        mmsi=v.mmsi,
+                        current_position=ShipPosition(
+                            latitude=v.position.latitude,
+                            longitude=v.position.longitude,
+                            speed_knots=v.position.speed_knots,
+                            course=v.position.course,
+                        ),
+                        tracking_url=v.tracking_url,
+                    ))
                 return ships
-
-            # Parse ship data from the HTML/JS (positions are in JS variables)
-            import re
-            text = resp.text
-
-            # Look for vessel data patterns in the page
-            # shipinfo embeds data as JS — extract lat/lon/name patterns
-            vessel_pattern = re.findall(
-                r'"name"\s*:\s*"([^"]+)".*?"lat"\s*:\s*([\d.-]+).*?"lon"\s*:\s*([\d.-]+).*?'
-                r'"speed"\s*:\s*([\d.-]+).*?"course"\s*:\s*([\d.-]+).*?'
-                r'"imo"\s*:\s*"?(\d+)"?.*?"mmsi"\s*:\s*"?(\d+)"?',
-                text, re.DOTALL,
-            )
-
-            for match in vessel_pattern:
-                name, lat, lon, speed, course, imo, mmsi = match
-                pos = ShipPosition(
-                    latitude=float(lat),
-                    longitude=float(lon),
-                    speed_knots=float(speed),
-                    course=float(course),
-                )
-                ships.append(ShipTracking(
-                    vessel_name=name,
-                    imo=imo,
-                    mmsi=mmsi,
-                    current_position=pos,
-                    tracking_url=f"https://www.marinetraffic.com/en/ais/details/ships/imo:{imo}",
-                ))
+    except ImportError:
+        logger.warning("openquery not installed, using fallback ship data")
     except Exception:
-        logger.warning("Ship tracking scrape failed", exc_info=True)
+        logger.warning("Ship tracking via openquery failed", exc_info=True)
 
-    # Fallback: add known Tesla carriers manually if scraping fails
-    if not ships:
-        ships = _known_tesla_carriers()
-
-    return ships
+    return _known_tesla_carriers()
 
 
 def _known_tesla_carriers() -> list[ShipTracking]:
@@ -612,8 +634,8 @@ class DossierBackend:
 
     def build_dossier(self) -> VehicleDossier:
         """Build the full dossier from all available sources."""
-        from tesla_cli.backends.order import OrderBackend
-        from tesla_cli.output import console
+        from tesla_cli.core.backends.order import OrderBackend
+        from tesla_cli.cli.output import console
 
         cfg = load_config()
         vin = cfg.general.default_vin
@@ -701,7 +723,7 @@ class DossierBackend:
         # RUNT (Colombia) — live query
         console.print("[dim]Querying RUNT (live)...[/dim]")
         try:
-            from tesla_cli.backends.runt import RuntBackend
+            from tesla_cli.core.backends.runt import RuntBackend
             runt_backend = RuntBackend()
             dossier.runt = runt_backend.query_by_vin(vin)
             dossier.runt.queried_at = datetime.now()
@@ -712,7 +734,7 @@ class DossierBackend:
         # Load delivery appointment from cache
         console.print("[dim]Loading delivery appointment data...[/dim]")
         try:
-            from tesla_cli.backends.order import DELIVERY_CACHE_FILE, OrderBackend
+            from tesla_cli.core.backends.order import DELIVERY_CACHE_FILE, OrderBackend
             if DELIVERY_CACHE_FILE.exists():
                 order_be = OrderBackend()
                 appt = order_be.get_delivery_appointment(rn)
