@@ -7345,3 +7345,119 @@ class TestChargeHistory:
         assert d["total_kwh"] == 1234.5
         assert len(d["points"]) == 2
         assert d["points"][0]["location"] == "Home"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unified Charging Sessions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargingSessions:
+    """Tests for `tesla charge sessions` and ChargingSession model."""
+
+    MOCK_TM_ROW = {
+        "id": 1,
+        "start_date": "2026-03-15 08:30:00",
+        "end_date": "2026-03-15 12:00:00",
+        "energy_added_kwh": 42.5,
+        "cost": 9.35,
+        "start_battery_level": 20,
+        "end_battery_level": 80,
+        "location": "Home",
+    }
+
+    MOCK_TM_ROW_NO_COST = {
+        "id": 2,
+        "start_date": "2026-03-20 14:00:00",
+        "end_date": "2026-03-20 15:30:00",
+        "energy_added_kwh": 25.0,
+        "cost": None,
+        "start_battery_level": 40,
+        "end_battery_level": 65,
+        "location": "Supercharger Bogota",
+    }
+
+    def test_from_teslamate_with_actual_cost(self):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        s = ChargingSession.from_teslamate(self.MOCK_TM_ROW)
+        assert s.kwh == 42.5
+        assert s.cost == 9.35
+        assert s.cost_estimated is False
+        assert s.battery_start == 20
+        assert s.battery_end == 80
+        assert s.source == "teslamate"
+        assert "Home" in s.location
+
+    def test_from_teslamate_estimates_cost(self):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        s = ChargingSession.from_teslamate(self.MOCK_TM_ROW_NO_COST, cost_per_kwh=0.22)
+        assert s.cost == 5.50  # 25.0 * 0.22
+        assert s.cost_estimated is True
+
+    def test_from_teslamate_no_cost_no_estimate(self):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        s = ChargingSession.from_teslamate(self.MOCK_TM_ROW_NO_COST, cost_per_kwh=0.0)
+        assert s.cost is None
+        assert s.cost_estimated is False
+
+    def test_from_fleet_point(self):
+        from tesla_cli.core.models.charge import ChargingHistoryPoint, ChargingSession
+
+        pt = ChargingHistoryPoint(timestamp="Mar 15", kwh=45.2, location="Home")
+        s = ChargingSession.from_fleet_point(pt, cost_per_kwh=0.22)
+        assert s.kwh == 45.2
+        assert s.cost == 9.94  # 45.2 * 0.22 = 9.944 → 9.94
+        assert s.cost_estimated is True
+        assert s.source == "fleet"
+        assert s.battery_start is None
+
+    def test_from_fleet_point_no_cost(self):
+        from tesla_cli.core.models.charge import ChargingHistoryPoint, ChargingSession
+
+        pt = ChargingHistoryPoint(timestamp="Mar 15", kwh=45.2, location="Home")
+        s = ChargingSession.from_fleet_point(pt, cost_per_kwh=0.0)
+        assert s.cost is None
+
+    def test_serializes_to_dict(self):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        s = ChargingSession.from_teslamate(self.MOCK_TM_ROW)
+        d = s.model_dump()
+        assert d["kwh"] == 42.5
+        assert d["source"] == "teslamate"
+        assert d["battery_start"] == 20
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cli_sessions_fallback_to_fleet(self, mock_cfg):
+        """When TeslaMate not configured, falls back to Fleet API."""
+        cfg = MagicMock()
+        cfg.general.cost_per_kwh = 0.22
+        cfg.teslaMate.dsn = ""  # No TeslaMate
+        mock_cfg.return_value = cfg
+
+        mock_api_resp = {
+            "total_charged": {"value": "100", "after_adornment": "kWh"},
+            "charging_history_graph": {
+                "data_points": [
+                    {
+                        "timestamp": {"display_string": "Mar 15"},
+                        "values": [{"raw_value": 45.2, "sub_title": "Home"}],
+                    }
+                ]
+            },
+            "total_charged_breakdown": {},
+        }
+
+        with patch(
+            "tesla_cli.cli.commands.charge.get_vehicle_backend"
+        ) as mock_bk:
+            backend = MagicMock()
+            backend.get_charge_history.return_value = mock_api_resp
+            mock_bk.return_value = backend
+
+            result = _run("charge", "sessions")
+            assert result.exit_code == 0
+            assert "45.2" in result.output or "Fleet API" in result.output
