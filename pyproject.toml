@@ -28,6 +28,7 @@ dependencies = [
     "pyjwt>=2.10",
     "tomli-w>=1.1",
     "cryptography>=46.0.5",
+    "openquery",
 ]
 
 [project.optional-dependencies]
