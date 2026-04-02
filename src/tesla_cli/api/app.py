@@ -152,6 +152,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     # ── Register routes ───────────────────────────────────────────────────────
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.charge import router as charge_router
+    from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.order import router as order_router
@@ -159,6 +160,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
     app.include_router(auth_router,      prefix="/api/auth",       tags=["Auth"])
+    app.include_router(colombia_router,  prefix="/api/co",         tags=["Colombia"])
     app.include_router(vehicle_router,   prefix="/api/vehicle",    tags=["Vehicle"])
     app.include_router(charge_router,    prefix="/api/charge",     tags=["Charge"])
     app.include_router(climate_router,   prefix="/api/climate",    tags=["Climate"])
