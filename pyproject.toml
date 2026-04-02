@@ -76,4 +76,4 @@ ignore = [
 ]
 
 [tool.uv.sources]
-openquery = { git = "https://github.com/dacrypt/openquery" }
+openquery = { path = "../openquery", editable = true }
