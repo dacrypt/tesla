@@ -321,16 +321,28 @@ def _register_defaults() -> None:
     # ── Tesla Order ──
     def _fetch_order():
         from tesla_cli.core.backends.order import OrderBackend
+        from tesla_cli.core.config import save_config as _save
         cfg = load_config()
         rn = cfg.order.reservation_number
-        if not rn:
-            return None
         backend = OrderBackend()
         orders = backend.get_orders()
-        for order in (orders if isinstance(orders, list) else [orders]):
+        order_list = orders if isinstance(orders, list) else [orders]
+
+        # Auto-detect RN and VIN if not configured
+        if not rn and order_list:
+            first = order_list[0]
+            rn = first.get("referenceNumber", "")
+            vin = first.get("vin", "")
+            if rn:
+                cfg.order.reservation_number = rn
+                if vin and not cfg.general.default_vin:
+                    cfg.general.default_vin = vin
+                _save(cfg)
+
+        for order in order_list:
             if order.get("referenceNumber") == rn:
                 return order
-        return None
+        return order_list[0] if order_list else None
 
     register_source(SourceDef(
         id="tesla.order", name="Tesla Order", category="financiero",

@@ -230,6 +230,26 @@ except Exception as e:
         cfg.general.backend = "fleet"
         save_config(cfg)
 
+    # Auto-discover VIN and reservation from order API
+    if data.get("order"):
+        try:
+            from tesla_cli.core.backends.order import OrderBackend
+            backend = OrderBackend()
+            orders = backend.get_orders()
+            order_list = orders if isinstance(orders, list) else [orders]
+            if order_list:
+                first = order_list[0]
+                cfg = load_config()
+                rn = first.get("referenceNumber", "")
+                vin = first.get("vin", "")
+                if rn and not cfg.order.reservation_number:
+                    cfg.order.reservation_number = rn
+                if vin and not cfg.general.default_vin:
+                    cfg.general.default_vin = vin
+                save_config(cfg)
+        except Exception:
+            pass
+
     # Auto-sync to TeslaMate
     _sync_teslamate_tokens()
 
