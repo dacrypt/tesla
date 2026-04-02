@@ -103,18 +103,26 @@ const Dossier: React.FC = () => {
   const [missingAuth, setMissingAuth] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [sourceConfig, setSourceConfig] = useState<any>({});
+  const [cedula, setCedula] = useState('');
+  const [cedulaDirty, setCedulaDirty] = useState(false);
   const history = useHistory();
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [srcList, authMissing] = await Promise.allSettled([
+      const [srcList, authMissing, cfgData] = await Promise.allSettled([
         api.getSources(),
         api.getMissingAuth(),
+        api.getSourceConfig(),
       ]);
       const list = srcList.status === 'fulfilled' ? srcList.value : [];
       setSources(list);
       if (authMissing.status === 'fulfilled') setMissingAuth(authMissing.value);
+      if (cfgData.status === 'fulfilled') {
+        setSourceConfig(cfgData.value);
+        setCedula(cfgData.value.cedula || '');
+      }
 
       // Fetch cached data for all sources that have data
       const dataPromises = list
@@ -196,6 +204,39 @@ const Dossier: React.FC = () => {
               >
                 Connect accounts →
               </button>
+            </div>
+          )}
+
+          {/* ── Owner Config (cedula) ── */}
+          {!loading && !sourceConfig.cedula && (
+            <div className="tesla-card" style={{ padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Datos del propietario</div>
+              <div style={{ color: '#86888f', fontSize: 11, marginBottom: 8 }}>
+                Tu cédula es necesaria para consultar multas (SIMIT), antecedentes, y otros servicios.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={cedula}
+                  onChange={(e) => { setCedula(e.target.value); setCedulaDirty(true); }}
+                  placeholder="Número de cédula"
+                  className="tesla-input"
+                  style={{ flex: 1, fontSize: 13 }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!cedula.trim()) return;
+                    await api.updateSourceConfig({ cedula: cedula.trim() });
+                    setCedulaDirty(false);
+                    fetchAll();
+                  }}
+                  disabled={!cedulaDirty || !cedula.trim()}
+                  className="tesla-btn"
+                  style={{ fontSize: 12, padding: '8px 16px', flexShrink: 0 }}
+                >
+                  Guardar
+                </button>
+              </div>
             </div>
           )}
 

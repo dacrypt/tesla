@@ -108,12 +108,18 @@ def refresh_source(source_id: str) -> dict:
         if src.requires_auth == "order" and not has_token(ORDER_ACCESS_TOKEN):
             return _save_cache(source_id, None, error="Tesla order authentication required. Login in Settings.")
 
-    # Check required config values
+    # Check required config values — try auto-detect from other sources
     params = src.openquery_params
     if params.get("doc_number") == "$CEDULA":
         cfg = load_config()
-        if not cfg.general.cedula:
-            return _save_cache(source_id, None, error="Cédula not configured. Set it in Settings → Configuration.")
+        cedula = cfg.general.cedula
+        # Auto-detect from RUNT cache if not configured
+        if not cedula:
+            runt_cache = _load_cache("co.runt")
+            if runt_cache and runt_cache.get("data"):
+                cedula = runt_cache["data"].get("no_identificacion", "")
+        if not cedula:
+            return _save_cache(source_id, None, error="Cédula del propietario requerida. Configúrala en Settings.")
     if params.get("doc_number") == "$VIN":
         cfg = load_config()
         if not cfg.general.default_vin:
