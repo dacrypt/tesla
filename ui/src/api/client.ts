@@ -570,6 +570,10 @@ export const api = {
     client().post<any>(`/api/sources/${id}/refresh`).then(r => r.data),
   getMissingAuth: () =>
     client().get<any[]>('/api/sources/missing-auth').then(r => r.data),
+  getSourceConfig: () =>
+    client().get<any>('/api/sources/config').then(r => r.data),
+  updateSourceConfig: (data: { cedula?: string; vin?: string }) =>
+    client().post<any>('/api/sources/config', data).then(r => r.data),
 
   // Colombia sources
   getPicoYPlaca: (placa?: string) =>
