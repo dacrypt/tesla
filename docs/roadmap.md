@@ -33,9 +33,9 @@ Real-time WebSocket streaming eliminates polling (no vampire drain from API call
 - Track degradation over time (important for EV resale value)
 - TeslaMate also calculates from charge data (already in `dossier battery-health`)
 
-#### Charge History Unification
-- Fleet API `charge_history` + TeslaMate `charging_processes` + Tessie `charges`
-- Unified view with cost tracking across all sources
+#### ~~Charge History Unification~~ ✅ (v4.0.2)
+- ~~Fleet API `charge_history` + TeslaMate `charging_processes`~~
+- `tesla charge sessions` + `tesla charge cost-summary` shipped
 
 ### P2 — Medium Priority
 

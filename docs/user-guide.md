@@ -82,6 +82,7 @@ tesla vehicle bio              # comprehensive single-screen profile (5 panels)
 tesla vehicle location         # GPS + Google Maps link
 tesla vehicle health-check     # 7-point system check
 tesla vehicle software         # current version + pending update
+tesla vehicle summary          # compact one-screen snapshot
 ```
 
 ### Charging
@@ -96,6 +97,10 @@ tesla charge forecast          # ETA + kWh estimate to target SoC
 tesla charge schedule-amps 22:00 32  # time + amperage together
 tesla charge limit             # show/set limit
 tesla charge amps              # show/set amps
+tesla charge sessions          # unified sessions (TeslaMate + Fleet API)
+tesla charge sessions -n 50    # last 50 sessions
+tesla charge cost-summary      # aggregated cost report
+tesla charge history           # Fleet API raw history
 ```
 
 ### Climate
