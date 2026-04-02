@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2] - 2026-04-02
+
+### New Commands
+
+- **`tesla charge sessions`** — unified charging sessions from TeslaMate + Fleet API:
+  - Prefers TeslaMate (per-session costs, battery levels, locations)
+  - Falls back to Fleet API (aggregated history)
+  - Applies `cost_per_kwh` estimation when actual cost is missing
+  - Rich table with #, Date, Location, kWh, Cost, Battery columns
+- **`tesla charge cost-summary`** — aggregated charging cost report:
+  - Total sessions, kWh, cost, avg $/kWh
+  - Distinguishes actual vs estimated cost data
+  - Works with any source (TeslaMate, Fleet API)
+- **`tesla vehicle summary`** — compact one-screen vehicle snapshot:
+  - Battery %, range, charging state, climate, location, locks, sentry, software
+  - Rich panel with emoji indicators
+
+### New API Endpoints
+
+- **`GET /api/charge/sessions`** — unified charging sessions (TeslaMate > Fleet API)
+- **`GET /api/vehicle/summary`** — compact vehicle state JSON
+
+### New Models
+
+- **`ChargingSession`** — unified session model with `from_teslamate()` and `from_fleet_point()` factory methods
+- **`ChargingHistoryPoint`** / **`ChargingHistory`** — structured Fleet API charge_history parser
+
+### Tests
+
+- 1133 tests passing (+19 new)
+
 ## [4.0.1] - 2026-04-02
 
 ### Documentation
