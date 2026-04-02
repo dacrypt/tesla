@@ -108,6 +108,17 @@ def refresh_source(source_id: str) -> dict:
         if src.requires_auth == "order" and not has_token(ORDER_ACCESS_TOKEN):
             return _save_cache(source_id, None, error="Tesla order authentication required. Login in Settings.")
 
+    # Check required config values
+    params = src.openquery_params
+    if params.get("doc_number") == "$CEDULA":
+        cfg = load_config()
+        if not cfg.general.cedula:
+            return _save_cache(source_id, None, error="Cédula not configured. Set it in Settings → Configuration.")
+    if params.get("doc_number") == "$VIN":
+        cfg = load_config()
+        if not cfg.general.default_vin:
+            return _save_cache(source_id, None, error="VIN not configured.")
+
     # Playwright sources run as subprocess
     if src.uses_playwright:
         return _refresh_subprocess(source_id, src)
@@ -217,6 +228,11 @@ doc_number = params.get("doc_number", "")
 # Auto-fill from config
 if doc_number == "$VIN":
     doc_number = vin
+elif doc_number == "$CEDULA":
+    doc_number = cfg.general.cedula or ""
+    if not doc_number:
+        print(json.dumps({{"error": "No cedula configured. Set general.cedula in config."}}))
+        import sys; sys.exit(0)
 elif doc_number == "$PLACA":
     # Try to get placa from cached RUNT
     import pathlib
@@ -259,6 +275,12 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
         doc_number = params.get("doc_number", "")
         if doc_number == "$VIN":
             doc_number = cfg.general.default_vin or ""
+        elif doc_number == "$CEDULA":
+            doc_number = cfg.general.cedula or ""
+        elif doc_number == "$PLACA":
+            # Try to get placa from cached RUNT
+            runt_cache = _load_cache("co.runt")
+            doc_number = (runt_cache or {}).get("data", {}).get("placa", "") if runt_cache else ""
 
         dt_map = {"vin": DocumentType.VIN, "placa": DocumentType.PLATE, "cedula": DocumentType.CEDULA, "custom": DocumentType.CUSTOM}
         qi = QueryInput(
@@ -322,7 +344,7 @@ def _register_defaults() -> None:
         id="co.simit", name="SIMIT — Multas de Tránsito", category="infracciones",
         uses_playwright=True, ttl=3600, country="CO",
         openquery_source="co.simit",
-        openquery_params={"doc_type": "cedula", "doc_number": "1017148795"},  # TODO: from config
+        openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
     ))
 
     # ── Colombia: Pico y Placa (fast, no Playwright) ──

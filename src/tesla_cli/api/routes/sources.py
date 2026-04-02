@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from pydantic import BaseModel
+
 from tesla_cli.core import sources
+from tesla_cli.core.config import load_config, save_config
 
 router = APIRouter()
 
@@ -43,3 +46,35 @@ def source_refresh(source_id: str) -> dict:
 def sources_refresh_stale() -> dict:
     """Refresh all stale sources."""
     return sources.refresh_stale()
+
+
+class ConfigUpdate(BaseModel):
+    cedula: str | None = None
+    vin: str | None = None
+
+
+@router.post("/config")
+def update_source_config(req: ConfigUpdate) -> dict:
+    """Update config values needed by sources (cedula, VIN, etc.)."""
+    cfg = load_config()
+    changed = []
+    if req.cedula is not None:
+        cfg.general.cedula = req.cedula
+        changed.append("cedula")
+    if req.vin is not None:
+        cfg.general.default_vin = req.vin
+        changed.append("vin")
+    if changed:
+        save_config(cfg)
+    return {"ok": True, "changed": changed}
+
+
+@router.get("/config")
+def get_source_config() -> dict:
+    """Get config values used by sources."""
+    cfg = load_config()
+    return {
+        "cedula": cfg.general.cedula or "",
+        "vin": cfg.general.default_vin or "",
+        "reservation_number": cfg.order.reservation_number or "",
+    }

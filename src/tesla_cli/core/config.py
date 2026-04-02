@@ -24,6 +24,7 @@ class GeneralConfig(BaseModel):
     default_vin: str = ""
     backend: str = "owner"  # "owner" | "tessie" | "fleet"
     cost_per_kwh: float = 0.0
+    cedula: str = ""  # Owner's cedula (Colombia) — used for SIMIT, Procuraduria, etc.
 
 
 class OrderConfig(BaseModel):
