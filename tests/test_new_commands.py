@@ -7545,3 +7545,60 @@ class TestVehicleSummary:
         assert result.exit_code == 0
         assert "Charging" in result.output
         assert "11 kW" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Summary + Charge Cost Summary
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeCostSummary:
+    """Tests for `tesla charge cost-summary`."""
+
+    @patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked")
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cost_summary_with_teslamate(self, mock_cfg, MockTM):
+        """Cost summary using TeslaMate data."""
+        cfg = MagicMock()
+        cfg.general.cost_per_kwh = 0.0
+        cfg.teslaMate.dsn = "postgresql://localhost/teslamate"
+        mock_cfg.return_value = cfg
+
+        mock_rows = [
+            {"start_date": "2026-03-01 08:00", "energy_added_kwh": 30.0, "cost": 6.60, "start_battery_level": 20, "end_battery_level": 80, "location": "Home"},
+            {"start_date": "2026-03-05 14:00", "energy_added_kwh": 20.0, "cost": 8.00, "start_battery_level": 40, "end_battery_level": 65, "location": "Supercharger"},
+        ]
+        MockTM.return_value.get_charging_sessions.return_value = mock_rows
+
+        result = _run("charge", "cost-summary")
+        assert result.exit_code == 0
+        assert "50.0" in result.output  # 30 + 20 kWh
+        assert "$14.60" in result.output  # 6.60 + 8.00
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cost_summary_json_mode(self, mock_cfg):
+        cfg = MagicMock()
+        cfg.general.cost_per_kwh = 0.22
+        cfg.teslaMate.dsn = ""
+        mock_cfg.return_value = cfg
+
+        mock_api = {
+            "total_charged": {"value": "100", "after_adornment": "kWh"},
+            "charging_history_graph": {
+                "data_points": [
+                    {"timestamp": {"display_string": "Mar 15"}, "values": [{"raw_value": 50.0, "sub_title": "Home"}]},
+                ]
+            },
+            "total_charged_breakdown": {},
+        }
+
+        with patch("tesla_cli.cli.commands.charge.get_vehicle_backend") as mock_bk:
+            backend = MagicMock()
+            backend.get_charge_history.return_value = mock_api
+            mock_bk.return_value = backend
+            result = _run("--json", "charge", "cost-summary")
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["total_kwh"] == 50.0
+            assert data["total_cost"] == 11.0  # 50 * 0.22
+            assert data["estimated_cost_sessions"] == 1
