@@ -483,6 +483,30 @@ def _register_defaults() -> None:
         openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
     ))
 
+    # ── Colombia: RUNT SOAT (by placa, Playwright) ──
+    register_source(SourceDef(
+        id="co.runt_soat", name="RUNT — SOAT", category="registro",
+        uses_playwright=True, ttl=3600, country="CO",
+        openquery_source="co.runt_soat",
+        openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+    ))
+
+    # ── Colombia: RUNT RTM (by placa, Playwright) ──
+    register_source(SourceDef(
+        id="co.runt_rtm", name="RUNT — Técnico-Mecánica", category="registro",
+        uses_playwright=True, ttl=3600, country="CO",
+        openquery_source="co.runt_rtm",
+        openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+    ))
+
+    # ── Colombia: RUNT Conductor (by cedula, Playwright) ──
+    register_source(SourceDef(
+        id="co.runt_conductor", name="RUNT — Conductor", category="registro",
+        uses_playwright=True, ttl=86400, country="CO",
+        openquery_source="co.runt_conductor",
+        openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
+    ))
+
     # ── Colombia: SIMIT (Playwright) ──
     register_source(SourceDef(
         id="co.simit", name="SIMIT — Multas de Tránsito", category="infracciones",
