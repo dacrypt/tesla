@@ -23,8 +23,10 @@ _runner = CliRunner()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -80,10 +82,12 @@ def _make_tm_backend():
 @pytest.fixture
 def srv_tm():
     """Server fixture with TeslaMate backend available."""
-    cfg = _make_cfg(**{
-        "teslaMate.database_url": "postgresql://localhost/tm",
-        "general.cost_per_kwh": 0.15,
-    })
+    cfg = _make_cfg(
+        **{
+            "teslaMate.database_url": "postgresql://localhost/tm",
+            "general.cost_per_kwh": 0.15,
+        }
+    )
     tm_backend = _make_tm_backend()
 
     patches = [
@@ -119,6 +123,7 @@ def srv_no_tm():
 
 
 # ── TestChargeForecast ────────────────────────────────────────────────────────
+
 
 class TestChargeForecast:
     def _run(self, cs_overrides=None, extra_args=None):
@@ -172,7 +177,10 @@ class TestChargeForecast:
     def test_forecast_not_charging_hint(self):
         result = self._run({"charging_state": "Disconnected", "time_to_full_charge": 0})
         assert result.exit_code == 0
-        assert "connect to a charger" in result.output.lower() or "not currently charging" in result.output.lower()
+        assert (
+            "connect to a charger" in result.output.lower()
+            or "not currently charging" in result.output.lower()
+        )
 
     def test_forecast_zero_ttf(self):
         result = self._run({"time_to_full_charge": 0, "charger_power": 0})
@@ -181,7 +189,9 @@ class TestChargeForecast:
         assert "—" in result.output
 
     def test_forecast_kwh_needed(self):
-        cs = _make_charge_state(charger_power=11.5, time_to_full_charge=2.0, charging_state="Charging")
+        cs = _make_charge_state(
+            charger_power=11.5, time_to_full_charge=2.0, charging_state="Charging"
+        )
         cfg = MagicMock()
         cfg.general.default_vin = MOCK_VIN
         backend = MagicMock()
@@ -200,6 +210,7 @@ class TestChargeForecast:
 
     def test_forecast_eta_format(self):
         import re
+
         cs = _make_charge_state(time_to_full_charge=1.0, charging_state="Charging")
         cfg = MagicMock()
         cfg.general.default_vin = MOCK_VIN
@@ -225,12 +236,14 @@ class TestChargeForecast:
         import inspect
 
         from tesla_cli.cli.commands import charge
+
         src = inspect.getsource(charge)
         assert "Complete" in src
         assert "yellow" in src
 
 
 # ── TestTeslaMateTripsStats ───────────────────────────────────────────────────
+
 
 class TestTeslaMateTripsStats:
     def _run_cli(self, extra_args=None, tm_backend=None):
@@ -252,7 +265,7 @@ class TestTeslaMateTripsStats:
         assert result.exit_code == 0
         assert "12" in result.output  # total_trips
         assert "450" in result.output  # total_km
-        assert "37" in result.output   # avg_km
+        assert "37" in result.output  # avg_km
 
     def test_trip_stats_json_mode(self):
         tm = _make_tm_backend()
@@ -300,6 +313,7 @@ class TestTeslaMateTripsStats:
 
     def test_trip_stats_backend_method(self):
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         assert hasattr(TeslaMateBacked, "get_trip_stats")
 
     def test_trip_stats_in_help(self):
@@ -310,14 +324,14 @@ class TestTeslaMateTripsStats:
         import inspect
 
         from tesla_cli.core.backends import teslaMate as tm_mod
+
         src = inspect.getsource(tm_mod)
         assert "total_trips" in src
         assert "routes_sql" in src
 
 
-
-
 # ── TestApiCostReport ─────────────────────────────────────────────────────────
+
 
 class TestApiCostReport:
     def test_cost_report_endpoint_ok(self, srv_tm):
@@ -380,17 +394,20 @@ class TestApiCostReport:
 
 # ── TestVersion330 ────────────────────────────────────────────────────────────
 
+
 class TestVersion330:
     def test_version_string(self):
         from packaging.version import Version
 
         from tesla_cli import __version__
+
         assert Version(__version__) >= Version("3.3.0")
 
     def test_pyproject_version(self):
         import pathlib
 
         from packaging.version import Version
+
         pyproject = pathlib.Path(__file__).parent.parent / "pyproject.toml"
         content = pyproject.read_text(encoding="utf-8")
         for line in content.splitlines():

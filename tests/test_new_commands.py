@@ -27,6 +27,7 @@ def _run(*args):
 class TestVinDecoder:
     def test_shanghai_model_y(self):
         from tesla_cli.core.backends.dossier import decode_vin
+
         decoded = decode_vin("LRWYE7FK4TC123456")
         assert "Shanghai" in decoded.manufacturer
         assert "Y" in decoded.model
@@ -34,17 +35,20 @@ class TestVinDecoder:
 
     def test_fremont_model_3(self):
         from tesla_cli.core.backends.dossier import decode_vin
+
         decoded = decode_vin("5YJ3E1EA1PF000001")
         assert "Fremont" in decoded.manufacturer
         assert "3" in decoded.model
 
     def test_serial_number(self):
         from tesla_cli.core.backends.dossier import decode_vin
+
         decoded = decode_vin("5YJ3E1EA1PF123456")
         assert decoded.serial_number == "123456"
 
     def test_short_vin_graceful(self):
         from tesla_cli.core.backends.dossier import decode_vin
+
         decoded = decode_vin("SHORT")
         assert decoded.vin == "SHORT"
         assert decoded.manufacturer == ""  # graceful empty
@@ -70,6 +74,7 @@ class TestVinDecoder:
 class TestOptionCodeDecoder:
     def test_known_code(self):
         from tesla_cli.core.backends.dossier import decode_option_codes
+
         result = decode_option_codes("PPSW,APF2,CP01")
         codes = {c.code: c for c in result.codes}
         assert "PPSW" in codes
@@ -80,6 +85,7 @@ class TestOptionCodeDecoder:
 
     def test_unknown_code(self):
         from tesla_cli.core.backends.dossier import decode_option_codes
+
         result = decode_option_codes("ZZ99,PPSW")
         codes = {c.code: c for c in result.codes}
         assert "ZZ99" in codes
@@ -87,26 +93,31 @@ class TestOptionCodeDecoder:
 
     def test_empty_string(self):
         from tesla_cli.core.backends.dossier import decode_option_codes
+
         result = decode_option_codes("")
         assert result.codes == []
 
     def test_raw_string_preserved(self):
         from tesla_cli.core.backends.dossier import decode_option_codes
+
         raw = "PPSW,APF2,CP01"
         result = decode_option_codes(raw)
         assert result.raw_string == raw
 
     def test_expanded_catalog_size(self):
         from tesla_cli.core.backends.dossier import OPTION_CODE_MAP
+
         assert len(OPTION_CODE_MAP) >= 100, "Catalog should have at least 100 codes"
 
     def test_autopilot_hw_codes(self):
         from tesla_cli.core.backends.dossier import OPTION_CODE_MAP
+
         for code in ["APH1", "APH2", "APH3", "APH4"]:
             assert code in OPTION_CODE_MAP, f"{code} missing from catalog"
 
     def test_all_models_in_catalog(self):
         from tesla_cli.core.backends.dossier import OPTION_CODE_MAP
+
         for code in ["MDLS", "MDL3", "MDLX", "MDLY"]:
             assert code in OPTION_CODE_MAP, f"Model code {code} missing"
 
@@ -117,14 +128,17 @@ class TestOptionCodeDecoder:
 class TestAnonymizeMode:
     def setup_method(self):
         from tesla_cli.cli.output import set_anon_mode
+
         set_anon_mode(False)
 
     def teardown_method(self):
         from tesla_cli.cli.output import set_anon_mode
+
         set_anon_mode(False)
 
     def test_vin_masked(self):
         from tesla_cli.cli.output import anonymize, set_anon_mode
+
         set_anon_mode(True, vin="5YJ3E1EA1PF123456")
         result = anonymize("VIN: 5YJ3E1EA1PF123456")
         assert "5YJ3E1EA1PF123456" not in result
@@ -134,6 +148,7 @@ class TestAnonymizeMode:
 
     def test_rn_masked(self):
         from tesla_cli.cli.output import anonymize, set_anon_mode
+
         set_anon_mode(True, rn="RN126460939")
         result = anonymize("Order: RN126460939")
         assert "RN126460939" not in result
@@ -141,18 +156,21 @@ class TestAnonymizeMode:
 
     def test_email_masked(self):
         from tesla_cli.cli.output import anonymize, set_anon_mode
+
         set_anon_mode(True, email="user@example.com")
         result = anonymize("Email: user@example.com")
         assert "user@example.com" not in result
 
     def test_anon_false_no_masking(self):
         from tesla_cli.cli.output import anonymize, set_anon_mode
+
         set_anon_mode(False)
         text = "VIN: 5YJ3E1EA1PF123456"
         assert anonymize(text) == text
 
     def test_empty_string(self):
         from tesla_cli.cli.output import anonymize, set_anon_mode
+
         set_anon_mode(True, vin="5YJ3E1EA1PF123456")
         assert anonymize("") == ""
 
@@ -165,6 +183,7 @@ class TestAnonymizeMode:
             mock_cfg.return_value.general.default_vin = MOCK_VIN
             mock_cfg.return_value.notifications.enabled = False
             from tesla_cli.core.models.order import OrderStatus
+
             mock_backend = MagicMock()
             mock_backend.get_order_status.return_value = OrderStatus(
                 order_status="BOOKED",
@@ -182,39 +201,46 @@ class TestAnonymizeMode:
 class TestI18n:
     def teardown_method(self):
         from tesla_cli.cli.i18n import set_lang
+
         set_lang("en")
 
     def test_english_default(self):
         from tesla_cli.cli.i18n import t
+
         result = t("order.stopped")
         assert result == "Stopped watching."
 
     def test_spanish(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("es")
         result = t("order.stopped")
         assert result == "Monitoreo detenido."
 
     def test_fallback_to_english(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("xx")  # unknown language — falls back to English
         result = t("order.stopped")
         assert result == "Stopped watching."  # falls back to English
 
     def test_interpolation(self):
         from tesla_cli.cli.i18n import t
+
         result = t("order.watching", rn="RN123", interval="5")
         assert "RN123" in result
         assert "5" in result
 
     def test_spanish_interpolation(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("es")
         result = t("order.watching", rn="RN123", interval="5")
         assert "RN123" in result
 
     def test_unknown_key_returns_key(self):
         from tesla_cli.cli.i18n import t
+
         result = t("this.key.does.not.exist")
         assert result == "this.key.does.not.exist"
 
@@ -337,7 +363,11 @@ class TestDossierDiff:
     def test_diff_need_two_snapshots(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value.get_history.return_value = [
-                {"timestamp": "2026-01-01T00:00:00", "file": "/tmp/x.json", "order_status": "BOOKED"}
+                {
+                    "timestamp": "2026-01-01T00:00:00",
+                    "file": "/tmp/x.json",
+                    "order_status": "BOOKED",
+                }
             ]
             result = _run("dossier", "diff")
             assert result.exit_code == 1
@@ -349,8 +379,16 @@ class TestDossierDiff:
             snap_data = {"order": {"current": {"order_status": "BOOKED"}}, "vin": MOCK_VIN}
             snap_path.write_text(json.dumps(snap_data))
             history = [
-                {"timestamp": "2026-01-01T00:00:00", "file": str(snap_path), "order_status": "BOOKED"},
-                {"timestamp": "2026-01-02T00:00:00", "file": str(snap_path), "order_status": "BOOKED"},
+                {
+                    "timestamp": "2026-01-01T00:00:00",
+                    "file": str(snap_path),
+                    "order_status": "BOOKED",
+                },
+                {
+                    "timestamp": "2026-01-02T00:00:00",
+                    "file": str(snap_path),
+                    "order_status": "BOOKED",
+                },
             ]
             with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
                 mock_cls.return_value.get_history.return_value = history
@@ -366,7 +404,11 @@ class TestDossierDiff:
             snap_b.write_text(json.dumps({"order": {"status": "DELIVERED"}}))
             history = [
                 {"timestamp": "2026-01-01T00:00:00", "file": str(snap_a), "order_status": "BOOKED"},
-                {"timestamp": "2026-01-02T00:00:00", "file": str(snap_b), "order_status": "DELIVERED"},
+                {
+                    "timestamp": "2026-01-02T00:00:00",
+                    "file": str(snap_b),
+                    "order_status": "DELIVERED",
+                },
             ]
             with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
                 mock_cls.return_value.get_history.return_value = history
@@ -381,6 +423,7 @@ class TestDossierDiff:
 
     def test_compute_diff_direct(self):
         from tesla_cli.cli.commands.dossier import _compute_diff
+
         a = {"foo": "bar", "nested": {"x": 1}}
         b = {"foo": "baz", "nested": {"x": 1}, "new_key": "hello"}
         changes = _compute_diff(a, b)
@@ -392,13 +435,14 @@ class TestDossierDiff:
 
     def test_compute_diff_symbols(self):
         from tesla_cli.cli.commands.dossier import _compute_diff
+
         a = {"x": "old", "y": None, "z": "gone"}
         b = {"x": "new", "y": "added", "z": None}
         changes = _compute_diff(a, b)
         by_path = {c["path"]: c for c in changes}
         assert by_path["x"]["symbol"] == "≠"  # changed
-        assert by_path["y"]["symbol"] == "+"   # added
-        assert by_path["z"]["symbol"] == "−"   # removed
+        assert by_path["y"]["symbol"] == "+"  # added
+        assert by_path["z"]["symbol"] == "−"  # removed
 
 
 # ── Vehicle Sentry ───────────────────────────────────────────────────────────
@@ -412,7 +456,10 @@ class TestVehicleSentry:
         cfg.fleet.region = "na"
         return [
             patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_fleet_backend),
-            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch(
+                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
+                return_value=mock_fleet_backend,
+            ),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ]
@@ -470,7 +517,10 @@ class TestVehicleTrips:
         cfg.fleet.region = "na"
         mock_fleet_backend.get_service_data.return_value = {}
         return [
-            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch(
+                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
+                return_value=mock_fleet_backend,
+            ),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ]
@@ -542,6 +592,7 @@ class TestStreamLive:
 class TestTeslamateConfig:
     def test_config_has_teslaMate_section(self):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         assert hasattr(cfg, "teslaMate")
         assert cfg.teslaMate.database_url == ""
@@ -556,17 +607,26 @@ class TestTeslamateConfig:
         assert "charging" in result.output
         assert "updates" in result.output
 
-    def test_teslaMate_connect_no_db_fails_gracefully(self):
+    def test_teslaMate_status_shows_info(self):
         result = _run("teslaMate", "status")
-        # Should fail with a helpful message since not configured
-        assert "teslaMate" in result.output.lower() or "configured" in result.output.lower() or result.exit_code != 0
+        # Should show TeslaMate info (connected or not) or fail gracefully
+        lower = result.output.lower()
+        assert (
+            "teslamate" in lower
+            or "configured" in lower
+            or "not connected" in lower
+            or "managed" in lower
+            or result.exit_code != 0
+        )
 
     def test_teslaMate_backend_raises_import_error(self):
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         backend = TeslaMateBacked("postgresql://localhost/test")
         # Without psycopg2 (or with a bad URL), ping should fail
         # We test that the ImportError is raised when psycopg2 is not available
         import sys
+
         original = sys.modules.get("psycopg2")
         sys.modules["psycopg2"] = None  # type: ignore[assignment]
         try:
@@ -1071,7 +1131,9 @@ class TestDossierOptionCodes:
             mock_cls.return_value._load_dossier.return_value = mock_dossier
             result = _run("--json", "dossier", "option-codes")
             data = json.loads(result.output)
-            assert all("code" in item and "category" in item and "description" in item for item in data)
+            assert all(
+                "code" in item and "category" in item and "description" in item for item in data
+            )
 
 
 # ── Order Timeline ────────────────────────────────────────────────────────────
@@ -1092,12 +1154,20 @@ class TestOrderTimeline:
     def test_timeline_with_history(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             snap = Path(tmpdir) / "snap.json"
-            snap.write_text(json.dumps({
-                "vin": MOCK_VIN,
-                "order": {"current": {"orderStatus": "BOOKED"}},
-                "real_status": {"delivery_date": None, "in_runt": False, "has_placa": False},
-                "runt": {"estado": ""},
-            }))
+            snap.write_text(
+                json.dumps(
+                    {
+                        "vin": MOCK_VIN,
+                        "order": {"current": {"orderStatus": "BOOKED"}},
+                        "real_status": {
+                            "delivery_date": None,
+                            "in_runt": False,
+                            "has_placa": False,
+                        },
+                        "runt": {"estado": ""},
+                    }
+                )
+            )
             history = [
                 {"timestamp": "2026-01-01T00:00:00", "file": str(snap), "order_status": "BOOKED"},
                 {"timestamp": "2026-01-10T00:00:00", "file": str(snap), "order_status": "BOOKED"},
@@ -1111,12 +1181,20 @@ class TestOrderTimeline:
     def test_timeline_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             snap = Path(tmpdir) / "snap.json"
-            snap.write_text(json.dumps({
-                "vin": MOCK_VIN,
-                "order": {"current": {"orderStatus": "BOOKED"}},
-                "real_status": {"delivery_date": None, "in_runt": False, "has_placa": False},
-                "runt": {"estado": ""},
-            }))
+            snap.write_text(
+                json.dumps(
+                    {
+                        "vin": MOCK_VIN,
+                        "order": {"current": {"orderStatus": "BOOKED"}},
+                        "real_status": {
+                            "delivery_date": None,
+                            "in_runt": False,
+                            "has_placa": False,
+                        },
+                        "runt": {"estado": ""},
+                    }
+                )
+            )
             history = [
                 {"timestamp": "2026-01-01T00:00:00", "file": str(snap), "order_status": "BOOKED"},
             ]
@@ -1235,9 +1313,27 @@ class TestVehicleNearby:
         """Green > 3, yellow > 0, red = 0 — verify no crash with all cases."""
         mock_fleet_backend.get_nearby_charging_sites.return_value = {
             "superchargers": [
-                {"name": "SC Green", "distance_miles": 1.0, "available_stalls": 8, "total_stalls": 12, "type": "V3"},
-                {"name": "SC Yellow", "distance_miles": 2.0, "available_stalls": 1, "total_stalls": 12, "type": "V3"},
-                {"name": "SC Red", "distance_miles": 3.0, "available_stalls": 0, "total_stalls": 12, "type": "V3"},
+                {
+                    "name": "SC Green",
+                    "distance_miles": 1.0,
+                    "available_stalls": 8,
+                    "total_stalls": 12,
+                    "type": "V3",
+                },
+                {
+                    "name": "SC Yellow",
+                    "distance_miles": 2.0,
+                    "available_stalls": 1,
+                    "total_stalls": 12,
+                    "type": "V3",
+                },
+                {
+                    "name": "SC Red",
+                    "distance_miles": 3.0,
+                    "available_stalls": 0,
+                    "total_stalls": 12,
+                    "type": "V3",
+                },
             ],
             "destination_charging": [],
         }
@@ -1375,21 +1471,25 @@ class TestPortugueseI18n:
     def setup_method(self):
         """Reset language to English before each test."""
         from tesla_cli.cli.i18n import set_lang
+
         set_lang("en")
 
     def teardown_method(self):
         """Reset language to English after each test."""
         from tesla_cli.cli.i18n import set_lang
+
         set_lang("en")
 
     def test_pt_order_no_rn(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         text = t("order.no_rn")
         assert "reserva" in text.lower() or "Número" in text
 
     def test_pt_order_watching(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         text = t("order.watching", rn="RN123", interval="5")
         assert "RN123" in text
@@ -1398,32 +1498,38 @@ class TestPortugueseI18n:
 
     def test_pt_vehicle_locked(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         assert t("vehicle.locked") == "Veículo trancado"
 
     def test_pt_vehicle_unlocked(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         assert t("vehicle.unlocked") == "Veículo destrancado"
 
     def test_pt_charge_started(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         assert "Carregamento" in t("charge.started")
 
     def test_pt_climate_on(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         assert "LIGADO" in t("climate.on") or "Clima" in t("climate.on")
 
     def test_pt_dossier_not_found(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         text = t("dossier.not_found")
         assert "dossier" in text.lower() or "Nenhum" in text
 
     def test_pt_fallback_to_english_for_unknown_key(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         # Unknown key should return the key itself (no crash)
         result = t("nonexistent.key.xyz")
@@ -1431,12 +1537,14 @@ class TestPortugueseI18n:
 
     def test_pt_teslaMate_not_configured(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         text = t("teslaMate.not_configured")
         assert "TeslaMate" in text and ("não" in text or "Nenhum" in text or "configurado" in text)
 
     def test_pt_config_saved_is_defined(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         assert "pt" in _STRINGS
         pt = _STRINGS["pt"]
         assert "config.saved" in pt
@@ -1445,6 +1553,7 @@ class TestPortugueseI18n:
 
     def test_pt_order_no_changes_with_time(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("pt")
         text = t("order.no_changes", time="12:00")
         assert "12:00" in text
@@ -1453,6 +1562,7 @@ class TestPortugueseI18n:
     def test_pt_language_isolation(self):
         """Switching back to 'en' from 'pt' restores English strings."""
         from tesla_cli.cli.i18n import get_lang, set_lang, t
+
         set_lang("pt")
         pt_text = t("vehicle.locked")
         set_lang("en")
@@ -1464,6 +1574,7 @@ class TestPortugueseI18n:
     def test_lang_flag_via_env(self, monkeypatch):
         """TESLA_LANG env var drives i18n at module import — test set_lang directly."""
         from tesla_cli.cli.i18n import set_lang, t
+
         monkeypatch.setenv("TESLA_LANG", "pt")
         set_lang("pt")
         assert "Veículo" in t("vehicle.locked") or t("vehicle.locked") == "Veículo trancado"
@@ -1696,9 +1807,7 @@ class TestVehicleValet:
         for p in patches:
             p.stop()
         assert result.exit_code == 0
-        mock_fleet_backend.set_valet_mode.assert_called_once_with(
-            MOCK_VIN, on=False, password=""
-        )
+        mock_fleet_backend.set_valet_mode.assert_called_once_with(MOCK_VIN, on=False, password="")
 
 
 # ── Vehicle Schedule Charge ───────────────────────────────────────────────────
@@ -1805,6 +1914,7 @@ class TestDossierClean:
 
     def test_clean_no_snapshots_dir(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_dir = Path(tmpdir) / "nonexistent"
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", fake_dir):
@@ -1814,6 +1924,7 @@ class TestDossierClean:
 
     def test_clean_nothing_to_do(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             snap_dir = Path(tmpdir) / "snapshots"
             snap_dir.mkdir()
@@ -1826,6 +1937,7 @@ class TestDossierClean:
 
     def test_clean_deletes_oldest(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             snap_dir = Path(tmpdir) / "snapshots"
             snap_dir.mkdir()
@@ -1840,6 +1952,7 @@ class TestDossierClean:
 
     def test_clean_dry_run(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             snap_dir = Path(tmpdir) / "snapshots"
             snap_dir.mkdir()
@@ -1854,6 +1967,7 @@ class TestDossierClean:
 
     def test_clean_json(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             snap_dir = Path(tmpdir) / "snapshots"
             snap_dir.mkdir()
@@ -1869,6 +1983,7 @@ class TestDossierClean:
 
     def test_clean_json_dry_run(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             snap_dir = Path(tmpdir) / "snapshots"
             snap_dir.mkdir()
@@ -1888,24 +2003,29 @@ class TestDossierClean:
 class TestFrenchI18n:
     def setup_method(self):
         from tesla_cli.cli.i18n import set_lang
+
         set_lang("en")
 
     def teardown_method(self):
         from tesla_cli.cli.i18n import set_lang
+
         set_lang("en")
 
     def test_fr_vehicle_locked(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         assert t("vehicle.locked") == "Véhicule verrouillé"
 
     def test_fr_vehicle_unlocked(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         assert t("vehicle.unlocked") == "Véhicule déverrouillé"
 
     def test_fr_order_watching(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         text = t("order.watching", rn="RN999", interval="10")
         assert "RN999" in text and "10" in text
@@ -1913,27 +2033,32 @@ class TestFrenchI18n:
 
     def test_fr_charge_started(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         assert "Charge" in t("charge.started") or "Charg" in t("charge.started")
 
     def test_fr_climate_on(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         assert "ACTIVÉE" in t("climate.on") or "Climatisation" in t("climate.on")
 
     def test_fr_dossier_not_found(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         assert "dossier" in t("dossier.not_found").lower() or "Aucun" in t("dossier.not_found")
 
     def test_fr_teslaMate_not_configured(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         text = t("teslaMate.not_configured")
         assert "TeslaMate" in text and ("non" in text or "configuré" in text)
 
     def test_fr_isolation_from_en(self):
         from tesla_cli.cli.i18n import set_lang, t
+
         set_lang("fr")
         fr_text = t("vehicle.locked")
         set_lang("en")
@@ -1944,6 +2069,7 @@ class TestFrenchI18n:
     def test_fr_catalog_completeness(self):
         """French catalog should cover the same keys as English."""
         from tesla_cli.cli.i18n import _STRINGS
+
         en_keys = set(_STRINGS["en"].keys())
         fr_keys = set(_STRINGS["fr"].keys())
         missing = en_keys - fr_keys
@@ -1951,6 +2077,7 @@ class TestFrenchI18n:
 
     def test_three_languages_registered(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         assert "en" in _STRINGS
         assert "es" in _STRINGS
         assert "pt" in _STRINGS
@@ -1965,6 +2092,7 @@ class TestBackendNotSupported:
 
     def test_exception_message_contains_hint(self):
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         exc = BackendNotSupportedError("charge history", "fleet")
         assert "fleet" in str(exc)
         assert "charge history" in str(exc)
@@ -1973,16 +2101,32 @@ class TestBackendNotSupported:
     def test_base_get_charge_history_raises(self):
         from tesla_cli.core.backends.base import VehicleBackend
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         # Create a minimal concrete subclass
         class _MinimalBackend(VehicleBackend):
-            def list_vehicles(self): return []
-            def get_vehicle_data(self, vin): return {}
-            def get_charge_state(self, vin): return {}
-            def get_climate_state(self, vin): return {}
-            def get_drive_state(self, vin): return {}
-            def get_vehicle_config(self, vin): return {}
-            def wake_up(self, vin): return True
-            def command(self, vin, command, **p): return {}
+            def list_vehicles(self):
+                return []
+
+            def get_vehicle_data(self, vin):
+                return {}
+
+            def get_charge_state(self, vin):
+                return {}
+
+            def get_climate_state(self, vin):
+                return {}
+
+            def get_drive_state(self, vin):
+                return {}
+
+            def get_vehicle_config(self, vin):
+                return {}
+
+            def wake_up(self, vin):
+                return True
+
+            def command(self, vin, command, **p):
+                return {}
 
         b = _MinimalBackend()
         with pytest.raises(BackendNotSupportedError):
@@ -1991,15 +2135,31 @@ class TestBackendNotSupported:
     def test_base_get_recent_alerts_raises(self):
         from tesla_cli.core.backends.base import VehicleBackend
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         class _MinimalBackend(VehicleBackend):
-            def list_vehicles(self): return []
-            def get_vehicle_data(self, vin): return {}
-            def get_charge_state(self, vin): return {}
-            def get_climate_state(self, vin): return {}
-            def get_drive_state(self, vin): return {}
-            def get_vehicle_config(self, vin): return {}
-            def wake_up(self, vin): return True
-            def command(self, vin, command, **p): return {}
+            def list_vehicles(self):
+                return []
+
+            def get_vehicle_data(self, vin):
+                return {}
+
+            def get_charge_state(self, vin):
+                return {}
+
+            def get_climate_state(self, vin):
+                return {}
+
+            def get_drive_state(self, vin):
+                return {}
+
+            def get_vehicle_config(self, vin):
+                return {}
+
+            def wake_up(self, vin):
+                return True
+
+            def command(self, vin, command, **p):
+                return {}
 
         b = _MinimalBackend()
         with pytest.raises(BackendNotSupportedError):
@@ -2008,15 +2168,31 @@ class TestBackendNotSupported:
     def test_base_get_release_notes_raises(self):
         from tesla_cli.core.backends.base import VehicleBackend
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         class _MinimalBackend(VehicleBackend):
-            def list_vehicles(self): return []
-            def get_vehicle_data(self, vin): return {}
-            def get_charge_state(self, vin): return {}
-            def get_climate_state(self, vin): return {}
-            def get_drive_state(self, vin): return {}
-            def get_vehicle_config(self, vin): return {}
-            def wake_up(self, vin): return True
-            def command(self, vin, command, **p): return {}
+            def list_vehicles(self):
+                return []
+
+            def get_vehicle_data(self, vin):
+                return {}
+
+            def get_charge_state(self, vin):
+                return {}
+
+            def get_climate_state(self, vin):
+                return {}
+
+            def get_drive_state(self, vin):
+                return {}
+
+            def get_vehicle_config(self, vin):
+                return {}
+
+            def wake_up(self, vin):
+                return True
+
+            def command(self, vin, command, **p):
+                return {}
 
         b = _MinimalBackend()
         with pytest.raises(BackendNotSupportedError):
@@ -2025,15 +2201,31 @@ class TestBackendNotSupported:
     def test_base_get_invitations_raises(self):
         from tesla_cli.core.backends.base import VehicleBackend
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         class _MinimalBackend(VehicleBackend):
-            def list_vehicles(self): return []
-            def get_vehicle_data(self, vin): return {}
-            def get_charge_state(self, vin): return {}
-            def get_climate_state(self, vin): return {}
-            def get_drive_state(self, vin): return {}
-            def get_vehicle_config(self, vin): return {}
-            def wake_up(self, vin): return True
-            def command(self, vin, command, **p): return {}
+            def list_vehicles(self):
+                return []
+
+            def get_vehicle_data(self, vin):
+                return {}
+
+            def get_charge_state(self, vin):
+                return {}
+
+            def get_climate_state(self, vin):
+                return {}
+
+            def get_drive_state(self, vin):
+                return {}
+
+            def get_vehicle_config(self, vin):
+                return {}
+
+            def wake_up(self, vin):
+                return True
+
+            def command(self, vin, command, **p):
+                return {}
 
         b = _MinimalBackend()
         with pytest.raises(BackendNotSupportedError):
@@ -2042,21 +2234,38 @@ class TestBackendNotSupported:
     def test_base_get_vehicle_state_fallback(self):
         """get_vehicle_state falls back to extracting from vehicle_data."""
         from tesla_cli.core.backends.base import VehicleBackend
+
         class _MinimalBackend(VehicleBackend):
-            def list_vehicles(self): return []
-            def get_vehicle_data(self, vin): return {"vehicle_state": {"locked": True}}
-            def get_charge_state(self, vin): return {}
-            def get_climate_state(self, vin): return {}
-            def get_drive_state(self, vin): return {}
-            def get_vehicle_config(self, vin): return {}
-            def wake_up(self, vin): return True
-            def command(self, vin, command, **p): return {}
+            def list_vehicles(self):
+                return []
+
+            def get_vehicle_data(self, vin):
+                return {"vehicle_state": {"locked": True}}
+
+            def get_charge_state(self, vin):
+                return {}
+
+            def get_climate_state(self, vin):
+                return {}
+
+            def get_drive_state(self, vin):
+                return {}
+
+            def get_vehicle_config(self, vin):
+                return {}
+
+            def wake_up(self, vin):
+                return True
+
+            def command(self, vin, command, **p):
+                return {}
 
         b = _MinimalBackend()
         assert b.get_vehicle_state("VIN123") == {"locked": True}
 
     def test_charge_history_command_graceful(self):
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         mock_backend = MagicMock()
         mock_backend.get_charge_history.side_effect = BackendNotSupportedError(
             "charge history", "fleet"
@@ -2074,6 +2283,7 @@ class TestBackendNotSupported:
 
     def test_vehicle_alerts_command_graceful(self):
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         mock_backend = MagicMock()
         mock_backend.get_recent_alerts.side_effect = BackendNotSupportedError(
             "vehicle alerts", "fleet"
@@ -2093,6 +2303,7 @@ class TestBackendNotSupported:
 
     def test_vehicle_release_notes_command_graceful(self):
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         mock_backend = MagicMock()
         mock_backend.get_release_notes.side_effect = BackendNotSupportedError(
             "vehicle release-notes", "fleet"
@@ -2112,10 +2323,9 @@ class TestBackendNotSupported:
 
     def test_sharing_list_command_graceful(self):
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         mock_backend = MagicMock()
-        mock_backend.get_invitations.side_effect = BackendNotSupportedError(
-            "sharing list", "fleet"
-        )
+        mock_backend.get_invitations.side_effect = BackendNotSupportedError("sharing list", "fleet")
         cfg = MagicMock()
         cfg.general.backend = "owner"
         cfg.general.default_vin = MOCK_VIN
@@ -2131,6 +2341,7 @@ class TestBackendNotSupported:
     def test_tessie_backend_has_vehicle_state(self):
         """TessieBackend.get_vehicle_state extracts from vehicle_data."""
         from tesla_cli.core.backends.tessie import TessieBackend
+
         backend = TessieBackend.__new__(TessieBackend)
         backend.get_vehicle_data = MagicMock(
             return_value={"vehicle_state": {"locked": False, "sentry_mode": True}}
@@ -2142,6 +2353,7 @@ class TestBackendNotSupported:
     def test_tessie_backend_nearby_sites_called(self):
         """TessieBackend.get_nearby_charging_sites hits the right endpoint."""
         from tesla_cli.core.backends.tessie import TessieBackend
+
         backend = TessieBackend.__new__(TessieBackend)
         backend._get = MagicMock(return_value={"superchargers": [], "destination_charging": []})
         result = backend.get_nearby_charging_sites("VIN123")
@@ -2388,7 +2600,9 @@ class TestVehicleRename:
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("vehicle", "rename", "Road Runner")
-        mock.command.assert_called_once_with(MOCK_VIN, "set_vehicle_name", vehicle_name="Road Runner")
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_vehicle_name", vehicle_name="Road Runner"
+        )
 
     def test_rename_json_output(self):
         mock = MagicMock()
@@ -2509,9 +2723,7 @@ class TestDossierBatteryHealth:
                 ("snapshot_2024-01-01.json", 100.0, 320.0, "2024-01-01"),
                 ("snapshot_2024-06-01.json", 80.0, 248.0, "2024-06-01"),
             ]:
-                (snap_dir / fname).write_text(
-                    json.dumps(self._make_snapshot(level, rng, ts))
-                )
+                (snap_dir / fname).write_text(json.dumps(self._make_snapshot(level, rng, ts)))
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
                 result = _run("-j", "dossier", "battery-health")
         assert result.exit_code == 0
@@ -2576,8 +2788,20 @@ class TestTeslaMatVampireDrain:
                 "days_analyzed": 30,
                 "avg_pct_per_hour": 0.042,
                 "daily": [
-                    {"date": "2024-06-01", "avg_drain_pct": 1.2, "avg_parked_hours": 8.0, "pct_per_hour": 0.15, "periods": 2},
-                    {"date": "2024-06-02", "avg_drain_pct": 0.8, "avg_parked_hours": 10.0, "pct_per_hour": 0.08, "periods": 1},
+                    {
+                        "date": "2024-06-01",
+                        "avg_drain_pct": 1.2,
+                        "avg_parked_hours": 8.0,
+                        "pct_per_hour": 0.15,
+                        "periods": 2,
+                    },
+                    {
+                        "date": "2024-06-02",
+                        "avg_drain_pct": 0.8,
+                        "avg_parked_hours": 10.0,
+                        "pct_per_hour": 0.08,
+                        "periods": 1,
+                    },
                 ],
             }
         mock.get_vampire_drain.return_value = data
@@ -2626,10 +2850,11 @@ class TestTeslaMatVampireDrain:
     def test_vampire_backend_method_returns_structure(self):
         """TeslaMateBacked.get_vampire_drain returns expected dict structure."""
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
         mock_rows = [
-            {"date": "2024-06-01", "avg_drain_pct": 1.0, "avg_parked_hours": 8.0, "pct_per_hour": 0.125, "periods": 2},
+            {"date": "2024-06-01", "km_per_hour": 0.125, "periods": 2},
         ]
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
@@ -2639,7 +2864,7 @@ class TestTeslaMatVampireDrain:
         backend._cursor = MagicMock(return_value=mock_ctx)
         result = backend.get_vampire_drain(days=30)
         assert result["days_analyzed"] == 30
-        assert "avg_pct_per_hour" in result
+        assert "avg_km_per_hour" in result
         assert len(result["daily"]) == 1
 
 
@@ -2652,13 +2877,33 @@ class TestTeslaMateCsvExport:
     """Tests for --csv flag on teslaMate trips, charging, efficiency."""
 
     MOCK_TRIPS = [
-        {"date": "2024-06-01", "distance_km": 42.5, "duration_min": 35, "energy_wh": 6200, "start": "Home", "end": "Work"},
-        {"date": "2024-06-02", "distance_km": 18.0, "duration_min": 15, "energy_wh": 2800, "start": "Work", "end": "Home"},
+        {
+            "date": "2024-06-01",
+            "distance_km": 42.5,
+            "duration_min": 35,
+            "energy_wh": 6200,
+            "start": "Home",
+            "end": "Work",
+        },
+        {
+            "date": "2024-06-02",
+            "distance_km": 18.0,
+            "duration_min": 15,
+            "energy_wh": 2800,
+            "start": "Work",
+            "end": "Home",
+        },
     ]
 
     MOCK_SESSIONS = [
         {"date": "2024-06-01", "location": "Home", "kwh": 45.2, "cost": 8.14, "duration": "3h 22m"},
-        {"date": "2024-06-02", "location": "Supercharger", "kwh": 62.0, "cost": 0, "duration": "45m"},
+        {
+            "date": "2024-06-02",
+            "location": "Supercharger",
+            "kwh": 62.0,
+            "cost": 0,
+            "duration": "45m",
+        },
     ]
 
     def test_trips_csv_creates_file(self):
@@ -2686,6 +2931,7 @@ class TestTeslaMateCsvExport:
             with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock):
                 _run("teslaMate", "trips", "--csv", csv_path)
             import csv
+
             with open(csv_path, newline="") as fh:
                 reader = csv.DictReader(fh)
                 rows = list(reader)
@@ -2735,6 +2981,7 @@ class TestEnergyCostTracking:
     def test_cost_per_kwh_field_in_config(self):
         """GeneralConfig must have cost_per_kwh with default 0.0."""
         from tesla_cli.core.config import GeneralConfig
+
         cfg = GeneralConfig()
         assert hasattr(cfg, "cost_per_kwh")
         assert cfg.cost_per_kwh == 0.0
@@ -2871,6 +3118,7 @@ class TestStreamMqtt:
     def test_mqtt_url_parsing(self):
         """MQTT URL parsed correctly for host/port/topic."""
         from urllib.parse import urlparse
+
         url = "mqtt://mybroker:1884/tesla/VIN123"
         parsed = urlparse(url)
         assert parsed.hostname == "mybroker"
@@ -2895,23 +3143,27 @@ class TestGermanI18n:
 
     def test_de_catalog_exists(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         assert "de" in _STRINGS
 
     def test_de_order_keys(self):
         """German catalog must have order-related keys."""
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         # These are the actual keys in the catalog (not order.status)
         assert "order.no_rn" in de or "order.watching" in de
 
     def test_de_vehicle_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         assert "vehicle.locked" in de
         assert "vehicle.unlocked" in de
 
     def test_de_charge_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         # Actual keys are charge.started / charge.stopped
         assert "charge.started" in de
@@ -2919,17 +3171,20 @@ class TestGermanI18n:
 
     def test_de_climate_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         assert "climate.on" in de
         assert "climate.off" in de
 
     def test_de_error_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         assert "error.auth" in de
 
     def test_de_t_function_returns_string(self):
         from tesla_cli.cli.i18n import _lang, set_lang, t
+
         original = _lang
         try:
             set_lang("de")
@@ -2942,6 +3197,7 @@ class TestGermanI18n:
     def test_de_translations_are_not_english(self):
         """German should differ from English for at least one key."""
         from tesla_cli.cli.i18n import _STRINGS
+
         en = _STRINGS["en"]
         de = _STRINGS["de"]
         differs = any(de.get(k) != v for k, v in en.items() if k in de)
@@ -2949,6 +3205,7 @@ class TestGermanI18n:
 
     def test_de_setup_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         de = _STRINGS["de"]
         assert any(k.startswith("setup.") for k in de)
 
@@ -2958,32 +3215,38 @@ class TestItalianI18n:
 
     def test_it_catalog_exists(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         assert "it" in _STRINGS
 
     def test_it_order_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         it = _STRINGS["it"]
         assert "order.no_rn" in it or "order.watching" in it
 
     def test_it_vehicle_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         it = _STRINGS["it"]
         assert "vehicle.locked" in it
         assert "vehicle.unlocked" in it
 
     def test_it_charge_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         it = _STRINGS["it"]
         assert "charge.started" in it
         assert "charge.stopped" in it
 
     def test_it_error_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         it = _STRINGS["it"]
         assert "error.auth" in it
 
     def test_it_t_function_returns_string(self):
         from tesla_cli.cli.i18n import _lang, set_lang, t
+
         original = _lang
         try:
             set_lang("it")
@@ -2996,6 +3259,7 @@ class TestItalianI18n:
     def test_it_translations_are_not_english(self):
         """Italian should differ from English for at least one key."""
         from tesla_cli.cli.i18n import _STRINGS
+
         en = _STRINGS["en"]
         it = _STRINGS["it"]
         differs = any(it.get(k) != v for k, v in en.items() if k in it)
@@ -3003,12 +3267,14 @@ class TestItalianI18n:
 
     def test_it_setup_keys(self):
         from tesla_cli.cli.i18n import _STRINGS
+
         it = _STRINGS["it"]
         assert any(k.startswith("setup.") for k in it)
 
     def test_six_languages_supported(self):
         """CLI must support exactly 6 languages."""
         from tesla_cli.cli.i18n import _STRINGS
+
         for lang in ["en", "es", "pt", "fr", "de", "it"]:
             assert lang in _STRINGS, f"Language '{lang}' missing from _STRINGS"
 
@@ -3346,9 +3612,30 @@ class TestTeslaMatGeo:
     """Tests for `tesla teslaMate geo`."""
 
     MOCK_LOCATIONS = [
-        {"location": "Home", "visit_count": 142, "latitude": 37.42, "longitude": -122.08, "max_arrival_pct": 80, "min_arrival_pct": 20},
-        {"location": "Work - Downtown", "visit_count": 98, "latitude": 37.78, "longitude": -122.42, "max_arrival_pct": 70, "min_arrival_pct": 45},
-        {"location": "Supercharger - I-5 N", "visit_count": 12, "latitude": 38.10, "longitude": -121.50, "max_arrival_pct": 95, "min_arrival_pct": 15},
+        {
+            "location": "Home",
+            "visit_count": 142,
+            "latitude": 37.42,
+            "longitude": -122.08,
+            "max_arrival_pct": 80,
+            "min_arrival_pct": 20,
+        },
+        {
+            "location": "Work - Downtown",
+            "visit_count": 98,
+            "latitude": 37.78,
+            "longitude": -122.42,
+            "max_arrival_pct": 70,
+            "min_arrival_pct": 45,
+        },
+        {
+            "location": "Supercharger - I-5 N",
+            "visit_count": 12,
+            "latitude": 38.10,
+            "longitude": -121.50,
+            "max_arrival_pct": 95,
+            "min_arrival_pct": 15,
+        },
     ]
 
     def test_geo_success(self):
@@ -3407,11 +3694,18 @@ class TestTeslaMatGeo:
     def test_geo_backend_method(self):
         """TeslaMateBacked.get_top_locations returns list of dicts."""
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
         mock_rows = [
-            {"location": "Home", "visit_count": 50, "latitude": 37.42, "longitude": -122.08,
-             "max_arrival_pct": 80, "min_arrival_pct": 20},
+            {
+                "location": "Home",
+                "visit_count": 50,
+                "latitude": 37.42,
+                "longitude": -122.08,
+                "max_arrival_pct": 80,
+                "min_arrival_pct": 20,
+            },
         ]
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
@@ -3435,27 +3729,33 @@ class TestTokenEncryption:
 
     def test_is_encrypted_true(self):
         from tesla_cli.core.auth.encryption import is_encrypted
+
         assert is_encrypted("enc1:abc123") is True
 
     def test_is_encrypted_false_plain(self):
         from tesla_cli.core.auth.encryption import is_encrypted
+
         assert is_encrypted("eyJhbGciOiJSUzI1NiJ9.plain_token") is False
 
     def test_is_encrypted_false_empty(self):
         from tesla_cli.core.auth.encryption import is_encrypted
+
         assert is_encrypted("") is False
 
     def test_is_encrypted_false_none_like(self):
         from tesla_cli.core.auth.encryption import is_encrypted
+
         assert is_encrypted("plain_text_token") is False
 
     def test_encrypt_produces_enc1_prefix(self):
         from tesla_cli.core.auth.encryption import encrypt_token
+
         result = encrypt_token("my-secret", "password")
         assert result.startswith("enc1:")
 
     def test_roundtrip_encrypt_decrypt(self):
         from tesla_cli.core.auth.encryption import decrypt_token, encrypt_token
+
         original = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test_token_value"
         encrypted = encrypt_token(original, "test_password_123")
         assert encrypted != original
@@ -3464,29 +3764,34 @@ class TestTokenEncryption:
 
     def test_wrong_password_raises_value_error(self):
         from tesla_cli.core.auth.encryption import decrypt_token, encrypt_token
+
         encrypted = encrypt_token("secret", "correct_password")
         with pytest.raises(ValueError, match="Decryption failed"):
             decrypt_token(encrypted, "wrong_password")
 
     def test_decrypt_non_encrypted_raises(self):
         from tesla_cli.core.auth.encryption import decrypt_token
+
         with pytest.raises(ValueError, match="Not an encrypted token"):
             decrypt_token("plain_token", "password")
 
     def test_different_calls_produce_different_ciphertext(self):
         """Each encryption call uses a random nonce — same input → different ciphertext."""
         from tesla_cli.core.auth.encryption import encrypt_token
+
         c1 = encrypt_token("same_plaintext", "same_password")
         c2 = encrypt_token("same_plaintext", "same_password")
         assert c1 != c2  # different nonce each time
 
     def test_encrypted_token_is_string(self):
         from tesla_cli.core.auth.encryption import encrypt_token
+
         result = encrypt_token("token", "pass")
         assert isinstance(result, str)
 
     def test_unicode_token_roundtrip(self):
         from tesla_cli.core.auth.encryption import decrypt_token, encrypt_token
+
         original = "tëst-tökën-wïth-ünicode-chäracters"
         encrypted = encrypt_token(original, "password")
         assert decrypt_token(encrypted, "password") == original
@@ -3538,7 +3843,9 @@ class TestConfigEncryptDecryptCommands:
             patch.object(tok_module, "get_token", return_value=encrypted),
             patch.object(tok_module, "set_token") as mock_store,
         ):
-            result = _run("config", "decrypt-token", "order_refresh_token", "--password", "testpass")
+            result = _run(
+                "config", "decrypt-token", "order_refresh_token", "--password", "testpass"
+            )
 
         assert result.exit_code == 0
         stored_value = mock_store.call_args[0][1]
@@ -3583,8 +3890,21 @@ class TestDossierExportPdf:
         return {
             "vin": "5YJ3E1EA1PF000001",
             "last_updated": "2024-06-01T10:00:00",
-            "charge_state": {"battery_level": 80, "battery_range": 240.0, "charging_state": "Disconnected", "charge_limit_soc": 90, "charge_energy_added": 0},
-            "vehicle_config": {"car_type": "model3", "exterior_color": "MidnightSilver", "wheel_type": "Pinwheel18", "battery_type": "NCA", "drive_unit": "DV2", "model_year": 2023},
+            "charge_state": {
+                "battery_level": 80,
+                "battery_range": 240.0,
+                "charging_state": "Disconnected",
+                "charge_limit_soc": 90,
+                "charge_energy_added": 0,
+            },
+            "vehicle_config": {
+                "car_type": "model3",
+                "exterior_color": "MidnightSilver",
+                "wheel_type": "Pinwheel18",
+                "battery_type": "NCA",
+                "drive_unit": "DV2",
+                "model_year": 2023,
+            },
             "order_status": {"order_status": "Delivered", "estimated_delivery": "2024-01-15"},
             "nhtsa_recalls": [],
             "vin_decode": {"model": "3", "model_year": "2024", "manufacturer": "Fremont"},
@@ -3593,6 +3913,7 @@ class TestDossierExportPdf:
     def test_export_pdf_no_fpdf2_exits_gracefully(self):
         """If fpdf2 not installed, show helpful message and exit."""
         import sys
+
         with patch.dict(sys.modules, {"fpdf": None}):
             result = _run("dossier", "export-pdf")
         # Should either succeed (fpdf2 is installed) or exit with helpful message
@@ -3604,9 +3925,7 @@ class TestDossierExportPdf:
         pytest.importorskip("fpdf")
         with tempfile.TemporaryDirectory() as td:
             snap_dir = Path(td)
-            (snap_dir / "snapshot_2024-06-01.json").write_text(
-                json.dumps(self._make_snapshot())
-            )
+            (snap_dir / "snapshot_2024-06-01.json").write_text(json.dumps(self._make_snapshot()))
             out_path = Path(td) / "test-dossier.pdf"
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
                 result = _run("dossier", "export-pdf", "--output", str(out_path))
@@ -3670,6 +3989,7 @@ class TestConfigBackup:
             with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
                 _run("config", "backup", "--output", out)
             import json as _json
+
             data = _json.loads(Path(out).read_text())
             # Token fields must be redacted
             assert data["auth"]["access_token"] == "[REDACTED]"
@@ -3688,6 +4008,7 @@ class TestConfigBackup:
             with patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg):
                 _run("config", "backup", "--output", out)
             import json as _json
+
             data = _json.loads(Path(out).read_text())
             assert "_meta" in data
             assert data["_meta"]["backup_version"] == "1"
@@ -3717,6 +4038,7 @@ class TestConfigRestore:
 
     def _make_backup(self, td: str) -> Path:
         import json as _json
+
         backup = {
             "_meta": {"backup_version": "1", "tesla_cli_version": "1.5.0"},
             "general": {"default_vin": MOCK_VIN, "backend": "fleet", "cost_per_kwh": 0.15},
@@ -3733,6 +4055,7 @@ class TestConfigRestore:
 
     def test_restore_force_applies_settings(self):
         from tesla_cli.core.config import Config
+
         real_cfg = Config()
         with tempfile.TemporaryDirectory() as td:
             backup_path = self._make_backup(td)
@@ -3753,6 +4076,7 @@ class TestConfigRestore:
         import json as _json
 
         from tesla_cli.core.config import Config
+
         real_cfg = Config()
         real_cfg.general.default_vin = "ORIGINAL_VIN"
 
@@ -3818,15 +4142,15 @@ class TestTeslaMatReport:
         mock.get_monthly_report.return_value = self.MOCK_REPORT
         with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock):
             result = _run("teslaMate", "report", "--month", "2024-06")
-        assert "42" in result.output   # trip count
-        assert "1248.5" in result.output or "1248" in result.output   # total km
+        assert "42" in result.output  # trip count
+        assert "1248.5" in result.output or "1248" in result.output  # total km
 
     def test_report_shows_charging(self):
         mock = MagicMock()
         mock.get_monthly_report.return_value = self.MOCK_REPORT
         with patch("tesla_cli.cli.commands.teslaMate._backend", return_value=mock):
             result = _run("teslaMate", "report", "--month", "2024-06")
-        assert "18" in result.output   # sessions
+        assert "18" in result.output  # sessions
         assert "210.5" in result.output or "210" in result.output
 
     def test_report_json_output(self):
@@ -3843,6 +4167,7 @@ class TestTeslaMatReport:
     def test_report_default_month(self):
         """Without --month, defaults to current month."""
         from datetime import datetime
+
         current_month = datetime.now().strftime("%Y-%m")
         mock = MagicMock()
         mock.get_monthly_report.return_value = {
@@ -3868,17 +4193,26 @@ class TestTeslaMatReport:
     def test_report_backend_method(self):
         """TeslaMateBacked.get_monthly_report returns expected structure."""
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         backend = TeslaMateBacked.__new__(TeslaMateBacked)
         backend._car_id = 1
 
         mock_drive_row = {
-            "trips": 10, "total_km": 300.0, "total_drive_min": 240,
-            "total_kwh_used": 45.0, "avg_km_per_trip": 30.0,
-            "longest_trip_km": 80.0, "avg_wh_per_km": 150.0,
+            "trips": 10,
+            "total_km": 300.0,
+            "total_drive_min": 240,
+            "total_kwh_used": 45.0,
+            "avg_km_per_trip": 30.0,
+            "longest_trip_km": 80.0,
+            "avg_wh_per_km": 150.0,
         }
         mock_charge_row = {
-            "sessions": 5, "total_kwh_charged": 60.0, "total_cost": 9.0,
-            "avg_kwh_per_session": 12.0, "dc_fast_sessions": 1, "ac_sessions": 4,
+            "sessions": 5,
+            "total_kwh_charged": 60.0,
+            "total_cost": 9.0,
+            "avg_kwh_per_session": 12.0,
+            "dc_fast_sessions": 1,
+            "ac_sessions": 4,
         }
 
         call_count = {"n": 0}
@@ -3918,9 +4252,21 @@ class TestVehicleSentryEvents:
         return cfg
 
     MOCK_ALERTS = [
-        {"name": "sentry_detection_nearby_person", "audience": ["Customer"], "start_epoch_time": 1717200000},
-        {"name": "sentry_camera_tampering", "audience": ["Customer"], "start_epoch_time": 1717100000},
-        {"name": "software_update_available", "audience": ["Customer"], "start_epoch_time": 1717000000},
+        {
+            "name": "sentry_detection_nearby_person",
+            "audience": ["Customer"],
+            "start_epoch_time": 1717200000,
+        },
+        {
+            "name": "sentry_camera_tampering",
+            "audience": ["Customer"],
+            "start_epoch_time": 1717100000,
+        },
+        {
+            "name": "software_update_available",
+            "audience": ["Customer"],
+            "start_epoch_time": 1717000000,
+        },
     ]
 
     def test_sentry_events_success(self):
@@ -3950,8 +4296,11 @@ class TestVehicleSentryEvents:
     def test_sentry_events_unsupported_backend(self):
         """BackendNotSupportedError → exit 1 with helpful message."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         mock = MagicMock()
-        mock.get_recent_alerts.side_effect = BackendNotSupportedError("vehicle sentry-events", "fleet")
+        mock.get_recent_alerts.side_effect = BackendNotSupportedError(
+            "vehicle sentry-events", "fleet"
+        )
         with (
             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
@@ -4125,13 +4474,14 @@ class TestDossierExportHtml:
             _run("dossier", "export-html", "--output", str(out))
         content = out.read_text()
         # No external stylesheet or script src references
-        assert '<link' not in content or 'http' not in content.split('<link')[1].split('>')[0]
+        assert "<link" not in content or "http" not in content.split("<link")[1].split(">")[0]
         assert '<script src="http' not in content
 
     def test_export_html_default_output_name(self, tmp_path):
         """Default output filename is dossier.html."""
         snaps_dir = self._snapshot(tmp_path)
         import os
+
         orig = os.getcwd()
         os.chdir(tmp_path)
         try:
@@ -4159,14 +4509,14 @@ class TestChargeSchedulePreview:
         "charge_limit_soc": 80,
         "charge_energy_added": 0.0,
         "scheduled_charging_mode": "StartAt",
-        "scheduled_charging_start_time_app": 420,   # 07:00
+        "scheduled_charging_start_time_app": 420,  # 07:00
         "scheduled_charging_start_time": 1711940400,
-        "scheduled_departure_time_minutes": 450,    # 07:30
+        "scheduled_departure_time_minutes": 450,  # 07:30
         "scheduled_departure_time": 1711942200,
         "preconditioning_enabled": True,
         "preconditioning_weekdays_only": False,
         "off_peak_charging_enabled": True,
-        "off_peak_hours_end_time": 480,             # 08:00
+        "off_peak_hours_end_time": 480,  # 08:00
     }
 
     def _cfg(self):
@@ -4225,12 +4575,14 @@ class TestChargeSchedulePreview:
         assert data["off_peak_hours_end_time"] == "08:00"
 
     def test_schedule_preview_off_charging(self):
-        state = {**self.MOCK_CHARGE_STATE,
-                 "scheduled_charging_mode": "Off",
-                 "scheduled_charging_start_time_app": None,
-                 "scheduled_departure_time_minutes": None,
-                 "preconditioning_enabled": False,
-                 "off_peak_charging_enabled": False}
+        state = {
+            **self.MOCK_CHARGE_STATE,
+            "scheduled_charging_mode": "Off",
+            "scheduled_charging_start_time_app": None,
+            "scheduled_departure_time_minutes": None,
+            "preconditioning_enabled": False,
+            "off_peak_charging_enabled": False,
+        }
         mock = MagicMock()
         mock.get_charge_state.return_value = state
         mock.wake_up.return_value = True
@@ -4246,9 +4598,11 @@ class TestChargeSchedulePreview:
 
     def test_schedule_preview_minutes_to_hhmm_midnight(self):
         """Edge case: 0 minutes should display 00:00."""
-        state = {**self.MOCK_CHARGE_STATE,
-                 "scheduled_charging_start_time_app": 0,
-                 "scheduled_departure_time_minutes": 0}
+        state = {
+            **self.MOCK_CHARGE_STATE,
+            "scheduled_charging_start_time_app": 0,
+            "scheduled_departure_time_minutes": 0,
+        }
         mock = MagicMock()
         mock.get_charge_state.return_value = state
         mock.wake_up.return_value = True
@@ -4363,13 +4717,16 @@ class TestOrderStores:
     def test_stores_total_count_geq_200(self):
         """The embedded DB should have at least 100 locations."""
         from tesla_cli.cli.commands.order import _STORES
+
         assert len(_STORES) >= 100
 
     def test_stores_all_have_required_fields(self):
         from tesla_cli.cli.commands.order import _STORES
+
         required = {"country", "city", "name", "lat", "lon"}
         for s in _STORES:
             assert required.issubset(s.keys()), f"Missing keys in: {s}"
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # v1.7.0 — vehicle sw-update, vehicle speed-limit, teslaMate stats
@@ -4476,9 +4833,14 @@ class TestVehicleSwUpdate:
             result = _run("-j", "vehicle", "sw-update")
         data = json.loads(result.output)
         expected_keys = {
-            "current_version", "update_available", "update_status",
-            "update_version", "update_download_pct", "update_install_perc",
-            "expected_duration_sec", "scheduled_time_ms",
+            "current_version",
+            "update_available",
+            "update_status",
+            "update_version",
+            "update_download_pct",
+            "update_install_perc",
+            "expected_duration_sec",
+            "scheduled_time_ms",
         }
         assert expected_keys.issubset(data.keys())
 
@@ -4740,6 +5102,7 @@ class TestTeslaMateStats:
         result = _run("teslaMate", "--help")
         assert "stats" in result.output
 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # v1.8.0 — vehicle bio, teslaMate graph, export-html --theme, cabin-protection
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4760,6 +5123,7 @@ class TestVehicleBio:
     def test_bio_renders_panels(self):
         mock = MagicMock()
         from tests.conftest import MOCK_VEHICLE_DATA
+
         mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
         mock.wake_up.return_value = True
         with (
@@ -4778,6 +5142,7 @@ class TestVehicleBio:
     def test_bio_json_structure(self):
         mock = MagicMock()
         from tests.conftest import MOCK_VEHICLE_DATA
+
         mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
         mock.wake_up.return_value = True
         with (
@@ -4797,6 +5162,7 @@ class TestVehicleBio:
     def test_bio_json_battery_level(self):
         mock = MagicMock()
         from tests.conftest import MOCK_VEHICLE_DATA
+
         mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
         mock.wake_up.return_value = True
         with (
@@ -4811,6 +5177,7 @@ class TestVehicleBio:
     def test_bio_json_vin(self):
         mock = MagicMock()
         from tests.conftest import MOCK_VEHICLE_DATA
+
         mock.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
         mock.wake_up.return_value = True
         with (
@@ -4845,19 +5212,34 @@ class TestVehicleBio:
 
 MOCK_CHARGING_SESSIONS_GRAPH = [
     {
-        "id": 1, "start_date": "2026-03-01 20:00", "end_date": "2026-03-01 22:00",
-        "energy_added_kwh": 45.2, "cost": 9.04,
-        "start_battery_level": 20, "end_battery_level": 90, "location": "Home",
+        "id": 1,
+        "start_date": "2026-03-01 20:00",
+        "end_date": "2026-03-01 22:00",
+        "energy_added_kwh": 45.2,
+        "cost": 9.04,
+        "start_battery_level": 20,
+        "end_battery_level": 90,
+        "location": "Home",
     },
     {
-        "id": 2, "start_date": "2026-03-05 08:00", "end_date": "2026-03-05 08:30",
-        "energy_added_kwh": 12.0, "cost": 2.40,
-        "start_battery_level": 60, "end_battery_level": 80, "location": "Supercharger",
+        "id": 2,
+        "start_date": "2026-03-05 08:00",
+        "end_date": "2026-03-05 08:30",
+        "energy_added_kwh": 12.0,
+        "cost": 2.40,
+        "start_battery_level": 60,
+        "end_battery_level": 80,
+        "location": "Supercharger",
     },
     {
-        "id": 3, "start_date": "2026-03-10 19:00", "end_date": "2026-03-10 20:00",
-        "energy_added_kwh": 0.0, "cost": None,
-        "start_battery_level": 80, "end_battery_level": 80, "location": None,
+        "id": 3,
+        "start_date": "2026-03-10 19:00",
+        "end_date": "2026-03-10 20:00",
+        "energy_added_kwh": 0.0,
+        "cost": None,
+        "start_battery_level": 80,
+        "end_battery_level": 80,
+        "location": None,
     },
 ]
 
@@ -5046,7 +5428,9 @@ class TestVehicleCabinProtection:
             result = _run("vehicle", "cabin-protection", "--on")
         assert result.exit_code == 0
         assert "enabled" in result.output.lower()
-        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False)
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False
+        )
 
     def test_disable(self):
         mock = MagicMock()
@@ -5060,7 +5444,9 @@ class TestVehicleCabinProtection:
             result = _run("vehicle", "cabin-protection", "--off")
         assert result.exit_code == 0
         assert "disabled" in result.output.lower()
-        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=False, fan_only=False)
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_cabin_overheat_protection", on=False, fan_only=False
+        )
 
     def test_level_fan_only(self):
         mock = MagicMock()
@@ -5073,7 +5459,9 @@ class TestVehicleCabinProtection:
         ):
             result = _run("vehicle", "cabin-protection", "--level", "FAN_ONLY")
         assert result.exit_code == 0
-        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=True)
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=True
+        )
 
     def test_level_no_ac(self):
         mock = MagicMock()
@@ -5086,7 +5474,9 @@ class TestVehicleCabinProtection:
         ):
             result = _run("vehicle", "cabin-protection", "--level", "NO_AC")
         assert result.exit_code == 0
-        mock.command.assert_called_once_with(MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False)
+        mock.command.assert_called_once_with(
+            MOCK_VIN, "set_cabin_overheat_protection", on=True, fan_only=False
+        )
 
     def test_level_case_insensitive(self):
         """--level should accept lowercase."""
@@ -5131,6 +5521,7 @@ class TestVehicleCabinProtection:
         result = _run("vehicle", "--help")
         assert "cabin-protection" in result.output
 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # v1.9.0 — teslaMate daily-chart, order eta, config doctor
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -5141,8 +5532,8 @@ class TestVehicleCabinProtection:
 
 MOCK_DAILY_ENERGY = [
     {"day": "2026-03-01", "kwh_added": 42.1, "sessions": 1, "total_cost": 8.42},
-    {"day": "2026-03-05", "kwh_added": 8.5,  "sessions": 2, "total_cost": 1.70},
-    {"day": "2026-03-10", "kwh_added": 0.0,  "sessions": 1, "total_cost": None},
+    {"day": "2026-03-05", "kwh_added": 8.5, "sessions": 2, "total_cost": 1.70},
+    {"day": "2026-03-10", "kwh_added": 0.0, "sessions": 1, "total_cost": None},
 ]
 
 
@@ -5220,7 +5611,9 @@ class TestOrderEta:
             mock_dir.exists.return_value = False
             result = _run("order", "eta")
         assert result.exit_code == 0
-        assert "ETA" in result.output or "estimate" in result.output.lower() or "Best" in result.output
+        assert (
+            "ETA" in result.output or "estimate" in result.output.lower() or "Best" in result.output
+        )
 
     def test_eta_json_structure(self):
         with (
@@ -5248,9 +5641,10 @@ class TestOrderEta:
             result = _run("-j", "order", "eta")
         data = json.loads(result.output)
         from datetime import date
-        best    = date.fromisoformat(data["eta_best"])
+
+        best = date.fromisoformat(data["eta_best"])
         typical = date.fromisoformat(data["eta_typical"])
-        worst   = date.fromisoformat(data["eta_worst"])
+        worst = date.fromisoformat(data["eta_worst"])
         assert best <= typical <= worst
 
     def test_eta_json_breakdown_has_all_phases(self):
@@ -5276,6 +5670,7 @@ class TestOrderEta:
             mock_lc.return_value.order.reservation_number = ""
             # Simulate delivered snapshot
             import json as _j
+
             snap = {"real_status": {"phase": "delivered", "phase_since": "2026-03-28"}}
             mock_dir.exists.return_value = True
             mock_dir.glob.return_value = [MagicMock(read_text=lambda: _j.dumps(snap))]
@@ -5387,15 +5782,16 @@ class TestConfigDoctor:
         result = _run("config", "--help")
         assert "doctor" in result.output
 
+
 # ── v2.0.0: teslaMate heatmap ─────────────────────────────────────────────────
 
 import datetime as _dt_mod
 
 MOCK_DRIVE_DAYS = [
     {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=10), "drives": 2, "km": 180.5},
-    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=5),  "drives": 1, "km":  45.0},
-    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=2),  "drives": 3, "km": 210.0},
-    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=1),  "drives": 1, "km":  0.0},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=5), "drives": 1, "km": 45.0},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=2), "drives": 3, "km": 210.0},
+    {"day": _dt_mod.date.today() - _dt_mod.timedelta(days=1), "drives": 1, "km": 0.0},
 ]
 
 
@@ -5465,6 +5861,7 @@ class TestTeslaMateHeatmap:
 
 # ── v2.0.0: vehicle watch ─────────────────────────────────────────────────────
 
+
 class TestVehicleWatch:
     """Tests for tesla vehicle watch."""
 
@@ -5476,19 +5873,22 @@ class TestVehicleWatch:
 
     def _vehicle_data_v1(self) -> dict:
         from tests.conftest import MOCK_VEHICLE_DATA
+
         return MOCK_VEHICLE_DATA
 
     def _vehicle_data_v2(self) -> dict:
         """Return vehicle data with changed battery and unlocked state."""
         import copy
+
         data = copy.deepcopy(self._vehicle_data_v1())
-        data["charge_state"]["battery_level"] = 65   # was 72
-        data["vehicle_state"]["locked"] = False       # was True
+        data["charge_state"]["battery_level"] = 65  # was 72
+        data["vehicle_state"]["locked"] = False  # was True
         return data
 
     def _run_watch(self, backend_mock, *extra_args):
         """Run vehicle watch with all required patches via ExitStack."""
         from contextlib import ExitStack
+
         patches = [
             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend_mock),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
@@ -5505,11 +5905,13 @@ class TestVehicleWatch:
         mock_backend = MagicMock()
         mock_backend.wake_up.return_value = True
         call_count = [0]
+
         def _side_effect(v):
             call_count[0] += 1
             if call_count[0] > 2:
                 raise KeyboardInterrupt
             return self._vehicle_data_v1()
+
         mock_backend.get_vehicle_data.side_effect = _side_effect
         result = self._run_watch(mock_backend)
         assert result.exit_code == 0
@@ -5518,11 +5920,13 @@ class TestVehicleWatch:
     def test_watch_detects_battery_change(self):
         """Second poll has lower battery — should print change alert."""
         call_count = [0]
+
         def _side_effect(v):
             call_count[0] += 1
             if call_count[0] > 2:
                 raise KeyboardInterrupt
             return self._vehicle_data_v1() if call_count[0] == 1 else self._vehicle_data_v2()
+
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.side_effect = _side_effect
         mock_backend.wake_up.return_value = True
@@ -5533,12 +5937,15 @@ class TestVehicleWatch:
     def test_watch_handles_asleep_vehicle(self):
         """When vehicle is asleep, watch should note it and continue."""
         from tesla_cli.core.exceptions import VehicleAsleepError
+
         call_count = [0]
+
         def _side_effect(v):
             call_count[0] += 1
             if call_count[0] > 1:
                 raise KeyboardInterrupt
             raise VehicleAsleepError("asleep")
+
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.side_effect = _side_effect
         result = self._run_watch(mock_backend)
@@ -5548,14 +5955,17 @@ class TestVehicleWatch:
     def test_watch_json_no_changes(self):
         """JSON mode emits a payload even when there are no changes."""
         call_count = [0]
+
         def _side_effect(v):
             call_count[0] += 1
             if call_count[0] > 2:
                 raise KeyboardInterrupt
             return self._vehicle_data_v1()
+
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.side_effect = _side_effect
         from contextlib import ExitStack
+
         patches = [
             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
@@ -5577,6 +5987,7 @@ class TestVehicleWatch:
         result = _run("vehicle", "--help")
         assert "watch" in result.output
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # v2.2.0 Tests: ABRP, BLE, TeslaMate grafana
 # ─────────────────────────────────────────────────────────────────────────────
@@ -5587,6 +5998,7 @@ class TestAbrpCommands:
 
     def _cfg(self, user_token="test_abrp_token", api_key=""):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
         cfg.abrp.user_token = user_token
@@ -5638,8 +6050,10 @@ class TestAbrpCommands:
 
     def test_abrp_setup_saves_token(self):
         cfg = self._cfg(user_token="")
-        with patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.abrp.save_config") as mock_save:
+        with (
+            patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.abrp.save_config") as mock_save,
+        ):
             result = _run("abrp", "setup", "my_token_abc")
         assert result.exit_code == 0
         mock_save.assert_called_once()
@@ -5648,8 +6062,10 @@ class TestAbrpCommands:
 
     def test_abrp_setup_with_api_key(self):
         cfg = self._cfg(user_token="")
-        with patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.abrp.save_config") as mock_save:
+        with (
+            patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.abrp.save_config") as mock_save,
+        ):
             result = _run("abrp", "setup", "my_token", "--api-key", "dev_key_xyz")
         assert result.exit_code == 0
         saved = mock_save.call_args[0][0]
@@ -5660,9 +6076,11 @@ class TestAbrpCommands:
         cfg = self._cfg(user_token="")
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
-        with patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend):
+        with (
+            patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+        ):
             result = _run("abrp", "send")
         # Should fail with config error about missing token
         assert result.exit_code != 0 or "token" in result.output.lower()
@@ -5671,10 +6089,12 @@ class TestAbrpCommands:
         cfg = self._cfg(user_token="tok123")
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
-        with patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.abrp._push", return_value={"status": "ok"}) as mock_push:
+        with (
+            patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.abrp._push", return_value={"status": "ok"}) as mock_push,
+        ):
             result = _run("abrp", "send")
         assert result.exit_code == 0
         mock_push.assert_called_once()
@@ -5686,10 +6106,12 @@ class TestAbrpCommands:
         cfg = self._cfg(user_token="tok123")
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
-        with patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.abrp._push", return_value={"status": "ok"}):
+        with (
+            patch("tesla_cli.cli.commands.abrp.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.abrp.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.abrp._push", return_value={"status": "ok"}),
+        ):
             result = _run("-j", "abrp", "send")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -5709,6 +6131,7 @@ class TestBleCommands:
 
     def _cfg(self, key_path=""):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
         cfg.ble.key_path = key_path
@@ -5723,24 +6146,33 @@ class TestBleCommands:
 
     def test_ble_status_no_binary(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value=None):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value=None),
+        ):
             result = _run("ble", "status")
         assert result.exit_code == 0
         assert "not found" in result.output
 
     def test_ble_status_binary_found(self):
         cfg = self._cfg(key_path="/home/user/.tesla/private.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/local/bin/tesla-control"):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch(
+                "tesla_cli.cli.commands.ble.shutil.which",
+                return_value="/usr/local/bin/tesla-control",
+            ),
+        ):
             result = _run("ble", "status")
         assert result.exit_code == 0
         assert "found" in result.output
 
     def test_ble_status_json(self):
         cfg = self._cfg(key_path="/tmp/key.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"),
+        ):
             result = _run("-j", "ble", "status")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -5749,38 +6181,50 @@ class TestBleCommands:
 
     def test_ble_lock_success(self):
         cfg = self._cfg(key_path="/tmp/key.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
-             patch("tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"),
+            patch(
+                "tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")
+            ),
+        ):
             result = _run("ble", "lock")
         assert result.exit_code == 0
         assert "locked" in result.output.lower()
 
     def test_ble_lock_binary_not_found(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value=None):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value=None),
+        ):
             result = _run("ble", "lock")
         assert result.exit_code != 0
 
     def test_ble_unlock_success(self):
         cfg = self._cfg(key_path="/tmp/key.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
-             patch("tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0)):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"),
+            patch("tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0)),
+        ):
             result = _run("ble", "unlock")
         assert result.exit_code == 0
         assert "unlocked" in result.output.lower()
 
     def test_ble_lock_json(self):
         cfg = self._cfg(key_path="/tmp/key.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
-             patch("tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"),
+            patch(
+                "tesla_cli.cli.commands.ble.subprocess.run", return_value=self._mock_run(0, "ok")
+            ),
+        ):
             result = _run("-j", "ble", "lock")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -5789,11 +6233,15 @@ class TestBleCommands:
 
     def test_ble_command_failure(self):
         cfg = self._cfg(key_path="/tmp/key.pem")
-        with patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"), \
-             patch("tesla_cli.cli.commands.ble.subprocess.run",
-                   return_value=self._mock_run(1, stderr="BLE handshake failed")):
+        with (
+            patch("tesla_cli.cli.commands.ble.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ble.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.ble.shutil.which", return_value="/usr/bin/tesla-control"),
+            patch(
+                "tesla_cli.cli.commands.ble.subprocess.run",
+                return_value=self._mock_run(1, stderr="BLE handshake failed"),
+            ),
+        ):
             result = _run("ble", "lock")
         assert result.exit_code != 0
         assert "BLE handshake failed" in result.output
@@ -5810,6 +6258,7 @@ class TestTeslaMateGrafana:
 
     def _cfg(self, grafana_url="http://localhost:3000"):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.grafana.url = grafana_url
         return cfg
@@ -5819,8 +6268,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_default_opens_overview(self):
         cfg = self._cfg()
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open") as mock_open:
+        with self._patched_cfg(cfg), patch("webbrowser.open") as mock_open:
             result = _run("teslaMate", "grafana")
         assert result.exit_code == 0
         mock_open.assert_called_once()
@@ -5830,8 +6278,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_trips_dashboard(self):
         cfg = self._cfg()
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open") as mock_open:
+        with self._patched_cfg(cfg), patch("webbrowser.open") as mock_open:
             result = _run("teslaMate", "grafana", "trips")
         assert result.exit_code == 0
         url = mock_open.call_args[0][0]
@@ -5839,8 +6286,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_charges_dashboard(self):
         cfg = self._cfg()
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open") as mock_open:
+        with self._patched_cfg(cfg), patch("webbrowser.open") as mock_open:
             result = _run("teslaMate", "grafana", "charges")
         assert result.exit_code == 0
         url = mock_open.call_args[0][0]
@@ -5848,8 +6294,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_custom_url(self):
         cfg = self._cfg(grafana_url="http://myserver:3000")
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open") as mock_open:
+        with self._patched_cfg(cfg), patch("webbrowser.open") as mock_open:
             result = _run("teslaMate", "grafana", "battery")
         assert result.exit_code == 0
         url = mock_open.call_args[0][0]
@@ -5858,8 +6303,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_json_mode(self):
         cfg = self._cfg()
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open"):
+        with self._patched_cfg(cfg), patch("webbrowser.open"):
             result = _run("-j", "teslaMate", "grafana", "efficiency")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -5875,8 +6319,7 @@ class TestTeslaMateGrafana:
 
     def test_grafana_vampire_dashboard(self):
         cfg = self._cfg()
-        with self._patched_cfg(cfg), \
-             patch("webbrowser.open") as mock_open:
+        with self._patched_cfg(cfg), patch("webbrowser.open") as mock_open:
             result = _run("teslaMate", "grafana", "vampire")
         assert result.exit_code == 0
         url = mock_open.call_args[0][0]
@@ -5886,6 +6329,7 @@ class TestTeslaMateGrafana:
         result = _run("teslaMate", "--help")
         assert result.exit_code == 0
         assert "grafana" in result.output
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # v2.3.0 Tests: vehicle map, geofence, Home Assistant
@@ -5897,6 +6341,7 @@ class TestVehicleMap:
 
     def _cfg(self):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
         return cfg
@@ -5913,9 +6358,11 @@ class TestVehicleMap:
     def test_map_renders_grid(self):
         mock_backend = MagicMock()
         mock_backend.get_drive_state.return_value = self._drive_state()
-        with patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("vehicle", "map")
         assert result.exit_code == 0
         # Grid contains directional chars and coordinate labels
@@ -5923,10 +6370,14 @@ class TestVehicleMap:
 
     def test_map_json_output(self):
         mock_backend = MagicMock()
-        mock_backend.get_drive_state.return_value = self._drive_state(lat=51.5074, lon=-0.1278, heading=270)
-        with patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        mock_backend.get_drive_state.return_value = self._drive_state(
+            lat=51.5074, lon=-0.1278, heading=270
+        )
+        with (
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "map")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -5937,9 +6388,11 @@ class TestVehicleMap:
     def test_map_no_gps_exits(self):
         mock_backend = MagicMock()
         mock_backend.get_drive_state.return_value = {"speed": 0}
-        with patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("vehicle", "map")
         assert result.exit_code != 0
         assert "GPS" in result.output or "No GPS" in result.output
@@ -5951,9 +6404,11 @@ class TestVehicleMap:
     def test_map_custom_span(self):
         mock_backend = MagicMock()
         mock_backend.get_drive_state.return_value = self._drive_state()
-        with patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("vehicle", "map", "--span", "0.02")
         assert result.exit_code == 0
 
@@ -5963,6 +6418,7 @@ class TestGeofenceCommands:
 
     def _cfg(self, zones=None):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
         if zones:
@@ -5971,8 +6427,10 @@ class TestGeofenceCommands:
 
     def test_geofence_add(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.geofence.save_config") as mock_save:
+        with (
+            patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.geofence.save_config") as mock_save,
+        ):
             result = _run("geofence", "add", "home", "--lat", "37.4219", "--lon", "-122.0840")
         assert result.exit_code == 0
         assert "home" in result.output
@@ -5983,17 +6441,31 @@ class TestGeofenceCommands:
 
     def test_geofence_add_with_radius(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.geofence.save_config") as mock_save:
-            result = _run("geofence", "add", "work", "--lat", "37.3382", "--lon", "-121.8863", "--radius", "0.3")
+        with (
+            patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.geofence.save_config") as mock_save,
+        ):
+            result = _run(
+                "geofence",
+                "add",
+                "work",
+                "--lat",
+                "37.3382",
+                "--lon",
+                "-121.8863",
+                "--radius",
+                "0.3",
+            )
         assert result.exit_code == 0
         saved = mock_save.call_args[0][0]
         assert saved.geofences.zones["work"]["radius_km"] == 0.3
 
     def test_geofence_add_json(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.geofence.save_config"):
+        with (
+            patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.geofence.save_config"),
+        ):
             result = _run("-j", "geofence", "add", "home", "--lat", "37.4219", "--lon", "-122.0840")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -6008,10 +6480,12 @@ class TestGeofenceCommands:
         assert "No geofence" in result.output
 
     def test_geofence_list_with_zones(self):
-        cfg = self._cfg(zones={
-            "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
-            "work": {"lat": 37.3382, "lon": -121.8863, "radius_km": 0.3},
-        })
+        cfg = self._cfg(
+            zones={
+                "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
+                "work": {"lat": 37.3382, "lon": -121.8863, "radius_km": 0.3},
+            }
+        )
         with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg):
             result = _run("geofence", "list")
         assert result.exit_code == 0
@@ -6029,8 +6503,10 @@ class TestGeofenceCommands:
 
     def test_geofence_remove_existing(self):
         cfg = self._cfg(zones={"home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5}})
-        with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.geofence.save_config") as mock_save:
+        with (
+            patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.geofence.save_config") as mock_save,
+        ):
             result = _run("geofence", "remove", "home")
         assert result.exit_code == 0
         assert "removed" in result.output.lower()
@@ -6045,18 +6521,23 @@ class TestGeofenceCommands:
 
     def test_geofence_watch_no_zones_exits(self):
         cfg = self._cfg()
-        with patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.geofence.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.geofence.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("geofence", "watch")
         assert result.exit_code != 0
         assert "No geofence" in result.output
 
     def test_geofence_watch_detects_enter(self):
         """Vehicle moves inside zone → ENTER event fired."""
-        cfg = self._cfg(zones={
-            "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
-        })
+        cfg = self._cfg(
+            zones={
+                "home": {"lat": 37.4219, "lon": -122.0840, "radius_km": 0.5},
+            }
+        )
         call_count = [0]
+
         # First call: outside zone, second call: inside zone, third: interrupt
         def _drive_side_effect(v):
             call_count[0] += 1
@@ -6070,6 +6551,7 @@ class TestGeofenceCommands:
         mock_backend.get_drive_state.side_effect = _drive_side_effect
 
         from contextlib import ExitStack
+
         patches = [
             patch("tesla_cli.cli.commands.geofence.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.geofence.resolve_vin", return_value=MOCK_VIN),
@@ -6095,9 +6577,10 @@ class TestHaCommands:
 
     def _cfg(self, url="http://ha.local:8123", token="ha_token_abc"):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.default_vin = MOCK_VIN
-        cfg.home_assistant.url   = url
+        cfg.home_assistant.url = url
         cfg.home_assistant.token = token
         return cfg
 
@@ -6133,8 +6616,10 @@ class TestHaCommands:
 
     def test_ha_setup_saves_config(self):
         cfg = self._cfg(url="", token="")
-        with patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ha.save_config") as mock_save:
+        with (
+            patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ha.save_config") as mock_save,
+        ):
             result = _run("ha", "setup", "http://ha.local:8123", "my_ha_token")
         assert result.exit_code == 0
         saved = mock_save.call_args[0][0]
@@ -6160,8 +6645,10 @@ class TestHaCommands:
 
     def test_ha_push_no_config_fails(self):
         cfg = self._cfg(url="", token="")
-        with patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("ha", "push")
         assert result.exit_code != 0
         assert "not configured" in result.output.lower()
@@ -6170,10 +6657,15 @@ class TestHaCommands:
         cfg = self._cfg()
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
-        with patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.ha._push_state", return_value={"entity_id": "sensor.tesla_battery_level", "state": "72"}):
+        with (
+            patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch(
+                "tesla_cli.cli.commands.ha._push_state",
+                return_value={"entity_id": "sensor.tesla_battery_level", "state": "72"},
+            ),
+        ):
             result = _run("ha", "push")
         assert result.exit_code == 0
         assert "Pushed" in result.output
@@ -6182,10 +6674,12 @@ class TestHaCommands:
         cfg = self._cfg()
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
-        with patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.ha._push_state", return_value={"state": "ok"}):
+        with (
+            patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.ha._push_state", return_value={"state": "ok"}),
+        ):
             result = _run("-j", "ha", "push")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -6199,15 +6693,19 @@ class TestHaCommands:
         mock_backend = MagicMock()
         mock_backend.get_vehicle_data.return_value = self._vehicle_data()
         call_count = [0]
+
         def _push_side(base, tok, eid, state, attrs):
             call_count[0] += 1
             if call_count[0] % 3 == 0:
                 raise ConnectionError("HA unreachable")
             return {"state": state}
-        with patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend), \
-             patch("tesla_cli.cli.commands.ha._push_state", side_effect=_push_side):
+
+        with (
+            patch("tesla_cli.cli.commands.ha.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.ha.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.ha._push_state", side_effect=_push_side),
+        ):
             result = _run("ha", "push")
         assert result.exit_code == 0  # partial failure is warned, not fatal
 
@@ -6220,6 +6718,7 @@ class TestHaCommands:
 
 # ─── tesla query ─────────────────────────────────────────────────────────────
 
+
 class TestQueryCommand:
     """Tests for tesla query (openquery integration)."""
 
@@ -6227,6 +6726,7 @@ class TestQueryCommand:
 
     def _mock_simit_result(self):
         from openquery.models.co.simit import SimitResult
+
         return SimitResult(
             cedula="12345678",
             comparendos=0,
@@ -6238,6 +6738,7 @@ class TestQueryCommand:
 
     def _mock_runt_result(self):
         from openquery.models.co.runt import RuntResult
+
         return RuntResult(
             placa="ABC123",
             marca="TESLA",
@@ -6283,6 +6784,7 @@ class TestQueryCommand:
             result = _run("--json", "query", "sources")
         assert result.exit_code == 0
         import json
+
         parsed = json.loads(result.output)
         assert isinstance(parsed, list)
 
@@ -6296,9 +6798,10 @@ class TestQueryCommand:
         assert result.exit_code == 0
 
     def test_query_run_unknown_source_exits_1(self):
-        with patch("openquery.sources.get_source",
-                   side_effect=KeyError("co.unknown")), \
-             patch("openquery.sources.list_sources", return_value=[]):
+        with (
+            patch("openquery.sources.get_source", side_effect=KeyError("co.unknown")),
+            patch("openquery.sources.list_sources", return_value=[]),
+        ):
             result = _run("query", "run", "co.unknown", "--cedula", "111")
         assert result.exit_code == 1
 
@@ -6404,6 +6907,7 @@ class TestQueryCommand:
 
     def test_query_simit_not_installed_exits_1(self):
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -6422,6 +6926,7 @@ class TestQueryCommand:
         mock_src = self._mock_source(simit_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
             from tesla_cli.core.backends.simit import SimitBackend
+
             backend = SimitBackend()
             data = backend.query_by_cedula("12345678")
         assert data.paz_y_salvo is True
@@ -6432,6 +6937,7 @@ class TestQueryCommand:
         mock_src = self._mock_source(simit_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
             from tesla_cli.core.backends.simit import SimitBackend
+
             backend = SimitBackend()
             data = backend.query_by_placa("ABC123")
         assert data.paz_y_salvo is True
@@ -6441,6 +6947,7 @@ class TestQueryCommand:
         mock_src = self._mock_source(runt_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
             from tesla_cli.core.backends.runt import RuntBackend
+
             backend = RuntBackend()
             data = backend.query_by_vin("LRWYGCEK3TC512197")
         assert data.marca == "TESLA"
@@ -6451,12 +6958,14 @@ class TestQueryCommand:
         mock_src.query.side_effect = Exception("network timeout")
         with patch("openquery.sources.get_source", return_value=mock_src):
             from tesla_cli.core.backends.runt import RuntBackend, RuntError
+
             backend = RuntBackend()
             with pytest.raises(RuntError, match="network timeout"):
                 backend.query_by_plate("ABC123")
 
     def test_simit_backend_raises_simit_error_on_import_failure(self):
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -6466,6 +6975,7 @@ class TestQueryCommand:
 
         with patch("builtins.__import__", side_effect=mock_import):
             from tesla_cli.core.backends.simit import SimitBackend, SimitError
+
             backend = SimitBackend()
             with pytest.raises(SimitError, match="openquery is required"):
                 backend.query_by_cedula("12345678")
@@ -6476,7 +6986,7 @@ class TestQueryCommand:
 MOCK_DAILY_ENERGY_ROWS = [
     {"date": "2026-03-01", "kwh": 15.2, "km": 110.0},
     {"date": "2026-03-05", "kwh": 22.5, "km": 165.0},
-    {"date": "2026-02-10", "kwh": 8.3,  "km": 60.0},
+    {"date": "2026-02-10", "kwh": 8.3, "km": 60.0},
     {"date": "2026-02-20", "kwh": 31.0, "km": 230.0},
     {"date": "2026-01-15", "kwh": 18.7, "km": 140.0},
 ]
@@ -6560,13 +7070,14 @@ class TestTeslaMatChargingLocationsApi:
 
     MOCK_LOCATIONS = [
         {"location": "Home", "sessions": 42, "kwh_total": 1890.5, "last_visit": "2026-03-28"},
-        {"location": "Work", "sessions": 15, "kwh_total": 450.0,  "last_visit": "2026-03-20"},
+        {"location": "Work", "sessions": 15, "kwh_total": 450.0, "last_visit": "2026-03-20"},
     ]
 
     def _setup(self, mock_backend=None, raise_exceptions=True):
         from fastapi.testclient import TestClient
 
         from tesla_cli.api.app import create_app
+
         if mock_backend is None:
             mock_backend = MagicMock()
             mock_backend.get_charging_locations.return_value = self.MOCK_LOCATIONS
@@ -6602,6 +7113,7 @@ class TestTeslaMatChargingLocationsApi:
         from fastapi.testclient import TestClient
 
         from tesla_cli.api.app import create_app
+
         mock_backend_fn = MagicMock(
             side_effect=HTTPException(status_code=503, detail="TeslaMate not configured.")
         )
@@ -6624,6 +7136,7 @@ class TestVehicleOdometerApi:
 
         from tesla_cli.api.app import create_app
         from tests.conftest import MOCK_VEHICLE_DATA
+
         if mock_backend is None:
             mock_backend = MagicMock()
             mock_backend.get_vehicle_state.return_value = MOCK_VEHICLE_DATA["vehicle_state"]
@@ -6674,6 +7187,7 @@ class TestVehicleOdometerApi:
 
     def test_odometer_503_when_asleep(self):
         from tesla_cli.core.exceptions import VehicleAsleepError
+
         mock_backend = MagicMock()
         mock_backend.get_vehicle_state.side_effect = VehicleAsleepError("asleep")
         client, _, patches = self._setup(mock_backend=mock_backend, raise_exceptions=False)

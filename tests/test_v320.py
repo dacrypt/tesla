@@ -28,6 +28,7 @@ def _run(*args):
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -54,6 +55,7 @@ def _make_vehicle_backend():
 
 # ── TestWatchAllNotify ────────────────────────────────────────────────────────
 
+
 class TestWatchAllNotify:
     def test_notify_title_includes_label(self):
         """When label is set, notifier title is 'Tesla Watch — {label}'."""
@@ -77,6 +79,7 @@ class TestWatchAllNotify:
     def test_all_notify_in_docstring(self):
         """vehicle_watch docstring mentions --all --notify example."""
         import tesla_cli.cli.commands.vehicle as vmod
+
         doc = vmod.vehicle_watch.__doc__ or ""
         assert "--all --notify" in doc
 
@@ -91,6 +94,7 @@ class TestWatchAllNotify:
         import inspect
 
         import tesla_cli.cli.commands.vehicle as vmod
+
         src = inspect.getsource(vmod)
         assert "Tesla Watch —" in src
 
@@ -129,7 +133,10 @@ class TestWatchAllNotify:
         def _stop_after(*args, **kwargs):
             stop_event.set()
 
-        mock_notifier.notify.side_effect = lambda title, body: (notify_calls.append(title), stop_event.set())
+        mock_notifier.notify.side_effect = lambda title, body: (
+            notify_calls.append(title),
+            stop_event.set(),
+        )
 
         with (
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
@@ -143,6 +150,7 @@ class TestWatchAllNotify:
 
 
 # ── TestChargeScheduleAmps ────────────────────────────────────────────────────
+
 
 class TestChargeScheduleAmps:
     def _make_backend(self):
@@ -163,7 +171,9 @@ class TestChargeScheduleAmps:
             result = _run("charge", "schedule-amps", "02:00", "8")
         assert result.exit_code == 0
         backend.command.assert_called_once_with(MOCK_VIN, "set_charging_amps", {"charging_amps": 8})
-        backend.set_scheduled_charging.assert_called_once_with(MOCK_VIN, enable=True, time_minutes=120)
+        backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=True, time_minutes=120
+        )
 
     def test_schedule_amps_time_conversion(self):
         """02:00 → minutes=120."""
@@ -175,7 +185,9 @@ class TestChargeScheduleAmps:
             patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("charge", "schedule-amps", "02:00", "8")
-        backend.set_scheduled_charging.assert_called_once_with(MOCK_VIN, enable=True, time_minutes=120)
+        backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=True, time_minutes=120
+        )
 
     def test_schedule_amps_time_conversion_2(self):
         """23:30 → minutes=1410."""
@@ -187,7 +199,9 @@ class TestChargeScheduleAmps:
             patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
         ):
             _run("charge", "schedule-amps", "23:30", "16")
-        backend.set_scheduled_charging.assert_called_once_with(MOCK_VIN, enable=True, time_minutes=1410)
+        backend.set_scheduled_charging.assert_called_once_with(
+            MOCK_VIN, enable=True, time_minutes=1410
+        )
 
     def test_schedule_amps_json_mode(self):
         """With -j flag, returns {ok, schedule, amps, vin}."""
@@ -265,6 +279,7 @@ class TestChargeScheduleAmps:
 
 # ── TestHeatmapYear ───────────────────────────────────────────────────────────
 
+
 class TestHeatmapYear:
     def _make_tm_backend(self):
         m = MagicMock()
@@ -326,6 +341,7 @@ class TestHeatmapYear:
     def test_heatmap_year_backend_method_exists(self):
         """TeslaMateBacked has get_drive_days_year method."""
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         assert hasattr(TeslaMateBacked, "get_drive_days_year")
 
     def test_drive_days_year_sql_structure(self):
@@ -333,6 +349,7 @@ class TestHeatmapYear:
         import inspect
 
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         src = inspect.getsource(TeslaMateBacked.get_drive_days_year)
         assert "_dt.date" in src
 
@@ -341,6 +358,7 @@ class TestHeatmapYear:
         import inspect
 
         import tesla_cli.cli.commands.teslaMate as tmmod
+
         src = inspect.getsource(tmmod.teslaMate_heatmap)
         assert "date(year, 1, 1)" in src
 
@@ -349,11 +367,13 @@ class TestHeatmapYear:
         import inspect
 
         import tesla_cli.cli.commands.teslaMate as tmmod
+
         src = inspect.getsource(tmmod.teslaMate_heatmap)
         assert "date(year, 12, 31)" in src
 
 
 # ── TestApiConfigValidate ─────────────────────────────────────────────────────
+
 
 class TestApiConfigValidate:
     @pytest.fixture
@@ -425,12 +445,14 @@ class TestApiConfigValidate:
     def test_validate_run_config_checks_importable(self):
         """_run_config_checks is importable from config_cmd."""
         from tesla_cli.cli.commands.config_cmd import _run_config_checks
+
         assert callable(_run_config_checks)
 
     def test_validate_run_config_checks_returns_list(self):
         """_run_config_checks(Config()) returns list of dicts."""
         from tesla_cli.cli.commands.config_cmd import _run_config_checks
         from tesla_cli.core.config import Config
+
         result = _run_config_checks(Config())
         assert isinstance(result, list)
         assert len(result) > 0
@@ -439,12 +461,14 @@ class TestApiConfigValidate:
 
 # ── TestVersion320 ────────────────────────────────────────────────────────────
 
+
 class TestVersion320:
     def test_version_string(self):
         """__version__ >= '3.2.0'."""
         from packaging.version import Version
 
         import tesla_cli
+
         assert Version(tesla_cli.__version__) >= Version("3.2.0")
 
     def test_pyproject_version(self):
@@ -453,6 +477,7 @@ class TestVersion320:
         from pathlib import Path
 
         from packaging.version import Version
+
         content = (Path(__file__).parent.parent / "pyproject.toml").read_text()
         m = re.search(r'version = "(\d+\.\d+\.\d+)"', content)
         assert m and Version(m.group(1)) >= Version("3.2.0")

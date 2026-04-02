@@ -91,11 +91,15 @@ class TestRuntBackendDelegation:
     def test_raises_runt_error_on_source_exception(self):
         src = MagicMock()
         src.query.side_effect = RuntimeError("timeout")
-        with patch("openquery.sources.get_source", return_value=src), pytest.raises(RuntError, match="RUNT query failed"):
+        with (
+            patch("openquery.sources.get_source", return_value=src),
+            pytest.raises(RuntError, match="RUNT query failed"),
+        ):
             RuntBackend().query_by_vin("VIN123")
 
     def test_raises_runt_error_when_openquery_not_installed(self):
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -103,7 +107,10 @@ class TestRuntBackendDelegation:
                 raise ImportError("No module named 'openquery'")
             return real_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=mock_import), pytest.raises(RuntError, match="openquery is required"):
+        with (
+            patch("builtins.__import__", side_effect=mock_import),
+            pytest.raises(RuntError, match="openquery is required"),
+        ):
             RuntBackend().query_by_vin("VIN123")
 
     def test_runt_data_fields_mapped_correctly(self):
@@ -119,10 +126,12 @@ class TestRuntBackendDelegation:
 
     def test_extra_openquery_fields_ignored_gracefully(self):
         """Fields in openquery result not in RuntData.model_fields are discarded."""
-        result = _mock_runt_result(extra_fields={
-            "unknown_extra_field": "some_value",
-            "another_unknown": 42,
-        })
+        result = _mock_runt_result(
+            extra_fields={
+                "unknown_extra_field": "some_value",
+                "another_unknown": 42,
+            }
+        )
         with patch("openquery.sources.get_source", return_value=_mock_source(result)):
             data = RuntBackend().query_by_plate("XYZ123")
         assert isinstance(data, RuntData)
@@ -131,6 +140,7 @@ class TestRuntBackendDelegation:
     def test_vin_doc_type_passed_to_openquery(self):
         """query_by_vin must use DocumentType.VIN."""
         from openquery.sources.base import DocumentType, QueryInput
+
         result = _mock_runt_result()
         src = _mock_source(result)
         with patch("openquery.sources.get_source", return_value=src):
@@ -143,6 +153,7 @@ class TestRuntBackendDelegation:
     def test_plate_doc_type_passed_to_openquery(self):
         """query_by_plate must use DocumentType.PLATE."""
         from openquery.sources.base import DocumentType
+
         result = _mock_runt_result()
         src = _mock_source(result)
         with patch("openquery.sources.get_source", return_value=src):

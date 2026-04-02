@@ -76,25 +76,64 @@ class TestCommandRegistration:
     def test_help_shows_all_groups(self):
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        for group in ["vehicle", "charge", "climate", "security", "media", "nav", "sharing", "dashboard", "order", "dossier"]:
+        for group in [
+            "vehicle",
+            "charge",
+            "climate",
+            "security",
+            "media",
+            "nav",
+            "sharing",
+            "dashboard",
+            "order",
+            "dossier",
+        ]:
             assert group in result.output, f"Missing command group: {group}"
 
     def test_charge_subcommands(self):
         result = runner.invoke(app, ["charge", "--help"])
         assert result.exit_code == 0
-        for sub in ["status", "start", "stop", "limit", "amps", "port-open", "port-close", "schedule", "history"]:
+        for sub in [
+            "status",
+            "start",
+            "stop",
+            "limit",
+            "amps",
+            "port-open",
+            "port-close",
+            "schedule",
+            "history",
+        ]:
             assert sub in result.output, f"Missing charge subcommand: {sub}"
 
     def test_climate_subcommands(self):
         result = runner.invoke(app, ["climate", "--help"])
         assert result.exit_code == 0
-        for sub in ["on", "off", "temp", "seat-heater", "steering-heater", "dog-mode", "camp-mode", "bioweapon", "defrost"]:
+        for sub in [
+            "on",
+            "off",
+            "temp",
+            "seat-heater",
+            "steering-heater",
+            "dog-mode",
+            "camp-mode",
+            "bioweapon",
+            "defrost",
+        ]:
             assert sub in result.output, f"Missing climate subcommand: {sub}"
 
     def test_security_subcommands(self):
         result = runner.invoke(app, ["security", "--help"])
         assert result.exit_code == 0
-        for sub in ["lock", "unlock", "sentry", "valet", "speed-limit", "pin-to-drive", "guest-mode"]:
+        for sub in [
+            "lock",
+            "unlock",
+            "sentry",
+            "valet",
+            "speed-limit",
+            "pin-to-drive",
+            "guest-mode",
+        ]:
             assert sub in result.output, f"Missing security subcommand: {sub}"
 
     def test_media_subcommands(self):
@@ -126,38 +165,76 @@ class TestCommandRegistration:
 class TestFleetBackendMethods:
     def test_data_methods_exist(self):
         methods = [
-            "list_vehicles", "get_vehicle_data", "get_charge_state",
-            "get_climate_state", "get_drive_state", "get_vehicle_state",
-            "get_vehicle_config", "get_nearby_charging_sites",
-            "get_release_notes", "get_service_data", "get_recent_alerts",
-            "get_charge_history", "get_fleet_status", "mobile_enabled",
+            "list_vehicles",
+            "get_vehicle_data",
+            "get_charge_state",
+            "get_climate_state",
+            "get_drive_state",
+            "get_vehicle_state",
+            "get_vehicle_config",
+            "get_nearby_charging_sites",
+            "get_release_notes",
+            "get_service_data",
+            "get_recent_alerts",
+            "get_charge_history",
+            "get_fleet_status",
+            "mobile_enabled",
         ]
         for m in methods:
             assert hasattr(FleetBackend, m), f"FleetBackend missing method: {m}"
 
     def test_command_methods_exist(self):
         methods = [
-            "command", "door_lock", "door_unlock",
-            "charge_start", "charge_stop", "set_charge_limit", "set_charging_amps",
-            "charge_port_door_open", "charge_port_door_close",
-            "set_scheduled_charging", "set_scheduled_departure",
-            "auto_conditioning_start", "auto_conditioning_stop",
-            "set_temps", "remote_seat_heater_request",
+            "command",
+            "door_lock",
+            "door_unlock",
+            "charge_start",
+            "charge_stop",
+            "set_charge_limit",
+            "set_charging_amps",
+            "charge_port_door_open",
+            "charge_port_door_close",
+            "set_scheduled_charging",
+            "set_scheduled_departure",
+            "auto_conditioning_start",
+            "auto_conditioning_stop",
+            "set_temps",
+            "remote_seat_heater_request",
             "remote_steering_wheel_heater_request",
-            "set_bioweapon_mode", "set_climate_keeper_mode",
-            "set_cabin_overheat_protection", "window_control",
-            "actuate_trunk", "honk_horn", "flash_lights",
-            "set_sentry_mode", "set_valet_mode", "reset_valet_pin",
-            "speed_limit_activate", "speed_limit_deactivate",
-            "speed_limit_set_limit", "speed_limit_clear_pin",
-            "set_pin_to_drive", "guest_mode", "remote_start_drive",
-            "share", "navigation_sc_request", "navigation_gps_request",
-            "media_toggle_playback", "media_next_track", "media_prev_track",
-            "media_next_fav", "media_prev_fav",
-            "media_volume_up", "media_volume_down", "adjust_volume",
-            "schedule_software_update", "cancel_software_update",
-            "trigger_homelink", "remote_boombox",
-            "set_preconditioning_max", "wake_up",
+            "set_bioweapon_mode",
+            "set_climate_keeper_mode",
+            "set_cabin_overheat_protection",
+            "window_control",
+            "actuate_trunk",
+            "honk_horn",
+            "flash_lights",
+            "set_sentry_mode",
+            "set_valet_mode",
+            "reset_valet_pin",
+            "speed_limit_activate",
+            "speed_limit_deactivate",
+            "speed_limit_set_limit",
+            "speed_limit_clear_pin",
+            "set_pin_to_drive",
+            "guest_mode",
+            "remote_start_drive",
+            "share",
+            "navigation_sc_request",
+            "navigation_gps_request",
+            "media_toggle_playback",
+            "media_next_track",
+            "media_prev_track",
+            "media_next_fav",
+            "media_prev_fav",
+            "media_volume_up",
+            "media_volume_down",
+            "adjust_volume",
+            "schedule_software_update",
+            "cancel_software_update",
+            "trigger_homelink",
+            "remote_boombox",
+            "set_preconditioning_max",
+            "wake_up",
         ]
         for m in methods:
             assert hasattr(FleetBackend, m), f"FleetBackend missing method: {m}"
@@ -377,6 +454,7 @@ class TestExistingVehicleCommands:
 
 # ── v2.1.0: charge limit enhanced ────────────────────────────────────────────
 
+
 @pytest.mark.usefixtures("_patched_env")
 class TestChargeLimitEnhanced:
     """charge limit: show-state, validation, JSON."""
@@ -423,6 +501,7 @@ class TestChargeLimitEnhanced:
 
 # ── v2.1.0: charge amps enhanced ─────────────────────────────────────────────
 
+
 @pytest.mark.usefixtures("_patched_env")
 class TestChargeAmpsEnhanced:
     """charge amps: show-state, validation, JSON."""
@@ -468,6 +547,7 @@ class TestChargeAmpsEnhanced:
 
 
 # ── v2.1.0: climate temp enhanced ────────────────────────────────────────────
+
 
 @pytest.mark.usefixtures("_patched_env")
 class TestClimateTempEnhanced:
@@ -524,6 +604,7 @@ class TestClimateTempEnhanced:
 
 
 # ── v2.1.0: climate seat (named positions) ───────────────────────────────────
+
 
 @pytest.mark.usefixtures("_patched_env")
 class TestClimateSeatNamed:
@@ -606,6 +687,7 @@ class TestClimateSeatNamed:
 
 # ── v2.1.0: climate steering-wheel ───────────────────────────────────────────
 
+
 @pytest.mark.usefixtures("_patched_env")
 class TestClimateSteeringWheel:
     """climate steering-wheel: show state, --on/--off, JSON."""
@@ -656,6 +738,7 @@ class TestClimateSteeringWheel:
 
 # ── v2.1.0: media volume validation + JSON ───────────────────────────────────
 
+
 @pytest.mark.usefixtures("_patched_env")
 class TestMediaVolumeValidation:
     """media volume: validation + JSON mode via render_success."""
@@ -702,6 +785,7 @@ class TestMediaVolumeValidation:
 
 
 # ── v2.1.0: nav send JSON ─────────────────────────────────────────────────────
+
 
 @pytest.mark.usefixtures("_patched_env")
 class TestNavSendJson:

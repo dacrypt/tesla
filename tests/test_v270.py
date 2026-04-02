@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -16,6 +15,7 @@ _runner = CliRunner()
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     for k, v in overrides.items():
@@ -29,9 +29,11 @@ def _make_cfg(**overrides):
 
 # ── Tests: MqttConfig ────────────────────────────────────────────────────────
 
+
 class TestMqttConfig:
     def test_defaults(self):
         from tesla_cli.core.config import MqttConfig
+
         mc = MqttConfig()
         assert mc.broker == ""
         assert mc.port == 1883
@@ -42,12 +44,14 @@ class TestMqttConfig:
 
     def test_config_has_mqtt_field(self):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         assert hasattr(cfg, "mqtt")
         assert cfg.mqtt.broker == ""
 
     def test_custom_values(self):
         from tesla_cli.core.config import MqttConfig
+
         mc = MqttConfig(broker="mqtt.example.com", port=8883, tls=True, username="user")
         assert mc.broker == "mqtt.example.com"
         assert mc.port == 8883
@@ -57,20 +61,24 @@ class TestMqttConfig:
 
 # ── Tests: MqttProvider ──────────────────────────────────────────────────────
 
+
 class TestMqttProvider:
     def _provider(self, broker="mqtt.example.com", **kwargs):
         from tesla_cli.core.providers.impl.mqtt import MqttProvider
+
         cfg = _make_cfg(**{"mqtt.broker": broker}, **{f"mqtt.{k}": v for k, v in kwargs.items()})
         return MqttProvider(cfg)
 
     def test_capabilities(self):
         from tesla_cli.core.providers.base import Capability
         from tesla_cli.core.providers.impl.mqtt import MqttProvider
+
         assert Capability.TELEMETRY_PUSH in MqttProvider.capabilities
 
     def test_layer_and_priority(self):
         from tesla_cli.core.providers.base import ProviderPriority
         from tesla_cli.core.providers.impl.mqtt import MqttProvider
+
         assert MqttProvider.layer == 3
         assert MqttProvider.priority == ProviderPriority.LOW
 
@@ -86,7 +94,9 @@ class TestMqttProvider:
     def test_available_with_broker_and_paho(self):
         p = self._provider()
         mock_paho = MagicMock()
-        with patch.dict(sys.modules, {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho}):
+        with patch.dict(
+            sys.modules, {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho}
+        ):
             assert p.is_available() is True
 
     def test_health_check_no_broker(self):
@@ -112,10 +122,14 @@ class TestMqttProvider:
         p = self._provider()
         mock_client = MagicMock()
         with patch.object(p, "_make_client", return_value=mock_client):
-            result = p.execute("push", data={
-                "charge_state": {"battery_level": 80},
-                "drive_state": {"latitude": 1.0},
-            }, vin=MOCK_VIN)
+            result = p.execute(
+                "push",
+                data={
+                    "charge_state": {"battery_level": 80},
+                    "drive_state": {"latitude": 1.0},
+                },
+                vin=MOCK_VIN,
+            )
 
         assert result.ok
         assert result.provider == "mqtt"
@@ -158,17 +172,21 @@ class TestMqttProvider:
     def test_status_row_available(self):
         p = self._provider()
         mock_paho = MagicMock()
-        with patch.dict(sys.modules, {
-            "paho": mock_paho,
-            "paho.mqtt": mock_paho,
-            "paho.mqtt.client": mock_paho,
-        }):
+        with patch.dict(
+            sys.modules,
+            {
+                "paho": mock_paho,
+                "paho.mqtt": mock_paho,
+                "paho.mqtt.client": mock_paho,
+            },
+        ):
             row = p.status_row()
         assert row["available"] is True
         assert "mqtt.example.com" in row["detail"]
 
     def test_loader_includes_mqtt(self):
         from tesla_cli.core.providers.loader import build_registry
+
         with patch("tesla_cli.core.auth.tokens.get_token", return_value=None):
             reg = build_registry(_make_cfg())
         names = {p.name for p in reg.all()}
@@ -177,16 +195,21 @@ class TestMqttProvider:
 
 # ── Tests: install-service CLI ────────────────────────────────────────────────
 
+
 class TestInstallService:
     def test_print_systemd(self):
-        result = _runner.invoke(cli_app, ["serve", "install-service", "--platform", "systemd", "--print"])
+        result = _runner.invoke(
+            cli_app, ["serve", "install-service", "--platform", "systemd", "--print"]
+        )
         assert result.exit_code == 0
         assert "[Unit]" in result.output
         assert "ExecStart" in result.output
         assert "tesla-cli" in result.output.lower() or "tesla" in result.output.lower()
 
     def test_print_launchd(self):
-        result = _runner.invoke(cli_app, ["serve", "install-service", "--platform", "launchd", "--print"])
+        result = _runner.invoke(
+            cli_app, ["serve", "install-service", "--platform", "launchd", "--print"]
+        )
         assert result.exit_code == 0
         assert "com.tesla-cli.server" in result.output
         assert "ProgramArguments" in result.output
@@ -216,6 +239,7 @@ class TestInstallService:
 
     def test_systemd_content(self):
         from tesla_cli.cli.commands.serve import _systemd_unit
+
         content = _systemd_unit("/usr/local/bin/tesla", 8080, "127.0.0.1")
         assert "[Unit]" in content
         assert "[Service]" in content
@@ -226,11 +250,10 @@ class TestInstallService:
 
     def test_launchd_content(self):
         from tesla_cli.cli.commands.serve import _launchd_plist
+
         content = _launchd_plist("/usr/local/bin/tesla", 9090, "0.0.0.0")
         assert "com.tesla-cli.server" in content
         assert "9090" in content
         assert "0.0.0.0" in content
         assert "RunAtLoad" in content
         assert "KeepAlive" in content
-
-
