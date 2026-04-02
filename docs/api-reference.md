@@ -66,6 +66,7 @@ GET /api/charge/state?vin=modely           # aliases work too
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/charge/state` | Charge state |
+| GET | `/api/charge/history` | Charging history (Fleet API) — total kWh, per-session data, breakdown |
 | POST | `/api/charge/start` | Start charging |
 | POST | `/api/charge/stop` | Stop charging |
 | POST | `/api/charge/set-limit` | Set charge limit (%) |
