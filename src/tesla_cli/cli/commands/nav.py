@@ -7,8 +7,8 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.cli.output import render_success
+from tesla_cli.core.config import load_config, resolve_vin
 
 nav_app = typer.Typer(name="nav", help="Navigation and destination controls.")
 
@@ -45,9 +45,7 @@ def nav_send(
 def nav_supercharger(vin: str | None = VinOption) -> None:
     """Navigate to nearest Supercharger."""
     v = _vin(vin)
-    _with_wake(
-        lambda b, v: b.command(v, "navigation_sc_request", id=0, order=0, offset=0), v
-    )
+    _with_wake(lambda b, v: b.command(v, "navigation_sc_request", id=0, order=0, offset=0), v)
     render_success("Navigating to nearest Supercharger ⚡")
 
 

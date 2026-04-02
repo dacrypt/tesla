@@ -39,11 +39,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Check header first, then query param
-        provided = (
-            request.headers.get("X-API-Key")
-            or request.query_params.get("api_key")
-            or ""
-        )
+        provided = request.headers.get("X-API-Key") or request.query_params.get("api_key") or ""
 
         if provided != self._key:
             return JSONResponse(

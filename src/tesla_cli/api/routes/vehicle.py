@@ -15,11 +15,12 @@ router = APIRouter()
 def _backend_and_vin(request: Request):
     cfg = load_config()
     vin_override = request.query_params.get("vin") or request.app.state.override_vin
-    v   = resolve_vin(cfg, vin_override)
+    v = resolve_vin(cfg, vin_override)
     return get_vehicle_backend(cfg), v
 
 
 # ── Read endpoints ────────────────────────────────────────────────────────────
+
 
 @router.get("/state")
 def vehicle_state(request: Request) -> dict:
@@ -83,9 +84,10 @@ def vehicle_list(request: Request) -> list:
 
 # ── Command endpoint ──────────────────────────────────────────────────────────
 
+
 class CommandRequest(BaseModel):
     command: str
-    params:  dict = {}
+    params: dict = {}
 
 
 @router.get("/odometer")
@@ -98,11 +100,12 @@ def vehicle_odometer(request: Request) -> dict:
     try:
         vs = backend.get_vehicle_state(v)
         from datetime import UTC, datetime
+
         return {
-            "vin":           v,
+            "vin": v,
             "odometer_miles": vs.get("odometer"),
-            "car_version":    vs.get("car_version"),
-            "queried_at":     datetime.now(UTC).isoformat(),
+            "car_version": vs.get("car_version"),
+            "queried_at": datetime.now(UTC).isoformat(),
         }
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")

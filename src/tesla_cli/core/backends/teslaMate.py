@@ -46,6 +46,7 @@ class TeslaMateBacked:
     @contextmanager
     def _cursor(self):
         import psycopg2.extras
+
         conn = self._get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
@@ -244,6 +245,7 @@ class TeslaMateBacked:
         valid = [float(r["km_per_hour"]) for r in rows if r["km_per_hour"] is not None]
         if valid:
             import statistics
+
             avg = round(statistics.mean(valid), 4)
 
         return {
@@ -368,8 +370,9 @@ class TeslaMateBacked:
             ORDER BY day
         """
         import datetime as _dt
+
         start = _dt.date(year, 1, 1)
-        end   = _dt.date(year + 1, 1, 1)
+        end = _dt.date(year + 1, 1, 1)
         with self._cursor() as cur:
             cur.execute(sql, (self._car_id, start, end))
             return [dict(r) for r in cur.fetchall()]

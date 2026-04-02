@@ -40,20 +40,22 @@ def browser_login(
 
     # PKCE
     verifier = secrets.token_urlsafe(64)
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()
-    ).rstrip(b"=").decode()
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    )
     state = secrets.token_urlsafe(32)
 
-    auth_url = f"{TESLA_AUTH_URL}?" + urllib.parse.urlencode({
-        "client_id": client_id,
-        "redirect_uri": VOID_CALLBACK,
-        "response_type": "code",
-        "scope": scopes,
-        "state": state,
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
-    })
+    auth_url = f"{TESLA_AUTH_URL}?" + urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": VOID_CALLBACK,
+            "response_type": "code",
+            "scope": scopes,
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
@@ -68,7 +70,9 @@ def browser_login(
 
             # Wait for email input
             log.info("Waiting for email field...")
-            email_input = page.wait_for_selector('input#identity, input[name="identity"]', timeout=20000)
+            email_input = page.wait_for_selector(
+                'input#identity, input[name="identity"]', timeout=20000
+            )
             if not email_input:
                 raise Exception("Email input not found")
 
@@ -98,7 +102,9 @@ def browser_login(
             page.wait_for_timeout(500)
 
             # Submit
-            submit_btn = page.query_selector('button:has-text("Sign In"), button:has-text("Submit"), button[type="submit"]')
+            submit_btn = page.query_selector(
+                'button:has-text("Sign In"), button:has-text("Submit"), button[type="submit"]'
+            )
             if submit_btn and submit_btn.is_visible():
                 submit_btn.click()
             else:
@@ -124,11 +130,17 @@ def browser_login(
                 # MFA
                 mfa_el = page.query_selector('input#credential, input[name="credential"]')
                 page_text = page.text_content("body") or ""
-                if mfa_el and mfa_el.is_visible() and ("passcode" in page_text.lower() or "verification" in page_text.lower()):
+                if (
+                    mfa_el
+                    and mfa_el.is_visible()
+                    and ("passcode" in page_text.lower() or "verification" in page_text.lower())
+                ):
                     if mfa_code:
                         log.info("Filling MFA...")
                         mfa_el.fill(mfa_code)
-                        btn = page.query_selector('button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]')
+                        btn = page.query_selector(
+                            'button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]'
+                        )
                         if btn:
                             btn.click()
                         page.wait_for_timeout(3000)
@@ -137,7 +149,12 @@ def browser_login(
                         raise Exception("MFA_REQUIRED")
 
                 # Check for error messages
-                for sel in ['.error-message', '.form-error', '[class*="error"]', '[class*="Error"]']:
+                for sel in [
+                    ".error-message",
+                    ".form-error",
+                    '[class*="error"]',
+                    '[class*="Error"]',
+                ]:
                     err_el = page.query_selector(sel)
                     if err_el and err_el.is_visible():
                         txt = err_el.inner_text().strip()
@@ -160,13 +177,17 @@ def browser_login(
 
 def _exchange_code(code: str, client_id: str, verifier: str) -> dict[str, Any]:
     """Exchange auth code for tokens."""
-    r = httpx.post(TESLA_TOKEN_URL, data={
-        "grant_type": "authorization_code",
-        "client_id": client_id,
-        "code": code,
-        "code_verifier": verifier,
-        "redirect_uri": VOID_CALLBACK,
-    }, timeout=30)
+    r = httpx.post(
+        TESLA_TOKEN_URL,
+        data={
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "code": code,
+            "code_verifier": verifier,
+            "redirect_uri": VOID_CALLBACK,
+        },
+        timeout=30,
+    )
     r.raise_for_status()
     return r.json()
 
@@ -183,7 +204,9 @@ def full_login(
     # Owner API token (for orders)
     log.info("Getting Owner API token...")
     order_tokens = browser_login(
-        email, password, mfa_code,
+        email,
+        password,
+        mfa_code,
         client_id="ownerapi",
         scopes="openid email offline_access",
     )
@@ -194,7 +217,9 @@ def full_login(
         log.info("Getting Fleet API token...")
         try:
             fleet_tokens = browser_login(
-                email, password, mfa_code,
+                email,
+                password,
+                mfa_code,
                 client_id=fleet_client_id,
                 scopes="openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds",
             )

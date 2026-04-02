@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.core.config import load_config, save_config
 from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning
+from tesla_cli.core.config import load_config, save_config
 
 notify_app = typer.Typer(name="notify", help="Manage push notifications (Apprise).")
 
@@ -63,7 +63,9 @@ def notify_list() -> None:
     console.print()
     console.print(table)
     console.print(f"\n  [dim]{len(urls)} URL(s) · notifications {'on' if enabled else 'off'}[/dim]")
-    console.print("  [dim]Toggle: [bold]tesla config set notifications-enabled true/false[/bold][/dim]")
+    console.print(
+        "  [dim]Toggle: [bold]tesla config set notifications-enabled true/false[/bold][/dim]"
+    )
 
 
 @notify_app.command("add")
@@ -117,7 +119,8 @@ def notify_test(
     title: str = typer.Option("Tesla CLI — Test", "--title", "-t", help="Notification title"),
     body: str = typer.Option(
         "🚗 This is a test notification from tesla-cli. If you see this, notifications are working!",
-        "--body", "-b",
+        "--body",
+        "-b",
         help="Notification body text",
     ),
 ) -> None:
@@ -147,11 +150,14 @@ def notify_test(
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Sending to {len(cfg.notifications.apprise_urls)} channel(s)...", total=None)
 
         # Format body using template (fallback to raw body if template keys unknown)
         import time as _time
+
         tmpl = cfg.notifications.message_template
         try:
             template_body = tmpl.format(
@@ -162,9 +168,14 @@ def notify_test(
             )
         except KeyError:
             template_body = tmpl
-        effective_body = body if body != (
-            "\U0001f697 This is a test notification from tesla-cli. If you see this, notifications are working!"
-        ) else template_body
+        effective_body = (
+            body
+            if body
+            != (
+                "\U0001f697 This is a test notification from tesla-cli. If you see this, notifications are working!"
+            )
+            else template_body
+        )
 
         for url in cfg.notifications.apprise_urls:
             service = url.split("://")[0] if "://" in url else "unknown"
@@ -197,7 +208,9 @@ def notify_test(
 
 @notify_app.command("set-template")
 def notify_set_template(
-    template: str = typer.Argument(..., help="Template string: use {event}, {vehicle}, {detail}, {ts}"),
+    template: str = typer.Argument(
+        ..., help="Template string: use {event}, {vehicle}, {detail}, {ts}"
+    ),
 ) -> None:
     """Set a custom notification message template.
 
@@ -211,6 +224,7 @@ def notify_set_template(
     cfg.notifications.message_template = template
     save_config(cfg)
     from tesla_cli.cli.output import render_success as _render_success
+
     _render_success(f"Template saved: [bold]{template}[/bold]")
 
 

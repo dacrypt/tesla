@@ -14,9 +14,9 @@ import subprocess
 
 import typer
 
+from tesla_cli.cli.output import console, is_json_mode, render_success
 from tesla_cli.core.config import load_config, resolve_vin, save_config
 from tesla_cli.core.exceptions import ExternalToolNotFoundError
-from tesla_cli.cli.output import console, is_json_mode, render_success
 
 ble_app = typer.Typer(
     name="ble",
@@ -46,9 +46,9 @@ def _vin(vin: str | None) -> str:
 def _run_ble(cmd: str, vin: str) -> dict:
     """Run `tesla-control -ble -vin <VIN> <cmd>` and return result dict."""
 
-    cfg      = load_config()
+    cfg = load_config()
     key_path = cfg.ble.key_path
-    binary   = _tesla_control_bin()
+    binary = _tesla_control_bin()
 
     args = [binary, "-ble"]
     if vin:
@@ -72,17 +72,18 @@ def _run_ble(cmd: str, vin: str) -> dict:
     err = (result.stderr or "").strip()
 
     return {
-        "status":    "ok" if ok else "error",
-        "command":   cmd,
-        "vin":       vin,
+        "status": "ok" if ok else "error",
+        "command": cmd,
+        "vin": vin,
         "returncode": result.returncode,
-        "stdout":    out,
-        "stderr":    err,
+        "stdout": out,
+        "stderr": err,
     }
 
 
 def _print_result(result: dict, success_msg: str) -> None:
     import json as _json
+
     if is_json_mode():
         console.print(_json.dumps(result, indent=2))
         return
@@ -176,15 +177,15 @@ def ble_status() -> None:
     """
     import json as _json
 
-    cfg    = load_config()
+    cfg = load_config()
     binary = shutil.which("tesla-control")
 
     data = {
         "tesla_control_found": binary is not None,
-        "tesla_control_path":  binary or "",
-        "key_path_set":        bool(cfg.ble.key_path),
-        "key_path":            cfg.ble.key_path or "",
-        "ble_mac":             cfg.ble.ble_mac or "",
+        "tesla_control_path": binary or "",
+        "key_path_set": bool(cfg.ble.key_path),
+        "key_path": cfg.ble.key_path or "",
+        "ble_mac": cfg.ble.ble_mac or "",
     }
 
     if is_json_mode():
@@ -192,24 +193,23 @@ def ble_status() -> None:
         return
 
     from rich.table import Table
+
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("k", style="dim", width=26)
     t.add_column("v")
-    found_str  = f"[green]found[/green] [dim]({binary})[/dim]" if binary else "[red]not found[/red]"
+    found_str = f"[green]found[/green] [dim]({binary})[/dim]" if binary else "[red]not found[/red]"
     t.add_row("tesla-control binary", found_str)
     t.add_row("BLE key path", cfg.ble.key_path or "[dim]not set[/dim]")
-    t.add_row("BLE MAC",      cfg.ble.ble_mac  or "[dim]auto-detect[/dim]")
+    t.add_row("BLE MAC", cfg.ble.ble_mac or "[dim]auto-detect[/dim]")
     console.print(t)
 
     if not binary:
         console.print(
-            f"\n[yellow]tesla-control not found.[/yellow]\n"
-            f"Install: [bold]{_INSTALL_HINT}[/bold]"
+            f"\n[yellow]tesla-control not found.[/yellow]\nInstall: [bold]{_INSTALL_HINT}[/bold]"
         )
     elif not cfg.ble.key_path:
         console.print(
-            "\n[yellow]BLE key not configured.[/yellow]  "
-            "Run: [bold]tesla ble setup-key[/bold]"
+            "\n[yellow]BLE key not configured.[/yellow]  Run: [bold]tesla ble setup-key[/bold]"
         )
 
 
@@ -223,6 +223,7 @@ def ble_setup_key(
     tesla ble setup-key ~/.tesla/private.pem
     """
     from pathlib import Path
+
     p = Path(key_path).expanduser()
     if not p.exists():
         raise typer.BadParameter(f"Key file not found: {p}")

@@ -77,9 +77,9 @@ class ProviderRegistry:
     def for_capability(self, capability: str, *, available_only: bool = True) -> list[Provider]:
         """All providers that support a capability, sorted by priority."""
         return [
-            p for p in self._providers
-            if capability in p.capabilities
-            and (not available_only or p.is_available())
+            p
+            for p in self._providers
+            if capability in p.capabilities and (not available_only or p.is_available())
         ]
 
     def get(self, capability: str) -> Provider:
@@ -91,7 +91,8 @@ class ProviderRegistry:
         if not providers:
             configured = self.for_capability(capability, available_only=False)
             reason = (
-                "none configured" if not configured
+                "none configured"
+                if not configured
                 else f"configured ({', '.join(p.name for p in configured)}) but not available"
             )
             raise CapabilityNotAvailableError(capability, reason)
@@ -131,9 +132,7 @@ class ProviderRegistry:
                     return result
                 last_result = result
             except Exception as exc:  # noqa: BLE001
-                last_result = ProviderResult(
-                    ok=False, provider=provider.name, error=str(exc)
-                )
+                last_result = ProviderResult(ok=False, provider=provider.name, error=str(exc))
         return last_result or ProviderResult(ok=False, error="all providers failed")
 
     def execute(self, capability: str, operation: str, **kwargs) -> ProviderResult:
@@ -160,9 +159,7 @@ class ProviderRegistry:
                     return result
                 last_result = result
             except Exception as exc:  # noqa: BLE001
-                last_result = ProviderResult(
-                    ok=False, provider=provider.name, error=str(exc)
-                )
+                last_result = ProviderResult(ok=False, provider=provider.name, error=str(exc))
         return last_result or ProviderResult(ok=False, error="all providers failed")
 
     # ── Fan-out ───────────────────────────────────────────────────────────────
@@ -188,9 +185,7 @@ class ProviderRegistry:
             try:
                 results.append(provider.execute(operation, **kwargs))
             except Exception as exc:  # noqa: BLE001
-                results.append(ProviderResult(
-                    ok=False, provider=provider.name, error=str(exc)
-                ))
+                results.append(ProviderResult(ok=False, provider=provider.name, error=str(exc)))
         return results
 
     # ── Health / status ───────────────────────────────────────────────────────
@@ -213,10 +208,10 @@ class ProviderRegistry:
                 h.setdefault("latency_ms", round((time.monotonic() - t0) * 1000, 1))
             except Exception as exc:  # noqa: BLE001
                 h = {
-                    "provider":   provider.name,
-                    "status":     "down",
+                    "provider": provider.name,
+                    "status": "down",
                     "latency_ms": round((time.monotonic() - t0) * 1000, 1),
-                    "detail":     str(exc),
+                    "detail": str(exc),
                 }
             report.append(h)
         return report

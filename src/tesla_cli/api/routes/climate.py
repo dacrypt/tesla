@@ -14,7 +14,7 @@ router = APIRouter()
 
 def _bv(request: Request):
     cfg = load_config()
-    v   = resolve_vin(cfg, request.app.state.override_vin)
+    v = resolve_vin(cfg, request.app.state.override_vin)
     return get_vehicle_backend(cfg), v
 
 
@@ -51,7 +51,7 @@ def climate_off(request: Request) -> dict:
 
 
 class SetTempRequest(BaseModel):
-    driver_temp:    float
+    driver_temp: float
     passenger_temp: float | None = None
 
 
@@ -63,9 +63,7 @@ def set_temp(body: SetTempRequest, request: Request) -> dict:
     backend, v = _bv(request)
     passenger = body.passenger_temp or body.driver_temp
     try:
-        backend.command(v, "set_temps",
-                        driver_temp=body.driver_temp,
-                        passenger_temp=passenger)
+        backend.command(v, "set_temps", driver_temp=body.driver_temp, passenger_temp=passenger)
         return {"status": "ok", "driver_temp": body.driver_temp, "passenger_temp": passenger}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")

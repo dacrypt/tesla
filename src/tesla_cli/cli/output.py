@@ -31,7 +31,9 @@ def is_json_mode() -> bool:
     return _json_mode
 
 
-def set_anon_mode(enabled: bool, vin: str = "", rn: str = "", email: str = "", name: str = "") -> None:
+def set_anon_mode(
+    enabled: bool, vin: str = "", rn: str = "", email: str = "", name: str = ""
+) -> None:
     """Enable anonymization mode, masking PII in all output."""
     global _anon_mode, _anon_targets
     _anon_mode = enabled
@@ -42,7 +44,9 @@ def set_anon_mode(enabled: bool, vin: str = "", rn: str = "", email: str = "", n
             masked_vin = vin[:4] + "*" * (len(vin) - 7) + vin[-3:]
             _anon_targets.append((re.escape(vin), masked_vin))
         if rn:
-            masked_rn = rn[:2] + "*" * max(0, len(rn) - 5) + rn[-3:] if len(rn) > 5 else rn[:2] + "***"
+            masked_rn = (
+                rn[:2] + "*" * max(0, len(rn) - 5) + rn[-3:] if len(rn) > 5 else rn[:2] + "***"
+            )
             _anon_targets.append((re.escape(rn), masked_rn))
         if email and "@" in email:
             local, domain = email.split("@", 1)
@@ -65,7 +69,9 @@ def anonymize(text: str) -> str:
     for pattern, replacement in _anon_targets:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     # Also mask generic VIN-like patterns (17 alphanum) not already caught
-    text = re.sub(r'\b[A-HJ-NPR-Z0-9]{17}\b', lambda m: m.group(0)[:4] + "***" + m.group(0)[-3:], text)
+    text = re.sub(
+        r"\b[A-HJ-NPR-Z0-9]{17}\b", lambda m: m.group(0)[:4] + "***" + m.group(0)[-3:], text
+    )
     return text
 
 
@@ -97,9 +103,7 @@ def render_dict(data: dict[str, Any], title: str = "") -> None:
     console.print(Panel(table, title=f"[bold]{title}[/bold]" if title else "", border_style="blue"))
 
 
-def render_table(
-    rows: list[dict[str, Any]], columns: list[str], title: str = ""
-) -> None:
+def render_table(rows: list[dict[str, Any]], columns: list[str], title: str = "") -> None:
     """Render a list of dicts as Rich table or JSON array."""
     if _json_mode:
         console.print(json.dumps(rows, indent=2, default=str))
@@ -123,7 +127,9 @@ def render_error(message: str, error_type: str = "Error") -> None:
     if _json_mode:
         error_console.print(json.dumps({"error": message, "type": error_type}))
     else:
-        error_console.print(Panel(message, title=f"[bold red]{error_type}[/bold red]", border_style="red"))
+        error_console.print(
+            Panel(message, title=f"[bold red]{error_type}[/bold red]", border_style="red")
+        )
 
 
 def render_warning(message: str) -> None:

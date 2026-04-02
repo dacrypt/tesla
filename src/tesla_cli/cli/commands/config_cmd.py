@@ -5,9 +5,9 @@ from __future__ import annotations
 import typer
 from rich.prompt import Prompt
 
+from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
-from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success
 
 config_app = typer.Typer(name="config", help="Manage tesla-cli configuration.")
 
@@ -26,13 +26,17 @@ def config_show() -> None:
 
     # Show delivery cache status
     from tesla_cli.core.backends.order import DELIVERY_CACHE_FILE
+
     if DELIVERY_CACHE_FILE.exists():
         import json
+
         cached = json.loads(DELIVERY_CACHE_FILE.read_text())
         data["delivery_cache"] = {
             "status": "cached",
             "fetched_at": cached.get("fetched_at", "unknown"),
-            "appointment": cached.get("delivery_details", {}).get("deliveryTiming", {}).get("appointment", ""),
+            "appointment": cached.get("delivery_details", {})
+            .get("deliveryTiming", {})
+            .get("appointment", ""),
         }
     else:
         data["delivery_cache"] = "not cached (run: tesla order delivery --import)"
@@ -96,15 +100,20 @@ def config_export(
     from tesla_cli.core.config import CONFIG_FILE
 
     if not CONFIG_FILE.exists():
-        console.print("[yellow]No config file found. Run[/yellow] [bold]tesla setup[/bold] [yellow]first.[/yellow]")
+        console.print(
+            "[yellow]No config file found. Run[/yellow] [bold]tesla setup[/bold] [yellow]first.[/yellow]"
+        )
         raise typer.Exit(1)
 
     content = CONFIG_FILE.read_text()
 
     if output:
         from pathlib import Path
+
         Path(output).write_text(content)
-        render_success(f"Config exported to {output}  (tokens NOT included — those live in keyring)")
+        render_success(
+            f"Config exported to {output}  (tokens NOT included — those live in keyring)"
+        )
     else:
         console.print(content)
 
@@ -112,7 +121,9 @@ def config_export(
 @config_app.command("import")
 def config_import(
     source: str = typer.Argument(..., help="TOML config file to import"),
-    merge: bool = typer.Option(True, "--merge/--replace", help="Merge with existing config (default) or replace"),
+    merge: bool = typer.Option(
+        True, "--merge/--replace", help="Merge with existing config (default) or replace"
+    ),
 ) -> None:
     """Import configuration from a TOML file.
 
@@ -130,6 +141,7 @@ def config_import(
 
     try:
         import tomllib
+
         imported = tomllib.loads(src.read_text())
         imported_cfg = Config.model_validate(imported)
     except Exception as e:
@@ -157,7 +169,9 @@ def config_import(
 @config_app.command("encrypt-token")
 def config_encrypt_token(
     key_name: str = typer.Argument(..., help="Token key name (e.g. order_refresh_token)"),
-    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Encryption password"),
+    password: str = typer.Option(
+        ..., "--password", "-p", prompt=True, hide_input=True, help="Encryption password"
+    ),
 ) -> None:
     """Encrypt a stored token with AES-256-GCM (for headless/server deployments).
 
@@ -181,7 +195,9 @@ def config_encrypt_token(
 @config_app.command("decrypt-token")
 def config_decrypt_token(
     key_name: str = typer.Argument(..., help="Token key name to decrypt"),
-    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Decryption password"),
+    password: str = typer.Option(
+        ..., "--password", "-p", prompt=True, hide_input=True, help="Decryption password"
+    ),
 ) -> None:
     """Decrypt an AES-256-GCM encrypted token back to plaintext in the keyring.
 
@@ -207,7 +223,9 @@ def config_decrypt_token(
 
 @config_app.command("backup")
 def config_backup(
-    output: str = typer.Option("tesla-config-backup.json", "--output", "-o", help="Output JSON file"),
+    output: str = typer.Option(
+        "tesla-config-backup.json", "--output", "-o", help="Output JSON file"
+    ),
 ) -> None:
     """Export current configuration to a JSON backup file (tokens omitted for security).
 
@@ -224,7 +242,9 @@ def config_backup(
     def _redact(obj: object) -> object:
         if isinstance(obj, dict):
             return {
-                k: "[REDACTED]" if any(t in k.lower() for t in ("token", "secret", "key", "password")) else _redact(v)
+                k: "[REDACTED]"
+                if any(t in k.lower() for t in ("token", "secret", "key", "password"))
+                else _redact(v)
                 for k, v in obj.items()
             }
         if isinstance(obj, list):
@@ -239,13 +259,17 @@ def config_backup(
 
     out = Path(output).expanduser()
     out.write_text(_json.dumps(safe, indent=2, default=str))
-    console.print(f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] (tokens redacted)")
+    console.print(
+        f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] (tokens redacted)"
+    )
 
 
 @config_app.command("restore")
 def config_restore(
     input_file: str = typer.Argument(..., help="JSON backup file to restore from"),
-    force: bool = typer.Option(False, "--force", help="Overwrite existing config without prompting"),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite existing config without prompting"
+    ),
 ) -> None:
     """Restore configuration from a JSON backup file.
 
@@ -269,7 +293,9 @@ def config_restore(
     data.pop("_meta", None)
 
     if not force:
-        confirm = typer.confirm(f"Restore config from {src.name}? This will overwrite current settings.")
+        confirm = typer.confirm(
+            f"Restore config from {src.name}? This will overwrite current settings."
+        )
         if not confirm:
             console.print("[dim]Restore cancelled.[/dim]")
             return
@@ -381,7 +407,8 @@ def config_doctor() -> None:
         _check("Order auth token", "ok", "Token present in keyring")
     else:
         _check(
-            "Order auth token", "fail",
+            "Order auth token",
+            "fail",
             "No order access token found",
             "Run: tesla config auth order",
         )
@@ -392,7 +419,8 @@ def config_doctor() -> None:
         _check("Default VIN", "ok", f"VIN: {vin}")
     else:
         _check(
-            "Default VIN", "warn",
+            "Default VIN",
+            "warn",
             "No default VIN configured",
             "Run: tesla config set default-vin <YOUR_VIN>",
         )
@@ -403,7 +431,8 @@ def config_doctor() -> None:
         _check("Reservation number", "ok", f"RN: {rn}")
     else:
         _check(
-            "Reservation number", "warn",
+            "Reservation number",
+            "warn",
             "No reservation number configured",
             "Run: tesla config set reservation-number RNXXXXXXXXX",
         )
@@ -414,7 +443,8 @@ def config_doctor() -> None:
         _check("Vehicle backend", "ok", f"Backend: {backend_name}")
     else:
         _check(
-            "Vehicle backend", "warn",
+            "Vehicle backend",
+            "warn",
             f"Unrecognised backend: '{backend_name}'",
             "Run: tesla config set backend fleet|tessie|owner",
         )
@@ -425,7 +455,8 @@ def config_doctor() -> None:
             _check("Tessie API token", "ok", "Token present in keyring")
         else:
             _check(
-                "Tessie API token", "fail",
+                "Tessie API token",
+                "fail",
                 "No Tessie token found",
                 "Run: tesla config auth tessie",
             )
@@ -434,7 +465,8 @@ def config_doctor() -> None:
             _check("Fleet API token", "ok", "Token present in keyring")
         else:
             _check(
-                "Fleet API token", "fail",
+                "Fleet API token",
+                "fail",
                 "No Fleet API token found",
                 "Run: tesla config auth fleet",
             )
@@ -442,47 +474,76 @@ def config_doctor() -> None:
         if tokens.has_token(tokens.ORDER_ACCESS_TOKEN):
             _check("Owner API token", "ok", "Reusing order token for Owner API")
         else:
-            _check("Owner API token", "warn", "No owner API token (use tessie or fleet for vehicle control)", "")
+            _check(
+                "Owner API token",
+                "warn",
+                "No owner API token (use tessie or fleet for vehicle control)",
+                "",
+            )
 
     # ── 6. TeslaMate ─────────────────────────────────────────────────────────
     tm_url = cfg.teslaMate.database_url or ""
     if not tm_url:
-        _check("TeslaMate DB", "warn", "Not configured (optional)", "Run: tesla teslaMate connect <url>")
+        _check(
+            "TeslaMate DB",
+            "warn",
+            "Not configured (optional)",
+            "Run: tesla teslaMate connect <url>",
+        )
     else:
         try:
             from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
             tm = TeslaMateBacked(tm_url, car_id=cfg.teslaMate.car_id)
             if tm.ping():
                 _check("TeslaMate DB", "ok", f"Connected: {tm_url[:40]}...")
             else:
                 _check("TeslaMate DB", "fail", "DB unreachable", "Check DB URL and connectivity")
         except ImportError:
-            _check("TeslaMate DB", "warn", "psycopg2 not installed (optional)", "uv pip install psycopg2-binary")
+            _check(
+                "TeslaMate DB",
+                "warn",
+                "psycopg2 not installed (optional)",
+                "uv pip install psycopg2-binary",
+            )
         except Exception as exc:
             _check("TeslaMate DB", "fail", f"Connection error: {str(exc)[:60]}", "Check DB URL")
 
     # ── 7. Config file ───────────────────────────────────────────────────────
     try:
         from tesla_cli.core.config import CONFIG_PATH
+
         if CONFIG_PATH.exists():
             _check("Config file", "ok", f"Found: {CONFIG_PATH}")
         else:
-            _check("Config file", "warn", "Config file not yet written (using defaults)", "Run any config set command")
+            _check(
+                "Config file",
+                "warn",
+                "Config file not yet written (using defaults)",
+                "Run any config set command",
+            )
     except Exception:
         _check("Config file", "ok", "Config loaded successfully")
 
     # ── Output ───────────────────────────────────────────────────────────────
     if is_json_mode():
-        console.print_json(_json.dumps({
-            "ok": ok_count, "warn": warn_count, "fail": fail_count,
-            "checks": checks,
-        }, indent=2))
+        console.print_json(
+            _json.dumps(
+                {
+                    "ok": ok_count,
+                    "warn": warn_count,
+                    "fail": fail_count,
+                    "checks": checks,
+                },
+                indent=2,
+            )
+        )
         return
 
     console.print()
     for c in checks:
         icon, color = {
-            "ok":   ("✅", "green"),
+            "ok": ("✅", "green"),
             "warn": ("⚠️ ", "yellow"),
             "fail": ("❌", "red"),
         }.get(c["status"], ("?", "white"))
@@ -542,15 +603,22 @@ def config_migrate(
 
     if is_json_mode():
         import tesla_cli
-        console.print(_json.dumps({
-            "dry_run":   dry_run,
-            "additions": additions,
-            "version":   tesla_cli.__version__,
-        }))
+
+        console.print(
+            _json.dumps(
+                {
+                    "dry_run": dry_run,
+                    "additions": additions,
+                    "version": tesla_cli.__version__,
+                }
+            )
+        )
         return
 
     if not additions:
-        console.print("[green]\u2713[/green] Config is already up to date \u2014 no new fields needed.")
+        console.print(
+            "[green]\u2713[/green] Config is already up to date \u2014 no new fields needed."
+        )
         return
 
     console.print(f"[bold]{len(additions)} new field(s) to add:[/bold]")
@@ -558,7 +626,9 @@ def config_migrate(
         console.print(f"  [dim]+[/dim] {a}")
 
     if dry_run:
-        console.print("\n[dim]Dry run \u2014 no changes made. Run without --dry-run to apply.[/dim]")
+        console.print(
+            "\n[dim]Dry run \u2014 no changes made. Run without --dry-run to apply.[/dim]"
+        )
         return
 
     # Backup and save
@@ -569,7 +639,9 @@ def config_migrate(
 
     cfg_merged = cfg_old.model_copy(deep=True)
     save_config(cfg_merged)
-    console.print(f"\n[green]\u2713[/green] Config migrated \u2014 {len(additions)} new default(s) added.")
+    console.print(
+        f"\n[green]\u2713[/green] Config migrated \u2014 {len(additions)} new default(s) added."
+    )
 
 
 @config_app.command("validate")
@@ -612,11 +684,16 @@ def config_validate() -> None:
     if cfg.general.backend in valid_backends:
         _ok("general.backend", f"Backend: {cfg.general.backend}")
     else:
-        _fail("general.backend", f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}")
+        _fail(
+            "general.backend",
+            f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}",
+        )
 
     # ── TeslaMate URL format ─────────────────────────────────────────────────
     if cfg.teslaMate.database_url:
-        if cfg.teslaMate.database_url.startswith("postgresql://") or cfg.teslaMate.database_url.startswith("postgres://"):
+        if cfg.teslaMate.database_url.startswith(
+            "postgresql://"
+        ) or cfg.teslaMate.database_url.startswith("postgres://"):
             _ok("teslaMate.database_url", "PostgreSQL URL format looks valid")
         else:
             _fail("teslaMate.database_url", "URL must start with postgresql:// or postgres://")
@@ -652,7 +729,10 @@ def config_validate() -> None:
     # ── Notification URLs ────────────────────────────────────────────────────
     for i, url in enumerate(cfg.notifications.apprise_urls):
         if "://" in url:
-            _ok(f"notifications.apprise_urls[{i}]", f"URL format OK: {url[:40]}…" if len(url) > 40 else f"URL format OK: {url}")
+            _ok(
+                f"notifications.apprise_urls[{i}]",
+                f"URL format OK: {url[:40]}…" if len(url) > 40 else f"URL format OK: {url}",
+            )
         else:
             _warn(f"notifications.apprise_urls[{i}]", f"URL missing scheme (://): {url[:40]}")
 
@@ -666,24 +746,40 @@ def config_validate() -> None:
     warnings = [c for c in checks if c["status"] == "warn"]
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "version": __version__,
-            "checks":  checks,
-            "summary": {"ok": len(checks) - len(failures) - len(warnings), "warn": len(warnings), "fail": len(failures)},
-            "valid":   len(failures) == 0,
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "version": __version__,
+                    "checks": checks,
+                    "summary": {
+                        "ok": len(checks) - len(failures) - len(warnings),
+                        "warn": len(warnings),
+                        "fail": len(failures),
+                    },
+                    "valid": len(failures) == 0,
+                }
+            )
+        )
         if failures:
             raise typer.Exit(1)
         return
 
     for c in checks:
-        icon  = "[green]✓[/green]" if c["status"] == "ok" else "[yellow]⚠[/yellow]" if c["status"] == "warn" else "[red]✗[/red]"
+        icon = (
+            "[green]✓[/green]"
+            if c["status"] == "ok"
+            else "[yellow]⚠[/yellow]"
+            if c["status"] == "warn"
+            else "[red]✗[/red]"
+        )
         field = f"[dim]{c['field']}[/dim]"
         console.print(f"  {icon}  {field}  {c['message']}")
 
     console.print()
     if failures:
-        console.print(f"[red]Validation failed:[/red] {len(failures)} error(s), {len(warnings)} warning(s)")
+        console.print(
+            f"[red]Validation failed:[/red] {len(failures)} error(s), {len(warnings)} warning(s)"
+        )
         raise typer.Exit(1)
     elif warnings:
         console.print(f"[yellow]Config valid with {len(warnings)} warning(s)[/yellow]")
@@ -697,9 +793,14 @@ def _run_config_checks(cfg) -> list[dict]:
 
     checks: list[dict] = []
 
-    def _ok(field: str, msg: str)   -> None: checks.append({"field": field, "status": "ok",    "message": msg})
-    def _warn(field: str, msg: str) -> None: checks.append({"field": field, "status": "warn",  "message": msg})
-    def _err(field: str, msg: str)  -> None: checks.append({"field": field, "status": "error", "message": msg})
+    def _ok(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "ok", "message": msg})
+
+    def _warn(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "warn", "message": msg})
+
+    def _err(field: str, msg: str) -> None:
+        checks.append({"field": field, "status": "error", "message": msg})
 
     valid_backends = {"fleet", "tessie", "owner"}
     if cfg.general.default_vin:
@@ -710,12 +811,17 @@ def _run_config_checks(cfg) -> list[dict]:
     if cfg.general.backend in valid_backends:
         _ok("general.backend", f"Valid: {cfg.general.backend}")
     else:
-        _err("general.backend", f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}")
+        _err(
+            "general.backend",
+            f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}",
+        )
 
     if 0.0 <= cfg.general.cost_per_kwh <= 5.0:
         _ok("general.cost_per_kwh", str(cfg.general.cost_per_kwh))
     else:
-        _warn("general.cost_per_kwh", f"Unusual value {cfg.general.cost_per_kwh} — expected 0.0–5.0")
+        _warn(
+            "general.cost_per_kwh", f"Unusual value {cfg.general.cost_per_kwh} — expected 0.0–5.0"
+        )
 
     if cfg.mqtt.broker:
         if not 1 <= cfg.mqtt.port <= 65535:
@@ -754,7 +860,10 @@ def _run_config_checks(cfg) -> list[dict]:
         used = {f"{{{f}}}" for _, f, _, _ in string.Formatter().parse(tmpl) if f}
         unknown_keys = used - known
         if unknown_keys:
-            _warn("notifications.message_template", f"Unknown placeholder(s): {', '.join(sorted(unknown_keys))}")
+            _warn(
+                "notifications.message_template",
+                f"Unknown placeholder(s): {', '.join(sorted(unknown_keys))}",
+            )
         else:
             _ok("notifications.message_template", tmpl[:60])
     except Exception:
@@ -829,7 +938,9 @@ def _auth_fleet() -> None:
         if "already" in str(exc).lower() or "204" in str(exc):
             console.print("  [dim]✓ Partner ya registrado (OK)[/dim]")
         else:
-            console.print(f"  [yellow]⚠[/yellow] Registro de partner: {exc}\n  Continuando con autenticación de usuario...")
+            console.print(
+                f"  [yellow]⚠[/yellow] Registro de partner: {exc}\n  Continuando con autenticación de usuario..."
+            )
 
     # Step 2: User OAuth2 PKCE for vehicle access
     console.print("[bold]Iniciando OAuth2 con scopes de vehículo...[/bold]")
@@ -844,8 +955,12 @@ def _auth_fleet() -> None:
     if cfg.teslaMate.managed:
         try:
             from pathlib import Path
+
             from tesla_cli.infra.teslamate_stack import TeslaMateStack
-            stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
+
+            stack = TeslaMateStack(
+                Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
+            )
             if stack.is_running() and stack.sync_tokens_from_keyring():
                 console.print("  [green]Tokens synced to TeslaMate automatically.[/green]")
         except Exception:

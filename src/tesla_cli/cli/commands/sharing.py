@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import typer
 
+from tesla_cli.cli.output import console, render_dict, render_success, render_table
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.exceptions import BackendNotSupportedError
-from tesla_cli.cli.output import console, render_dict, render_success, render_table
 
 sharing_app = typer.Typer(name="sharing", help="Vehicle sharing and driver invitations.")
 

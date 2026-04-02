@@ -73,9 +73,7 @@ class FleetBackend(VehicleBackend):
         return data.get("climate_state", data)
 
     def get_drive_state(self, vin: str) -> dict[str, Any]:
-        data = self._get(
-            f"/api/1/vehicles/{vin}/vehicle_data?endpoints=drive_state;location_data"
-        )
+        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=drive_state;location_data")
         return data.get("drive_state", data)
 
     def get_vehicle_state(self, vin: str) -> dict[str, Any]:
@@ -162,12 +160,8 @@ class FleetBackend(VehicleBackend):
     def charge_port_door_close(self, vin: str) -> dict[str, Any]:
         return self.command(vin, "charge_port_door_close")
 
-    def set_scheduled_charging(
-        self, vin: str, enable: bool, time_minutes: int
-    ) -> dict[str, Any]:
-        return self.command(
-            vin, "set_scheduled_charging", enable=enable, time=time_minutes
-        )
+    def set_scheduled_charging(self, vin: str, enable: bool, time_minutes: int) -> dict[str, Any]:
+        return self.command(vin, "set_scheduled_charging", enable=enable, time=time_minutes)
 
     def set_scheduled_departure(
         self,
@@ -195,9 +189,7 @@ class FleetBackend(VehicleBackend):
     def auto_conditioning_stop(self, vin: str) -> dict[str, Any]:
         return self.command(vin, "auto_conditioning_stop")
 
-    def set_temps(
-        self, vin: str, driver_temp: float, passenger_temp: float
-    ) -> dict[str, Any]:
+    def set_temps(self, vin: str, driver_temp: float, passenger_temp: float) -> dict[str, Any]:
         return self.command(
             vin,
             "set_temps",
@@ -205,37 +197,23 @@ class FleetBackend(VehicleBackend):
             passenger_temp=passenger_temp,
         )
 
-    def remote_seat_heater_request(
-        self, vin: str, heater: int, level: int
-    ) -> dict[str, Any]:
-        return self.command(
-            vin, "remote_seat_heater_request", heater=heater, level=level
-        )
+    def remote_seat_heater_request(self, vin: str, heater: int, level: int) -> dict[str, Any]:
+        return self.command(vin, "remote_seat_heater_request", heater=heater, level=level)
 
-    def remote_steering_wheel_heater_request(
-        self, vin: str, on: bool
-    ) -> dict[str, Any]:
+    def remote_steering_wheel_heater_request(self, vin: str, on: bool) -> dict[str, Any]:
         return self.command(vin, "remote_steering_wheel_heater_request", on=on)
 
-    def set_preconditioning_max(
-        self, vin: str, on: bool
-    ) -> dict[str, Any]:
+    def set_preconditioning_max(self, vin: str, on: bool) -> dict[str, Any]:
         return self.command(vin, "set_preconditioning_max", on=on)
 
     def set_bioweapon_mode(
         self, vin: str, on: bool, manual_override: bool = True
     ) -> dict[str, Any]:
-        return self.command(
-            vin, "set_bioweapon_mode", on=on, manual_override=manual_override
-        )
+        return self.command(vin, "set_bioweapon_mode", on=on, manual_override=manual_override)
 
-    def set_climate_keeper_mode(
-        self, vin: str, climate_keeper_mode: int
-    ) -> dict[str, Any]:
+    def set_climate_keeper_mode(self, vin: str, climate_keeper_mode: int) -> dict[str, Any]:
         """Set climate keeper: 0=off, 1=keep, 2=dog, 3=camp."""
-        return self.command(
-            vin, "set_climate_keeper_mode", climate_keeper_mode=climate_keeper_mode
-        )
+        return self.command(vin, "set_climate_keeper_mode", climate_keeper_mode=climate_keeper_mode)
 
     def set_cabin_overheat_protection(
         self, vin: str, on: bool, fan_only: bool = False
@@ -248,11 +226,11 @@ class FleetBackend(VehicleBackend):
         )
 
     # Windows
-    def window_control(self, vin: str, command_action: str, lat: float = 0, lon: float = 0) -> dict[str, Any]:
+    def window_control(
+        self, vin: str, command_action: str, lat: float = 0, lon: float = 0
+    ) -> dict[str, Any]:
         """command_action: vent | close"""
-        return self.command(
-            vin, "window_control", command=command_action, lat=lat, lon=lon
-        )
+        return self.command(vin, "window_control", command=command_action, lat=lat, lon=lon)
 
     # Trunk / Frunk
     def actuate_trunk(self, vin: str, which_trunk: str = "rear") -> dict[str, Any]:
@@ -270,9 +248,7 @@ class FleetBackend(VehicleBackend):
         return self.command(vin, "set_sentry_mode", on=on)
 
     # Valet
-    def set_valet_mode(
-        self, vin: str, on: bool, password: str = ""
-    ) -> dict[str, Any]:
+    def set_valet_mode(self, vin: str, on: bool, password: str = "") -> dict[str, Any]:
         params: dict[str, Any] = {"on": on}
         if password:
             params["password"] = password
@@ -288,9 +264,7 @@ class FleetBackend(VehicleBackend):
     def speed_limit_deactivate(self, vin: str, pin: str) -> dict[str, Any]:
         return self.command(vin, "speed_limit_deactivate", pin=pin)
 
-    def speed_limit_set_limit(
-        self, vin: str, limit_mph: int
-    ) -> dict[str, Any]:
+    def speed_limit_set_limit(self, vin: str, limit_mph: int) -> dict[str, Any]:
         return self.command(vin, "speed_limit_set_limit", limit_mph=limit_mph)
 
     def speed_limit_clear_pin(self, vin: str, pin: str) -> dict[str, Any]:
@@ -336,16 +310,12 @@ class FleetBackend(VehicleBackend):
         self, vin: str, id: int, order: int, offset: int = 0
     ) -> dict[str, Any]:
         """Navigate to a Supercharger."""
-        return self.command(
-            vin, "navigation_sc_request", id=id, order=order, offset=offset
-        )
+        return self.command(vin, "navigation_sc_request", id=id, order=order, offset=offset)
 
     def navigation_gps_request(
         self, vin: str, lat: float, lon: float, order: int = 0
     ) -> dict[str, Any]:
-        return self.command(
-            vin, "navigation_gps_request", lat=lat, lon=lon, order=order
-        )
+        return self.command(vin, "navigation_gps_request", lat=lat, lon=lon, order=order)
 
     # Media controls
     def media_toggle_playback(self, vin: str) -> dict[str, Any]:
@@ -381,9 +351,7 @@ class FleetBackend(VehicleBackend):
         return self.command(vin, "cancel_software_update")
 
     # HomeLink
-    def trigger_homelink(
-        self, vin: str, lat: float, lon: float
-    ) -> dict[str, Any]:
+    def trigger_homelink(self, vin: str, lat: float, lon: float) -> dict[str, Any]:
         return self.command(vin, "trigger_homelink", lat=lat, lon=lon)
 
     # Boombox

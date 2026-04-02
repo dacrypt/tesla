@@ -12,8 +12,8 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin, save_config
 from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
+from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 geofence_app = typer.Typer(
     name="geofence",
@@ -28,7 +28,10 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    )
     return R * 2 * math.asin(math.sqrt(a))
 
 
@@ -37,9 +40,9 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 @geofence_app.command("add")
 def geofence_add(
-    name: str   = typer.Argument(..., help="Zone name (e.g. home, work, charger)"),
-    lat: float  = typer.Option(..., "--lat", help="Latitude in decimal degrees"),
-    lon: float  = typer.Option(..., "--lon", help="Longitude in decimal degrees"),
+    name: str = typer.Argument(..., help="Zone name (e.g. home, work, charger)"),
+    lat: float = typer.Option(..., "--lat", help="Latitude in decimal degrees"),
+    lon: float = typer.Option(..., "--lon", help="Longitude in decimal degrees"),
     radius: float = typer.Option(0.5, "--radius", "-r", help="Radius in km (default 0.5)"),
 ) -> None:
     """Add or update a named geofence zone.
@@ -54,7 +57,11 @@ def geofence_add(
     save_config(cfg)
 
     if is_json_mode():
-        console.print(_json.dumps({"zone": name, "lat": lat, "lon": lon, "radius_km": radius, "status": "added"}))
+        console.print(
+            _json.dumps(
+                {"zone": name, "lat": lat, "lon": lon, "radius_km": radius, "status": "added"}
+            )
+        )
         return
     render_success(f"Geofence '{name}' added: {lat:+.5f}, {lon:+.5f} r={radius} km")
 
@@ -77,13 +84,16 @@ def geofence_list() -> None:
         return
 
     if is_json_mode():
-        console.print(_json.dumps([
-            {"name": n, **z} for n, z in zones.items()
-        ], indent=2))
+        console.print(_json.dumps([{"name": n, **z} for n, z in zones.items()], indent=2))
         return
 
     rows = [
-        {"name": n, "lat": f"{z['lat']:+.5f}", "lon": f"{z['lon']:+.5f}", "radius_km": z.get("radius_km", 0.5)}
+        {
+            "name": n,
+            "lat": f"{z['lat']:+.5f}",
+            "lon": f"{z['lon']:+.5f}",
+            "radius_km": z.get("radius_km", 0.5),
+        }
         for n, z in zones.items()
     ]
     render_table(rows, columns=["name", "lat", "lon", "radius_km"], title="Geofence Zones")
@@ -115,7 +125,9 @@ def geofence_remove(
 
 @geofence_app.command("watch")
 def geofence_watch(
-    interval: int = typer.Option(30, "--interval", "-i", help="Poll interval in seconds (default 30)"),
+    interval: int = typer.Option(
+        30, "--interval", "-i", help="Poll interval in seconds (default 30)"
+    ),
     notify: str = typer.Option("", "--notify", help="Apprise URL for enter/exit alerts"),
     vin: str | None = VinOption,
 ) -> None:
@@ -128,7 +140,7 @@ def geofence_watch(
     from datetime import datetime as _dt
 
     cfg = load_config()
-    v   = resolve_vin(cfg, vin)
+    v = resolve_vin(cfg, vin)
 
     zones = cfg.geofences.zones
     if not zones:
@@ -142,6 +154,7 @@ def geofence_watch(
     if notify:
         try:
             import apprise
+
             notifier = apprise.Apprise()
             notifier.add(notify)
         except ImportError:
@@ -183,9 +196,13 @@ def geofence_watch(
                 events: list[str] = []
                 if not first_poll:
                     for name in curr_inside - inside:
-                        events.append(f"[green]ENTER[/green] {name} ({distances[name]:.2f} km from center)")
+                        events.append(
+                            f"[green]ENTER[/green] {name} ({distances[name]:.2f} km from center)"
+                        )
                     for name in inside - curr_inside:
-                        events.append(f"[red]EXIT[/red]  {name} ({distances[name]:.2f} km from center)")
+                        events.append(
+                            f"[red]EXIT[/red]  {name} ({distances[name]:.2f} km from center)"
+                        )
 
                 if is_json_mode():
                     payload: dict = {
@@ -193,14 +210,28 @@ def geofence_watch(
                         "lat": car_lat,
                         "lon": car_lon,
                         "inside": list(curr_inside),
-                        "events": [e.replace("[green]", "").replace("[/green]", "").replace("[red]", "").replace("[/red]", "").strip() for e in events],
+                        "events": [
+                            e.replace("[green]", "")
+                            .replace("[/green]", "")
+                            .replace("[red]", "")
+                            .replace("[/red]", "")
+                            .strip()
+                            for e in events
+                        ],
                     }
                     console.print(_json.dumps(payload))
                 elif events:
                     for ev in events:
                         console.print(f"  [dim]{ts}[/dim]  {ev}")
                     if notifier:
-                        body = "\n".join(e.replace("[green]", "").replace("[/green]", "").replace("[red]", "").replace("[/red]", "").strip() for e in events)
+                        body = "\n".join(
+                            e.replace("[green]", "")
+                            .replace("[/green]", "")
+                            .replace("[red]", "")
+                            .replace("[/red]", "")
+                            .strip()
+                            for e in events
+                        )
                         notifier.notify(title="Tesla Geofence", body=body)
                 else:
                     zone_info = "  ".join(

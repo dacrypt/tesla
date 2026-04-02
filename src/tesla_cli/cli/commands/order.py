@@ -7,8 +7,6 @@ import time
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from tesla_cli.core.backends.order import OrderBackend
-from tesla_cli.core.config import load_config
 from tesla_cli.cli.output import (
     console,
     is_json_mode,
@@ -18,6 +16,8 @@ from tesla_cli.cli.output import (
     render_table,
     render_warning,
 )
+from tesla_cli.core.backends.order import OrderBackend
+from tesla_cli.core.config import load_config
 
 order_app = typer.Typer(name="order", help="Tesla order tracking.")
 
@@ -41,8 +41,10 @@ def order_status() -> None:
     backend = OrderBackend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-        transient=True, disable=is_json_mode(),
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
     ) as progress:
         progress.add_task(f"Fetching order {rn}...", total=None)
         status = backend.get_order_status(rn)
@@ -57,8 +59,10 @@ def order_details() -> None:
     backend = OrderBackend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-        transient=True, disable=is_json_mode(),
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
     ) as progress:
         progress.add_task(f"Fetching order details {rn}...", total=None)
         details = backend.get_order_details(rn)
@@ -70,11 +74,13 @@ def order_details() -> None:
     if details.tasks:
         task_rows = []
         for t in details.tasks:
-            task_rows.append({
-                "task": t.task_name or t.task_type,
-                "status": t.task_status,
-                "completed": "Yes" if t.completed else ("Active" if t.active else "No"),
-            })
+            task_rows.append(
+                {
+                    "task": t.task_name or t.task_type,
+                    "status": t.task_status,
+                    "completed": "Yes" if t.completed else ("Active" if t.active else "No"),
+                }
+            )
         render_table(task_rows, columns=["task", "status", "completed"], title="Order Tasks")
 
     # Show extra sections if available
@@ -91,7 +97,9 @@ def order_details() -> None:
 
 @order_app.command("delivery")
 def order_delivery(
-    import_file: str = typer.Option(None, "--import", "-i", help="Import delivery data from a JSON file"),
+    import_file: str = typer.Option(
+        None, "--import", "-i", help="Import delivery data from a JSON file"
+    ),
     raw: bool = typer.Option(False, "--raw", "-r", help="Show raw cached data"),
 ) -> None:
     """Show delivery appointment details.
@@ -104,6 +112,7 @@ def order_delivery(
 
     if import_file:
         from pathlib import Path
+
         path = Path(import_file).expanduser()
         if not path.exists():
             console.print(f"[red]File not found:[/red] {path}")
@@ -114,7 +123,9 @@ def order_delivery(
         if changes:
             console.print("\n[bold yellow]Changes detected:[/bold yellow]")
             for c in changes:
-                console.print(f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]")
+                console.print(
+                    f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]"
+                )
         return
 
     if raw:
@@ -122,19 +133,27 @@ def order_delivery(
         if cached:
             render_dict(cached, title="Raw Delivery Cache")
         else:
-            console.print("[dim]No delivery cache. Import with: tesla order delivery --import ~/Downloads/tesla-delivery.json[/dim]")
+            console.print(
+                "[dim]No delivery cache. Import with: tesla order delivery --import ~/Downloads/tesla-delivery.json[/dim]"
+            )
         return
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-        transient=True, disable=is_json_mode(),
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
     ) as progress:
         progress.add_task(f"Loading delivery details for {rn}...", total=None)
         appointment = backend.get_delivery_appointment(rn)
 
-    if not appointment.appointment_text and appointment.raw.get("source") in ("no-data", "owner-api-fallback"):
+    if not appointment.appointment_text and appointment.raw.get("source") in (
+        "no-data",
+        "owner-api-fallback",
+    ):
         # Auto-detect downloaded file in common locations
         from pathlib import Path
+
         auto_paths = [
             Path.home() / "Downloads" / "tesla-delivery.json",
             Path.home() / "Desktop" / "tesla-delivery.json",
@@ -147,7 +166,9 @@ def order_delivery(
                 if changes:
                     console.print("\n[bold yellow]Changes detected:[/bold yellow]")
                     for c in changes:
-                        console.print(f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]")
+                        console.print(
+                            f"  [cyan]{c.field}[/cyan]: [red]{c.old_value or '(empty)'}[/red] -> [green]{c.new_value}[/green]"
+                        )
                 return
 
         console.print(
@@ -194,7 +215,11 @@ def _print_bookmarklet(rn: str) -> None:
 def order_watch(
     interval: int = typer.Option(10, "--interval", "-i", help="Poll interval in minutes"),
     notify: bool = typer.Option(True, "--notify/--no-notify", help="Send notifications on changes"),
-    on_change_exec: str | None = typer.Option(None, "--on-change-exec", help="Shell command to run on change. Change data is passed as JSON via TESLA_CHANGES env var."),
+    on_change_exec: str | None = typer.Option(
+        None,
+        "--on-change-exec",
+        help="Shell command to run on change. Change data is passed as JSON via TESLA_CHANGES env var.",
+    ),
 ) -> None:
     """Watch for order status changes. Polls every N minutes."""
     rn = _get_rn()
@@ -222,7 +247,8 @@ def order_watch(
             print("\r" + " " * 30 + "\r", end="")
 
             with Progress(
-                SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
                 transient=True,
             ) as progress:
                 progress.add_task("Checking for changes...", total=None)
@@ -267,7 +293,9 @@ def _show_changes(changes: list, notify: bool) -> None:
             else:
                 sym = "[bold yellow]≠[/bold yellow]"  # changed
                 arrow = "→"
-            table.add_row(sym, change.field, old or "[dim](empty)[/dim]", arrow, new or "[dim](empty)[/dim]")
+            table.add_row(
+                sym, change.field, old or "[dim](empty)[/dim]", arrow, new or "[dim](empty)[/dim]"
+            )
 
     console.print(table)
 
@@ -342,8 +370,13 @@ def order_timeline() -> None:
 
     # Build timeline: compare consecutive snapshots
     TRACK_FIELDS = [
-        "order_status", "vin", "delivery_date", "delivery_window_display",
-        "runt_status", "in_runt", "has_placa",
+        "order_status",
+        "vin",
+        "delivery_date",
+        "delivery_window_display",
+        "runt_status",
+        "in_runt",
+        "has_placa",
     ]
 
     timeline: list[dict] = []
@@ -358,6 +391,7 @@ def order_timeline() -> None:
         snap: dict = {}
         try:
             from pathlib import Path
+
             snap = _json.loads(Path(snap_file).read_text()) if snap_file else {}
         except Exception:
             pass
@@ -383,11 +417,13 @@ def order_timeline() -> None:
             if old is not None and old != new:
                 changes.append({"field": field, "old": str(old), "new": str(new)})
 
-        timeline.append({
-            "timestamp": ts,
-            "order_status": status,
-            "changes": changes,
-        })
+        timeline.append(
+            {
+                "timestamp": ts,
+                "order_status": status,
+                "changes": changes,
+            }
+        )
         prev_snap = current
 
     if is_json_mode():
@@ -427,138 +463,424 @@ def order_timeline() -> None:
 # ---------------------------------------------------------------------------
 _STORES: list[dict] = [
     # ── United Kingdom ───────────────────────────────────────────────────────
-    {"country": "GB", "city": "London", "name": "Tesla London Westfield",       "lat": 51.5074, "lon": -0.2240},
-    {"country": "GB", "city": "London", "name": "Tesla London Canary Wharf",    "lat": 51.5055, "lon": -0.0196},
-    {"country": "GB", "city": "Manchester", "name": "Tesla Manchester Trafford", "lat": 53.4631, "lon": -2.2886},
-    {"country": "GB", "city": "Birmingham", "name": "Tesla Birmingham",          "lat": 52.4862, "lon": -1.8904},
-    {"country": "GB", "city": "Edinburgh",  "name": "Tesla Edinburgh",           "lat": 55.9533, "lon": -3.1883},
-    {"country": "GB", "city": "Bristol",    "name": "Tesla Bristol",             "lat": 51.4545, "lon": -2.5879},
+    {
+        "country": "GB",
+        "city": "London",
+        "name": "Tesla London Westfield",
+        "lat": 51.5074,
+        "lon": -0.2240,
+    },
+    {
+        "country": "GB",
+        "city": "London",
+        "name": "Tesla London Canary Wharf",
+        "lat": 51.5055,
+        "lon": -0.0196,
+    },
+    {
+        "country": "GB",
+        "city": "Manchester",
+        "name": "Tesla Manchester Trafford",
+        "lat": 53.4631,
+        "lon": -2.2886,
+    },
+    {
+        "country": "GB",
+        "city": "Birmingham",
+        "name": "Tesla Birmingham",
+        "lat": 52.4862,
+        "lon": -1.8904,
+    },
+    {
+        "country": "GB",
+        "city": "Edinburgh",
+        "name": "Tesla Edinburgh",
+        "lat": 55.9533,
+        "lon": -3.1883,
+    },
+    {"country": "GB", "city": "Bristol", "name": "Tesla Bristol", "lat": 51.4545, "lon": -2.5879},
     # ── Germany ──────────────────────────────────────────────────────────────
-    {"country": "DE", "city": "Berlin",    "name": "Tesla Berlin Giga Factory SC","lat": 52.3906, "lon": 13.7774},
-    {"country": "DE", "city": "Berlin",    "name": "Tesla Berlin Mitte",         "lat": 52.5200, "lon": 13.4050},
-    {"country": "DE", "city": "Munich",    "name": "Tesla Munich",               "lat": 48.1351, "lon": 11.5820},
-    {"country": "DE", "city": "Hamburg",   "name": "Tesla Hamburg",              "lat": 53.5511, "lon": 10.0000},
-    {"country": "DE", "city": "Frankfurt", "name": "Tesla Frankfurt",            "lat": 50.1109, "lon": 8.6821},
-    {"country": "DE", "city": "Cologne",   "name": "Tesla Cologne",              "lat": 50.9333, "lon": 6.9500},
-    {"country": "DE", "city": "Stuttgart", "name": "Tesla Stuttgart",            "lat": 48.7758, "lon": 9.1829},
-    {"country": "DE", "city": "Düsseldorf","name": "Tesla Düsseldorf",           "lat": 51.2217, "lon": 6.7762},
+    {
+        "country": "DE",
+        "city": "Berlin",
+        "name": "Tesla Berlin Giga Factory SC",
+        "lat": 52.3906,
+        "lon": 13.7774,
+    },
+    {
+        "country": "DE",
+        "city": "Berlin",
+        "name": "Tesla Berlin Mitte",
+        "lat": 52.5200,
+        "lon": 13.4050,
+    },
+    {"country": "DE", "city": "Munich", "name": "Tesla Munich", "lat": 48.1351, "lon": 11.5820},
+    {"country": "DE", "city": "Hamburg", "name": "Tesla Hamburg", "lat": 53.5511, "lon": 10.0000},
+    {
+        "country": "DE",
+        "city": "Frankfurt",
+        "name": "Tesla Frankfurt",
+        "lat": 50.1109,
+        "lon": 8.6821,
+    },
+    {"country": "DE", "city": "Cologne", "name": "Tesla Cologne", "lat": 50.9333, "lon": 6.9500},
+    {
+        "country": "DE",
+        "city": "Stuttgart",
+        "name": "Tesla Stuttgart",
+        "lat": 48.7758,
+        "lon": 9.1829,
+    },
+    {
+        "country": "DE",
+        "city": "Düsseldorf",
+        "name": "Tesla Düsseldorf",
+        "lat": 51.2217,
+        "lon": 6.7762,
+    },
     # ── France ───────────────────────────────────────────────────────────────
-    {"country": "FR", "city": "Paris",     "name": "Tesla Paris Opera",          "lat": 48.8716, "lon":  2.3320},
-    {"country": "FR", "city": "Paris",     "name": "Tesla Paris Marais",         "lat": 48.8566, "lon":  2.3522},
-    {"country": "FR", "city": "Lyon",      "name": "Tesla Lyon",                 "lat": 45.7640, "lon":  4.8357},
-    {"country": "FR", "city": "Marseille", "name": "Tesla Marseille",            "lat": 43.2965, "lon":  5.3698},
-    {"country": "FR", "city": "Bordeaux",  "name": "Tesla Bordeaux",             "lat": 44.8378, "lon": -0.5792},
-    {"country": "FR", "city": "Toulouse",  "name": "Tesla Toulouse",             "lat": 43.6047, "lon":  1.4442},
-    {"country": "FR", "city": "Nice",      "name": "Tesla Nice",                 "lat": 43.7102, "lon":  7.2620},
-    {"country": "FR", "city": "Nantes",    "name": "Tesla Nantes",               "lat": 47.2184, "lon": -1.5536},
-    {"country": "FR", "city": "Strasbourg","name": "Tesla Strasbourg",           "lat": 48.5734, "lon":  7.7521},
+    {"country": "FR", "city": "Paris", "name": "Tesla Paris Opera", "lat": 48.8716, "lon": 2.3320},
+    {"country": "FR", "city": "Paris", "name": "Tesla Paris Marais", "lat": 48.8566, "lon": 2.3522},
+    {"country": "FR", "city": "Lyon", "name": "Tesla Lyon", "lat": 45.7640, "lon": 4.8357},
+    {
+        "country": "FR",
+        "city": "Marseille",
+        "name": "Tesla Marseille",
+        "lat": 43.2965,
+        "lon": 5.3698,
+    },
+    {"country": "FR", "city": "Bordeaux", "name": "Tesla Bordeaux", "lat": 44.8378, "lon": -0.5792},
+    {"country": "FR", "city": "Toulouse", "name": "Tesla Toulouse", "lat": 43.6047, "lon": 1.4442},
+    {"country": "FR", "city": "Nice", "name": "Tesla Nice", "lat": 43.7102, "lon": 7.2620},
+    {"country": "FR", "city": "Nantes", "name": "Tesla Nantes", "lat": 47.2184, "lon": -1.5536},
+    {
+        "country": "FR",
+        "city": "Strasbourg",
+        "name": "Tesla Strasbourg",
+        "lat": 48.5734,
+        "lon": 7.7521,
+    },
     # ── Netherlands ──────────────────────────────────────────────────────────
-    {"country": "NL", "city": "Amsterdam",  "name": "Tesla Amsterdam",           "lat": 52.3676, "lon":  4.9041},
-    {"country": "NL", "city": "Tilburg",    "name": "Tesla Tilburg (SC/DC)",     "lat": 51.5555, "lon":  5.0913},
-    {"country": "NL", "city": "Rotterdam",  "name": "Tesla Rotterdam",           "lat": 51.9225, "lon":  4.4792},
-    {"country": "NL", "city": "Utrecht",    "name": "Tesla Utrecht",             "lat": 52.0907, "lon":  5.1214},
-    {"country": "NL", "city": "Eindhoven",  "name": "Tesla Eindhoven",           "lat": 51.4416, "lon":  5.4697},
+    {
+        "country": "NL",
+        "city": "Amsterdam",
+        "name": "Tesla Amsterdam",
+        "lat": 52.3676,
+        "lon": 4.9041,
+    },
+    {
+        "country": "NL",
+        "city": "Tilburg",
+        "name": "Tesla Tilburg (SC/DC)",
+        "lat": 51.5555,
+        "lon": 5.0913,
+    },
+    {
+        "country": "NL",
+        "city": "Rotterdam",
+        "name": "Tesla Rotterdam",
+        "lat": 51.9225,
+        "lon": 4.4792,
+    },
+    {"country": "NL", "city": "Utrecht", "name": "Tesla Utrecht", "lat": 52.0907, "lon": 5.1214},
+    {
+        "country": "NL",
+        "city": "Eindhoven",
+        "name": "Tesla Eindhoven",
+        "lat": 51.4416,
+        "lon": 5.4697,
+    },
     # ── Belgium ──────────────────────────────────────────────────────────────
-    {"country": "BE", "city": "Brussels",  "name": "Tesla Brussels",             "lat": 50.8503, "lon":  4.3517},
-    {"country": "BE", "city": "Antwerp",   "name": "Tesla Antwerp",              "lat": 51.2194, "lon":  4.4025},
-    {"country": "BE", "city": "Ghent",     "name": "Tesla Ghent",                "lat": 51.0543, "lon":  3.7174},
-    {"country": "BE", "city": "Liège",     "name": "Tesla Liège",                "lat": 50.6451, "lon":  5.5723},
+    {"country": "BE", "city": "Brussels", "name": "Tesla Brussels", "lat": 50.8503, "lon": 4.3517},
+    {"country": "BE", "city": "Antwerp", "name": "Tesla Antwerp", "lat": 51.2194, "lon": 4.4025},
+    {"country": "BE", "city": "Ghent", "name": "Tesla Ghent", "lat": 51.0543, "lon": 3.7174},
+    {"country": "BE", "city": "Liège", "name": "Tesla Liège", "lat": 50.6451, "lon": 5.5723},
     # ── Norway ───────────────────────────────────────────────────────────────
-    {"country": "NO", "city": "Oslo",       "name": "Tesla Oslo Aker Brygge",    "lat": 59.9139, "lon": 10.7522},
-    {"country": "NO", "city": "Oslo",       "name": "Tesla Oslo Løren",          "lat": 59.9356, "lon": 10.7947},
-    {"country": "NO", "city": "Bergen",     "name": "Tesla Bergen",              "lat": 60.3913, "lon":  5.3221},
-    {"country": "NO", "city": "Stavanger",  "name": "Tesla Stavanger",           "lat": 58.9700, "lon":  5.7331},
-    {"country": "NO", "city": "Trondheim",  "name": "Tesla Trondheim",           "lat": 63.4305, "lon": 10.3951},
+    {
+        "country": "NO",
+        "city": "Oslo",
+        "name": "Tesla Oslo Aker Brygge",
+        "lat": 59.9139,
+        "lon": 10.7522,
+    },
+    {"country": "NO", "city": "Oslo", "name": "Tesla Oslo Løren", "lat": 59.9356, "lon": 10.7947},
+    {"country": "NO", "city": "Bergen", "name": "Tesla Bergen", "lat": 60.3913, "lon": 5.3221},
+    {
+        "country": "NO",
+        "city": "Stavanger",
+        "name": "Tesla Stavanger",
+        "lat": 58.9700,
+        "lon": 5.7331,
+    },
+    {
+        "country": "NO",
+        "city": "Trondheim",
+        "name": "Tesla Trondheim",
+        "lat": 63.4305,
+        "lon": 10.3951,
+    },
     # ── Sweden ───────────────────────────────────────────────────────────────
-    {"country": "SE", "city": "Stockholm",  "name": "Tesla Stockholm Täby",      "lat": 59.4439, "lon": 18.0686},
-    {"country": "SE", "city": "Stockholm",  "name": "Tesla Stockholm Bromma",    "lat": 59.3382, "lon": 17.9411},
-    {"country": "SE", "city": "Gothenburg", "name": "Tesla Gothenburg",          "lat": 57.7089, "lon": 11.9746},
-    {"country": "SE", "city": "Malmö",      "name": "Tesla Malmö",               "lat": 55.6050, "lon": 13.0038},
+    {
+        "country": "SE",
+        "city": "Stockholm",
+        "name": "Tesla Stockholm Täby",
+        "lat": 59.4439,
+        "lon": 18.0686,
+    },
+    {
+        "country": "SE",
+        "city": "Stockholm",
+        "name": "Tesla Stockholm Bromma",
+        "lat": 59.3382,
+        "lon": 17.9411,
+    },
+    {
+        "country": "SE",
+        "city": "Gothenburg",
+        "name": "Tesla Gothenburg",
+        "lat": 57.7089,
+        "lon": 11.9746,
+    },
+    {"country": "SE", "city": "Malmö", "name": "Tesla Malmö", "lat": 55.6050, "lon": 13.0038},
     # ── Denmark ──────────────────────────────────────────────────────────────
-    {"country": "DK", "city": "Copenhagen", "name": "Tesla Copenhagen",          "lat": 55.6761, "lon": 12.5683},
-    {"country": "DK", "city": "Aarhus",     "name": "Tesla Aarhus",              "lat": 56.1629, "lon": 10.2039},
+    {
+        "country": "DK",
+        "city": "Copenhagen",
+        "name": "Tesla Copenhagen",
+        "lat": 55.6761,
+        "lon": 12.5683,
+    },
+    {"country": "DK", "city": "Aarhus", "name": "Tesla Aarhus", "lat": 56.1629, "lon": 10.2039},
     # ── Spain ────────────────────────────────────────────────────────────────
-    {"country": "ES", "city": "Madrid",     "name": "Tesla Madrid",              "lat": 40.4168, "lon": -3.7038},
-    {"country": "ES", "city": "Barcelona",  "name": "Tesla Barcelona",           "lat": 41.3851, "lon":  2.1734},
-    {"country": "ES", "city": "Valencia",   "name": "Tesla Valencia",            "lat": 39.4699, "lon": -0.3763},
-    {"country": "ES", "city": "Seville",    "name": "Tesla Seville",             "lat": 37.3891, "lon": -5.9845},
-    {"country": "ES", "city": "Bilbao",     "name": "Tesla Bilbao",              "lat": 43.2630, "lon": -2.9350},
+    {"country": "ES", "city": "Madrid", "name": "Tesla Madrid", "lat": 40.4168, "lon": -3.7038},
+    {
+        "country": "ES",
+        "city": "Barcelona",
+        "name": "Tesla Barcelona",
+        "lat": 41.3851,
+        "lon": 2.1734,
+    },
+    {"country": "ES", "city": "Valencia", "name": "Tesla Valencia", "lat": 39.4699, "lon": -0.3763},
+    {"country": "ES", "city": "Seville", "name": "Tesla Seville", "lat": 37.3891, "lon": -5.9845},
+    {"country": "ES", "city": "Bilbao", "name": "Tesla Bilbao", "lat": 43.2630, "lon": -2.9350},
     # ── Italy ────────────────────────────────────────────────────────────────
-    {"country": "IT", "city": "Milan",      "name": "Tesla Milan",               "lat": 45.4654, "lon":  9.1859},
-    {"country": "IT", "city": "Rome",       "name": "Tesla Rome",                "lat": 41.9028, "lon": 12.4964},
-    {"country": "IT", "city": "Turin",      "name": "Tesla Turin",               "lat": 45.0703, "lon":  7.6869},
-    {"country": "IT", "city": "Florence",   "name": "Tesla Florence",            "lat": 43.7696, "lon": 11.2558},
-    {"country": "IT", "city": "Bologna",    "name": "Tesla Bologna",             "lat": 44.4949, "lon": 11.3426},
-    {"country": "IT", "city": "Naples",     "name": "Tesla Naples",              "lat": 40.8518, "lon": 14.2681},
+    {"country": "IT", "city": "Milan", "name": "Tesla Milan", "lat": 45.4654, "lon": 9.1859},
+    {"country": "IT", "city": "Rome", "name": "Tesla Rome", "lat": 41.9028, "lon": 12.4964},
+    {"country": "IT", "city": "Turin", "name": "Tesla Turin", "lat": 45.0703, "lon": 7.6869},
+    {"country": "IT", "city": "Florence", "name": "Tesla Florence", "lat": 43.7696, "lon": 11.2558},
+    {"country": "IT", "city": "Bologna", "name": "Tesla Bologna", "lat": 44.4949, "lon": 11.3426},
+    {"country": "IT", "city": "Naples", "name": "Tesla Naples", "lat": 40.8518, "lon": 14.2681},
     # ── Switzerland ──────────────────────────────────────────────────────────
-    {"country": "CH", "city": "Zurich",     "name": "Tesla Zurich",              "lat": 47.3769, "lon":  8.5417},
-    {"country": "CH", "city": "Geneva",     "name": "Tesla Geneva",              "lat": 46.2044, "lon":  6.1432},
-    {"country": "CH", "city": "Basel",      "name": "Tesla Basel",               "lat": 47.5596, "lon":  7.5886},
-    {"country": "CH", "city": "Bern",       "name": "Tesla Bern",                "lat": 46.9481, "lon":  7.4474},
+    {"country": "CH", "city": "Zurich", "name": "Tesla Zurich", "lat": 47.3769, "lon": 8.5417},
+    {"country": "CH", "city": "Geneva", "name": "Tesla Geneva", "lat": 46.2044, "lon": 6.1432},
+    {"country": "CH", "city": "Basel", "name": "Tesla Basel", "lat": 47.5596, "lon": 7.5886},
+    {"country": "CH", "city": "Bern", "name": "Tesla Bern", "lat": 46.9481, "lon": 7.4474},
     # ── Austria ──────────────────────────────────────────────────────────────
-    {"country": "AT", "city": "Vienna",     "name": "Tesla Vienna",              "lat": 48.2082, "lon": 16.3738},
-    {"country": "AT", "city": "Graz",       "name": "Tesla Graz",                "lat": 47.0707, "lon": 15.4395},
-    {"country": "AT", "city": "Linz",       "name": "Tesla Linz",                "lat": 48.3069, "lon": 14.2858},
+    {"country": "AT", "city": "Vienna", "name": "Tesla Vienna", "lat": 48.2082, "lon": 16.3738},
+    {"country": "AT", "city": "Graz", "name": "Tesla Graz", "lat": 47.0707, "lon": 15.4395},
+    {"country": "AT", "city": "Linz", "name": "Tesla Linz", "lat": 48.3069, "lon": 14.2858},
     # ── Poland ───────────────────────────────────────────────────────────────
-    {"country": "PL", "city": "Warsaw",     "name": "Tesla Warsaw",              "lat": 52.2297, "lon": 21.0122},
-    {"country": "PL", "city": "Kraków",     "name": "Tesla Kraków",              "lat": 50.0647, "lon": 19.9450},
-    {"country": "PL", "city": "Wrocław",    "name": "Tesla Wrocław",             "lat": 51.1079, "lon": 17.0385},
-    {"country": "PL", "city": "Gdańsk",     "name": "Tesla Gdańsk",              "lat": 54.3520, "lon": 18.6466},
+    {"country": "PL", "city": "Warsaw", "name": "Tesla Warsaw", "lat": 52.2297, "lon": 21.0122},
+    {"country": "PL", "city": "Kraków", "name": "Tesla Kraków", "lat": 50.0647, "lon": 19.9450},
+    {"country": "PL", "city": "Wrocław", "name": "Tesla Wrocław", "lat": 51.1079, "lon": 17.0385},
+    {"country": "PL", "city": "Gdańsk", "name": "Tesla Gdańsk", "lat": 54.3520, "lon": 18.6466},
     # ── Czech Republic ───────────────────────────────────────────────────────
-    {"country": "CZ", "city": "Prague",     "name": "Tesla Prague",              "lat": 50.0755, "lon": 14.4378},
-    {"country": "CZ", "city": "Brno",       "name": "Tesla Brno",                "lat": 49.1951, "lon": 16.6068},
+    {"country": "CZ", "city": "Prague", "name": "Tesla Prague", "lat": 50.0755, "lon": 14.4378},
+    {"country": "CZ", "city": "Brno", "name": "Tesla Brno", "lat": 49.1951, "lon": 16.6068},
     # ── Portugal ─────────────────────────────────────────────────────────────
-    {"country": "PT", "city": "Lisbon",     "name": "Tesla Lisbon",              "lat": 38.7169, "lon": -9.1395},
-    {"country": "PT", "city": "Porto",      "name": "Tesla Porto",               "lat": 41.1496, "lon": -8.6110},
+    {"country": "PT", "city": "Lisbon", "name": "Tesla Lisbon", "lat": 38.7169, "lon": -9.1395},
+    {"country": "PT", "city": "Porto", "name": "Tesla Porto", "lat": 41.1496, "lon": -8.6110},
     # ── Hungary ──────────────────────────────────────────────────────────────
-    {"country": "HU", "city": "Budapest",   "name": "Tesla Budapest",            "lat": 47.4979, "lon": 19.0402},
+    {"country": "HU", "city": "Budapest", "name": "Tesla Budapest", "lat": 47.4979, "lon": 19.0402},
     # ── Romania ──────────────────────────────────────────────────────────────
-    {"country": "RO", "city": "Bucharest",  "name": "Tesla Bucharest",           "lat": 44.4268, "lon": 26.1025},
-    {"country": "RO", "city": "Cluj-Napoca","name": "Tesla Cluj-Napoca",         "lat": 46.7712, "lon": 23.6236},
+    {
+        "country": "RO",
+        "city": "Bucharest",
+        "name": "Tesla Bucharest",
+        "lat": 44.4268,
+        "lon": 26.1025,
+    },
+    {
+        "country": "RO",
+        "city": "Cluj-Napoca",
+        "name": "Tesla Cluj-Napoca",
+        "lat": 46.7712,
+        "lon": 23.6236,
+    },
     # ── Greece ───────────────────────────────────────────────────────────────
-    {"country": "GR", "city": "Athens",     "name": "Tesla Athens",              "lat": 37.9838, "lon": 23.7275},
+    {"country": "GR", "city": "Athens", "name": "Tesla Athens", "lat": 37.9838, "lon": 23.7275},
     # ── Finland ──────────────────────────────────────────────────────────────
-    {"country": "FI", "city": "Helsinki",   "name": "Tesla Helsinki",            "lat": 60.1699, "lon": 24.9384},
-    {"country": "FI", "city": "Tampere",    "name": "Tesla Tampere",             "lat": 61.4978, "lon": 23.7610},
+    {"country": "FI", "city": "Helsinki", "name": "Tesla Helsinki", "lat": 60.1699, "lon": 24.9384},
+    {"country": "FI", "city": "Tampere", "name": "Tesla Tampere", "lat": 61.4978, "lon": 23.7610},
     # ── Ireland ──────────────────────────────────────────────────────────────
-    {"country": "IE", "city": "Dublin",     "name": "Tesla Dublin",              "lat": 53.3498, "lon": -6.2603},
+    {"country": "IE", "city": "Dublin", "name": "Tesla Dublin", "lat": 53.3498, "lon": -6.2603},
     # ── United States (key delivery centers) ────────────────────────────────
-    {"country": "US", "city": "Fremont CA",    "name": "Tesla Fremont Factory SC",  "lat": 37.4923, "lon": -121.9467},
-    {"country": "US", "city": "Austin TX",     "name": "Tesla Gigafactory Texas",   "lat": 30.2330, "lon": -97.6215},
-    {"country": "US", "city": "Los Angeles CA","name": "Tesla LA Hollywood",        "lat": 34.0900, "lon": -118.3617},
-    {"country": "US", "city": "New York NY",   "name": "Tesla NYC Meatpacking",     "lat": 40.7391, "lon": -74.0045},
-    {"country": "US", "city": "Miami FL",      "name": "Tesla Miami Brickell",      "lat": 25.7617, "lon": -80.1918},
-    {"country": "US", "city": "Chicago IL",    "name": "Tesla Chicago",             "lat": 41.8781, "lon": -87.6298},
-    {"country": "US", "city": "Seattle WA",    "name": "Tesla Seattle",             "lat": 47.6062, "lon": -122.3321},
-    {"country": "US", "city": "Boston MA",     "name": "Tesla Boston",              "lat": 42.3601, "lon": -71.0589},
-    {"country": "US", "city": "Denver CO",     "name": "Tesla Denver",              "lat": 39.7392, "lon": -104.9903},
-    {"country": "US", "city": "Atlanta GA",    "name": "Tesla Atlanta",             "lat": 33.7490, "lon": -84.3880},
-    {"country": "US", "city": "Dallas TX",     "name": "Tesla Dallas",              "lat": 32.7767, "lon": -96.7970},
-    {"country": "US", "city": "Phoenix AZ",    "name": "Tesla Phoenix",             "lat": 33.4484, "lon": -112.0740},
-    {"country": "US", "city": "Minneapolis MN","name": "Tesla Minneapolis",         "lat": 44.9778, "lon": -93.2650},
+    {
+        "country": "US",
+        "city": "Fremont CA",
+        "name": "Tesla Fremont Factory SC",
+        "lat": 37.4923,
+        "lon": -121.9467,
+    },
+    {
+        "country": "US",
+        "city": "Austin TX",
+        "name": "Tesla Gigafactory Texas",
+        "lat": 30.2330,
+        "lon": -97.6215,
+    },
+    {
+        "country": "US",
+        "city": "Los Angeles CA",
+        "name": "Tesla LA Hollywood",
+        "lat": 34.0900,
+        "lon": -118.3617,
+    },
+    {
+        "country": "US",
+        "city": "New York NY",
+        "name": "Tesla NYC Meatpacking",
+        "lat": 40.7391,
+        "lon": -74.0045,
+    },
+    {
+        "country": "US",
+        "city": "Miami FL",
+        "name": "Tesla Miami Brickell",
+        "lat": 25.7617,
+        "lon": -80.1918,
+    },
+    {
+        "country": "US",
+        "city": "Chicago IL",
+        "name": "Tesla Chicago",
+        "lat": 41.8781,
+        "lon": -87.6298,
+    },
+    {
+        "country": "US",
+        "city": "Seattle WA",
+        "name": "Tesla Seattle",
+        "lat": 47.6062,
+        "lon": -122.3321,
+    },
+    {"country": "US", "city": "Boston MA", "name": "Tesla Boston", "lat": 42.3601, "lon": -71.0589},
+    {
+        "country": "US",
+        "city": "Denver CO",
+        "name": "Tesla Denver",
+        "lat": 39.7392,
+        "lon": -104.9903,
+    },
+    {
+        "country": "US",
+        "city": "Atlanta GA",
+        "name": "Tesla Atlanta",
+        "lat": 33.7490,
+        "lon": -84.3880,
+    },
+    {"country": "US", "city": "Dallas TX", "name": "Tesla Dallas", "lat": 32.7767, "lon": -96.7970},
+    {
+        "country": "US",
+        "city": "Phoenix AZ",
+        "name": "Tesla Phoenix",
+        "lat": 33.4484,
+        "lon": -112.0740,
+    },
+    {
+        "country": "US",
+        "city": "Minneapolis MN",
+        "name": "Tesla Minneapolis",
+        "lat": 44.9778,
+        "lon": -93.2650,
+    },
     # ── Canada ───────────────────────────────────────────────────────────────
-    {"country": "CA", "city": "Toronto ON",    "name": "Tesla Toronto",             "lat": 43.6532, "lon": -79.3832},
-    {"country": "CA", "city": "Vancouver BC",  "name": "Tesla Vancouver",           "lat": 49.2827, "lon": -123.1207},
-    {"country": "CA", "city": "Montreal QC",   "name": "Tesla Montreal",            "lat": 45.5017, "lon": -73.5673},
+    {
+        "country": "CA",
+        "city": "Toronto ON",
+        "name": "Tesla Toronto",
+        "lat": 43.6532,
+        "lon": -79.3832,
+    },
+    {
+        "country": "CA",
+        "city": "Vancouver BC",
+        "name": "Tesla Vancouver",
+        "lat": 49.2827,
+        "lon": -123.1207,
+    },
+    {
+        "country": "CA",
+        "city": "Montreal QC",
+        "name": "Tesla Montreal",
+        "lat": 45.5017,
+        "lon": -73.5673,
+    },
     # ── Australia ────────────────────────────────────────────────────────────
-    {"country": "AU", "city": "Sydney NSW",    "name": "Tesla Sydney",              "lat": -33.8688, "lon": 151.2093},
-    {"country": "AU", "city": "Melbourne VIC", "name": "Tesla Melbourne",           "lat": -37.8136, "lon": 144.9631},
-    {"country": "AU", "city": "Brisbane QLD",  "name": "Tesla Brisbane",            "lat": -27.4698, "lon": 153.0251},
+    {
+        "country": "AU",
+        "city": "Sydney NSW",
+        "name": "Tesla Sydney",
+        "lat": -33.8688,
+        "lon": 151.2093,
+    },
+    {
+        "country": "AU",
+        "city": "Melbourne VIC",
+        "name": "Tesla Melbourne",
+        "lat": -37.8136,
+        "lon": 144.9631,
+    },
+    {
+        "country": "AU",
+        "city": "Brisbane QLD",
+        "name": "Tesla Brisbane",
+        "lat": -27.4698,
+        "lon": 153.0251,
+    },
     # ── China ────────────────────────────────────────────────────────────────
-    {"country": "CN", "city": "Shanghai",      "name": "Tesla Gigafactory Shanghai","lat": 30.8670, "lon": 121.9214},
-    {"country": "CN", "city": "Beijing",       "name": "Tesla Beijing SC",          "lat": 39.9042, "lon": 116.4074},
-    {"country": "CN", "city": "Shenzhen",      "name": "Tesla Shenzhen",            "lat": 22.5431, "lon": 114.0579},
+    {
+        "country": "CN",
+        "city": "Shanghai",
+        "name": "Tesla Gigafactory Shanghai",
+        "lat": 30.8670,
+        "lon": 121.9214,
+    },
+    {
+        "country": "CN",
+        "city": "Beijing",
+        "name": "Tesla Beijing SC",
+        "lat": 39.9042,
+        "lon": 116.4074,
+    },
+    {
+        "country": "CN",
+        "city": "Shenzhen",
+        "name": "Tesla Shenzhen",
+        "lat": 22.5431,
+        "lon": 114.0579,
+    },
     # ── Japan ────────────────────────────────────────────────────────────────
-    {"country": "JP", "city": "Tokyo",         "name": "Tesla Tokyo Aoyama",        "lat": 35.6762, "lon": 139.6503},
-    {"country": "JP", "city": "Osaka",         "name": "Tesla Osaka",               "lat": 34.6937, "lon": 135.5023},
+    {
+        "country": "JP",
+        "city": "Tokyo",
+        "name": "Tesla Tokyo Aoyama",
+        "lat": 35.6762,
+        "lon": 139.6503,
+    },
+    {"country": "JP", "city": "Osaka", "name": "Tesla Osaka", "lat": 34.6937, "lon": 135.5023},
 ]
 
 
 @order_app.command("stores")
 def order_stores(
-    country: str = typer.Option("", "--country", "-c", help="Filter by ISO country code (e.g. DE, FR, GB, US)"),
+    country: str = typer.Option(
+        "", "--country", "-c", help="Filter by ISO country code (e.g. DE, FR, GB, US)"
+    ),
     city: str = typer.Option("", "--city", help="Filter by city name (partial match)"),
-    near: str = typer.Option("", "--near", help="Find nearest stores to lat,lon (e.g. '52.52,13.40')"),
+    near: str = typer.Option(
+        "", "--near", help="Find nearest stores to lat,lon (e.g. '52.52,13.40')"
+    ),
     limit: int = typer.Option(20, "--limit", "-n", help="Max results to display"),
 ) -> None:
     """Show Tesla store and service center locations (200+ sites, offline database).
@@ -589,7 +911,12 @@ def order_stores(
             R = 6371.0
             dlat = math.radians(s["lat"] - lat0)
             dlon = math.radians(s["lon"] - lon0)
-            a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat0)) * math.cos(math.radians(s["lat"])) * math.sin(dlon / 2) ** 2
+            a = (
+                math.sin(dlat / 2) ** 2
+                + math.cos(math.radians(lat0))
+                * math.cos(math.radians(s["lat"]))
+                * math.sin(dlon / 2) ** 2
+            )
             return R * 2 * math.asin(math.sqrt(a))
 
         results = sorted(results, key=_haversine)
@@ -640,23 +967,23 @@ def order_stores(
 # Values are (best_days, typical_days, worst_days) after entering each phase.
 # ---------------------------------------------------------------------------
 _PHASE_DURATIONS: dict[str, tuple[int, int, int]] = {
-    "ordered":              (30,  60, 180),   # factory queue
-    "produced":             ( 7,  21,  45),   # pre-shipment inspection
-    "shipped":              (25,  40,  60),   # ocean freight
-    "in_country":           ( 7,  21,  45),   # customs + domestic transit
-    "registered":           ( 3,  10,  21),   # RUNT/SIMIT registration + delivery prep
-    "delivery_scheduled":   ( 1,   5,  14),   # final delivery logistics
-    "delivered":            ( 0,   0,   0),
+    "ordered": (30, 60, 180),  # factory queue
+    "produced": (7, 21, 45),  # pre-shipment inspection
+    "shipped": (25, 40, 60),  # ocean freight
+    "in_country": (7, 21, 45),  # customs + domestic transit
+    "registered": (3, 10, 21),  # RUNT/SIMIT registration + delivery prep
+    "delivery_scheduled": (1, 5, 14),  # final delivery logistics
+    "delivered": (0, 0, 0),
 }
 
 _PHASE_LABELS = {
-    "ordered":            "Waiting in factory queue",
-    "produced":           "Produced — pre-shipment inspection",
-    "shipped":            "On the ocean",
-    "in_country":         "Arrived — customs / inland transit",
-    "registered":         "Registered — delivery prep",
+    "ordered": "Waiting in factory queue",
+    "produced": "Produced — pre-shipment inspection",
+    "shipped": "On the ocean",
+    "in_country": "Arrived — customs / inland transit",
+    "registered": "Registered — delivery prep",
     "delivery_scheduled": "Delivery scheduled",
-    "delivered":          "Delivered",
+    "delivered": "Delivered",
 }
 
 _PHASE_ORDER = list(_PHASE_DURATIONS.keys())
@@ -683,6 +1010,7 @@ def order_eta() -> None:
         import json as _j
 
         from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
+
         if SNAPSHOTS_DIR.exists():
             snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
             if snaps:
@@ -700,6 +1028,7 @@ def order_eta() -> None:
             rn = cfg.order.reservation_number
             if rn:
                 from tesla_cli.core.backends.order import OrderBackend
+
                 status = OrderBackend().get_order_status(rn)
                 raw_phase = (getattr(status, "order_status", None) or "").lower()
                 # Map Tesla order status → our phase vocabulary
@@ -725,46 +1054,48 @@ def order_eta() -> None:
     start_idx = _PHASE_ORDER.index(phase_norm) if phase_norm in _PHASE_ORDER else 0
     remaining_phases = _PHASE_ORDER[start_idx:]
 
-    total_best     = sum(_PHASE_DURATIONS[p][0] for p in remaining_phases)
-    total_typical  = sum(_PHASE_DURATIONS[p][1] for p in remaining_phases)
-    total_worst    = sum(_PHASE_DURATIONS[p][2] for p in remaining_phases)
+    total_best = sum(_PHASE_DURATIONS[p][0] for p in remaining_phases)
+    total_typical = sum(_PHASE_DURATIONS[p][1] for p in remaining_phases)
+    total_worst = sum(_PHASE_DURATIONS[p][2] for p in remaining_phases)
 
-    eta_best    = today + timedelta(days=total_best)
+    eta_best = today + timedelta(days=total_best)
     eta_typical = today + timedelta(days=total_typical)
-    eta_worst   = today + timedelta(days=total_worst)
+    eta_worst = today + timedelta(days=total_worst)
 
     # Build per-phase breakdown
     breakdown: list[dict] = []
-    running_best    = 0
+    running_best = 0
     running_typical = 0
-    running_worst   = 0
+    running_worst = 0
     for p in _PHASE_ORDER:
         b, t, w = _PHASE_DURATIONS[p]
-        is_current = (p == phase_norm)
-        is_past    = (_PHASE_ORDER.index(p) < start_idx)
-        running_best    += b
+        is_current = p == phase_norm
+        is_past = _PHASE_ORDER.index(p) < start_idx
+        running_best += b
         running_typical += t
-        running_worst   += w
-        breakdown.append({
-            "phase":        p,
-            "label":        _PHASE_LABELS.get(p, p),
-            "status":       "past" if is_past else "current" if is_current else "future",
-            "best_days":    b,
-            "typical_days": t,
-            "worst_days":   w,
-        })
+        running_worst += w
+        breakdown.append(
+            {
+                "phase": p,
+                "label": _PHASE_LABELS.get(p, p),
+                "status": "past" if is_past else "current" if is_current else "future",
+                "best_days": b,
+                "typical_days": t,
+                "worst_days": w,
+            }
+        )
 
     result = {
-        "current_phase":    phase_norm,
-        "phase_since":      phase_since,
-        "today":            str(today),
-        "eta_best":         str(eta_best),
-        "eta_typical":      str(eta_typical),
-        "eta_worst":        str(eta_worst),
-        "total_days_best":  total_best,
+        "current_phase": phase_norm,
+        "phase_since": phase_since,
+        "today": str(today),
+        "eta_best": str(eta_best),
+        "eta_typical": str(eta_typical),
+        "eta_worst": str(eta_worst),
+        "total_days_best": total_best,
         "total_days_typical": total_typical,
         "total_days_worst": total_worst,
-        "breakdown":        breakdown,
+        "breakdown": breakdown,
         "note": "Estimates based on community-reported delivery patterns. Actual times vary significantly.",
     }
 
@@ -778,29 +1109,35 @@ def order_eta() -> None:
     # Header panel
     phase_label = _PHASE_LABELS.get(phase_norm, phase_norm)
     ph_color = {
-        "ordered": "dim", "produced": "yellow", "shipped": "blue",
-        "in_country": "cyan", "registered": "green",
-        "delivery_scheduled": "bold green", "delivered": "bold green",
+        "ordered": "dim",
+        "produced": "yellow",
+        "shipped": "blue",
+        "in_country": "cyan",
+        "registered": "green",
+        "delivery_scheduled": "bold green",
+        "delivered": "bold green",
     }.get(phase_norm, "white")
 
     console.print()
-    console.print(Panel(
-        f"  Current phase: [{ph_color}][bold]{phase_label}[/bold][/{ph_color}]\n"
-        f"  [dim]Phase since:[/dim]  {phase_since or '(unknown)'}\n\n"
-        f"  [bold green]Best case:[/bold green]    {eta_best}  [dim](+{total_best} days)[/dim]\n"
-        f"  [bold yellow]Typical:[/bold yellow]      {eta_typical}  [dim](+{total_typical} days)[/dim]\n"
-        f"  [bold red]Worst case:[/bold red]   {eta_worst}  [dim](+{total_worst} days)[/dim]",
-        title="[bold]Delivery ETA Estimate[/bold]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"  Current phase: [{ph_color}][bold]{phase_label}[/bold][/{ph_color}]\n"
+            f"  [dim]Phase since:[/dim]  {phase_since or '(unknown)'}\n\n"
+            f"  [bold green]Best case:[/bold green]    {eta_best}  [dim](+{total_best} days)[/dim]\n"
+            f"  [bold yellow]Typical:[/bold yellow]      {eta_typical}  [dim](+{total_typical} days)[/dim]\n"
+            f"  [bold red]Worst case:[/bold red]   {eta_worst}  [dim](+{total_worst} days)[/dim]",
+            title="[bold]Delivery ETA Estimate[/bold]",
+            border_style="cyan",
+        )
+    )
 
     # Phase breakdown table
     t = Table(show_header=True, header_style="bold dim", box=None, padding=(0, 2))
-    t.add_column("Phase",   width=22)
-    t.add_column("Status",  width=10)
-    t.add_column("Best",    width=7, justify="right")
+    t.add_column("Phase", width=22)
+    t.add_column("Status", width=10)
+    t.add_column("Best", width=7, justify="right")
     t.add_column("Typical", width=9, justify="right")
-    t.add_column("Worst",   width=7, justify="right")
+    t.add_column("Worst", width=7, justify="right")
 
     for row in breakdown:
         st = row["status"]

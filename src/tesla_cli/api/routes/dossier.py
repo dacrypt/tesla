@@ -41,10 +41,15 @@ def dossier_refresh() -> dict:
     try:
         result = subprocess.run(
             [sys.executable, "-m", "tesla_cli", "dossier", "build"],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
         if result.returncode != 0:
-            raise HTTPException(status_code=502, detail=f"Dossier build failed: {result.stderr[:200] if result.stderr else 'unknown error'}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Dossier build failed: {result.stderr[:200] if result.stderr else 'unknown error'}",
+            )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Dossier build timed out")
     except HTTPException:

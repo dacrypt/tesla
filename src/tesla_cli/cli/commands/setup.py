@@ -14,29 +14,33 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
+from tesla_cli.cli.output import console
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
 from tesla_cli.core.exceptions import AuthenticationError, TeslaCliError
-from tesla_cli.cli.output import console
 
 
 def setup_wizard(
-    force: bool = typer.Option(False, "--force", "-f", help="Re-run all steps even if already configured"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Re-run all steps even if already configured"
+    ),
     skip_dossier: bool = typer.Option(False, "--skip-dossier", help="Skip the final dossier build"),
 ) -> None:
     """Interactive onboarding wizard. Connects your Tesla account and builds your first dossier."""
     # ── Welcome ────────────────────────────────────────────────────────────────
     console.print()
-    console.print(Panel.fit(
-        "[bold cyan]Tesla CLI — Setup Wizard[/bold cyan]\n\n"
-        "This wizard will:\n"
-        "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
-        "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
-        "  [dim]3.[/dim] Optionally configure live vehicle control\n"
-        "  [dim]4.[/dim] Build your first dossier from all sources\n\n"
-        "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Tesla CLI — Setup Wizard[/bold cyan]\n\n"
+            "This wizard will:\n"
+            "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
+            "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
+            "  [dim]3.[/dim] Optionally configure live vehicle control\n"
+            "  [dim]4.[/dim] Build your first dossier from all sources\n\n"
+            "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
+            border_style="cyan",
+        )
+    )
     console.print()
 
     # ── Check existing state ────────────────────────────────────────────────────
@@ -52,12 +56,16 @@ def setup_wizard(
         console.print()
         answer = Prompt.ask("Re-run setup?", choices=["y", "n"], default="n")
         if answer == "n":
-            console.print("[dim]Nothing changed. Run [bold]tesla dossier show[/bold] to see your dossier.[/dim]")
+            console.print(
+                "[dim]Nothing changed. Run [bold]tesla dossier show[/bold] to see your dossier.[/dim]"
+            )
             raise typer.Exit()
         console.print()
 
     # ── Step 1: Auth ────────────────────────────────────────────────────────────
-    console.print(Panel.fit("[bold]Step 1 / 4[/bold] — Tesla Account Authentication", border_style="blue"))
+    console.print(
+        Panel.fit("[bold]Step 1 / 4[/bold] — Tesla Account Authentication", border_style="blue")
+    )
     console.print()
 
     if already_authed and not force:
@@ -65,6 +73,7 @@ def setup_wizard(
     else:
         try:
             from tesla_cli.cli.commands.config_cmd import _auth_order
+
             _auth_order()
         except AuthenticationError as e:
             console.print(f"\n[red]Authentication failed:[/red] {e}")
@@ -77,16 +86,21 @@ def setup_wizard(
     console.print()
 
     # ── Step 2: Auto-discover VIN + RN ─────────────────────────────────────────
-    console.print(Panel.fit("[bold]Step 2 / 4[/bold] — Discovering your order", border_style="blue"))
+    console.print(
+        Panel.fit("[bold]Step 2 / 4[/bold] — Discovering your order", border_style="blue")
+    )
     console.print()
 
     orders = []
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
+    ) as p:
         p.add_task("Fetching orders from Tesla API...", total=None)
         try:
             import httpx
 
             from tesla_cli.core.backends.order import OrderBackend
+
             orders = OrderBackend().get_orders()
         except AuthenticationError as e:
             console.print(f"[red]Auth error:[/red] {e}")
@@ -110,9 +124,13 @@ def setup_wizard(
         selected_vin = order.get("vin", "")
         model = order.get("model", order.get("modelCode", "Tesla"))
         status = order.get("orderStatus", "")
-        console.print(f"[green]✓ Found order:[/green] [bold]{selected_rn}[/bold]  {model}  [{status}]")
+        console.print(
+            f"[green]✓ Found order:[/green] [bold]{selected_rn}[/bold]  {model}  [{status}]"
+        )
         if not selected_vin:
-            console.print("  [yellow]VIN not yet assigned by Tesla — will be auto-updated on next dossier build.[/yellow]")
+            console.print(
+                "  [yellow]VIN not yet assigned by Tesla — will be auto-updated on next dossier build.[/yellow]"
+            )
     else:
         # Multiple orders — let user pick
         console.print(f"Found [bold]{len(orders)}[/bold] orders on your account:\n")
@@ -129,7 +147,9 @@ def setup_wizard(
         selected_rn = order.get("referenceNumber", order.get("rn", ""))
         selected_vin = order.get("vin", "")
         if not selected_vin:
-            console.print("  [yellow]VIN not yet assigned by Tesla — will be auto-updated later.[/yellow]")
+            console.print(
+                "  [yellow]VIN not yet assigned by Tesla — will be auto-updated later.[/yellow]"
+            )
 
     # Save discovered values
     cfg = load_config()
@@ -145,18 +165,22 @@ def setup_wizard(
     if changed:
         save_config(cfg)
     elif has_vin and has_rn:
-        console.print(f"[dim]Keeping existing config — VIN: {cfg.general.default_vin}  Order: {cfg.order.reservation_number}[/dim]")
+        console.print(
+            f"[dim]Keeping existing config — VIN: {cfg.general.default_vin}  Order: {cfg.order.reservation_number}[/dim]"
+        )
 
     console.print()
 
     # ── Step 3: Vehicle control ─────────────────────────────────────────────────
-    console.print(Panel.fit(
-        "[bold]Step 3 / 4[/bold] — Vehicle Control\n\n"
-        "  [bold green]owner[/bold green]   Free — uses your existing Tesla account token (recommended)\n"
-        "  [dim]tessie  Paid proxy service (tessie.com, ~$10/month)[/dim]\n"
-        "  [dim]fleet   Tesla developer API (requires app registration)[/dim]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold]Step 3 / 4[/bold] — Vehicle Control\n\n"
+            "  [bold green]owner[/bold green]   Free — uses your existing Tesla account token (recommended)\n"
+            "  [dim]tessie  Paid proxy service (tessie.com, ~$10/month)[/dim]\n"
+            "  [dim]fleet   Tesla developer API (requires app registration)[/dim]",
+            border_style="blue",
+        )
+    )
     console.print()
 
     cfg = load_config()
@@ -165,8 +189,12 @@ def setup_wizard(
     fleet_ok = tokens.has_token(tokens.FLEET_ACCESS_TOKEN)
 
     if (already_owner or tessie_ok or fleet_ok) and not force:
-        backend_name = cfg.general.backend if already_owner else ("tessie" if tessie_ok else "fleet")
-        console.print(f"[green]✓ Vehicle backend already configured ({backend_name}) — skipping.[/green]")
+        backend_name = (
+            cfg.general.backend if already_owner else ("tessie" if tessie_ok else "fleet")
+        )
+        console.print(
+            f"[green]✓ Vehicle backend already configured ({backend_name}) — skipping.[/green]"
+        )
     else:
         choice = Prompt.ask(
             "Vehicle backend",
@@ -177,21 +205,31 @@ def setup_wizard(
             # Owner API uses the order tracking token — already set up in Step 1
             cfg.general.backend = "owner"
             save_config(cfg)
-            console.print("[green]✓ Vehicle backend set to 'owner' — no extra setup needed.[/green]")
+            console.print(
+                "[green]✓ Vehicle backend set to 'owner' — no extra setup needed.[/green]"
+            )
         elif choice == "tessie":
             try:
                 from tesla_cli.cli.commands.config_cmd import _auth_tessie
+
                 _auth_tessie()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
-                console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth tessie[/bold]")
+                console.print(
+                    "[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth tessie[/bold]"
+                )
         elif choice == "fleet":
             try:
                 from tesla_cli.cli.commands.config_cmd import _auth_fleet
+
                 _auth_fleet()
             except (TeslaCliError, KeyboardInterrupt, EOFError):
-                console.print("[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth fleet[/bold]")
+                console.print(
+                    "[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth fleet[/bold]"
+                )
         else:
-            console.print("[dim]Skipped — run [bold]tesla config set backend owner[/bold] when ready.[/dim]")
+            console.print(
+                "[dim]Skipped — run [bold]tesla config set backend owner[/bold] when ready.[/dim]"
+            )
 
     console.print()
 
@@ -199,19 +237,27 @@ def setup_wizard(
     if skip_dossier:
         console.print("[dim]Skipping dossier build (--skip-dossier).[/dim]")
     else:
-        console.print(Panel.fit("[bold]Step 4 / 4[/bold] — Building your dossier", border_style="blue"))
+        console.print(
+            Panel.fit("[bold]Step 4 / 4[/bold] — Building your dossier", border_style="blue")
+        )
         console.print("[dim]Pulling from Tesla API, NHTSA, RUNT, ship tracking...[/dim]\n")
 
         try:
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+            ) as p:
                 p.add_task("Querying all data sources...", total=None)
                 from tesla_cli.core.backends.dossier import DossierBackend
+
                 DossierBackend().build_dossier()
 
             console.print("[green]✓ Dossier built successfully.[/green]\n")
 
             # Show the dossier
             from tesla_cli.cli.commands.dossier import dossier_show
+
             dossier_show()
 
         except AuthenticationError as e:
@@ -219,20 +265,24 @@ def setup_wizard(
             console.print("[dim]Run [bold]tesla dossier build[/bold] after fixing auth.[/dim]")
         except TeslaCliError as e:
             console.print(f"[yellow]Dossier partially built:[/yellow] {e}")
-            console.print("[dim]Run [bold]tesla dossier show[/bold] to see what was collected.[/dim]")
+            console.print(
+                "[dim]Run [bold]tesla dossier show[/bold] to see what was collected.[/dim]"
+            )
         except Exception as e:
             console.print(f"[yellow]Dossier build encountered an error:[/yellow] {e}")
             console.print("[dim]Run [bold]tesla dossier build[/bold] to retry.[/dim]")
 
     # ── Done ────────────────────────────────────────────────────────────────────
     console.print()
-    console.print(Panel.fit(
-        "[bold green]✓ Setup complete![/bold green]\n\n"
-        "Useful commands:\n"
-        "  [bold]tesla order status[/bold]       — check your order\n"
-        "  [bold]tesla order watch -i 5[/bold]   — monitor for changes every 5 min\n"
-        "  [bold]tesla dossier show[/bold]        — view your full dossier\n"
-        "  [bold]tesla dossier build[/bold]       — refresh all data sources\n"
-        "  [bold]tesla config show[/bold]         — see current configuration",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]✓ Setup complete![/bold green]\n\n"
+            "Useful commands:\n"
+            "  [bold]tesla order status[/bold]       — check your order\n"
+            "  [bold]tesla order watch -i 5[/bold]   — monitor for changes every 5 min\n"
+            "  [bold]tesla dossier show[/bold]        — view your full dossier\n"
+            "  [bold]tesla dossier build[/bold]       — refresh all data sources\n"
+            "  [bold]tesla config show[/bold]         — see current configuration",
+            border_style="green",
+        )
+    )

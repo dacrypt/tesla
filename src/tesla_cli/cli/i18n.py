@@ -40,7 +40,6 @@ def t(key: str, **kwargs: str) -> str:
 # ── String Catalog ───────────────────────────────────────────────────────────
 
 _STRINGS: dict[str, dict[str, str]] = {
-
     "en": {
         # order
         "order.no_rn": "No reservation number configured.\nRun: tesla config set reservation-number RNXXXXXXXXX",
@@ -49,7 +48,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} No changes",
         "order.stopped": "Stopped watching.",
         "order.notif_failed": "Failed to send notification: {error}",
-
         # vehicle
         "vehicle.asleep_waking": "Vehicle asleep, waking up…",
         "vehicle.awake": "Vehicle is awake",
@@ -62,18 +60,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Sentry Mode disabled",
         "vehicle.sentry_unavailable": "Note: Sentry Mode not available (vehicle may not be parked)",
         "vehicle.trunk_opened": "{which} trunk opened",
-
         # charge
         "charge.started": "Charging started",
         "charge.stopped": "Charging stopped",
         "charge.limit_set": "Charge limit set to {limit}%",
         "charge.amps_set": "Charging amps set to {amps}A",
-
         # climate
         "climate.on": "Climate ON",
         "climate.off": "Climate OFF",
         "climate.temp_set": "Temperature set to {temp}°C",
-
         # dossier
         "dossier.not_found": "No dossier found. Run: tesla dossier build",
         "dossier.building": "Building dossier from all sources…",
@@ -84,29 +79,24 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Run: tesla dossier checklist --mark <N> to check item N",
         "dossier.gates_no_dossier": "No dossier found. Run: tesla dossier build for real data.",
         "dossier.delivery_set": "Delivery date set: {date}",
-
         # stream
         "stream.starting": "Starting live stream… press Ctrl+C to stop.",
         "stream.stopped": "Stream stopped.",
         "stream.asleep": "Vehicle is asleep (data from last known state)",
-
         # setup
         "setup.welcome": "Tesla CLI Setup Wizard",
         "setup.done": "Setup complete!",
         "setup.skip": "Already configured. Use --force to reconfigure.",
-
         # config
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Unknown key: {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # teslaMate
         "teslaMate.not_configured": "TeslaMate not configured.\nRun: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Connected to TeslaMate ({url})",
         "teslaMate.no_trips": "No trips found in TeslaMate.",
         "teslaMate.no_charging": "No charging sessions found in TeslaMate.",
         "teslaMate.no_updates": "No OTA updates found in TeslaMate.",
-
         # errors
         "error.auth": "Not authenticated. Run: tesla config auth order",
         "error.no_vin": "No VIN configured. Run: tesla config set default-vin <VIN>",
@@ -114,7 +104,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.vehicle_not_found": "Vehicle {vin} not found on this account",
         "error.api": "API error {code}: {message}",
     },
-
     "es": {
         # orden
         "order.no_rn": "No hay número de reserva configurado.\nEjecuta: tesla config set reservation-number RNXXXXXXXXX",
@@ -123,7 +112,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} Sin cambios",
         "order.stopped": "Monitoreo detenido.",
         "order.notif_failed": "Error al enviar notificación: {error}",
-
         # vehículo
         "vehicle.asleep_waking": "Vehículo dormido, activando…",
         "vehicle.awake": "Vehículo activo",
@@ -136,18 +124,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Modo Centinela desactivado",
         "vehicle.sentry_unavailable": "Nota: Modo Centinela no disponible (vehículo puede no estar estacionado)",
         "vehicle.trunk_opened": "{which} abierto",
-
         # carga
         "charge.started": "Carga iniciada",
         "charge.stopped": "Carga detenida",
         "charge.limit_set": "Límite de carga establecido en {limit}%",
         "charge.amps_set": "Amperios de carga establecidos en {amps}A",
-
         # clima
         "climate.on": "Clima ENCENDIDO",
         "climate.off": "Clima APAGADO",
         "climate.temp_set": "Temperatura establecida en {temp}°C",
-
         # dossier
         "dossier.not_found": "No se encontró el dossier. Ejecuta: tesla dossier build",
         "dossier.building": "Construyendo dossier desde todas las fuentes…",
@@ -158,24 +143,20 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Ejecuta: tesla dossier checklist --mark <N> para marcar el elemento N",
         "dossier.gates_no_dossier": "No se encontró el dossier. Ejecuta: tesla dossier build para datos reales.",
         "dossier.delivery_set": "Fecha de entrega establecida: {date}",
-
         # stream
         "stream.starting": "Iniciando transmisión en vivo… presiona Ctrl+C para detener.",
         "stream.stopped": "Transmisión detenida.",
         "stream.asleep": "Vehículo dormido (datos del último estado conocido)",
-
         # configuración
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Clave desconocida: {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # teslaMate
         "teslaMate.not_configured": "TeslaMate no configurado.\nEjecuta: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Conectado a TeslaMate ({url})",
         "teslaMate.no_trips": "No se encontraron viajes en TeslaMate.",
         "teslaMate.no_charging": "No se encontraron sesiones de carga en TeslaMate.",
         "teslaMate.no_updates": "No se encontró historial de actualizaciones en TeslaMate.",
-
         # errores
         "error.auth": "No autenticado. Ejecuta: tesla config auth order",
         "error.no_vin": "VIN no configurado. Ejecuta: tesla config set default-vin <VIN>",
@@ -183,7 +164,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.vehicle_not_found": "Vehículo {vin} no encontrado en esta cuenta",
         "error.api": "Error de API {code}: {message}",
     },
-
     "pt": {
         # pedido
         "order.no_rn": "Número de reserva não configurado.\nExecute: tesla config set reservation-number RNXXXXXXXXX",
@@ -192,7 +172,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} Sem alterações",
         "order.stopped": "Monitoramento parado.",
         "order.notif_failed": "Falha ao enviar notificação: {error}",
-
         # veículo
         "vehicle.asleep_waking": "Veículo dormindo, acordando…",
         "vehicle.awake": "Veículo acordado",
@@ -205,18 +184,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Modo Sentinela desativado",
         "vehicle.sentry_unavailable": "Nota: Modo Sentinela não disponível (veículo pode não estar estacionado)",
         "vehicle.trunk_opened": "{which} aberto",
-
         # carga
         "charge.started": "Carregamento iniciado",
         "charge.stopped": "Carregamento parado",
         "charge.limit_set": "Limite de carga definido em {limit}%",
         "charge.amps_set": "Amperes de carregamento definidos em {amps}A",
-
         # clima
         "climate.on": "Clima LIGADO",
         "climate.off": "Clima DESLIGADO",
         "climate.temp_set": "Temperatura definida em {temp}°C",
-
         # dossier
         "dossier.not_found": "Nenhum dossier encontrado. Execute: tesla dossier build",
         "dossier.building": "Construindo dossier de todas as fontes…",
@@ -227,37 +203,31 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Execute: tesla dossier checklist --mark <N> para marcar o item N",
         "dossier.gates_no_dossier": "Nenhum dossier encontrado. Execute: tesla dossier build para dados reais.",
         "dossier.delivery_set": "Data de entrega definida: {date}",
-
         # stream
         "stream.starting": "Iniciando transmissão ao vivo… pressione Ctrl+C para parar.",
         "stream.stopped": "Transmissão parada.",
         "stream.asleep": "Veículo dormindo (dados do último estado conhecido)",
-
         # configuração
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Chave desconhecida: {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # teslaMate
         "teslaMate.not_configured": "TeslaMate não configurado.\nExecute: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Conectado ao TeslaMate ({url})",
         "teslaMate.no_trips": "Nenhuma viagem encontrada no TeslaMate.",
         "teslaMate.no_charging": "Nenhuma sessão de carregamento encontrada no TeslaMate.",
         "teslaMate.no_updates": "Nenhum histórico de atualizações encontrado no TeslaMate.",
-
         # erros
         "error.auth": "Não autenticado. Execute: tesla config auth order",
         "error.no_vin": "VIN não configurado. Execute: tesla config set default-vin <VIN>",
         "error.token_expired": "Token expirado. Execute: tesla config auth order",
         "error.vehicle_not_found": "Veículo {vin} não encontrado nesta conta",
         "error.api": "Erro de API {code}: {message}",
-
         # setup
         "setup.welcome": "Assistente de Configuração do Tesla CLI",
         "setup.done": "Configuração concluída!",
         "setup.skip": "Já configurado. Use --force para reconfigurar.",
     },
-
     "fr": {
         # commande
         "order.no_rn": "Numéro de réservation non configuré.\nExécutez : tesla config set reservation-number RNXXXXXXXXX",
@@ -266,7 +236,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} Aucune modification",
         "order.stopped": "Surveillance arrêtée.",
         "order.notif_failed": "Échec de l'envoi de la notification : {error}",
-
         # véhicule
         "vehicle.asleep_waking": "Véhicule en veille, réveil en cours…",
         "vehicle.awake": "Véhicule réveillé",
@@ -279,18 +248,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Mode Sentinelle désactivé",
         "vehicle.sentry_unavailable": "Remarque : Mode Sentinelle indisponible (le véhicule n'est peut-être pas garé)",
         "vehicle.trunk_opened": "{which} ouvert",
-
         # charge
         "charge.started": "Charge démarrée",
         "charge.stopped": "Charge arrêtée",
         "charge.limit_set": "Limite de charge définie à {limit}%",
         "charge.amps_set": "Ampères de charge définis à {amps}A",
-
         # climatisation
         "climate.on": "Climatisation ACTIVÉE",
         "climate.off": "Climatisation DÉSACTIVÉE",
         "climate.temp_set": "Température réglée à {temp}°C",
-
         # dossier
         "dossier.not_found": "Aucun dossier trouvé. Exécutez : tesla dossier build",
         "dossier.building": "Construction du dossier depuis toutes les sources…",
@@ -301,24 +267,20 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Exécutez : tesla dossier checklist --mark <N> pour cocher l'élément N",
         "dossier.gates_no_dossier": "Aucun dossier trouvé. Exécutez : tesla dossier build pour les données réelles.",
         "dossier.delivery_set": "Date de livraison définie : {date}",
-
         # diffusion
         "stream.starting": "Démarrage de la diffusion en direct… appuyez sur Ctrl+C pour arrêter.",
         "stream.stopped": "Diffusion arrêtée.",
         "stream.asleep": "Véhicule en veille (données du dernier état connu)",
-
         # configuration
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Clé inconnue : {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # teslaMate
         "teslaMate.not_configured": "TeslaMate non configuré.\nExécutez : tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Connecté à TeslaMate ({url})",
         "teslaMate.no_trips": "Aucun trajet trouvé dans TeslaMate.",
         "teslaMate.no_charging": "Aucune session de charge trouvée dans TeslaMate.",
         "teslaMate.no_updates": "Aucun historique de mises à jour trouvé dans TeslaMate.",
-
         # erreurs
         "errors.vin_required": "VIN requis. Exécutez : tesla config set default-vin <VIN>",
         "errors.not_configured": "{feature} non configuré. Exécutez : tesla config set {key} <valeur>",
@@ -328,7 +290,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.token_expired": "Token expiré. Exécutez : tesla config auth order",
         "error.vehicle_not_found": "Véhicule {vin} introuvable sur ce compte",
         "error.api": "Erreur API {code} : {message}",
-
         # configuration initiale
         "setup.welcome": "Bienvenue dans tesla-cli ! Configurons votre compte.",
         "setup.step": "Étape {n} / {total} — {label}",
@@ -338,7 +299,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.vin_not_assigned": "VIN pas encore attribué — uniquement le numéro de réservation enregistré.",
         "setup.multiple_orders": "Plusieurs commandes trouvées — choisissez-en une :",
     },
-
     "de": {
         # Bestellung
         "order.no_rn": "Keine Reservierungsnummer konfiguriert.\nAusführen: tesla config set reservation-number RNXXXXXXXXX",
@@ -347,7 +307,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} Keine Änderungen",
         "order.stopped": "Beobachtung gestoppt.",
         "order.notif_failed": "Benachrichtigung fehlgeschlagen: {error}",
-
         # Fahrzeug
         "vehicle.asleep_waking": "Fahrzeug schläft, wird geweckt…",
         "vehicle.awake": "Fahrzeug ist wach",
@@ -360,18 +319,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Sentinel-Modus deaktiviert",
         "vehicle.sentry_unavailable": "Hinweis: Sentinel-Modus nicht verfügbar (Fahrzeug möglicherweise nicht geparkt)",
         "vehicle.trunk_opened": "{which} geöffnet",
-
         # Laden
         "charge.started": "Laden gestartet",
         "charge.stopped": "Laden gestoppt",
         "charge.limit_set": "Ladelimit auf {limit}% gesetzt",
         "charge.amps_set": "Ladestrom auf {amps}A gesetzt",
-
         # Klimaanlage
         "climate.on": "Klimaanlage AN",
         "climate.off": "Klimaanlage AUS",
         "climate.temp_set": "Temperatur auf {temp}°C gesetzt",
-
         # Dossier
         "dossier.not_found": "Kein Dossier gefunden. Ausführen: tesla dossier build",
         "dossier.building": "Dossier wird aus allen Quellen erstellt…",
@@ -382,24 +338,20 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Ausführen: tesla dossier checklist --mark <N> um Punkt N abzuhaken",
         "dossier.gates_no_dossier": "Kein Dossier gefunden. Ausführen: tesla dossier build für echte Daten.",
         "dossier.delivery_set": "Lieferdatum gesetzt: {date}",
-
         # Stream
         "stream.starting": "Live-Stream wird gestartet… Strg+C zum Stoppen.",
         "stream.stopped": "Stream gestoppt.",
         "stream.asleep": "Fahrzeug schläft (Daten aus letztem bekannten Zustand)",
-
         # Konfiguration
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Unbekannter Schlüssel: {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # TeslaMate
         "teslaMate.not_configured": "TeslaMate nicht konfiguriert.\nAusführen: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Mit TeslaMate verbunden ({url})",
         "teslaMate.no_trips": "Keine Fahrten in TeslaMate gefunden.",
         "teslaMate.no_charging": "Keine Ladesitzungen in TeslaMate gefunden.",
         "teslaMate.no_updates": "Kein Update-Verlauf in TeslaMate gefunden.",
-
         # Fehler
         "errors.vin_required": "VIN erforderlich. Ausführen: tesla config set default-vin <VIN>",
         "errors.not_configured": "{feature} nicht konfiguriert. Ausführen: tesla config set {key} <wert>",
@@ -409,7 +361,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.token_expired": "Token abgelaufen. Ausführen: tesla config auth order",
         "error.vehicle_not_found": "Fahrzeug {vin} nicht in diesem Konto gefunden",
         "error.api": "API-Fehler {code}: {message}",
-
         # Einrichtung
         "setup.welcome": "Willkommen bei tesla-cli! Lassen Sie uns Ihr Konto einrichten.",
         "setup.step": "Schritt {n} / {total} — {label}",
@@ -419,7 +370,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.vin_not_assigned": "VIN noch nicht zugewiesen — nur Reservierungsnummer gespeichert.",
         "setup.multiple_orders": "Mehrere Bestellungen gefunden — bitte eine auswählen:",
     },
-
     "it": {
         # Ordine
         "order.no_rn": "Numero di prenotazione non configurato.\nEseguire: tesla config set reservation-number RNXXXXXXXXX",
@@ -428,7 +378,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "order.no_changes": "{time} Nessuna modifica",
         "order.stopped": "Monitoraggio fermato.",
         "order.notif_failed": "Invio notifica fallito: {error}",
-
         # Veicolo
         "vehicle.asleep_waking": "Veicolo in standby, risveglio in corso…",
         "vehicle.awake": "Veicolo sveglio",
@@ -441,18 +390,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "vehicle.sentry_off": "Modalità Sentinella disattivata",
         "vehicle.sentry_unavailable": "Nota: Modalità Sentinella non disponibile (il veicolo potrebbe non essere parcheggiato)",
         "vehicle.trunk_opened": "{which} aperto",
-
         # Ricarica
         "charge.started": "Ricarica avviata",
         "charge.stopped": "Ricarica fermata",
         "charge.limit_set": "Limite di ricarica impostato al {limit}%",
         "charge.amps_set": "Ampere di ricarica impostati a {amps}A",
-
         # Clima
         "climate.on": "Climatizzazione ACCESA",
         "climate.off": "Climatizzazione SPENTA",
         "climate.temp_set": "Temperatura impostata a {temp}°C",
-
         # Dossier
         "dossier.not_found": "Nessun dossier trovato. Eseguire: tesla dossier build",
         "dossier.building": "Costruzione dossier da tutte le fonti…",
@@ -463,24 +409,20 @@ _STRINGS: dict[str, dict[str, str]] = {
         "dossier.checklist_hint": "Eseguire: tesla dossier checklist --mark <N> per spuntare l'elemento N",
         "dossier.gates_no_dossier": "Nessun dossier trovato. Eseguire: tesla dossier build per dati reali.",
         "dossier.delivery_set": "Data di consegna impostata: {date}",
-
         # Streaming
         "stream.starting": "Avvio streaming in tempo reale… premere Ctrl+C per fermare.",
         "stream.stopped": "Streaming fermato.",
         "stream.asleep": "Veicolo in standby (dati dall'ultimo stato noto)",
-
         # Configurazione
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Chiave sconosciuta: {key}",
         "config.alias_set": "Alias '{name}' -> {vin}",
-
         # TeslaMate
         "teslaMate.not_configured": "TeslaMate non configurato.\nEseguire: tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate",
         "teslaMate.connected": "Connesso a TeslaMate ({url})",
         "teslaMate.no_trips": "Nessun viaggio trovato in TeslaMate.",
         "teslaMate.no_charging": "Nessuna sessione di ricarica trovata in TeslaMate.",
         "teslaMate.no_updates": "Nessuna cronologia aggiornamenti trovata in TeslaMate.",
-
         # Errori
         "errors.vin_required": "VIN richiesto. Eseguire: tesla config set default-vin <VIN>",
         "errors.not_configured": "{feature} non configurato. Eseguire: tesla config set {key} <valore>",
@@ -490,7 +432,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.token_expired": "Token scaduto. Eseguire: tesla config auth order",
         "error.vehicle_not_found": "Veicolo {vin} non trovato su questo account",
         "error.api": "Errore API {code}: {message}",
-
         # Configurazione iniziale
         "setup.welcome": "Benvenuto in tesla-cli! Configuriamo il tuo account.",
         "setup.step": "Passo {n} / {total} — {label}",

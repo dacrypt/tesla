@@ -19,18 +19,18 @@ from tesla_cli.core.providers.base import (
 )
 
 _BLE_COMMANDS = {
-    "lock":            "lock",
-    "unlock":          "unlock",
-    "climate_on":      "climate-on",
-    "climate_off":     "climate-off",
-    "charge_start":    "charging-start",
-    "charge_stop":     "charging-stop",
-    "flash_lights":    "flash-lights",
-    "honk_horn":       "honk",
-    "trunk_open":      "trunk-open",
-    "frunk_open":      "frunk-open",
-    "windows_vent":    "windows-vent",
-    "windows_close":   "windows-close",
+    "lock": "lock",
+    "unlock": "unlock",
+    "climate_on": "climate-on",
+    "climate_off": "climate-off",
+    "charge_start": "charging-start",
+    "charge_stop": "charging-stop",
+    "flash_lights": "flash-lights",
+    "honk_horn": "honk",
+    "trunk_open": "trunk-open",
+    "frunk_open": "frunk-open",
+    "windows_vent": "windows-vent",
+    "windows_close": "windows-close",
 }
 
 
@@ -42,13 +42,15 @@ class BleProvider(Provider):
     has been configured.
     """
 
-    name        = "ble"
+    name = "ble"
     description = "BLE direct (tesla-control binary, offline)"
-    layer       = 0
-    priority    = ProviderPriority.CRITICAL
-    capabilities = frozenset({
-        Capability.VEHICLE_COMMAND,   # lock/unlock/climate/charge/horn/flash
-    })
+    layer = 0
+    priority = ProviderPriority.CRITICAL
+    capabilities = frozenset(
+        {
+            Capability.VEHICLE_COMMAND,  # lock/unlock/climate/charge/horn/flash
+        }
+    )
 
     def __init__(self, config: Config) -> None:
         self._cfg = config
@@ -62,15 +64,23 @@ class BleProvider(Provider):
     def health_check(self) -> dict:
         binary = self._binary()
         if not binary:
-            return {"status": "down", "latency_ms": 0, "detail": "tesla-control binary not found on PATH"}
+            return {
+                "status": "down",
+                "latency_ms": 0,
+                "detail": "tesla-control binary not found on PATH",
+            }
         if not self._cfg.ble.key_path:
-            return {"status": "down", "latency_ms": 0, "detail": "BLE key not configured (tesla ble setup-key)"}
+            return {
+                "status": "down",
+                "latency_ms": 0,
+                "detail": "BLE key not configured (tesla ble setup-key)",
+            }
         return {"status": "ok", "latency_ms": 0, "detail": f"binary={binary}"}
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
         ble_cmd = _BLE_COMMANDS.get(operation, operation)
-        vin     = kwargs.get("vin") or self._cfg.general.default_vin
-        binary  = self._binary()
+        vin = kwargs.get("vin") or self._cfg.general.default_vin
+        binary = self._binary()
         if not binary:
             return ProviderResult(ok=False, provider=self.name, error="tesla-control not found")
 
@@ -84,11 +94,16 @@ class BleProvider(Provider):
         try:
             r, ms = self._timed(
                 subprocess.run,  # noqa: S603
-                args, capture_output=True, text=True, timeout=30,
+                args,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             ok = r.returncode == 0
             return ProviderResult(
-                ok=ok, provider=self.name, latency_ms=ms,
+                ok=ok,
+                provider=self.name,
+                latency_ms=ms,
                 data={"stdout": r.stdout.strip(), "stderr": r.stderr.strip()},
                 error=r.stderr.strip() if not ok else None,
             )

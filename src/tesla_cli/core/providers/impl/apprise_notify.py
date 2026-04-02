@@ -25,10 +25,10 @@ class AppriseProvider(Provider):
     and this provider will deliver to every configured channel.
     """
 
-    name        = "apprise"
+    name = "apprise"
     description = "Push notifications (Apprise — Telegram, Slack, email, …)"
-    layer       = 3
-    priority    = ProviderPriority.LOW
+    layer = 3
+    priority = ProviderPriority.LOW
     capabilities = frozenset({Capability.NOTIFY})
 
     def __init__(self, config: Config) -> None:
@@ -41,6 +41,7 @@ class AppriseProvider(Provider):
             return False
         try:
             import apprise  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -56,20 +57,23 @@ class AppriseProvider(Provider):
         except ImportError:
             return {"status": "down", "latency_ms": 0, "detail": "apprise package not installed"}
         return {
-            "status":     "ok",
+            "status": "ok",
             "latency_ms": 0,
-            "detail":     f"{len(urls)} channel(s) configured",
+            "detail": f"{len(urls)} channel(s) configured",
         }
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
         if operation not in ("push", "notify", "send"):
-            return ProviderResult(ok=False, provider=self.name, error=f"Unknown operation: {operation}")
+            return ProviderResult(
+                ok=False, provider=self.name, error=f"Unknown operation: {operation}"
+            )
 
         title = kwargs.get("title", "Tesla Alert")
-        body  = kwargs.get("body", "") or kwargs.get("message", "")
+        body = kwargs.get("body", "") or kwargs.get("message", "")
 
         try:
             import apprise
+
             a = apprise.Apprise()
             for url in self._cfg.notifications.apprise_urls:
                 a.add(url)
@@ -77,7 +81,9 @@ class AppriseProvider(Provider):
             ok = a.notify(title=title, body=body)
             ms = (time.monotonic() - t0) * 1000
             return ProviderResult(
-                ok=bool(ok), provider=self.name, latency_ms=round(ms, 1),
+                ok=bool(ok),
+                provider=self.name,
+                latency_ms=round(ms, 1),
                 data={"channels": len(self._cfg.notifications.apprise_urls)},
                 error=None if ok else "Some channels failed",
             )

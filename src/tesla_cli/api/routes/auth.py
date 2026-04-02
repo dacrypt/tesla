@@ -14,7 +14,6 @@ from tesla_cli.core.auth.tokens import (
     FLEET_ACCESS_TOKEN,
     FLEET_REFRESH_TOKEN,
     TESSIE_TOKEN,
-    get_token,
     has_token,
     set_token,
 )
@@ -34,6 +33,7 @@ FLEET_SCOPES = "openid email offline_access vehicle_device_data vehicle_cmds veh
 
 # ── Login (generate auth URL) ────────────────────────────────────────────────
 
+
 @router.get("/login")
 def auth_login() -> dict:
     """Generate Tesla OAuth URL for the PWA to open in a popup.
@@ -48,9 +48,7 @@ def auth_login() -> dict:
 
     verifier = secrets.token_urlsafe(64)
     challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
-        .rstrip(b"=")
-        .decode()
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     )
     state = secrets.token_urlsafe(32)
     _pending_auth[state] = verifier
@@ -69,6 +67,7 @@ def auth_login() -> dict:
 
 
 # ── Callback (exchange code for tokens) ──────────────────────────────────────
+
 
 class CallbackRequest(BaseModel):
     code: str
@@ -91,14 +90,19 @@ def auth_callback(req: CallbackRequest) -> dict:
 
     # Exchange code for tokens
     import httpx
+
     try:
-        r = httpx.post(TOKEN_URL, data={
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "code": req.code,
-            "code_verifier": verifier,
-            "redirect_uri": VOID_REDIRECT_URI,
-        }, timeout=30)
+        r = httpx.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "code": req.code,
+                "code_verifier": verifier,
+                "redirect_uri": VOID_REDIRECT_URI,
+            },
+            timeout=30,
+        )
         r.raise_for_status()
         token_data = r.json()
     except httpx.HTTPStatusError as e:
@@ -127,6 +131,7 @@ def auth_callback(req: CallbackRequest) -> dict:
 
 # ── Tessie token (paste) ─────────────────────────────────────────────────────
 
+
 class TessieRequest(BaseModel):
     token: str
 
@@ -146,6 +151,7 @@ def auth_tessie(req: TessieRequest) -> dict:
 
 # ── Browser login (email + password) ──────────────────────────────────────────
 
+
 class BrowserLoginRequest(BaseModel):
     email: str
     password: str
@@ -163,15 +169,15 @@ def auth_browser_login(req: BrowserLoginRequest) -> dict:
     Returns {ok, has_order, has_fleet} on success.
     If MFA is required, returns {ok: false, mfa_required: true}.
     """
+    import json as _json
     import subprocess
     import sys
-    import json as _json
 
     cfg = load_config()
     fleet_client_id = cfg.fleet.client_id or ""
 
     # Run in subprocess (Playwright doesn't work in uvicorn)
-    script = f'''
+    script = f"""
 import json
 from tesla_cli.core.auth.browser_login import full_login
 try:
@@ -193,21 +199,27 @@ except Exception as e:
         "mfa_required": "MFA_REQUIRED" in msg,
         "error": msg if "MFA_REQUIRED" not in msg else "MFA code required",
     }}))
-'''
+"""
 
     try:
         result = subprocess.run(
             [sys.executable, "-c", script],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if result.stdout.strip():
             data = _json.loads(result.stdout.strip())
         else:
-            raise HTTPException(502, f"Login failed: {result.stderr[:200] if result.stderr else 'no output'}")
+            raise HTTPException(
+                502, f"Login failed: {result.stderr[:200] if result.stderr else 'no output'}"
+            )
     except subprocess.TimeoutExpired:
         raise HTTPException(504, "Login timed out")
     except _json.JSONDecodeError:
-        raise HTTPException(502, f"Login error: {result.stdout[:100] if result.stdout else result.stderr[:100]}")
+        raise HTTPException(
+            502, f"Login error: {result.stdout[:100] if result.stdout else result.stderr[:100]}"
+        )
 
     if not data.get("ok"):
         if data.get("mfa_required"):
@@ -217,6 +229,7 @@ except Exception as e:
     # Store tokens
     if data.get("order"):
         from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN, ORDER_REFRESH_TOKEN
+
         set_token(ORDER_ACCESS_TOKEN, data["order"]["access_token"])
         set_token(ORDER_REFRESH_TOKEN, data["order"]["refresh_token"])
 
@@ -234,6 +247,7 @@ except Exception as e:
     if data.get("order"):
         try:
             from tesla_cli.core.backends.order import OrderBackend
+
             backend = OrderBackend()
             orders = backend.get_orders()
             order_list = orders if isinstance(orders, list) else [orders]
@@ -262,6 +276,7 @@ except Exception as e:
 
 # ── Portal scrape (full order data) ───────────────────────────────────────────
 
+
 class PortalScrapeRequest(BaseModel):
     email: str
     password: str
@@ -278,14 +293,14 @@ def auth_portal_scrape(req: PortalScrapeRequest) -> dict:
 
     If MFA required, returns {ok: false, mfa_required: true}.
     """
+    import json as _json
     import subprocess
     import sys
-    import json as _json
 
     cfg = load_config()
     rn = cfg.order.reservation_number or ""
 
-    script = f'''
+    script = f"""
 import json
 from tesla_cli.core.auth.portal_scrape import scrape_portal
 try:
@@ -307,12 +322,14 @@ except Exception as e:
         "mfa_required": "MFA_REQUIRED" in msg,
         "error": msg if "MFA_REQUIRED" not in msg else "MFA code required",
     }}))
-'''
+"""
 
     try:
         result = subprocess.run(
             [sys.executable, "-c", script],
-            capture_output=True, text=True, timeout=180,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
         if result.stdout.strip():
             data = _json.loads(result.stdout.strip())
@@ -333,13 +350,17 @@ except Exception as e:
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
+
 @router.get("/status")
 def auth_status() -> dict:
     """Current authentication state."""
-    from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN, ORDER_REFRESH_TOKEN
+    from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN
+
     cfg = load_config()
     return {
-        "authenticated": has_token(FLEET_ACCESS_TOKEN) or has_token(TESSIE_TOKEN) or has_token(ORDER_ACCESS_TOKEN),
+        "authenticated": has_token(FLEET_ACCESS_TOKEN)
+        or has_token(TESSIE_TOKEN)
+        or has_token(ORDER_ACCESS_TOKEN),
         "backend": cfg.general.backend,
         "has_fleet": has_token(FLEET_ACCESS_TOKEN),
         "has_order": has_token(ORDER_ACCESS_TOKEN),
@@ -350,14 +371,17 @@ def auth_status() -> dict:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _sync_teslamate_tokens() -> None:
     """Best-effort sync tokens to TeslaMate if managed stack is running."""
     try:
         from pathlib import Path
+
         cfg = load_config()
         if not cfg.teslaMate.managed:
             return
         from tesla_cli.infra.teslamate_stack import TeslaMateStack
+
         stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
         if stack.is_running():
             stack.sync_tokens_from_keyring()

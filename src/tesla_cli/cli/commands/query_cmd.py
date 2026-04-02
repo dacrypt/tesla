@@ -42,15 +42,20 @@ _NOT_INSTALLED = (
 
 # ─── Common options ───────────────────────────────────────────────────────────
 
-CedulaOption  = typer.Option(None, "--cedula", "-c", help="Cédula / national ID number")
-PlacaOption   = typer.Option(None, "--placa",  "-p", help="License plate (e.g. ABC123)")
-VinOption     = typer.Option(None, "--vin",    "-v", help="VIN number")
-ExtraOption   = typer.Option(None, "--extra",  "-e", help='Extra params as JSON, e.g. \'{"ciudad":"Bogota"}\'')
-AuditOption   = typer.Option(False, "--audit", "-a", help="Capture audit evidence (screenshots + PDF)")
-AuditDirOpt   = typer.Option(None, "--audit-dir", help="Directory for audit files (default: ./audit)")
+CedulaOption = typer.Option(None, "--cedula", "-c", help="Cédula / national ID number")
+PlacaOption = typer.Option(None, "--placa", "-p", help="License plate (e.g. ABC123)")
+VinOption = typer.Option(None, "--vin", "-v", help="VIN number")
+ExtraOption = typer.Option(
+    None, "--extra", "-e", help='Extra params as JSON, e.g. \'{"ciudad":"Bogota"}\''
+)
+AuditOption = typer.Option(
+    False, "--audit", "-a", help="Capture audit evidence (screenshots + PDF)"
+)
+AuditDirOpt = typer.Option(None, "--audit-dir", help="Directory for audit files (default: ./audit)")
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
 
 def _require_openquery() -> None:
     try:
@@ -78,17 +83,21 @@ def _build_input(
             raise typer.Exit(1)
 
     if cedula:
-        return QueryInput(document_type=DocumentType.CEDULA, document_number=cedula,
-                          extra=extra, audit=audit)
+        return QueryInput(
+            document_type=DocumentType.CEDULA, document_number=cedula, extra=extra, audit=audit
+        )
     if placa:
-        return QueryInput(document_type=DocumentType.PLATE, document_number=placa,
-                          extra=extra, audit=audit)
+        return QueryInput(
+            document_type=DocumentType.PLATE, document_number=placa, extra=extra, audit=audit
+        )
     if vin:
-        return QueryInput(document_type=DocumentType.VIN, document_number=vin,
-                          extra=extra, audit=audit)
+        return QueryInput(
+            document_type=DocumentType.VIN, document_number=vin, extra=extra, audit=audit
+        )
     if extra:
-        return QueryInput(document_type=DocumentType.CUSTOM, document_number="",
-                          extra=extra, audit=audit)
+        return QueryInput(
+            document_type=DocumentType.CUSTOM, document_number="", extra=extra, audit=audit
+        )
 
     console.print("[red]Provide at least one of: --cedula, --placa, --vin, or --extra[/red]")
     raise typer.Exit(1)
@@ -102,9 +111,11 @@ def _run(source_name: str, q_input, audit_dir: str | None = None) -> None:
         src = get_source(source_name)
     except KeyError:
         from openquery.sources import list_sources
+
         available = ", ".join(sorted(s.meta().name for s in list_sources()))
-        console.print(f"[red]Unknown source:[/red] {source_name!r}\n"
-                      f"[dim]Available: {available}[/dim]")
+        console.print(
+            f"[red]Unknown source:[/red] {source_name!r}\n[dim]Available: {available}[/dim]"
+        )
         raise typer.Exit(1)
 
     meta = src.meta()
@@ -215,6 +226,7 @@ def _save_audit(audit_record, source: str, label: str, audit_dir: str | None) ->
 
 # ─── Commands ─────────────────────────────────────────────────────────────────
 
+
 @query_app.command("sources")
 def query_sources() -> None:
     """List all available openquery data sources."""
@@ -241,16 +253,16 @@ def query_sources() -> None:
         return
 
     t = Table(title="OpenQuery Sources", border_style="dim")
-    t.add_column("Source",   style="bold cyan", width=24)
-    t.add_column("Name",     width=30)
-    t.add_column("Inputs",   width=22)
-    t.add_column("Browser",  justify="center", width=8)
-    t.add_column("CAPTCHA",  justify="center", width=8)
-    t.add_column("RPM",      justify="right",  width=5)
+    t.add_column("Source", style="bold cyan", width=24)
+    t.add_column("Name", width=30)
+    t.add_column("Inputs", width=22)
+    t.add_column("Browser", justify="center", width=8)
+    t.add_column("CAPTCHA", justify="center", width=8)
+    t.add_column("RPM", justify="right", width=5)
 
     for s in sources:
         m = s.meta()
-        inputs  = ", ".join(str(i) for i in m.supported_inputs)
+        inputs = ", ".join(str(i) for i in m.supported_inputs)
         browser = "[green]✓[/green]" if m.requires_browser else "[dim]—[/dim]"
         captcha = "[yellow]✓[/yellow]" if m.requires_captcha else "[dim]—[/dim]"
         t.add_row(m.name, m.display_name, inputs, browser, captcha, str(m.rate_limit_rpm))
@@ -260,12 +272,12 @@ def query_sources() -> None:
 
 @query_app.command("run")
 def query_run(
-    source:    str      = typer.Argument(..., help="Source name, e.g. co.simit, co.runt"),
-    cedula:    str | None = CedulaOption,
-    placa:     str | None = PlacaOption,
-    vin:       str | None = VinOption,
-    extra:     str | None = ExtraOption,
-    audit:     bool       = AuditOption,
+    source: str = typer.Argument(..., help="Source name, e.g. co.simit, co.runt"),
+    cedula: str | None = CedulaOption,
+    placa: str | None = PlacaOption,
+    vin: str | None = VinOption,
+    extra: str | None = ExtraOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """Run a query against [bold]any[/bold] openquery source (generic runner)."""
@@ -276,11 +288,12 @@ def query_run(
 
 # ── Convenience: person / document queries ────────────────────────────────────
 
+
 @query_app.command("simit")
 def query_simit(
-    cedula:    str | None = CedulaOption,
-    placa:     str | None = PlacaOption,
-    audit:     bool       = AuditOption,
+    cedula: str | None = CedulaOption,
+    placa: str | None = PlacaOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """SIMIT — multas de tránsito Colombia (FCM)."""
@@ -291,10 +304,10 @@ def query_simit(
 
 @query_app.command("runt")
 def query_runt(
-    cedula:    str | None = CedulaOption,
-    placa:     str | None = PlacaOption,
-    vin:       str | None = VinOption,
-    audit:     bool       = AuditOption,
+    cedula: str | None = CedulaOption,
+    placa: str | None = PlacaOption,
+    vin: str | None = VinOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """RUNT — registro nacional de tránsito (vehículo por cédula, placa o VIN)."""
@@ -305,8 +318,8 @@ def query_runt(
 
 @query_app.command("procuraduria")
 def query_procuraduria(
-    cedula:    str | None = CedulaOption,
-    audit:     bool       = AuditOption,
+    cedula: str | None = CedulaOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """Procuraduría — antecedentes disciplinarios."""
@@ -317,8 +330,8 @@ def query_procuraduria(
 
 @query_app.command("policia")
 def query_policia(
-    cedula:    str | None = CedulaOption,
-    audit:     bool       = AuditOption,
+    cedula: str | None = CedulaOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """Policía — antecedentes judiciales."""
@@ -329,8 +342,8 @@ def query_policia(
 
 @query_app.command("adres")
 def query_adres(
-    cedula:    str | None = CedulaOption,
-    audit:     bool       = AuditOption,
+    cedula: str | None = CedulaOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """ADRES — afiliación al sistema de salud (EPS)."""
@@ -355,8 +368,8 @@ def query_pico_y_placa(
 
 @query_app.command("vehiculos")
 def query_vehiculos(
-    placa:     str | None = PlacaOption,
-    audit:     bool       = AuditOption,
+    placa: str | None = PlacaOption,
+    audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
     """Parque automotor nacional — consulta por placa."""
@@ -367,10 +380,11 @@ def query_vehiculos(
 
 # ── Convenience: API / open-data queries ──────────────────────────────────────
 
+
 @query_app.command("combustible")
 def query_combustible(
     ciudad: str | None = typer.Option(None, "--ciudad", "-C", help="Ciudad/municipio"),
-    extra:  str | None = ExtraOption,
+    extra: str | None = ExtraOption,
 ) -> None:
     """Precios de combustible por ciudad/estación."""
     _require_openquery()
@@ -384,7 +398,7 @@ def query_combustible(
 @query_app.command("estaciones-ev")
 def query_estaciones_ev(
     ciudad: str | None = typer.Option(None, "--ciudad", "-C", help="Ciudad"),
-    extra:  str | None = ExtraOption,
+    extra: str | None = ExtraOption,
 ) -> None:
     """Estaciones de carga EV disponibles."""
     _require_openquery()
@@ -411,9 +425,9 @@ def query_peajes(
 
 @query_app.command("fasecolda")
 def query_fasecolda(
-    marca:   str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
-    modelo:  str | None = typer.Option(None, "--modelo", help="Año modelo (ej. 2026)"),
-    extra:   str | None = ExtraOption,
+    marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
+    modelo: str | None = typer.Option(None, "--modelo", help="Año modelo (ej. 2026)"),
+    extra: str | None = ExtraOption,
 ) -> None:
     """FASECOLDA — precios de referencia de vehículos."""
     _require_openquery()
@@ -428,8 +442,8 @@ def query_fasecolda(
 
 @query_app.command("recalls")
 def query_recalls(
-    marca:  str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
-    extra:  str | None = ExtraOption,
+    marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
+    extra: str | None = ExtraOption,
 ) -> None:
     """Recalls de seguridad vehicular en Colombia."""
     _require_openquery()

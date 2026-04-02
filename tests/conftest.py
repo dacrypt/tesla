@@ -96,7 +96,10 @@ def mock_fleet_backend():
     backend.get_drive_state.return_value = MOCK_VEHICLE_DATA["drive_state"]
     backend.get_vehicle_state.return_value = MOCK_VEHICLE_DATA["vehicle_state"]
     backend.get_vehicle_config.return_value = MOCK_VEHICLE_DATA["vehicle_config"]
-    backend.get_nearby_charging_sites.return_value = {"superchargers": [], "destination_charging": []}
+    backend.get_nearby_charging_sites.return_value = {
+        "superchargers": [],
+        "destination_charging": [],
+    }
     backend.get_release_notes.return_value = {"release_notes": []}
     backend.get_recent_alerts.return_value = {"recent_alerts": []}
     backend.get_charge_history.return_value = []

@@ -71,7 +71,9 @@ def source_audits(source_id: str) -> list:
 def source_audit_pdf(source_id: str, filename: str):
     """Download an audit evidence PDF."""
     from fastapi.responses import FileResponse
+
     from tesla_cli.core.config import CONFIG_DIR
+
     pdf_path = CONFIG_DIR / "source_audits" / filename
     if not pdf_path.exists() or not filename.startswith(source_id):
         raise HTTPException(404, "Audit PDF not found")
@@ -85,6 +87,7 @@ def sources_refresh_stale() -> dict:
 
 
 # ── Wildcard routes LAST ──
+
 
 @router.get("/{source_id}")
 def source_get(source_id: str) -> dict:

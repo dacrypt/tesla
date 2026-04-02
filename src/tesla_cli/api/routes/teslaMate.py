@@ -18,10 +18,12 @@ def _backend():
             detail="TeslaMate not configured. Set teslaMate.database_url in config.",
         )
     from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
     return TeslaMateBacked(cfg.teslaMate.database_url, car_id=cfg.teslaMate.car_id)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/trips")
 def tm_trips(limit: int = 20) -> list:
@@ -162,9 +164,10 @@ def teslaMate_cost_report(month: str = "", limit: int = 100) -> dict:
     Returns {cost_per_kwh, months: {YYYY-MM: {sessions, kwh, cost}}, sessions: N}
     """
     import collections
+
     try:
         backend = _backend()
-        cfg     = load_config()
+        cfg = load_config()
         sessions = backend.get_charging_sessions(limit=limit)
     except HTTPException:
         raise
@@ -178,15 +181,15 @@ def teslaMate_cost_report(month: str = "", limit: int = 100) -> dict:
 
     by_month: dict = collections.defaultdict(lambda: {"sessions": 0, "kwh": 0.0, "cost": 0.0})
     for s in sessions:
-        ym  = str(s.get("start_date") or "")[:7]
+        ym = str(s.get("start_date") or "")[:7]
         kwh = float(s.get("energy_added_kwh") or 0)
         by_month[ym]["sessions"] += 1
-        by_month[ym]["kwh"]      = round(by_month[ym]["kwh"] + kwh, 3)
-        by_month[ym]["cost"]     = round(by_month[ym]["cost"] + kwh * cost_per_kwh, 2)
+        by_month[ym]["kwh"] = round(by_month[ym]["kwh"] + kwh, 3)
+        by_month[ym]["cost"] = round(by_month[ym]["cost"] + kwh * cost_per_kwh, 2)
 
     return {
         "cost_per_kwh": cost_per_kwh,
-        "months":   dict(sorted(by_month.items(), reverse=True)),
+        "months": dict(sorted(by_month.items(), reverse=True)),
         "sessions": len(sessions),
     }
 
@@ -238,10 +241,10 @@ def teslaMate_stack_status() -> dict:
     if not cfg.teslaMate.managed:
         return {"managed": False, "installed": False, "running": False, "services": []}
     from pathlib import Path
+
     from tesla_cli.infra.teslamate_stack import TeslaMateStack
-    stack = TeslaMateStack(
-        Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
-    )
+
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
     return {
         "managed": True,
         "installed": stack.is_installed(),
@@ -259,13 +262,13 @@ def teslaMate_stack_status() -> dict:
 def _get_managed_stack():
     """Return (config, TeslaMateStack) or raise 400 if not managed."""
     from pathlib import Path
+
     from tesla_cli.infra.teslamate_stack import TeslaMateStack
+
     cfg = load_config()
     if not cfg.teslaMate.managed:
         raise HTTPException(status_code=400, detail="TeslaMate stack is not managed by CLI.")
-    stack = TeslaMateStack(
-        Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
-    )
+    stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
     if not stack.is_installed():
         raise HTTPException(status_code=400, detail="TeslaMate stack is not installed.")
     return cfg, stack

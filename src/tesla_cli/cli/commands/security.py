@@ -5,8 +5,8 @@ from __future__ import annotations
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.cli.output import render_success
+from tesla_cli.core.config import load_config, resolve_vin
 
 security_app = typer.Typer(name="security", help="Security, sentry, and access controls.")
 
@@ -86,9 +86,7 @@ def speed_limit(
         if not limit:
             typer.echo("--limit required for speed limit set", err=True)
             raise typer.Exit(1)
-        _with_wake(
-            lambda b, v: b.command(v, "speed_limit_set_limit", limit_mph=limit), v
-        )
+        _with_wake(lambda b, v: b.command(v, "speed_limit_set_limit", limit_mph=limit), v)
         render_success(f"Speed limit set to {limit} mph")
     else:
         typer.echo(f"Unknown action: {action}. Use activate|deactivate|set", err=True)
@@ -139,6 +137,7 @@ def security_remote_start(
 
     v = _vin(vin)
     from tesla_cli.cli.commands.vehicle import _with_wake
+
     _with_wake(lambda b, v: b.command(v, "remote_start_drive"), v)
 
     if is_json_mode():

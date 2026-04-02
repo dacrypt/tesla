@@ -21,10 +21,12 @@ _DEFAULT_HOST = "127.0.0.1"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _pid_file_path() -> Path:
     """Return the PID file path from config (or default)."""
     try:
         from tesla_cli.core.config import load_config
+
         return Path(load_config().server.pid_file)
     except Exception:  # noqa: BLE001
         return _DEFAULT_PID_FILE
@@ -61,6 +63,7 @@ def _clear_pid() -> None:
 
 
 # ── Service file generation ───────────────────────────────────────────────────
+
 
 def _systemd_unit(exec_path: str, port: int, host: str) -> str:
     return f"""\
@@ -107,13 +110,16 @@ def _launchd_plist(exec_path: str, port: int, host: str) -> str:
 @serve_app.command("install-service")
 def serve_install_service(
     platform: str = typer.Option(
-        "", "--platform",
+        "",
+        "--platform",
         help="Service platform: 'systemd' or 'launchd'. Auto-detected if omitted.",
     ),
     port: int = typer.Option(_DEFAULT_PORT, "--port", "-p", help="Port for the service"),
     host: str = typer.Option(_DEFAULT_HOST, "--host", help="Host for the service"),
     print_only: bool = typer.Option(
-        False, "--print", help="Print the service file without installing",
+        False,
+        "--print",
+        help="Print the service file without installing",
     ),
 ) -> None:
     """Generate and install a systemd (Linux) or launchd (macOS) service file.
@@ -135,7 +141,9 @@ def serve_install_service(
         elif system == "linux":
             platform = "systemd"
         else:
-            console.print(f"[red]Unsupported platform: {system}. Use --platform systemd or launchd.[/red]")
+            console.print(
+                f"[red]Unsupported platform: {system}. Use --platform systemd or launchd.[/red]"
+            )
             raise typer.Exit(1)
 
     exec_path = shutil.which("tesla") or sys.executable + " -m tesla_cli"
@@ -183,6 +191,7 @@ def serve_install_service(
 
 
 # ── Subcommands ───────────────────────────────────────────────────────────────
+
 
 @serve_app.command("stop")
 def serve_stop() -> None:
@@ -247,27 +256,29 @@ def serve_status(
 
 # ── Main serve command ────────────────────────────────────────────────────────
 
+
 @serve_app.callback(invoke_without_command=True)
 def serve(
     ctx: typer.Context,
-    port: int = typer.Option(_DEFAULT_PORT, "--port", "-p",
-                             help="Port to listen on"),
-    host: str = typer.Option(_DEFAULT_HOST, "--host",
-                             help="Host to bind (127.0.0.1 = localhost only)"),
-    open_browser: bool = typer.Option(True, "--open/--no-open",
-                                      help="Open browser on start"),
-    reload: bool = typer.Option(False, "--reload",
-                                help="Auto-reload on code changes (dev mode)"),
-    vin: str | None = typer.Option(None, "--vin", "-v",
-                                   help="VIN or alias to serve"),
-    daemon: bool = typer.Option(False, "--daemon", "-d",
-                                help="Run server in background (detached)"),
-    api_key: str | None = typer.Option(None, "--api-key",
-                                       help="Require this key on all /api/* requests"),
-    build_ui: bool = typer.Option(False, "--build-ui",
-                                  help="Run npm build in ui/ before starting (implies --serve-ui)"),
-    serve_ui: bool = typer.Option(False, "--serve-ui",
-                                  help="Serve React app from ui/dist/ on the same port"),
+    port: int = typer.Option(_DEFAULT_PORT, "--port", "-p", help="Port to listen on"),
+    host: str = typer.Option(
+        _DEFAULT_HOST, "--host", help="Host to bind (127.0.0.1 = localhost only)"
+    ),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open browser on start"),
+    reload: bool = typer.Option(False, "--reload", help="Auto-reload on code changes (dev mode)"),
+    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias to serve"),
+    daemon: bool = typer.Option(
+        False, "--daemon", "-d", help="Run server in background (detached)"
+    ),
+    api_key: str | None = typer.Option(
+        None, "--api-key", help="Require this key on all /api/* requests"
+    ),
+    build_ui: bool = typer.Option(
+        False, "--build-ui", help="Run npm build in ui/ before starting (implies --serve-ui)"
+    ),
+    serve_ui: bool = typer.Option(
+        False, "--serve-ui", help="Serve React app from ui/dist/ on the same port"
+    ),
 ) -> None:
     """Start the tesla-cli API server.
 
@@ -315,6 +326,7 @@ def serve(
     if api_key:
         try:
             from tesla_cli.core.config import load_config, save_config
+
             cfg = load_config()
             cfg.server.api_key = api_key
             save_config(cfg)
@@ -335,8 +347,17 @@ def serve(
             raise typer.Exit(1)
 
         # Build child argv — same command without --daemon
-        argv = [sys.executable, "-m", "tesla_cli", "serve",
-                "--port", str(port), "--host", host, "--no-open"]
+        argv = [
+            sys.executable,
+            "-m",
+            "tesla_cli",
+            "serve",
+            "--port",
+            str(port),
+            "--host",
+            host,
+            "--no-open",
+        ]
         if reload:
             argv.append("--reload")
         if vin:

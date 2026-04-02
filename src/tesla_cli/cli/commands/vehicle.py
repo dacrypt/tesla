@@ -7,12 +7,6 @@ import time
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from tesla_cli.core.backends import get_vehicle_backend
-from tesla_cli.core.config import load_config, resolve_vin
-from tesla_cli.core.exceptions import VehicleAsleepError
-from tesla_cli.core.models.charge import ChargeState
-from tesla_cli.core.models.climate import ClimateState
-from tesla_cli.core.models.drive import Location
 from tesla_cli.cli.output import (
     console,
     is_json_mode,
@@ -21,6 +15,12 @@ from tesla_cli.cli.output import (
     render_success,
     render_table,
 )
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.exceptions import VehicleAsleepError
+from tesla_cli.core.models.charge import ChargeState
+from tesla_cli.core.models.climate import ClimateState
+from tesla_cli.core.models.drive import Location
 
 vehicle_app = typer.Typer(name="vehicle", help="Tesla vehicle data and control.")
 
@@ -54,18 +54,22 @@ def _with_wake(fn, vin: str, retries: int = 2):
 def vehicle_list() -> None:
     """List all vehicles."""
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching vehicles...", total=None)
         vehicles = backend.list_vehicles()
 
     rows = []
     for v in vehicles if isinstance(vehicles, list) else [vehicles]:
-        rows.append({
-            "vin": v.get("vin", ""),
-            "name": v.get("display_name", v.get("vehicle_name", "")),
-            "state": v.get("state", ""),
-            "model": v.get("model", v.get("vehicle_type", "")),
-        })
+        rows.append(
+            {
+                "vin": v.get("vin", ""),
+                "name": v.get("display_name", v.get("vehicle_name", "")),
+                "state": v.get("state", ""),
+                "model": v.get("model", v.get("vehicle_type", "")),
+            }
+        )
     render_table(rows, columns=["vin", "name", "state", "model"], title="Vehicles")
 
 
@@ -88,7 +92,9 @@ def vehicle_location(vin: str | None = VinOption) -> None:
 
 @vehicle_app.command("map")
 def vehicle_map(
-    span: float = typer.Option(0.05, "--span", help="Degree span for map window (default 0.05 ≈ 5km)"),
+    span: float = typer.Option(
+        0.05, "--span", help="Degree span for map window (default 0.05 ≈ 5km)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show ASCII terminal map with current vehicle position.
@@ -101,21 +107,25 @@ def vehicle_map(
     import math
     import shutil
 
-    v    = _vin(vin)
+    v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_drive_state(v), v)
 
     lat = data.get("latitude")
     lon = data.get("longitude")
-    heading  = data.get("heading") or 0
-    speed    = data.get("speed") or 0
-    shift    = data.get("shift_state") or "P"
+    heading = data.get("heading") or 0
+    speed = data.get("speed") or 0
+    shift = data.get("shift_state") or "P"
 
     if lat is None or lon is None:
         console.print("[yellow]No GPS data available.[/yellow]")
         raise typer.Exit(1)
 
     if is_json_mode():
-        console.print(_json.dumps({"lat": lat, "lon": lon, "heading": heading, "speed": speed, "shift_state": shift}))
+        console.print(
+            _json.dumps(
+                {"lat": lat, "lon": lon, "heading": heading, "speed": speed, "shift_state": shift}
+            )
+        )
         return
 
     # ── Grid dimensions (auto from terminal, min 40×18) ──────────────────────
@@ -139,9 +149,15 @@ def vehicle_map(
 
     # ── Heading arrow ─────────────────────────────────────────────────────────
     _ARROWS = {
-        (0,   22):  "↑", (23,  67):  "↗", (68, 112):  "→",
-        (113, 157): "↘", (158, 202): "↓", (203, 247): "↙",
-        (248, 292): "←", (293, 337): "↖", (338, 360): "↑",
+        (0, 22): "↑",
+        (23, 67): "↗",
+        (68, 112): "→",
+        (113, 157): "↘",
+        (158, 202): "↓",
+        (203, 247): "↙",
+        (248, 292): "←",
+        (293, 337): "↖",
+        (338, 360): "↑",
     }
     arrow = "▲"
     for (lo, hi), sym in _ARROWS.items():
@@ -164,7 +180,7 @@ def vehicle_map(
             # haversine approx in km
             dlat_km = (cell_lat - zlat) * 111.0
             dlon_km = (cell_lon - zlon) * 111.0 * math.cos(math.radians(zlat))
-            dist = math.sqrt(dlat_km ** 2 + dlon_km ** 2)
+            dist = math.sqrt(dlat_km**2 + dlon_km**2)
             if dist <= zrad:
                 return True
         return False
@@ -291,7 +307,9 @@ def vehicle_wake(vin: str | None = VinOption) -> None:
     v = _vin(vin)
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Waking vehicle...", total=None)
         result = backend.wake_up(v)
 
@@ -337,15 +355,22 @@ def vehicle_sentry(
 
         if is_json_mode():
             import json
-            console.print(json.dumps({
-                "sentry_mode": sentry_on,
-                "sentry_mode_available": available,
-            }))
+
+            console.print(
+                json.dumps(
+                    {
+                        "sentry_mode": sentry_on,
+                        "sentry_mode_available": available,
+                    }
+                )
+            )
             return
 
         console.print(f"\n  Sentry Mode: [{status_color}][bold]{status}[/bold][/{status_color}]")
         if not available:
-            console.print("  [yellow]Note: Sentry Mode not available (vehicle may not be parked)[/yellow]")
+            console.print(
+                "  [yellow]Note: Sentry Mode not available (vehicle may not be parked)[/yellow]"
+            )
         return
 
     cmd = "set_sentry_mode"
@@ -366,7 +391,9 @@ def vehicle_trips(
     """
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching trip data...", total=None)
         try:
             svc_data = _with_wake(lambda b, v: b.get_service_data(v), v)
@@ -378,11 +405,18 @@ def vehicle_trips(
 
     if is_json_mode():
         import json
-        console.print(json.dumps({
-            "service_data": svc_data,
-            "drive_state": drive_state,
-            "vehicle_state": vehicle_state,
-        }, indent=2, default=str))
+
+        console.print(
+            json.dumps(
+                {
+                    "service_data": svc_data,
+                    "drive_state": drive_state,
+                    "vehicle_state": vehicle_state,
+                },
+                indent=2,
+                default=str,
+            )
+        )
         return
 
     odo = vehicle_state.get("odometer", 0)
@@ -395,7 +429,9 @@ def vehicle_trips(
     console.print("\n[bold cyan]Trip Data[/bold cyan]")
     console.print(f"  Odometer: [bold]{odo:.1f} mi[/bold]")
     if last_lat:
-        console.print(f"  Last location: {last_lat:.4f}, {last_lon:.4f}  (heading {heading}°, {last_speed} mph)")
+        console.print(
+            f"  Last location: {last_lat:.4f}, {last_lon:.4f}  (heading {heading}°, {last_speed} mph)"
+        )
         console.print(f"  Maps: https://maps.google.com/?q={last_lat},{last_lon}")
 
     if native_type:
@@ -441,15 +477,19 @@ def vehicle_charge_port(
     v = _vin(vin)
     action = action.lower()
     CMD_MAP = {
-        "open":  "charge_port_door_open",
+        "open": "charge_port_door_open",
         "close": "charge_port_door_close",
-        "stop":  "charge_stop",
+        "stop": "charge_stop",
     }
     if action not in CMD_MAP:
         console.print("[red]Action must be 'open', 'close', or 'stop'.[/red]")
         raise typer.Exit(1)
     _with_wake(lambda b, v: b.command(v, CMD_MAP[action]), v)
-    labels = {"open": "Charge port opened", "close": "Charge port closed", "stop": "Charging stopped"}
+    labels = {
+        "open": "Charge port opened",
+        "close": "Charge port closed",
+        "stop": "Charging stopped",
+    }
     render_success(labels[action])
 
 
@@ -468,7 +508,9 @@ def vehicle_software(
 
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching software info...", total=None)
         data = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
 
@@ -482,15 +524,20 @@ def vehicle_software(
     scheduled_ms = sw_update.get("scheduled_time_ms", 0)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "current_version": current,
-            "update_status": update_status,
-            "update_version": update_version or None,
-            "download_percentage": download_pct,
-            "install_percentage": install_pct,
-            "expected_duration_min": round(expected_sec / 60) if expected_sec else None,
-            "scheduled_time_ms": scheduled_ms or None,
-        }, indent=2))
+        console.print(
+            _json.dumps(
+                {
+                    "current_version": current,
+                    "update_status": update_status,
+                    "update_version": update_version or None,
+                    "download_percentage": download_pct,
+                    "install_percentage": install_pct,
+                    "expected_duration_min": round(expected_sec / 60) if expected_sec else None,
+                    "scheduled_time_ms": scheduled_ms or None,
+                },
+                indent=2,
+            )
+        )
         return
 
     from rich.table import Table
@@ -503,16 +550,18 @@ def vehicle_software(
         return
 
     status_color = {
-        "available":    "yellow",
-        "scheduled":    "cyan",
-        "downloading":  "blue",
-        "installing":   "green",
-        "wifi_wait":    "dim",
+        "available": "yellow",
+        "scheduled": "cyan",
+        "downloading": "blue",
+        "installing": "green",
+        "wifi_wait": "dim",
         "appinstalled": "green",
     }.get(update_status, "white")
 
-    console.print(f"\n  [bold]Update available:[/bold]  [{status_color}]{update_version}[/{status_color}]  "
-                  f"[dim]({update_status})[/dim]")
+    console.print(
+        f"\n  [bold]Update available:[/bold]  [{status_color}]{update_version}[/{status_color}]  "
+        f"[dim]({update_status})[/dim]"
+    )
 
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("k", style="dim", width=22)
@@ -526,7 +575,10 @@ def vehicle_software(
         table.add_row("Estimated duration", f"{round(expected_sec / 60)} min")
     if scheduled_ms:
         from datetime import UTC, datetime
-        sched_dt = datetime.fromtimestamp(scheduled_ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+        sched_dt = datetime.fromtimestamp(scheduled_ms / 1000, tz=UTC).strftime(
+            "%Y-%m-%d %H:%M UTC"
+        )
         table.add_row("Scheduled for", sched_dt)
 
     console.print(table)
@@ -535,7 +587,9 @@ def vehicle_software(
         _with_wake(lambda b, v: b.command(v, "schedule_software_update", offset_sec=0), v)
         render_success(f"Software update to {update_version} scheduled")
     elif install:
-        console.print(f"  [yellow]Cannot schedule install — current status: {update_status}[/yellow]")
+        console.print(
+            f"  [yellow]Cannot schedule install — current status: {update_status}[/yellow]"
+        )
 
 
 @vehicle_app.command("nearby")
@@ -553,7 +607,9 @@ def vehicle_nearby(
 
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching nearby charging sites...", total=None)
         data = _with_wake(lambda b, v: b.get_nearby_charging_sites(v), v)
 
@@ -561,10 +617,16 @@ def vehicle_nearby(
     destination = data.get("destination_charging", [])
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "superchargers": superchargers,
-            "destination_charging": destination,
-        }, indent=2, default=str))
+        console.print(
+            _json.dumps(
+                {
+                    "superchargers": superchargers,
+                    "destination_charging": destination,
+                },
+                indent=2,
+                default=str,
+            )
+        )
         return
 
     if not superchargers and not destination:
@@ -590,7 +652,13 @@ def vehicle_nearby(
             avail = sc.get("available_stalls", "?")
             total = sc.get("total_stalls", "?")
             sc_type = sc.get("type", "SC")
-            avail_color = "green" if isinstance(avail, int) and avail > 3 else "yellow" if isinstance(avail, int) and avail > 0 else "red"
+            avail_color = (
+                "green"
+                if isinstance(avail, int) and avail > 3
+                else "yellow"
+                if isinstance(avail, int) and avail > 0
+                else "red"
+            )
             table.add_row(
                 name,
                 f"{dist_m:.1f} {dist_unit}" if isinstance(dist_m, (int, float)) else str(dist_m),
@@ -643,7 +711,12 @@ def vehicle_alerts(
     from tesla_cli.core.exceptions import BackendNotSupportedError
 
     try:
-        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
+        ) as p:
             p.add_task("Fetching recent alerts...", total=None)
             data = _with_wake(lambda b, v: b.get_recent_alerts(v), v)
     except BackendNotSupportedError as exc:
@@ -699,7 +772,12 @@ def vehicle_release_notes(
     from tesla_cli.core.exceptions import BackendNotSupportedError
 
     try:
-        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
+        ) as p:
             p.add_task("Fetching release notes...", total=None)
             data = _with_wake(lambda b, v: b.get_release_notes(v), v)
     except BackendNotSupportedError as exc:
@@ -796,13 +874,19 @@ def vehicle_schedule_charge(
         enabled = state.get("scheduled_charging_pending", False)
         sched_time = state.get("scheduled_charging_start_time")
         if is_json_mode():
-            console.print(_json.dumps({
-                "scheduled_charging_pending": enabled,
-                "scheduled_charging_start_time": sched_time,
-            }, indent=2))
+            console.print(
+                _json.dumps(
+                    {
+                        "scheduled_charging_pending": enabled,
+                        "scheduled_charging_start_time": sched_time,
+                    },
+                    indent=2,
+                )
+            )
             return
         if enabled and sched_time:
             from datetime import datetime
+
             try:
                 dt = datetime.fromtimestamp(int(sched_time), tz=datetime.UTC).strftime("%H:%M UTC")
             except Exception:
@@ -826,7 +910,12 @@ def vehicle_schedule_charge(
     _with_wake(lambda b, v: b.set_scheduled_charging(v, enable=True, time_minutes=time_minutes), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"scheduled_charging": True, "time": time_str, "time_minutes": time_minutes}, indent=2))
+        console.print(
+            _json.dumps(
+                {"scheduled_charging": True, "time": time_str, "time_minutes": time_minutes},
+                indent=2,
+            )
+        )
         return
     render_success(f"Scheduled charging set to {time_str} ({time_minutes} min from midnight)")
 
@@ -846,10 +935,10 @@ def vehicle_tires(
     state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
 
     POSITIONS = [
-        ("front_left",  "tpms_pressure_fl", "tpms_soft_warning_fl", "tpms_hard_warning_fl"),
+        ("front_left", "tpms_pressure_fl", "tpms_soft_warning_fl", "tpms_hard_warning_fl"),
         ("front_right", "tpms_pressure_fr", "tpms_soft_warning_fr", "tpms_hard_warning_fr"),
-        ("rear_left",   "tpms_pressure_rl", "tpms_soft_warning_rl", "tpms_hard_warning_rl"),
-        ("rear_right",  "tpms_pressure_rr", "tpms_soft_warning_rr", "tpms_hard_warning_rr"),
+        ("rear_left", "tpms_pressure_rl", "tpms_soft_warning_rl", "tpms_hard_warning_rl"),
+        ("rear_right", "tpms_pressure_rr", "tpms_soft_warning_rr", "tpms_hard_warning_rr"),
     ]
 
     data = {}
@@ -868,6 +957,7 @@ def vehicle_tires(
         return
 
     from rich.table import Table
+
     table = Table(title="Tire Pressure (TPMS)", header_style="bold cyan")
     table.add_column("Tire", width=14)
     table.add_column("Bar", justify="right", width=6)
@@ -1040,6 +1130,7 @@ def vehicle_tonneau(
     }
     if action not in command_map:
         from tesla_cli.cli.output import console as _console
+
         _console.print(f"[red]Unknown action:[/red] {action}. Use: open|close|stop|status")
         raise typer.Exit(1)
 
@@ -1078,7 +1169,8 @@ def vehicle_sentry_events(
     # Filter sentry-related alerts; if empty, show all
     sentry_keywords = ("sentry", "camera", "detection", "intrus", "motion", "tampering")
     sentry_events = [
-        a for a in (alerts if isinstance(alerts, list) else alerts.get("alerts", []))
+        a
+        for a in (alerts if isinstance(alerts, list) else alerts.get("alerts", []))
         if any(kw in str(a).lower() for kw in sentry_keywords)
     ] or (alerts if isinstance(alerts, list) else alerts.get("alerts", []))
     sentry_events = sentry_events[:limit]
@@ -1107,9 +1199,15 @@ def vehicle_sentry_events(
 
 @vehicle_app.command("sw-update")
 def vehicle_sw_update(
-    watch: bool = typer.Option(False, "--watch", "-w", help="Watch mode: keep polling until update appears"),
-    interval: int = typer.Option(60, "--interval", "-i", help="Poll interval in minutes (watch mode)"),
-    notify: bool = typer.Option(False, "--notify", help="Send Apprise notification when update is detected"),
+    watch: bool = typer.Option(
+        False, "--watch", "-w", help="Watch mode: keep polling until update appears"
+    ),
+    interval: int = typer.Option(
+        60, "--interval", "-i", help="Poll interval in minutes (watch mode)"
+    ),
+    notify: bool = typer.Option(
+        False, "--notify", help="Send Apprise notification when update is detected"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Check for a pending OTA software update, or watch until one is available.
@@ -1129,7 +1227,10 @@ def vehicle_sw_update(
         vs = data.get("vehicle_state", {})
         return {
             "current_version": vs.get("car_version", ""),
-            "update_available": bool(vs.get("software_update", {}).get("status") in ("available", "scheduled", "installing", "downloading")),
+            "update_available": bool(
+                vs.get("software_update", {}).get("status")
+                in ("available", "scheduled", "installing", "downloading")
+            ),
             "update_status": vs.get("software_update", {}).get("status", ""),
             "update_version": vs.get("software_update", {}).get("version", ""),
             "update_download_pct": vs.get("software_update", {}).get("download_perc", 0),
@@ -1145,12 +1246,15 @@ def vehicle_sw_update(
             return
         from rich.panel import Panel
         from rich.table import Table as RTable
+
         t = RTable(show_header=False, box=None, padding=(0, 2))
         t.add_column("Key", style="dim", width=28)
         t.add_column("Value", style="bold")
         t.add_row("Current Version", info["current_version"])
         if info["update_available"]:
-            t.add_row("Update Status", f"[bold yellow]{info['update_status'].upper()}[/bold yellow]")
+            t.add_row(
+                "Update Status", f"[bold yellow]{info['update_status'].upper()}[/bold yellow]"
+            )
             t.add_row("Update Version", f"[bold green]{info['update_version']}[/bold green]")
             if info["update_download_pct"]:
                 t.add_row("Download", f"{info['update_download_pct']}%")
@@ -1187,6 +1291,7 @@ def vehicle_sw_update(
                 if notify:
                     try:
                         import apprise
+
                         cfg = load_config()
                         urls = getattr(cfg.notifications, "apprise_urls", []) or []
                         if urls:
@@ -1203,7 +1308,9 @@ def vehicle_sw_update(
                 break
             else:
                 cur = info.get("current_version", "—")
-                console.print(f"[dim][{ts}] No update — current: {cur}. Next check in {interval} min.[/dim]")
+                console.print(
+                    f"[dim][{ts}] No update — current: {cur}. Next check in {interval} min.[/dim]"
+                )
 
             time.sleep(poll_secs)
     except (KeyboardInterrupt, signal.Signals):
@@ -1216,7 +1323,9 @@ def vehicle_speed_limit(
     pin: str | None = typer.Option(None, "--pin", help="4-digit speed limit PIN"),
     on: bool = typer.Option(False, "--on", help="Activate speed limit mode (requires --pin)"),
     off: bool = typer.Option(False, "--off", help="Deactivate speed limit mode (requires --pin)"),
-    clear: bool = typer.Option(False, "--clear", help="Clear the saved speed limit PIN (requires --pin)"),
+    clear: bool = typer.Option(
+        False, "--clear", help="Clear the saved speed limit PIN (requires --pin)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show or control Speed Limit Mode.
@@ -1273,17 +1382,23 @@ def vehicle_speed_limit(
     pin_set = slm.get("pin_code_set", False)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "active": active,
-            "current_limit_mph": current_limit,
-            "max_limit_mph": max_limit,
-            "min_limit_mph": min_limit,
-            "pin_code_set": pin_set,
-        }, indent=2))
+        console.print(
+            _json.dumps(
+                {
+                    "active": active,
+                    "current_limit_mph": current_limit,
+                    "max_limit_mph": max_limit,
+                    "min_limit_mph": min_limit,
+                    "pin_code_set": pin_set,
+                },
+                indent=2,
+            )
+        )
         return
 
     from rich.panel import Panel
     from rich.table import Table as RTable
+
     t = RTable(show_header=False, box=None, padding=(0, 2))
     t.add_column("Key", style="dim", width=24)
     t.add_column("Value", style="bold")
@@ -1309,57 +1424,65 @@ def vehicle_bio(vin: str | None = VinOption) -> None:
 
     v = _vin(vin)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Loading vehicle profile...", total=None)
         data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
 
-    vs   = data.get("vehicle_state", {}) or {}
-    cs   = data.get("charge_state", {}) or {}
+    vs = data.get("vehicle_state", {}) or {}
+    cs = data.get("charge_state", {}) or {}
     clim = data.get("climate_state", {}) or {}
     vcfg = data.get("vehicle_config", {}) or {}
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "vin":   data.get("vin", v),
-            "name":  data.get("display_name") or data.get("vehicle_name", ""),
-            "state": data.get("state", ""),
-            "identity": {
-                "vin":        data.get("vin", v),
-                "model":      vcfg.get("car_type", ""),
-                "color":      vcfg.get("exterior_color", ""),
-                "sw_version": vs.get("car_version", ""),
-            },
-            "battery": {
-                "battery_level":    cs.get("battery_level"),
-                "battery_range":    cs.get("battery_range"),
-                "charging_state":   cs.get("charging_state"),
-                "charge_limit_soc": cs.get("charge_limit_soc"),
-            },
-            "climate": {
-                "is_climate_on": clim.get("is_climate_on"),
-                "inside_temp":   clim.get("inside_temp"),
-                "outside_temp":  clim.get("outside_temp"),
-            },
-            "drive": {
-                "locked":    vs.get("locked"),
-                "sentry_mode": vs.get("sentry_mode"),
-                "valet_mode":  vs.get("valet_mode"),
-                "odometer":    vs.get("odometer"),
-                "sw_version":  vs.get("car_version"),
-            },
-            "scheduling": {
-                "scheduled_charging_pending":    cs.get("scheduled_charging_pending"),
-                "scheduled_charging_start_time": cs.get("scheduled_charging_start_time"),
-                "scheduled_departure_time":      cs.get("scheduled_departure_time"),
-            },
-        }, indent=2, default=str))
+        console.print(
+            _json.dumps(
+                {
+                    "vin": data.get("vin", v),
+                    "name": data.get("display_name") or data.get("vehicle_name", ""),
+                    "state": data.get("state", ""),
+                    "identity": {
+                        "vin": data.get("vin", v),
+                        "model": vcfg.get("car_type", ""),
+                        "color": vcfg.get("exterior_color", ""),
+                        "sw_version": vs.get("car_version", ""),
+                    },
+                    "battery": {
+                        "battery_level": cs.get("battery_level"),
+                        "battery_range": cs.get("battery_range"),
+                        "charging_state": cs.get("charging_state"),
+                        "charge_limit_soc": cs.get("charge_limit_soc"),
+                    },
+                    "climate": {
+                        "is_climate_on": clim.get("is_climate_on"),
+                        "inside_temp": clim.get("inside_temp"),
+                        "outside_temp": clim.get("outside_temp"),
+                    },
+                    "drive": {
+                        "locked": vs.get("locked"),
+                        "sentry_mode": vs.get("sentry_mode"),
+                        "valet_mode": vs.get("valet_mode"),
+                        "odometer": vs.get("odometer"),
+                        "sw_version": vs.get("car_version"),
+                    },
+                    "scheduling": {
+                        "scheduled_charging_pending": cs.get("scheduled_charging_pending"),
+                        "scheduled_charging_start_time": cs.get("scheduled_charging_start_time"),
+                        "scheduled_departure_time": cs.get("scheduled_departure_time"),
+                    },
+                },
+                indent=2,
+                default=str,
+            )
+        )
         return
 
     from rich.panel import Panel as _Panel
     from rich.table import Table as _Table
 
     display_name = data.get("display_name") or data.get("vehicle_name") or v
-    state_txt    = data.get("state", "unknown")
+    state_txt = data.get("state", "unknown")
 
     def _row(t: _Table, label: str, value: object, color: str = "white") -> None:
         if value is None or str(value) in ("None", ""):
@@ -1375,53 +1498,54 @@ def vehicle_bio(vin: str | None = VinOption) -> None:
 
     # Identity
     t_id = _kv()
-    _row(t_id, "VIN",        data.get("vin", v), "cyan")
-    _row(t_id, "Model",      vcfg.get("car_type", ""), "cyan")
-    _row(t_id, "Color",      vcfg.get("exterior_color", ""))
-    _row(t_id, "Name",       display_name, "bold")
+    _row(t_id, "VIN", data.get("vin", v), "cyan")
+    _row(t_id, "Model", vcfg.get("car_type", ""), "cyan")
+    _row(t_id, "Color", vcfg.get("exterior_color", ""))
+    _row(t_id, "Name", display_name, "bold")
     _row(t_id, "SW Version", vs.get("car_version", ""))
-    _row(t_id, "State",      state_txt, "green" if state_txt == "online" else "yellow")
+    _row(t_id, "State", state_txt, "green" if state_txt == "online" else "yellow")
 
     # Battery
-    lvl    = cs.get("battery_level")
-    rng    = cs.get("battery_range")
+    lvl = cs.get("battery_level")
+    rng = cs.get("battery_range")
     cs_txt = cs.get("charging_state", "")
-    lim    = cs.get("charge_limit_soc")
-    t_bat  = _kv()
+    lim = cs.get("charge_limit_soc")
+    t_bat = _kv()
     bc = "green" if (lvl or 0) >= 50 else "yellow" if (lvl or 0) >= 20 else "red"
-    _row(t_bat, "Level",         f"{lvl}%" if lvl is not None else None, bc)
-    _row(t_bat, "Range",         f"{rng} mi" if rng else None)
-    _row(t_bat, "Charging",      cs_txt, "green" if cs_txt == "Charging" else "dim")
-    _row(t_bat, "Charge Limit",  f"{lim}%" if lim else None)
+    _row(t_bat, "Level", f"{lvl}%" if lvl is not None else None, bc)
+    _row(t_bat, "Range", f"{rng} mi" if rng else None)
+    _row(t_bat, "Charging", cs_txt, "green" if cs_txt == "Charging" else "dim")
+    _row(t_bat, "Charge Limit", f"{lim}%" if lim else None)
 
     # Climate
     hvac_on = clim.get("is_climate_on")
-    inside  = clim.get("inside_temp")
+    inside = clim.get("inside_temp")
     outside = clim.get("outside_temp")
-    t_clim  = _kv()
-    _row(t_clim, "HVAC",         "ON" if hvac_on else "OFF", "green" if hvac_on else "dim")
-    _row(t_clim, "Inside temp",  f"{inside}°C"  if inside  is not None else None)
+    t_clim = _kv()
+    _row(t_clim, "HVAC", "ON" if hvac_on else "OFF", "green" if hvac_on else "dim")
+    _row(t_clim, "Inside temp", f"{inside}°C" if inside is not None else None)
     _row(t_clim, "Outside temp", f"{outside}°C" if outside is not None else None)
 
     # Drive state
-    locked   = vs.get("locked")
-    sentry   = vs.get("sentry_mode")
-    valet    = vs.get("valet_mode")
+    locked = vs.get("locked")
+    sentry = vs.get("sentry_mode")
+    valet = vs.get("valet_mode")
     odometer = vs.get("odometer")
-    t_drv    = _kv()
-    _row(t_drv, "Locked",   "LOCKED"   if locked else "UNLOCKED", "green" if locked else "red")
-    _row(t_drv, "Sentry",   "ON"       if sentry else "off",      "yellow" if sentry else "dim")
-    _row(t_drv, "Valet",    "ON"       if valet  else "off",      "yellow" if valet  else "dim")
+    t_drv = _kv()
+    _row(t_drv, "Locked", "LOCKED" if locked else "UNLOCKED", "green" if locked else "red")
+    _row(t_drv, "Sentry", "ON" if sentry else "off", "yellow" if sentry else "dim")
+    _row(t_drv, "Valet", "ON" if valet else "off", "yellow" if valet else "dim")
     _row(t_drv, "Odometer", f"{odometer:.1f} mi" if odometer else None)
 
     # Scheduling
     sched_pending = cs.get("scheduled_charging_pending")
-    sched_time    = cs.get("scheduled_charging_start_time")
-    dep_time      = cs.get("scheduled_departure_time")
+    sched_time = cs.get("scheduled_charging_start_time")
+    dep_time = cs.get("scheduled_departure_time")
     t_sched = _kv()
     if sched_pending and sched_time:
         try:
             from datetime import UTC, datetime
+
             dt_s = datetime.fromtimestamp(int(sched_time), tz=UTC).strftime("%H:%M UTC")
         except Exception:
             dt_s = str(sched_time)
@@ -1431,31 +1555,35 @@ def vehicle_bio(vin: str | None = VinOption) -> None:
     if dep_time:
         try:
             from datetime import UTC, datetime  # noqa: F811
+
             dt_d = datetime.fromtimestamp(int(dep_time), tz=UTC).strftime("%H:%M UTC")
         except Exception:
             dt_d = str(dep_time)
         _row(t_sched, "Departure", dt_d, "cyan")
 
     console.print()
-    console.print(_Panel(t_id,    title=f"[bold cyan]{display_name}[/bold cyan]", border_style="cyan"))
-    console.print(_Panel(t_bat,   title="[bold]Battery[/bold]",   border_style="green"))
-    console.print(_Panel(t_clim,  title="[bold]Climate[/bold]",   border_style="blue"))
-    console.print(_Panel(t_drv,   title="[bold]Drive State[/bold]", border_style="yellow"))
+    console.print(_Panel(t_id, title=f"[bold cyan]{display_name}[/bold cyan]", border_style="cyan"))
+    console.print(_Panel(t_bat, title="[bold]Battery[/bold]", border_style="green"))
+    console.print(_Panel(t_clim, title="[bold]Climate[/bold]", border_style="blue"))
+    console.print(_Panel(t_drv, title="[bold]Drive State[/bold]", border_style="yellow"))
     console.print(_Panel(t_sched, title="[bold]Scheduling[/bold]", border_style="dim"))
 
 
 _CABIN_LEVEL_MAP: dict[str, dict] = {
-    "FAN_ONLY":  {"on": True, "fan_only": True},
-    "NO_AC":     {"on": True, "fan_only": False},
+    "FAN_ONLY": {"on": True, "fan_only": True},
+    "NO_AC": {"on": True, "fan_only": False},
     "CHARGE_ON": {"on": True, "fan_only": False},
 }
 
 
 @vehicle_app.command("cabin-protection")
 def vehicle_cabin_protection(
-    on: bool | None = typer.Option(None, "--on/--off", help="Enable or disable cabin overheat protection"),
+    on: bool | None = typer.Option(
+        None, "--on/--off", help="Enable or disable cabin overheat protection"
+    ),
     level: str | None = typer.Option(
-        None, "--level",
+        None,
+        "--level",
         help="Protection level: FAN_ONLY | NO_AC | CHARGE_ON",
     ),
     vin: str | None = VinOption,
@@ -1477,13 +1605,18 @@ def vehicle_cabin_protection(
     # ── Status (no flags) ────────────────────────────────────────────────────
     if on is None and level is None:
         data = _with_wake(lambda b, v: b.get_climate_state(v), v)
-        cop        = data.get("cabin_overheat_protection", "Unknown")
+        cop = data.get("cabin_overheat_protection", "Unknown")
         cop_active = data.get("cabin_overheat_protection_actively_cooling", False)
         if is_json_mode():
-            console.print(_json.dumps({
-                "cabin_overheat_protection": cop,
-                "actively_cooling": cop_active,
-            }, indent=2))
+            console.print(
+                _json.dumps(
+                    {
+                        "cabin_overheat_protection": cop,
+                        "actively_cooling": cop_active,
+                    },
+                    indent=2,
+                )
+            )
             return
         sc = "green" if cop not in ("Off", "Unknown", None) else "dim"
         console.print(f"\n  Cabin Overheat Protection: [{sc}][bold]{cop}[/bold][/{sc}]")
@@ -1521,27 +1654,31 @@ def vehicle_cabin_protection(
 
 _WATCH_KEYS: list[tuple[str, str, str]] = [
     # (section, key, label)
-    ("charge_state",  "battery_level",      "🔋 Battery"),
-    ("charge_state",  "charging_state",     "⚡ Charging state"),
-    ("charge_state",  "charge_limit_soc",   "⚡ Charge limit"),
-    ("vehicle_state", "locked",             "🔒 Locked"),
-    ("vehicle_state", "is_user_present",    "👤 User present"),
-    ("vehicle_state", "df",                 "🚪 Driver front door"),
-    ("vehicle_state", "pf",                 "🚪 Pass front door"),
-    ("vehicle_state", "dr",                 "🚪 Driver rear door"),
-    ("vehicle_state", "pr",                 "🚪 Pass rear door"),
-    ("climate_state", "is_climate_on",      "🌡️ Climate"),
-    ("climate_state", "inside_temp",        "🌡️ Cabin temp"),
-    ("drive_state",   "shift_state",        "🚗 Shift state"),
-    ("drive_state",   "speed",              "🚗 Speed"),
+    ("charge_state", "battery_level", "🔋 Battery"),
+    ("charge_state", "charging_state", "⚡ Charging state"),
+    ("charge_state", "charge_limit_soc", "⚡ Charge limit"),
+    ("vehicle_state", "locked", "🔒 Locked"),
+    ("vehicle_state", "is_user_present", "👤 User present"),
+    ("vehicle_state", "df", "🚪 Driver front door"),
+    ("vehicle_state", "pf", "🚪 Pass front door"),
+    ("vehicle_state", "dr", "🚪 Driver rear door"),
+    ("vehicle_state", "pr", "🚪 Pass rear door"),
+    ("climate_state", "is_climate_on", "🌡️ Climate"),
+    ("climate_state", "inside_temp", "🌡️ Cabin temp"),
+    ("drive_state", "shift_state", "🚗 Shift state"),
+    ("drive_state", "speed", "🚗 Speed"),
 ]
 
 
 @vehicle_app.command("watch")
 def vehicle_watch(
     interval: int = typer.Option(60, "--interval", "-i", min=10, help="Poll interval in seconds"),
-    notify: str | None = typer.Option(None, "--notify", help="Apprise URL for push notifications on change"),
-    all_vehicles: bool = typer.Option(False, "--all", "-A", help="Watch all configured vehicles simultaneously"),
+    notify: str | None = typer.Option(
+        None, "--notify", help="Apprise URL for push notifications on change"
+    ),
+    all_vehicles: bool = typer.Option(
+        False, "--all", "-A", help="Watch all configured vehicles simultaneously"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Continuous vehicle monitoring — prints alerts on state changes.
@@ -1566,6 +1703,7 @@ def vehicle_watch(
     if notify:
         try:
             import apprise
+
             notifier = apprise.Apprise()
             notifier.add(notify)
         except ImportError:
@@ -1595,7 +1733,9 @@ def vehicle_watch(
             curr = _snapshot(backend, target_v)
             tag = f"[cyan]{prefix}[/cyan]  " if prefix else ""
             if not curr:
-                console.print(f"  {tag}[dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]")
+                console.print(
+                    f"  {tag}[dim]{_dt.now().strftime('%H:%M:%S')}[/dim]  [yellow]Vehicle asleep[/yellow]"
+                )
             else:
                 changes: list[str] = []
                 for section, key, watch_label in _WATCH_KEYS:
@@ -1611,20 +1751,30 @@ def vehicle_watch(
 
                 ts = _dt.now().strftime("%H:%M:%S")
                 if is_json_mode():
-                    payload = {"ts": ts, "vin": target_v, "changes": [c.replace("[bold]", "").replace("[/bold]", "") for c in changes]}
+                    payload = {
+                        "ts": ts,
+                        "vin": target_v,
+                        "changes": [
+                            c.replace("[bold]", "").replace("[/bold]", "") for c in changes
+                        ],
+                    }
                     console.print(_json.dumps(payload))
                 elif changes:
                     for c in changes:
                         console.print(f"  {tag}[dim]{ts}[/dim]  {c}")
                     if notifier:
-                        body = "\n".join(c.replace("[bold]", "").replace("[/bold]", "") for c in changes)
+                        body = "\n".join(
+                            c.replace("[bold]", "").replace("[/bold]", "") for c in changes
+                        )
                         prefix_title = f"Tesla Watch — {label}" if label else "Tesla Watch"
                         notifier.notify(title=prefix_title, body=body)
                 else:
-                    batt  = curr.get("charge_state.battery_level", "?")
+                    batt = curr.get("charge_state.battery_level", "?")
                     state = curr.get("charge_state.charging_state", "Unknown")
                     locked = curr.get("vehicle_state.locked", "?")
-                    console.print(f"  {tag}[dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]")
+                    console.print(
+                        f"  {tag}[dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]"
+                    )
             prev = curr
             time.sleep(interval)
 
@@ -1651,7 +1801,9 @@ def vehicle_watch(
         for t in threads:
             t.start()
 
-        console.print(f"\n  [bold]Watching {len(vins)} vehicle(s)...[/bold]  [dim]Press Ctrl+C to stop.[/dim]\n")
+        console.print(
+            f"\n  [bold]Watching {len(vins)} vehicle(s)...[/bold]  [dim]Press Ctrl+C to stop.[/dim]\n"
+        )
         try:
             while True:
                 time.sleep(1)
@@ -1662,7 +1814,9 @@ def vehicle_watch(
             console.print("\n  [dim]Watch stopped.[/dim]\n")
     else:
         v = _vin(vin)
-        console.print(f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]")
+        console.print(
+            f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]"
+        )
         console.print("  [dim]Press Ctrl+C to stop.[/dim]\n")
         try:
             _watch_one(v, "", None)
@@ -1672,7 +1826,9 @@ def vehicle_watch(
 
 @vehicle_app.command("schedule-update")
 def vehicle_schedule_update(
-    delay: int = typer.Option(0, "--delay", "-d", help="Delay in minutes before installing (0 = now)"),
+    delay: int = typer.Option(
+        0, "--delay", "-d", help="Delay in minutes before installing (0 = now)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Schedule a pending OTA software update to install.
@@ -1685,8 +1841,8 @@ def vehicle_schedule_update(
     import json as _json
 
     cfg = load_config()
-    v   = resolve_vin(cfg, vin)
-    b   = get_vehicle_backend(cfg)
+    v = resolve_vin(cfg, vin)
+    b = get_vehicle_backend(cfg)
 
     offset_sec = delay * 60
     result = b.schedule_software_update(v, offset_sec=offset_sec)
@@ -1714,8 +1870,8 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
     import json as _json
 
     cfg = load_config()
-    v   = resolve_vin(cfg, vin)
-    b   = get_vehicle_backend(cfg)
+    v = resolve_vin(cfg, vin)
+    b = get_vehicle_backend(cfg)
 
     results: dict = {"vin": v, "checks": []}
 
@@ -1747,13 +1903,19 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
     limit = cs.get("charge_limit_soc")
     if limit is not None:
         st = "ok" if 70 <= limit <= 90 else "warn"
-        _check("Charge limit", st, f"{limit}%",
-               "" if 70 <= (limit or 0) <= 90 else "Limit outside 70–90% range")
+        _check(
+            "Charge limit",
+            st,
+            f"{limit}%",
+            "" if 70 <= (limit or 0) <= 90 else "Limit outside 70–90% range",
+        )
 
     # Firmware
     sw = vs.get("car_version") or "—"
     pending = vs.get("software_update", {})
-    has_update = bool(pending.get("status") not in (None, "", "available") and pending.get("version"))
+    has_update = bool(
+        pending.get("status") not in (None, "", "available") and pending.get("version")
+    )
     sw_status = "warn" if has_update else "ok"
     sw_detail = f"Update available: {pending.get('version', '')}" if has_update else ""
     _check("Firmware", sw_status, sw, sw_detail)
@@ -1770,8 +1932,12 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
     if not tyre_vals:
         _check("Tyre pressure", "unknown", "—", "TPMS data unavailable")
     elif low:
-        _check("Tyre pressure", "warn", ", ".join(f"{k}:{tyre_vals.get(k,'?')}bar" for k in sorted(tyre_vals)),
-               f"Low: {', '.join(low)}")
+        _check(
+            "Tyre pressure",
+            "warn",
+            ", ".join(f"{k}:{tyre_vals.get(k, '?')}bar" for k in sorted(tyre_vals)),
+            f"Low: {', '.join(low)}",
+        )
     else:
         _check("Tyre pressure", "ok", ", ".join(f"{k}:{tyre_vals[k]}" for k in sorted(tyre_vals)))
 
@@ -1794,20 +1960,26 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
         console.print(_json.dumps(results, indent=2))
         return
 
-    _ICON = {"ok": "[green]✓[/green]", "warn": "[yellow]⚠[/yellow]", "error": "[red]✗[/red]", "unknown": "[dim]?[/dim]"}
+    _ICON = {
+        "ok": "[green]✓[/green]",
+        "warn": "[yellow]⚠[/yellow]",
+        "error": "[red]✗[/red]",
+        "unknown": "[dim]?[/dim]",
+    }
     from rich.table import Table as _Table
+
     t = _Table(title=f"Vehicle Health — {v[-6:]}", show_header=False, box=None, padding=(0, 2))
-    t.add_column("s",  width=3)
-    t.add_column("k",  style="bold", width=18)
-    t.add_column("v",  width=30)
-    t.add_column("d",  style="dim")
+    t.add_column("s", width=3)
+    t.add_column("k", style="bold", width=18)
+    t.add_column("v", width=30)
+    t.add_column("d", style="dim")
 
     for c in results["checks"]:
         icon = _ICON.get(c["status"], "?")
         t.add_row(icon, c["name"], c["value"], c.get("detail") or "")
     console.print(t)
 
-    errors   = sum(1 for c in results["checks"] if c["status"] == "error")
+    errors = sum(1 for c in results["checks"] if c["status"] == "error")
     warnings = sum(1 for c in results["checks"] if c["status"] == "warn")
     if errors:
         console.print(f"\n  [red]✗ {errors} issue(s) need attention[/red]")

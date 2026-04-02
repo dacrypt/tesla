@@ -16,7 +16,11 @@ def stream_live(
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
     interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds"),
     count: int = typer.Option(0, "--count", "-n", help="Stop after N refreshes (0 = run forever)"),
-    mqtt_url: str | None = typer.Option(None, "--mqtt", help="MQTT broker URL to publish state (e.g. mqtt://localhost:1883/tesla/{vin})"),
+    mqtt_url: str | None = typer.Option(
+        None,
+        "--mqtt",
+        help="MQTT broker URL to publish state (e.g. mqtt://localhost:1883/tesla/{vin})",
+    ),
 ) -> None:
     """Stream live vehicle data, refreshing every N seconds.
 
@@ -88,7 +92,13 @@ def stream_live(
 
         # Charge
         soc = charge.get("battery_level", "?")
-        soc_color = "green" if isinstance(soc, int) and soc > 30 else "yellow" if isinstance(soc, int) and soc > 15 else "red"
+        soc_color = (
+            "green"
+            if isinstance(soc, int) and soc > 30
+            else "yellow"
+            if isinstance(soc, int) and soc > 15
+            else "red"
+        )
         est_range = charge.get("battery_range", charge.get("ideal_battery_range", "?"))
         row("Battery", f"[{soc_color}]{soc}%[/{soc_color}]  │  {est_range} {dist_unit}")
         cs = charge.get("charging_state", "")
@@ -115,13 +125,20 @@ def stream_live(
         heading = drive.get("heading", "?")
         if lat != "?":
             maps_url = f"https://maps.google.com/?q={lat},{lon}"
-            row("Location", f"{lat:.4f}, {lon:.4f}  │  {speed} {dist_unit.split('/')[0]}  │  {heading}°")
+            row(
+                "Location",
+                f"{lat:.4f}, {lon:.4f}  │  {speed} {dist_unit.split('/')[0]}  │  {heading}°",
+            )
             row("Maps", maps_url)
         row("", "")
 
         # Vehicle state
         locked = "[green]🔒 Locked[/green]" if vehicle.get("locked") else "[red]🔓 Unlocked[/red]"
-        sentry = "[yellow]🛡 Sentry ON[/yellow]" if vehicle.get("sentry_mode") else "[dim]Sentry OFF[/dim]"
+        sentry = (
+            "[yellow]🛡 Sentry ON[/yellow]"
+            if vehicle.get("sentry_mode")
+            else "[dim]Sentry OFF[/dim]"
+        )
         odo = vehicle.get("odometer", "?")
         row("Doors", locked)
         row("Sentry", sentry)
@@ -157,6 +174,7 @@ def stream_live(
                         from urllib.parse import urlparse
 
                         import paho.mqtt.publish as mqtt_publish
+
                         parsed = urlparse(mqtt_url)
                         host = parsed.hostname or "localhost"
                         port = parsed.port or 1883
@@ -165,7 +183,9 @@ def stream_live(
                         mqtt_publish.single(topic, payload=payload, hostname=host, port=port)
                     except ImportError:
                         if not _mqtt_state["warned"]:
-                            console.print("[yellow]paho-mqtt not installed. Run: pip install paho-mqtt[/yellow]")
+                            console.print(
+                                "[yellow]paho-mqtt not installed. Run: pip install paho-mqtt[/yellow]"
+                            )
                             _mqtt_state["warned"] = True
                     except Exception as e:
                         console.print(f"[dim]MQTT publish failed: {e}[/dim]")

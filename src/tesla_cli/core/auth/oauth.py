@@ -31,7 +31,9 @@ from tesla_cli.core.exceptions import AuthenticationError
 def _console():
     """Lazy import to avoid circular dependency core -> cli."""
     from tesla_cli.cli.output import console
+
     return console
+
 
 # Tesla OAuth2 endpoints
 AUTH_BASE = "https://auth.tesla.com/oauth2/v3"
@@ -46,10 +48,7 @@ DEFAULT_CLIENT_ID = "ownerapi"
 DEFAULT_SCOPES = "openid email offline_access"
 
 # Fleet API scopes — required for vehicle data + commands
-FLEET_SCOPES = (
-    "openid email offline_access "
-    "vehicle_device_data vehicle_cmds vehicle_charging_cmds"
-)
+FLEET_SCOPES = "openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds"
 
 
 def run_tesla_oauth_flow(
@@ -88,9 +87,7 @@ def _oauth_pkce_flow(
     # Generate PKCE verifier and challenge
     verifier = secrets.token_urlsafe(64)
     challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
-        .rstrip(b"=")
-        .decode()
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     )
 
     state = secrets.token_urlsafe(32)
@@ -178,9 +175,7 @@ def _extract_code_from_url(url: str) -> str:
     )
 
 
-def _exchange_code(
-    code: str, client_id: str, verifier: str, redirect_uri: str
-) -> dict[str, Any]:
+def _exchange_code(code: str, client_id: str, verifier: str, redirect_uri: str) -> dict[str, Any]:
     """Exchange authorization code for access and refresh tokens."""
     payload = {
         "grant_type": "authorization_code",
@@ -244,6 +239,7 @@ def register_fleet_partner(
 
     # Load registered domain from config
     from tesla_cli.core.config import load_config
+
     cfg = load_config()
     raw_domain = getattr(cfg.fleet, "domain", None) or "dacrypt.github.io"
     # Strip any https:// prefix — Tesla expects bare domain (e.g. dacrypt.github.io)
@@ -265,9 +261,7 @@ def register_fleet_partner(
         return resp.json() if resp.content else {"registered": True}
 
 
-def refresh_access_token(
-    refresh_token: str, client_id: str | None = None
-) -> dict[str, Any]:
+def refresh_access_token(refresh_token: str, client_id: str | None = None) -> dict[str, Any]:
     """Use a refresh token to get a new access token."""
     client_id = client_id or DEFAULT_CLIENT_ID
     payload = {

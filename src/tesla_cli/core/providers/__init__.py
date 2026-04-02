@@ -47,5 +47,6 @@ def get_registry(force_reload: bool = False) -> ProviderRegistry:
     global _registry
     if _registry is None or force_reload:
         from tesla_cli.core.providers.loader import build_registry
+
         _registry = build_registry()
     return _registry

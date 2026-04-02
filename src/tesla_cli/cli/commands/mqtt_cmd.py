@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.core.config import load_config, save_config
 from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.core.config import load_config, save_config
 
 mqtt_app = typer.Typer(
     name="mqtt",
@@ -25,48 +25,50 @@ VinOption = typer.Option(None, "--vin", "-v", help="VIN or alias")
 
 _HA_SENSORS: list[tuple[str, str, str, str | None, str | None]] = [
     # (slug, friendly_name, state_topic_suffix, unit, device_class)
-    ("battery_level",  "Battery Level",       "charge_state",  "%",    "battery"),
-    ("battery_range",  "Battery Range",        "charge_state",  "mi",   "distance"),
-    ("charging_state", "Charging State",       "charge_state",  None,   None),
-    ("charge_limit",   "Charge Limit",         "charge_state",  "%",    None),
-    ("energy_added",   "Energy Added",         "charge_state",  "kWh",  "energy"),
-    ("charger_power",  "Charger Power",        "charge_state",  "kW",   "power"),
-    ("speed",          "Speed",                "drive_state",   "mph",  "speed"),
-    ("latitude",       "Latitude",             "drive_state",   "°",    None),
-    ("longitude",      "Longitude",            "drive_state",   "°",    None),
-    ("inside_temp",    "Cabin Temperature",    "climate_state", "°C",   "temperature"),
-    ("outside_temp",   "Outside Temperature",  "climate_state", "°C",   "temperature"),
-    ("climate_on",     "Climate On",           "climate_state", None,   None),
-    ("locked",         "Locked",               "vehicle_state", None,   None),
-    ("odometer",       "Odometer",             "vehicle_state", "mi",   "distance"),
-    ("sw_version",     "Software Version",     "vehicle_state", None,   None),
+    ("battery_level", "Battery Level", "charge_state", "%", "battery"),
+    ("battery_range", "Battery Range", "charge_state", "mi", "distance"),
+    ("charging_state", "Charging State", "charge_state", None, None),
+    ("charge_limit", "Charge Limit", "charge_state", "%", None),
+    ("energy_added", "Energy Added", "charge_state", "kWh", "energy"),
+    ("charger_power", "Charger Power", "charge_state", "kW", "power"),
+    ("speed", "Speed", "drive_state", "mph", "speed"),
+    ("latitude", "Latitude", "drive_state", "°", None),
+    ("longitude", "Longitude", "drive_state", "°", None),
+    ("inside_temp", "Cabin Temperature", "climate_state", "°C", "temperature"),
+    ("outside_temp", "Outside Temperature", "climate_state", "°C", "temperature"),
+    ("climate_on", "Climate On", "climate_state", None, None),
+    ("locked", "Locked", "vehicle_state", None, None),
+    ("odometer", "Odometer", "vehicle_state", "mi", "distance"),
+    ("sw_version", "Software Version", "vehicle_state", None, None),
 ]
 
 # Field extraction: slug → (state_section, state_key)
 _SLUG_TO_KEY: dict[str, tuple[str, str]] = {
-    "battery_level":  ("charge_state", "battery_level"),
-    "battery_range":  ("charge_state", "battery_range"),
+    "battery_level": ("charge_state", "battery_level"),
+    "battery_range": ("charge_state", "battery_range"),
     "charging_state": ("charge_state", "charging_state"),
-    "charge_limit":   ("charge_state", "charge_limit_soc"),
-    "energy_added":   ("charge_state", "charge_energy_added"),
-    "charger_power":  ("charge_state", "charger_power"),
-    "speed":          ("drive_state", "speed"),
-    "latitude":       ("drive_state", "latitude"),
-    "longitude":      ("drive_state", "longitude"),
-    "inside_temp":    ("climate_state", "inside_temp"),
-    "outside_temp":   ("climate_state", "outside_temp"),
-    "climate_on":     ("climate_state", "is_climate_on"),
-    "locked":         ("vehicle_state", "locked"),
-    "odometer":       ("vehicle_state", "odometer"),
-    "sw_version":     ("vehicle_state", "software_version"),
+    "charge_limit": ("charge_state", "charge_limit_soc"),
+    "energy_added": ("charge_state", "charge_energy_added"),
+    "charger_power": ("charge_state", "charger_power"),
+    "speed": ("drive_state", "speed"),
+    "latitude": ("drive_state", "latitude"),
+    "longitude": ("drive_state", "longitude"),
+    "inside_temp": ("climate_state", "inside_temp"),
+    "outside_temp": ("climate_state", "outside_temp"),
+    "climate_on": ("climate_state", "is_climate_on"),
+    "locked": ("vehicle_state", "locked"),
+    "odometer": ("vehicle_state", "odometer"),
+    "sw_version": ("vehicle_state", "software_version"),
 }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _require_paho() -> bool:
     try:
         import paho.mqtt.client  # noqa: F401
+
         return True
     except ImportError:
         console.print(
@@ -100,27 +102,27 @@ def _publish_ha_discovery(client, cfg, vin: str) -> int:
 
     prefix = (cfg.mqtt.topic_prefix or "tesla").rstrip("/")
     device_info = {
-        "identifiers":    [f"tesla_{vin}"],
-        "name":           f"Tesla {vin[-6:]}",
-        "manufacturer":   "Tesla",
-        "model":          "Vehicle",
-        "sw_version":     vin,
+        "identifiers": [f"tesla_{vin}"],
+        "name": f"Tesla {vin[-6:]}",
+        "manufacturer": "Tesla",
+        "model": "Vehicle",
+        "sw_version": vin,
     }
 
     published = 0
     for slug, friendly_name, state_section, unit, device_class in _HA_SENSORS:
-        unique_id    = f"tesla_{vin}_{slug}"
-        state_topic  = f"{prefix}/{vin}/{state_section}"
+        unique_id = f"tesla_{vin}_{slug}"
+        state_topic = f"{prefix}/{vin}/{state_section}"
         # value_template extracts the specific key from the JSON state blob
         _, state_key = _SLUG_TO_KEY.get(slug, ("", slug))
-        value_tpl    = f"{{{{ value_json.{state_key} }}}}"
+        value_tpl = f"{{{{ value_json.{state_key} }}}}"
 
         config: dict = {
-            "unique_id":       unique_id,
-            "name":            f"Tesla {friendly_name}",
-            "state_topic":     state_topic,
-            "value_template":  value_tpl,
-            "device":          device_info,
+            "unique_id": unique_id,
+            "name": f"Tesla {friendly_name}",
+            "state_topic": state_topic,
+            "value_template": value_tpl,
+            "device": device_info,
         }
         if unit:
             config["unit_of_measurement"] = unit
@@ -141,14 +143,15 @@ def _publish_ha_discovery(client, cfg, vin: str) -> int:
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
+
 @mqtt_app.command("setup")
 def mqtt_setup(
     broker: str = typer.Argument(..., help="MQTT broker hostname or IP (e.g. localhost)"),
-    port: int   = typer.Option(1883, "--port", "-p", help="Broker port (default 1883)"),
+    port: int = typer.Option(1883, "--port", "-p", help="Broker port (default 1883)"),
     username: str = typer.Option("", "--username", "-u", help="Broker username"),
     password: str = typer.Option("", "--password", help="Broker password"),
     topic_prefix: str = typer.Option("tesla", "--prefix", help="Topic prefix (default: tesla)"),
-    tls: bool   = typer.Option(False, "--tls", help="Enable TLS/SSL (port 8883 typical)"),
+    tls: bool = typer.Option(False, "--tls", help="Enable TLS/SSL (port 8883 typical)"),
 ) -> None:
     """Configure MQTT broker connection.
 
@@ -158,15 +161,16 @@ def mqtt_setup(
     tesla mqtt setup broker.local --tls --port 8883
     """
     cfg = load_config()
-    cfg.mqtt.broker       = broker
-    cfg.mqtt.port         = port
-    cfg.mqtt.username     = username
-    cfg.mqtt.password     = password
+    cfg.mqtt.broker = broker
+    cfg.mqtt.port = port
+    cfg.mqtt.username = username
+    cfg.mqtt.password = password
     cfg.mqtt.topic_prefix = topic_prefix
-    cfg.mqtt.tls          = tls
+    cfg.mqtt.tls = tls
     save_config(cfg)
 
     from tesla_cli.cli.output import render_success
+
     render_success(
         f"MQTT configured: [bold]{broker}:{port}[/bold]  "
         f"prefix=[bold]{topic_prefix}[/bold]\n"
@@ -185,33 +189,38 @@ def mqtt_status() -> None:
     import json as _json
 
     cfg = load_config()
-    mc  = cfg.mqtt
+    mc = cfg.mqtt
     configured = bool(mc.broker)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "configured":   configured,
-            "broker":       mc.broker,
-            "port":         mc.port,
-            "topic_prefix": mc.topic_prefix,
-            "username_set": bool(mc.username),
-            "tls":          mc.tls,
-            "qos":          mc.qos,
-            "retain":       mc.retain,
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "configured": configured,
+                    "broker": mc.broker,
+                    "port": mc.port,
+                    "topic_prefix": mc.topic_prefix,
+                    "username_set": bool(mc.username),
+                    "tls": mc.tls,
+                    "qos": mc.qos,
+                    "retain": mc.retain,
+                }
+            )
+        )
         return
 
     from rich.table import Table
+
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("k", style="dim", width=18)
     t.add_column("v")
-    t.add_row("Broker",       mc.broker or "[dim]not set[/dim]")
-    t.add_row("Port",         str(mc.port))
+    t.add_row("Broker", mc.broker or "[dim]not set[/dim]")
+    t.add_row("Port", str(mc.port))
     t.add_row("Topic prefix", mc.topic_prefix or "tesla")
-    t.add_row("Username",     mc.username or "[dim]none[/dim]")
-    t.add_row("TLS",          "[green]yes[/green]" if mc.tls else "[dim]no[/dim]")
-    t.add_row("QoS",          str(mc.qos))
-    t.add_row("Retain",       "[green]yes[/green]" if mc.retain else "[dim]no[/dim]")
+    t.add_row("Username", mc.username or "[dim]none[/dim]")
+    t.add_row("TLS", "[green]yes[/green]" if mc.tls else "[dim]no[/dim]")
+    t.add_row("QoS", str(mc.qos))
+    t.add_row("Retain", "[green]yes[/green]" if mc.retain else "[dim]no[/dim]")
 
     if configured:
         if not _require_paho():
@@ -229,8 +238,7 @@ def mqtt_status() -> None:
 
     if not configured:
         console.print(
-            "\n[yellow]Not configured.[/yellow]\n"
-            "Run: [bold]tesla mqtt setup <BROKER>[/bold]"
+            "\n[yellow]Not configured.[/yellow]\nRun: [bold]tesla mqtt setup <BROKER>[/bold]"
         )
 
 
@@ -247,8 +255,7 @@ def mqtt_test() -> None:
     cfg = load_config()
     if not cfg.mqtt.broker:
         console.print(
-            "[red]MQTT not configured.[/red]\n"
-            "Run: [bold]tesla mqtt setup <BROKER>[/bold]"
+            "[red]MQTT not configured.[/red]\nRun: [bold]tesla mqtt setup <BROKER>[/bold]"
         )
         raise typer.Exit(1)
 
@@ -256,11 +263,11 @@ def mqtt_test() -> None:
         raise typer.Exit(1)
 
     prefix = (cfg.mqtt.topic_prefix or "tesla").rstrip("/")
-    topic  = f"{prefix}/test"
+    topic = f"{prefix}/test"
 
     try:
-        client  = _make_client(cfg, "tesla-cli-test")
-        t0      = time.monotonic()
+        client = _make_client(cfg, "tesla-cli-test")
+        t0 = time.monotonic()
         client.connect(cfg.mqtt.broker, cfg.mqtt.port, keepalive=5)
         payload = _json.dumps({"source": "tesla-cli", "ts": int(time.time()), "msg": "test"})
         client.publish(topic, payload, qos=cfg.mqtt.qos)
@@ -285,7 +292,8 @@ def mqtt_test() -> None:
 def mqtt_publish(
     vin: str | None = VinOption,
     ha_discovery: bool = typer.Option(
-        False, "--ha-discovery",
+        False,
+        "--ha-discovery",
         help="Also publish Home Assistant MQTT discovery configs",
     ),
 ) -> None:
@@ -301,8 +309,7 @@ def mqtt_publish(
     cfg = load_config()
     if not cfg.mqtt.broker:
         console.print(
-            "[red]MQTT not configured.[/red]\n"
-            "Run: [bold]tesla mqtt setup <BROKER>[/bold]"
+            "[red]MQTT not configured.[/red]\nRun: [bold]tesla mqtt setup <BROKER>[/bold]"
         )
         raise typer.Exit(1)
 
@@ -312,12 +319,13 @@ def mqtt_publish(
     from tesla_cli.cli.commands.vehicle import _with_wake
     from tesla_cli.core.config import resolve_vin
 
-    v    = resolve_vin(cfg, vin)
+    v = resolve_vin(cfg, vin)
     data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
 
     from tesla_cli.core.providers.impl.mqtt import MqttProvider
+
     provider = MqttProvider(cfg)
-    result   = provider.execute("push", data=data, vin=v)
+    result = provider.execute("push", data=data, vin=v)
 
     discovery_count = 0
     if ha_discovery and result.ok:
@@ -331,13 +339,17 @@ def mqtt_publish(
             console.print(f"[yellow]⚠ HA discovery publish failed: {exc}[/yellow]")
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "ok":            result.ok,
-            "messages":      result.data.get("messages") if result.data else 0,
-            "ha_discovery":  discovery_count,
-            "latency_ms":    result.latency_ms,
-            "error":         result.error,
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "ok": result.ok,
+                    "messages": result.data.get("messages") if result.data else 0,
+                    "ha_discovery": discovery_count,
+                    "latency_ms": result.latency_ms,
+                    "error": result.error,
+                }
+            )
+        )
         return
 
     if result.ok:
@@ -366,8 +378,7 @@ def mqtt_ha_discovery(vin: str | None = VinOption) -> None:
     cfg = load_config()
     if not cfg.mqtt.broker:
         console.print(
-            "[red]MQTT not configured.[/red]\n"
-            "Run: [bold]tesla mqtt setup <BROKER>[/bold]"
+            "[red]MQTT not configured.[/red]\nRun: [bold]tesla mqtt setup <BROKER>[/bold]"
         )
         raise typer.Exit(1)
 

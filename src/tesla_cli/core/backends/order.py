@@ -125,14 +125,16 @@ class OrderBackend:
         data = resp.json()
         tasks = []
         for item in data if isinstance(data, list) else data.get("tasks", data.get("response", [])):
-            tasks.append(OrderTask(
-                task_type=item.get("taskType", item.get("type", "")),
-                task_status=item.get("taskStatus", item.get("status", "")),
-                task_name=item.get("taskName", item.get("name", "")),
-                completed=item.get("completed", False),
-                active=item.get("active", False),
-                details=item,
-            ))
+            tasks.append(
+                OrderTask(
+                    task_type=item.get("taskType", item.get("type", "")),
+                    task_status=item.get("taskStatus", item.get("status", "")),
+                    task_name=item.get("taskName", item.get("name", "")),
+                    completed=item.get("completed", False),
+                    active=item.get("active", False),
+                    details=item,
+                )
+            )
         return tasks
 
     def get_order_details(self, reservation_number: str) -> OrderDetails:
@@ -192,11 +194,13 @@ class OrderBackend:
             for key, new_val in current_dict.items():
                 old_val = prev_dict.get(key, "")
                 if str(new_val) != str(old_val) and new_val:
-                    changes.append(OrderChange(
-                        field=key,
-                        old_value=str(old_val),
-                        new_value=str(new_val),
-                    ))
+                    changes.append(
+                        OrderChange(
+                            field=key,
+                            old_value=str(old_val),
+                            new_value=str(new_val),
+                        )
+                    )
 
         self._save_state(current_dict)
         return changes
@@ -228,7 +232,9 @@ class OrderBackend:
         try:
             status = self.get_order_status(reservation_number)
             return DeliveryAppointment(
-                appointment_text=f"Estimated: {status.estimated_delivery}" if status.estimated_delivery else "",
+                appointment_text=f"Estimated: {status.estimated_delivery}"
+                if status.estimated_delivery
+                else "",
                 date_utc=status.estimated_delivery,
                 raw={"source": "owner-api-fallback", "order_status": status.order_status},
             )
@@ -236,7 +242,9 @@ class OrderBackend:
             logger.warning("Failed to get delivery appointment", exc_info=True)
             return DeliveryAppointment(raw={"source": "no-data"})
 
-    def import_delivery_data(self, file_path: str | Path) -> tuple[DeliveryAppointment, list[OrderChange]]:
+    def import_delivery_data(
+        self, file_path: str | Path
+    ) -> tuple[DeliveryAppointment, list[OrderChange]]:
         """Import delivery data from a browser-scraped JSON file.
 
         Returns the appointment and any detected changes vs. previous cache.
@@ -254,14 +262,32 @@ class OrderBackend:
             new_timing = new_dd.get("deliveryTiming", {})
 
             change_fields = [
-                ("delivery_date", prev_dd.get("deliveryAppointmentDateUtc", ""), new_dd.get("deliveryAppointmentDateUtc", "")),
-                ("delivery_appointment", prev_timing.get("appointment", ""), new_timing.get("appointment", "")),
-                ("delivery_location", prev_timing.get("pickupLocationTitle", ""), new_timing.get("pickupLocationTitle", "")),
-                ("delivery_address", prev_timing.get("formattedAddressSingleLine", ""), new_timing.get("formattedAddressSingleLine", "")),
+                (
+                    "delivery_date",
+                    prev_dd.get("deliveryAppointmentDateUtc", ""),
+                    new_dd.get("deliveryAppointmentDateUtc", ""),
+                ),
+                (
+                    "delivery_appointment",
+                    prev_timing.get("appointment", ""),
+                    new_timing.get("appointment", ""),
+                ),
+                (
+                    "delivery_location",
+                    prev_timing.get("pickupLocationTitle", ""),
+                    new_timing.get("pickupLocationTitle", ""),
+                ),
+                (
+                    "delivery_address",
+                    prev_timing.get("formattedAddressSingleLine", ""),
+                    new_timing.get("formattedAddressSingleLine", ""),
+                ),
             ]
             for field, old_val, new_val in change_fields:
                 if old_val != new_val and new_val:
-                    changes.append(OrderChange(field=field, old_value=str(old_val), new_value=str(new_val)))
+                    changes.append(
+                        OrderChange(field=field, old_value=str(old_val), new_value=str(new_val))
+                    )
 
         self._save_delivery_cache(new_data)
         appointment = self.get_delivery_appointment(
@@ -306,7 +332,9 @@ class OrderBackend:
             has_fsd=config.get("fsd", False) or "FSD" in str(config),
             order_date=data.get("orderDate", data.get("createdAt", "")),
             estimated_delivery=delivery.get("estimatedDeliveryDate", ""),
-            delivery_window_start=delivery.get("windowStart", delivery.get("deliveryWindowStart", "")),
+            delivery_window_start=delivery.get(
+                "windowStart", delivery.get("deliveryWindowStart", "")
+            ),
             delivery_window_end=delivery.get("windowEnd", delivery.get("deliveryWindowEnd", "")),
             country=data.get("country", data.get("countryCode", "")),
             state_or_province=data.get("stateProvince", data.get("region", "")),

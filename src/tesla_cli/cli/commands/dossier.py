@@ -8,8 +8,8 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.core.backends.dossier import DossierBackend
 from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.core.backends.dossier import DossierBackend
 
 dossier_app = typer.Typer(name="dossier", help="Complete vehicle intelligence dossier.")
 
@@ -20,8 +20,10 @@ def dossier_build() -> None:
     backend = DossierBackend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-        transient=True, disable=is_json_mode(),
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
     ) as progress:
         progress.add_task("Building dossier from all sources...", total=None)
         dossier = backend.build_dossier()
@@ -43,78 +45,92 @@ def dossier_build() -> None:
     }.get(rs.phase, "white")
     _section("Real Status")
     console.print(f"  [{phase_color}]▸ {rs.phase_description}[/{phase_color}]\n")
-    _kv_table([
-        ("Phase", rs.phase.upper()),
-        ("Tesla API says", rs.tesla_api_status),
-        ("RUNT says", rs.runt_status or "(not queried)"),
-        ("VIN Assigned", "✅" if rs.vin_assigned else "❌"),
-        ("In RUNT", "✅" if rs.in_runt else "❌"),
-        ("Has Placa", "✅" if rs.has_placa else "⏳ Pendiente"),
-        ("Has SOAT", "✅" if rs.has_soat else "⏳ Pendiente"),
-        ("Delivery Date", rs.delivery_date or "(not set — use: tesla dossier set-delivery YYYY-MM-DD)"),
-    ])
+    _kv_table(
+        [
+            ("Phase", rs.phase.upper()),
+            ("Tesla API says", rs.tesla_api_status),
+            ("RUNT says", rs.runt_status or "(not queried)"),
+            ("VIN Assigned", "✅" if rs.vin_assigned else "❌"),
+            ("In RUNT", "✅" if rs.in_runt else "❌"),
+            ("Has Placa", "✅" if rs.has_placa else "⏳ Pendiente"),
+            ("Has SOAT", "✅" if rs.has_soat else "⏳ Pendiente"),
+            (
+                "Delivery Date",
+                rs.delivery_date or "(not set — use: tesla dossier set-delivery YYYY-MM-DD)",
+            ),
+        ]
+    )
 
     # ── RUNT ──
     r = dossier.runt
     if r.estado:
         _section("RUNT (Registro Nacional de Tránsito)")
-        _kv_table([
-            ("Estado", r.estado),
-            ("Placa", r.placa or "(no asignada)"),
-            ("Clase", r.clase_vehiculo),
-            ("Marca/Línea", f"{r.marca} {r.linea}"),
-            ("Modelo (año)", r.modelo_ano),
-            ("Color", r.color),
-            ("Combustible", r.tipo_combustible),
-            ("Carrocería", r.tipo_carroceria),
-            ("Peso bruto", f"{r.peso_bruto_kg} kg"),
-            ("Pasajeros", str(r.capacidad_pasajeros)),
-            ("Gravámenes", "NO ✅" if not r.gravamenes else "SÍ ⚠️"),
-            ("SOAT", "Vigente ✅" if r.soat_vigente else "No registrado"),
-            ("Tecnomecánica", "Vigente ✅" if r.tecnomecanica_vigente else "No aplica (vehículo nuevo)"),
-        ])
+        _kv_table(
+            [
+                ("Estado", r.estado),
+                ("Placa", r.placa or "(no asignada)"),
+                ("Clase", r.clase_vehiculo),
+                ("Marca/Línea", f"{r.marca} {r.linea}"),
+                ("Modelo (año)", r.modelo_ano),
+                ("Color", r.color),
+                ("Combustible", r.tipo_combustible),
+                ("Carrocería", r.tipo_carroceria),
+                ("Peso bruto", f"{r.peso_bruto_kg} kg"),
+                ("Pasajeros", str(r.capacidad_pasajeros)),
+                ("Gravámenes", "NO ✅" if not r.gravamenes else "SÍ ⚠️"),
+                ("SOAT", "Vigente ✅" if r.soat_vigente else "No registrado"),
+                (
+                    "Tecnomecánica",
+                    "Vigente ✅" if r.tecnomecanica_vigente else "No aplica (vehículo nuevo)",
+                ),
+            ]
+        )
 
     # ── Identity ──
     _section("Identity")
-    _kv_table([
-        ("VIN", dossier.vin),
-        ("Reservation", dossier.reservation_number),
-        ("Manufacturer", dossier.vin_decode.manufacturer),
-        ("Model", dossier.vin_decode.model),
-        ("Body", dossier.vin_decode.body_type),
-        ("Motor/Battery", dossier.vin_decode.motor_battery),
-        ("Energy", dossier.vin_decode.energy_type),
-        ("Battery Chemistry", dossier.vin_decode.battery_chemistry),
-        ("Model Year", dossier.vin_decode.model_year),
-        ("Plant", dossier.vin_decode.plant),
-        ("Serial", dossier.vin_decode.serial_number),
-    ])
+    _kv_table(
+        [
+            ("VIN", dossier.vin),
+            ("Reservation", dossier.reservation_number),
+            ("Manufacturer", dossier.vin_decode.manufacturer),
+            ("Model", dossier.vin_decode.model),
+            ("Body", dossier.vin_decode.body_type),
+            ("Motor/Battery", dossier.vin_decode.motor_battery),
+            ("Energy", dossier.vin_decode.energy_type),
+            ("Battery Chemistry", dossier.vin_decode.battery_chemistry),
+            ("Model Year", dossier.vin_decode.model_year),
+            ("Plant", dossier.vin_decode.plant),
+            ("Serial", dossier.vin_decode.serial_number),
+        ]
+    )
 
     # ── Specs ──
     s = dossier.specs
     _section("Vehicle Specs")
-    _kv_table([
-        ("Model", f"{s.model} {s.variant}"),
-        ("Generation", s.generation),
-        ("Year", str(s.model_year)),
-        ("Factory", s.factory),
-        ("Battery", f"{s.battery_type} ~{s.battery_capacity_kwh} kWh"),
-        ("Range", f"{s.range_km} km (WLTP est.)"),
-        ("Motor", s.motor_config),
-        ("Power", f"~{s.horsepower} hp"),
-        ("0-100 km/h", f"{s.zero_to_100_kmh}s"),
-        ("Top Speed", f"{s.top_speed_kmh} km/h"),
-        ("Weight", f"{s.curb_weight_kg} kg"),
-        ("Dimensions", s.dimensions),
-        ("Seats", str(s.seating)),
-        ("Wheels", s.wheels),
-        ("Exterior", s.exterior_color),
-        ("Interior", s.interior),
-        ("AP Hardware", s.autopilot_hardware),
-        ("FSD", "Yes" if s.has_fsd else "No"),
-        ("Supercharging", s.supercharging),
-        ("Connectivity", s.connectivity),
-    ])
+    _kv_table(
+        [
+            ("Model", f"{s.model} {s.variant}"),
+            ("Generation", s.generation),
+            ("Year", str(s.model_year)),
+            ("Factory", s.factory),
+            ("Battery", f"{s.battery_type} ~{s.battery_capacity_kwh} kWh"),
+            ("Range", f"{s.range_km} km (WLTP est.)"),
+            ("Motor", s.motor_config),
+            ("Power", f"~{s.horsepower} hp"),
+            ("0-100 km/h", f"{s.zero_to_100_kmh}s"),
+            ("Top Speed", f"{s.top_speed_kmh} km/h"),
+            ("Weight", f"{s.curb_weight_kg} kg"),
+            ("Dimensions", s.dimensions),
+            ("Seats", str(s.seating)),
+            ("Wheels", s.wheels),
+            ("Exterior", s.exterior_color),
+            ("Interior", s.interior),
+            ("AP Hardware", s.autopilot_hardware),
+            ("FSD", "Yes" if s.has_fsd else "No"),
+            ("Supercharging", s.supercharging),
+            ("Connectivity", s.connectivity),
+        ]
+    )
 
     # ── Option Codes ──
     if dossier.option_codes.codes:
@@ -130,30 +146,34 @@ def dossier_build() -> None:
     # ── Order Status ──
     o = dossier.order
     _section("Order Timeline")
-    _kv_table([
-        ("Status", f"{o.current.order_status} (substatus: {o.current.order_substatus})"),
-        ("Vehicle Map ID", str(o.vehicle_map_id)),
-        ("Country", o.country_code),
-        ("Locale", o.locale),
-        ("B2B", "Yes" if o.is_b2b else "No"),
-        ("Used", "Yes" if o.is_used else "No"),
-        ("Tesla Assist", "Yes" if o.is_tesla_assist_enabled else "No"),
-        ("History entries", str(len(o.history))),
-    ])
+    _kv_table(
+        [
+            ("Status", f"{o.current.order_status} (substatus: {o.current.order_substatus})"),
+            ("Vehicle Map ID", str(o.vehicle_map_id)),
+            ("Country", o.country_code),
+            ("Locale", o.locale),
+            ("B2B", "Yes" if o.is_b2b else "No"),
+            ("Used", "Yes" if o.is_used else "No"),
+            ("Tesla Assist", "Yes" if o.is_tesla_assist_enabled else "No"),
+            ("History entries", str(len(o.history))),
+        ]
+    )
 
     # ── Logistics ──
     lg = dossier.logistics
     _section("Logistics / Shipping")
-    _kv_table([
-        ("Factory", lg.factory),
-        ("Departure Port", lg.departure_port),
-        ("Arrival Port", lg.arrival_port),
-        ("Destination", lg.destination_country),
-        ("Est. Transit", f"~{lg.estimated_transit_days} days"),
-        ("Carrier", lg.ship.vessel_name or "(tracking...)"),
-        ("Ship IMO", lg.ship.imo or "-"),
-        ("Track URL", lg.ship.tracking_url or "-"),
-    ])
+    _kv_table(
+        [
+            ("Factory", lg.factory),
+            ("Departure Port", lg.departure_port),
+            ("Arrival Port", lg.arrival_port),
+            ("Destination", lg.destination_country),
+            ("Est. Transit", f"~{lg.estimated_transit_days} days"),
+            ("Carrier", lg.ship.vessel_name or "(tracking...)"),
+            ("Ship IMO", lg.ship.imo or "-"),
+            ("Track URL", lg.ship.tracking_url or "-"),
+        ]
+    )
 
     # ── Recalls ──
     _section("Recalls")
@@ -166,25 +186,34 @@ def dossier_build() -> None:
     # ── Account ──
     a = dossier.account
     _section("Tesla Account")
-    _kv_table([
-        ("Name", a.full_name),
-        ("Email", a.email),
-        ("Vault UUID", a.vault_uuid),
-        ("Signaling", str(a.feature_config.get("signaling", {}).get("enabled", "-"))),
-        ("Service Scheduling", "Yes" if a.service_scheduling_enabled else "No"),
-    ])
+    _kv_table(
+        [
+            ("Name", a.full_name),
+            ("Email", a.email),
+            ("Vault UUID", a.vault_uuid),
+            ("Signaling", str(a.feature_config.get("signaling", {}).get("enabled", "-"))),
+            ("Service Scheduling", "Yes" if a.service_scheduling_enabled else "No"),
+        ]
+    )
 
     # ── Meta ──
     _section("Dossier Meta")
-    _kv_table([
-        ("Version", dossier.dossier_version),
-        ("Created", str(dossier.created_at)[:19]),
-        ("Last Updated", str(dossier.last_updated)[:19]),
-        ("Update Count", str(dossier.update_count)),
-        ("Archive", str(DossierBackend._DossierBackend__get_archive_path()
-                        if hasattr(DossierBackend, '_DossierBackend__get_archive_path')
-                        else "~/.tesla-cli/dossier/")),
-    ])
+    _kv_table(
+        [
+            ("Version", dossier.dossier_version),
+            ("Created", str(dossier.created_at)[:19]),
+            ("Last Updated", str(dossier.last_updated)[:19]),
+            ("Update Count", str(dossier.update_count)),
+            (
+                "Archive",
+                str(
+                    DossierBackend._DossierBackend__get_archive_path()
+                    if hasattr(DossierBackend, "_DossierBackend__get_archive_path")
+                    else "~/.tesla-cli/dossier/"
+                ),
+            ),
+        ]
+    )
 
     console.print()
 
@@ -225,14 +254,18 @@ def dossier_show() -> None:
         return
 
     # ── Header ──
-    title_text = f"⚡ TESLA {dossier.specs.model.upper()} {dossier.specs.model_year} — VEHICLE DOSSIER"
+    title_text = (
+        f"⚡ TESLA {dossier.specs.model.upper()} {dossier.specs.model_year} — VEHICLE DOSSIER"
+    )
     console.print()
-    console.print(Panel(
-        f"[bold cyan]{title_text}[/bold cyan]\n"
-        f"[dim]VIN: {dossier.vin} │ Last updated: {str(dossier.last_updated)[:19]} │ Updates: {dossier.update_count}[/dim]",
-        expand=True,
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[bold cyan]{title_text}[/bold cyan]\n"
+            f"[dim]VIN: {dossier.vin} │ Last updated: {str(dossier.last_updated)[:19]} │ Updates: {dossier.update_count}[/dim]",
+            expand=True,
+            border_style="cyan",
+        )
+    )
 
     # ── Quick Summary Dashboard ──
     _render_summary_dashboard(console, dossier, mc_data)
@@ -285,8 +318,18 @@ def _render_summary_dashboard(con, dossier, mc_data: dict) -> None:
 
     placa_str = f"[green]{runt.placa}[/green]" if runt.placa else "[yellow]⏳ Pendiente[/yellow]"
     soat_str = "[green]✅ Sí[/green]" if runt.soat_vigente else "[yellow]⏳ No[/yellow]"
-    simit_str = "[green]✅ Paz y salvo[/green]" if simit.get("paz_y_salvo") else f"[red]⚠ {simit.get('comparendos', '?')} comparendos, ${simit.get('total_deuda', 0):,.0f}[/red]" if simit else "[dim]No consultado[/dim]"
-    recalls_str = f"[yellow]{recalls.get('count', len(dossier.recalls))} abiertos[/yellow]" if (recalls.get("count") or dossier.recalls) else "[green]0[/green]"
+    simit_str = (
+        "[green]✅ Paz y salvo[/green]"
+        if simit.get("paz_y_salvo")
+        else f"[red]⚠ {simit.get('comparendos', '?')} comparendos, ${simit.get('total_deuda', 0):,.0f}[/red]"
+        if simit
+        else "[dim]No consultado[/dim]"
+    )
+    recalls_str = (
+        f"[yellow]{recalls.get('count', len(dossier.recalls))} abiertos[/yellow]"
+        if (recalls.get("count") or dossier.recalls)
+        else "[green]0[/green]"
+    )
 
     summary_lines = [
         f"  [bold]{s.model} {s.variant}[/bold] │ {s.generation} │ {s.exterior_color}",
@@ -297,12 +340,14 @@ def _render_summary_dashboard(con, dossier, mc_data: dict) -> None:
         f"  🚦 SIMIT: {simit_str}  │  ⚠️ Recalls: {recalls_str}  │  📊 Quejas NHTSA: [dim]{complaints.get('total', '?')}[/dim]",
         f"  📡 Fuentes: [green]{ok_sources}/{total_sources} OK[/green]  │  🤖 Cron: {mc_data.get('cron_runs', {}).get('total', '?')} runs",
     ]
-    con.print(Panel(
-        "\n".join(summary_lines),
-        title="[bold]📊 RESUMEN RÁPIDO[/bold]",
-        border_style="bright_blue",
-        expand=True,
-    ))
+    con.print(
+        Panel(
+            "\n".join(summary_lines),
+            title="[bold]📊 RESUMEN RÁPIDO[/bold]",
+            border_style="bright_blue",
+            expand=True,
+        )
+    )
     con.print()
 
 
@@ -320,26 +365,35 @@ def _render_status(con, rs) -> None:
 
     _section("🚗 STATUS")
     con.print(f"  [{phase_color}]▸ {rs.phase_description}[/{phase_color}]")
-    _kv_table([
-        ("Phase", f"[{phase_color}]{rs.phase.upper()}[/{phase_color}]"),
-        ("Tesla API", rs.tesla_api_status or "-"),
-        ("RUNT Status", rs.runt_status or "(not queried)"),
-        ("VIN Assigned", "✅ Yes" if rs.vin_assigned else "❌ No"),
-        ("In RUNT", "✅ Yes" if rs.in_runt else "❌ No"),
-        ("Has Placa", "✅ Yes" if rs.has_placa else "⏳ Pendiente"),
-        ("Has SOAT", "✅ Yes" if rs.has_soat else "⏳ Pendiente"),
-        ("Delivery Date", rs.delivery_date or "(not set)"),
-        ("Delivery Location", rs.delivery_location or "-"),
-        ("Appointment", rs.delivery_appointment or "-"),
-    ])
+    _kv_table(
+        [
+            ("Phase", f"[{phase_color}]{rs.phase.upper()}[/{phase_color}]"),
+            ("Tesla API", rs.tesla_api_status or "-"),
+            ("RUNT Status", rs.runt_status or "(not queried)"),
+            ("VIN Assigned", "✅ Yes" if rs.vin_assigned else "❌ No"),
+            ("In RUNT", "✅ Yes" if rs.in_runt else "❌ No"),
+            ("Has Placa", "✅ Yes" if rs.has_placa else "⏳ Pendiente"),
+            ("Has SOAT", "✅ Yes" if rs.has_soat else "⏳ Pendiente"),
+            ("Delivery Date", rs.delivery_date or "(not set)"),
+            ("Delivery Location", rs.delivery_location or "-"),
+            ("Appointment", rs.delivery_appointment or "-"),
+        ]
+    )
     flags = []
-    if rs.is_produced: flags.append("✅ Produced")
-    if rs.is_shipped: flags.append("✅ Shipped")
-    if rs.is_in_country: flags.append("✅ In Country")
-    if rs.is_customs_cleared: flags.append("✅ Customs Cleared")
-    if rs.is_registered: flags.append("✅ RUNT Registered")
-    if rs.is_delivery_scheduled: flags.append("✅ Delivery Scheduled")
-    if rs.is_delivered: flags.append("✅ Delivered")
+    if rs.is_produced:
+        flags.append("✅ Produced")
+    if rs.is_shipped:
+        flags.append("✅ Shipped")
+    if rs.is_in_country:
+        flags.append("✅ In Country")
+    if rs.is_customs_cleared:
+        flags.append("✅ Customs Cleared")
+    if rs.is_registered:
+        flags.append("✅ RUNT Registered")
+    if rs.is_delivery_scheduled:
+        flags.append("✅ Delivery Scheduled")
+    if rs.is_delivered:
+        flags.append("✅ Delivered")
     if flags:
         con.print(f"  [dim]Timeline:[/dim] {' │ '.join(flags)}")
 
@@ -347,48 +401,52 @@ def _render_status(con, rs) -> None:
 def _render_specs(con, s, epa: dict) -> None:
     """Render the vehicle specs section."""
     _section("📋 VEHICLE SPECS")
-    _kv_table([
-        ("Model", f"{s.model} {s.variant}"),
-        ("Generation", s.generation),
-        ("Year", str(s.model_year)),
-        ("Factory", s.factory),
-        ("Battery", f"{s.battery_type} ~{s.battery_capacity_kwh} kWh"),
-        ("Range", f"{s.range_km} km (WLTP est.)"),
-        ("Motor", s.motor_config),
-        ("Power", f"~{s.horsepower} hp"),
-        ("0-100 km/h", f"{s.zero_to_100_kmh}s"),
-        ("Top Speed", f"{s.top_speed_kmh} km/h"),
-        ("Curb Weight", f"{s.curb_weight_kg} kg"),
-        ("Dimensions", s.dimensions),
-        ("Seats", str(s.seating)),
-        ("Wheels", s.wheels),
-        ("Exterior Color", s.exterior_color),
-        ("Interior", s.interior),
-        ("AP Hardware", s.autopilot_hardware),
-        ("FSD", "Yes ✅" if s.has_fsd else "No"),
-        ("Supercharging", s.supercharging),
-        ("Connectivity", s.connectivity),
-    ])
+    _kv_table(
+        [
+            ("Model", f"{s.model} {s.variant}"),
+            ("Generation", s.generation),
+            ("Year", str(s.model_year)),
+            ("Factory", s.factory),
+            ("Battery", f"{s.battery_type} ~{s.battery_capacity_kwh} kWh"),
+            ("Range", f"{s.range_km} km (WLTP est.)"),
+            ("Motor", s.motor_config),
+            ("Power", f"~{s.horsepower} hp"),
+            ("0-100 km/h", f"{s.zero_to_100_kmh}s"),
+            ("Top Speed", f"{s.top_speed_kmh} km/h"),
+            ("Curb Weight", f"{s.curb_weight_kg} kg"),
+            ("Dimensions", s.dimensions),
+            ("Seats", str(s.seating)),
+            ("Wheels", s.wheels),
+            ("Exterior Color", s.exterior_color),
+            ("Interior", s.interior),
+            ("AP Hardware", s.autopilot_hardware),
+            ("FSD", "Yes ✅" if s.has_fsd else "No"),
+            ("Supercharging", s.supercharging),
+            ("Connectivity", s.connectivity),
+        ]
+    )
 
 
 def _render_vin_decode(con, vin: str, vd) -> None:
     """Render the VIN decode section."""
     _section("🔍 VIN DECODE")
     con.print(f"  [bold]{vin}[/bold]")
-    _kv_table([
-        ("Manufacturer (1-3)", vd.manufacturer),
-        ("Model (4)", vd.model),
-        ("Body Type (5)", vd.body_type),
-        ("Restraint (6)", vd.restraint_system),
-        ("Energy (7)", vd.energy_type),
-        ("Motor/Battery (8)", vd.motor_battery),
-        ("Check Digit (9)", vd.check_digit),
-        ("Model Year (10)", vd.model_year),
-        ("Plant (11)", vd.plant),
-        ("Serial (12-17)", vd.serial_number),
-        ("Country", vd.plant_country),
-        ("Battery Chemistry", vd.battery_chemistry),
-    ])
+    _kv_table(
+        [
+            ("Manufacturer (1-3)", vd.manufacturer),
+            ("Model (4)", vd.model),
+            ("Body Type (5)", vd.body_type),
+            ("Restraint (6)", vd.restraint_system),
+            ("Energy (7)", vd.energy_type),
+            ("Motor/Battery (8)", vd.motor_battery),
+            ("Check Digit (9)", vd.check_digit),
+            ("Model Year (10)", vd.model_year),
+            ("Plant (11)", vd.plant),
+            ("Serial (12-17)", vd.serial_number),
+            ("Country", vd.plant_country),
+            ("Battery Chemistry", vd.battery_chemistry),
+        ]
+    )
 
 
 def _render_option_codes(con, option_codes) -> None:
@@ -409,76 +467,96 @@ def _render_option_codes(con, option_codes) -> None:
 def _render_order(con, order) -> None:
     """Render the order section."""
     _section("📦 ORDER")
-    _kv_table([
-        ("Reservation #", order.reservation_number),
-        ("Vehicle Map ID", str(order.vehicle_map_id)),
-        ("Status", order.current.order_status),
-        ("Substatus", order.current.order_substatus),
-        ("Country", order.country_code),
-        ("Locale", order.locale),
-        ("B2B", "Yes" if order.is_b2b else "No"),
-        ("Used Vehicle", "Yes" if order.is_used else "No"),
-        ("Tesla Assist", "Yes" if order.is_tesla_assist_enabled else "No"),
-        ("History Entries", str(len(order.history))),
-    ])
+    _kv_table(
+        [
+            ("Reservation #", order.reservation_number),
+            ("Vehicle Map ID", str(order.vehicle_map_id)),
+            ("Status", order.current.order_status),
+            ("Substatus", order.current.order_substatus),
+            ("Country", order.country_code),
+            ("Locale", order.locale),
+            ("B2B", "Yes" if order.is_b2b else "No"),
+            ("Used Vehicle", "Yes" if order.is_used else "No"),
+            ("Tesla Assist", "Yes" if order.is_tesla_assist_enabled else "No"),
+            ("History Entries", str(len(order.history))),
+        ]
+    )
     if order.current.delivery_window_start:
-        con.print(f"  [dim]Delivery window: {order.current.delivery_window_start} – {order.current.delivery_window_end}[/dim]")
+        con.print(
+            f"  [dim]Delivery window: {order.current.delivery_window_start} – {order.current.delivery_window_end}[/dim]"
+        )
 
 
 def _render_runt(con, r) -> None:
     """Render the RUNT section."""
-    _section(f"🇨🇴 RUNT — Registro Nacional de Tránsito  [dim](queried: {str(r.queried_at)[:16]})[/dim]")
+    _section(
+        f"🇨🇴 RUNT — Registro Nacional de Tránsito  [dim](queried: {str(r.queried_at)[:16]})[/dim]"
+    )
     if r.estado:
         estado_color = "green" if r.estado == "REGISTRADO" else "yellow"
         con.print(f"  Estado: [{estado_color}][bold]{r.estado}[/bold][/{estado_color}]")
-        _kv_table([
-            ("Placa", r.placa if r.placa else "⏳ Pendiente (no asignada)"),
-            ("ID Automotor", str(r.id_automotor) if r.id_automotor else "-"),
-            ("Licencia Tránsito", r.licencia_transito or "-"),
-            ("Tarjeta Registro", r.tarjeta_registro or "-"),
-            ("Clase Vehículo", r.clase_vehiculo),
-            ("Clasificación", r.clasificacion),
-            ("Tipo Servicio", r.tipo_servicio or "-"),
-            ("Marca", r.marca),
-            ("Línea", r.linea),
-            ("Modelo Año", r.modelo_ano),
-            ("Color", r.color),
-            ("N° Serie", r.numero_serie or "-"),
-            ("N° Motor", r.numero_motor or "-"),
-            ("N° Chasis", r.numero_chasis or "-"),
-            ("VIN", r.numero_vin),
-            ("Tipo Combustible", r.tipo_combustible),
-            ("Tipo Carrocería", r.tipo_carroceria),
-            ("Cilindraje", r.cilindraje or "0"),
-            ("Puertas", str(r.puertas)),
-            ("Peso Bruto (kg)", str(r.peso_bruto_kg)),
-            ("Capacidad Carga", r.capacidad_carga or "-"),
-            ("Pasajeros", str(r.capacidad_pasajeros)),
-            ("N° Ejes", str(r.numero_ejes)),
-            ("Gravámenes", "⚠️ SÍ" if r.gravamenes else "✅ NO"),
-            ("Prendas", "⚠️ SÍ" if r.prendas else "✅ NO"),
-            ("Repotenciado", "SÍ" if r.repotenciado else "NO"),
-            ("Blindaje", "SÍ" if r.blindaje else "NO"),
-            ("Antiguo/Clásico", "SÍ" if r.antiguo_clasico else "NO"),
-            ("Regrab. Motor", f"SÍ — {r.num_regrabacion_motor}" if r.regrabacion_motor else "NO ✅"),
-            ("Regrab. Chasis", f"SÍ — {r.num_regrabacion_chasis}" if r.regrabacion_chasis else "NO ✅"),
-            ("Regrab. Serie", f"SÍ — {r.num_regrabacion_serie}" if r.regrabacion_serie else "NO ✅"),
-            ("Regrab. VIN", f"SÍ — {r.num_regrabacion_vin}" if r.regrabacion_vin else "NO ✅"),
-            ("SOAT Vigente", "✅ Vigente" if r.soat_vigente else "❌ No registrado"),
-            ("SOAT Aseguradora", r.soat_aseguradora or "-"),
-            ("SOAT Vencimiento", r.soat_vencimiento or "-"),
-            ("RTM Vigente", "✅ Vigente" if r.tecnomecanica_vigente else "No aplica (vehículo nuevo)"),
-            ("RTM Vencimiento", r.tecnomecanica_vencimiento or "-"),
-            ("Fecha Matrícula", r.fecha_matricula or "-"),
-            ("Fecha Registro", r.fecha_registro or "-"),
-            ("Autoridad Tránsito", r.autoridad_transito or "-"),
-            ("Días Matriculado", str(r.dias_matriculado) if r.dias_matriculado else "-"),
-            ("Importación", str(r.importacion)),
-            ("País Origen", r.nombre_pais or "-"),
-            ("Validación DIAN", r.validacion_dian or "-"),
-            ("Subpartida", r.subpartida or "-"),
-            ("N° Identificación", r.no_identificacion or "-"),
-        ])
+        _kv_table(
+            [
+                ("Placa", r.placa if r.placa else "⏳ Pendiente (no asignada)"),
+                ("ID Automotor", str(r.id_automotor) if r.id_automotor else "-"),
+                ("Licencia Tránsito", r.licencia_transito or "-"),
+                ("Tarjeta Registro", r.tarjeta_registro or "-"),
+                ("Clase Vehículo", r.clase_vehiculo),
+                ("Clasificación", r.clasificacion),
+                ("Tipo Servicio", r.tipo_servicio or "-"),
+                ("Marca", r.marca),
+                ("Línea", r.linea),
+                ("Modelo Año", r.modelo_ano),
+                ("Color", r.color),
+                ("N° Serie", r.numero_serie or "-"),
+                ("N° Motor", r.numero_motor or "-"),
+                ("N° Chasis", r.numero_chasis or "-"),
+                ("VIN", r.numero_vin),
+                ("Tipo Combustible", r.tipo_combustible),
+                ("Tipo Carrocería", r.tipo_carroceria),
+                ("Cilindraje", r.cilindraje or "0"),
+                ("Puertas", str(r.puertas)),
+                ("Peso Bruto (kg)", str(r.peso_bruto_kg)),
+                ("Capacidad Carga", r.capacidad_carga or "-"),
+                ("Pasajeros", str(r.capacidad_pasajeros)),
+                ("N° Ejes", str(r.numero_ejes)),
+                ("Gravámenes", "⚠️ SÍ" if r.gravamenes else "✅ NO"),
+                ("Prendas", "⚠️ SÍ" if r.prendas else "✅ NO"),
+                ("Repotenciado", "SÍ" if r.repotenciado else "NO"),
+                ("Blindaje", "SÍ" if r.blindaje else "NO"),
+                ("Antiguo/Clásico", "SÍ" if r.antiguo_clasico else "NO"),
+                (
+                    "Regrab. Motor",
+                    f"SÍ — {r.num_regrabacion_motor}" if r.regrabacion_motor else "NO ✅",
+                ),
+                (
+                    "Regrab. Chasis",
+                    f"SÍ — {r.num_regrabacion_chasis}" if r.regrabacion_chasis else "NO ✅",
+                ),
+                (
+                    "Regrab. Serie",
+                    f"SÍ — {r.num_regrabacion_serie}" if r.regrabacion_serie else "NO ✅",
+                ),
+                ("Regrab. VIN", f"SÍ — {r.num_regrabacion_vin}" if r.regrabacion_vin else "NO ✅"),
+                ("SOAT Vigente", "✅ Vigente" if r.soat_vigente else "❌ No registrado"),
+                ("SOAT Aseguradora", r.soat_aseguradora or "-"),
+                ("SOAT Vencimiento", r.soat_vencimiento or "-"),
+                (
+                    "RTM Vigente",
+                    "✅ Vigente" if r.tecnomecanica_vigente else "No aplica (vehículo nuevo)",
+                ),
+                ("RTM Vencimiento", r.tecnomecanica_vencimiento or "-"),
+                ("Fecha Matrícula", r.fecha_matricula or "-"),
+                ("Fecha Registro", r.fecha_registro or "-"),
+                ("Autoridad Tránsito", r.autoridad_transito or "-"),
+                ("Días Matriculado", str(r.dias_matriculado) if r.dias_matriculado else "-"),
+                ("Importación", str(r.importacion)),
+                ("País Origen", r.nombre_pais or "-"),
+                ("Validación DIAN", r.validacion_dian or "-"),
+                ("Subpartida", r.subpartida or "-"),
+                ("N° Identificación", r.no_identificacion or "-"),
+            ]
+        )
     else:
         con.print("  [yellow]RUNT not queried yet. Run: tesla dossier build[/yellow]")
 
@@ -486,24 +564,28 @@ def _render_runt(con, r) -> None:
 def _render_logistics(con, lg) -> None:
     """Render the logistics & shipping section."""
     _section("🚢 LOGISTICS & SHIPPING")
-    _kv_table([
-        ("Factory", lg.factory),
-        ("Departure Port", lg.departure_port),
-        ("Arrival Port", lg.arrival_port),
-        ("Destination", lg.destination_country),
-        ("Est. Transit", f"~{lg.estimated_transit_days} days"),
-        ("Customs Status", lg.customs_status or "-"),
-        ("Last Mile Status", lg.last_mile_status or "-"),
-    ])
+    _kv_table(
+        [
+            ("Factory", lg.factory),
+            ("Departure Port", lg.departure_port),
+            ("Arrival Port", lg.arrival_port),
+            ("Destination", lg.destination_country),
+            ("Est. Transit", f"~{lg.estimated_transit_days} days"),
+            ("Customs Status", lg.customs_status or "-"),
+            ("Last Mile Status", lg.last_mile_status or "-"),
+        ]
+    )
     ship = lg.ship
     if ship.vessel_name:
         con.print(f"\n  [bold]Ship: {ship.vessel_name}[/bold]")
-        _kv_table([
-            ("IMO", ship.imo or "-"),
-            ("MMSI", ship.mmsi or "-"),
-            ("ETA", ship.eta or "-"),
-            ("Track URL", ship.tracking_url or "-"),
-        ])
+        _kv_table(
+            [
+                ("IMO", ship.imo or "-"),
+                ("MMSI", ship.mmsi or "-"),
+                ("ETA", ship.eta or "-"),
+                ("Track URL", ship.tracking_url or "-"),
+            ]
+        )
         pos = ship.current_position
         if pos.latitude or pos.longitude:
             con.print(
@@ -529,7 +611,8 @@ def _render_recalls(con, recalls, mc_data: dict) -> None:
                 rec.get("id", "-"),
                 rec.get("date", "-"),
                 rec.get("component", "-"),
-                (rec.get("remedy", "") or "")[:80] + ("…" if len(rec.get("remedy", "")) > 80 else ""),
+                (rec.get("remedy", "") or "")[:80]
+                + ("…" if len(rec.get("remedy", "")) > 80 else ""),
             )
         con.print(table)
     elif recalls:
@@ -544,13 +627,15 @@ def _render_recalls(con, recalls, mc_data: dict) -> None:
 def _render_account(con, account) -> None:
     """Render the Tesla account section."""
     _section("👤 TESLA ACCOUNT")
-    _kv_table([
-        ("Name", account.full_name),
-        ("Email", account.email),
-        ("Vault UUID", account.vault_uuid),
-        ("Signaling", str(account.feature_config.get("signaling", {}).get("enabled", "-"))),
-        ("Service Scheduling", "Yes ✅" if account.service_scheduling_enabled else "No"),
-    ])
+    _kv_table(
+        [
+            ("Name", account.full_name),
+            ("Email", account.email),
+            ("Vault UUID", account.vault_uuid),
+            ("Signaling", str(account.feature_config.get("signaling", {}).get("enabled", "-"))),
+            ("Service Scheduling", "Yes ✅" if account.service_scheduling_enabled else "No"),
+        ]
+    )
 
 
 def _render_simit(con, simit, mc_data: dict) -> None:
@@ -578,23 +663,25 @@ def _render_epa(con, epa: dict) -> None:
     if not epa:
         return
     _section("⚡ EPA SPECS (Official)")
-    _kv_table([
-        ("Make/Model", f"{epa.get('make', '')} {epa.get('model', '')} {epa.get('year', '')}"),
-        ("Drive", epa.get("drive", "-")),
-        ("EV Motor", epa.get("ev_motor", "-")),
-        ("Range (combined)", f"{epa.get('range_mi', '-')} mi"),
-        ("Range (city)", f"{epa.get('range_city_mi', '-')} mi"),
-        ("Range (highway)", f"{epa.get('range_hwy_mi', '-')} mi"),
-        ("MPGe (combined)", epa.get("mpge_combined", "-")),
-        ("MPGe (city)", epa.get("mpge_city", "-")),
-        ("MPGe (highway)", epa.get("mpge_highway", "-")),
-        ("Annual Fuel Cost", f"${epa.get('fuel_cost_annual', '-')}"),
-        ("FE Score", f"{epa.get('fe_score', '-')}/10"),
-        ("GHG Score", f"{epa.get('ghg_score', '-')}/10"),
-        ("240V Charge Time", f"{epa.get('charge_240v_hrs', '-')} hrs"),
-        ("Vehicle Class", epa.get("vehicle_class", "-")),
-        ("5-yr Fuel Savings", f"${epa.get('you_save_spend', '-')} vs avg"),
-    ])
+    _kv_table(
+        [
+            ("Make/Model", f"{epa.get('make', '')} {epa.get('model', '')} {epa.get('year', '')}"),
+            ("Drive", epa.get("drive", "-")),
+            ("EV Motor", epa.get("ev_motor", "-")),
+            ("Range (combined)", f"{epa.get('range_mi', '-')} mi"),
+            ("Range (city)", f"{epa.get('range_city_mi', '-')} mi"),
+            ("Range (highway)", f"{epa.get('range_hwy_mi', '-')} mi"),
+            ("MPGe (combined)", epa.get("mpge_combined", "-")),
+            ("MPGe (city)", epa.get("mpge_city", "-")),
+            ("MPGe (highway)", epa.get("mpge_highway", "-")),
+            ("Annual Fuel Cost", f"${epa.get('fuel_cost_annual', '-')}"),
+            ("FE Score", f"{epa.get('fe_score', '-')}/10"),
+            ("GHG Score", f"{epa.get('ghg_score', '-')}/10"),
+            ("240V Charge Time", f"{epa.get('charge_240v_hrs', '-')} hrs"),
+            ("Vehicle Class", epa.get("vehicle_class", "-")),
+            ("5-yr Fuel Savings", f"${epa.get('you_save_spend', '-')} vs avg"),
+        ]
+    )
 
 
 def _render_nhtsa(con, mc_data: dict) -> None:
@@ -670,13 +757,15 @@ def _render_delivery(con, mc_data: dict) -> None:
     dd = delivery["delivery_details"]
     timing = dd.get("deliveryTiming", {})
     _section("📅 DELIVERY DETAILS")
-    _kv_table([
-        ("Appointment", timing.get("appointment", "-")),
-        ("Location", timing.get("pickupLocationTitle", "-")),
-        ("Address", timing.get("formattedAddressSingleLine", "-")),
-        ("Disclaimer", timing.get("disclaimer", "-")),
-        ("Duration", f"{timing.get('duration', '-')} min"),
-    ])
+    _kv_table(
+        [
+            ("Appointment", timing.get("appointment", "-")),
+            ("Location", timing.get("pickupLocationTitle", "-")),
+            ("Address", timing.get("formattedAddressSingleLine", "-")),
+            ("Disclaimer", timing.get("disclaimer", "-")),
+            ("Duration", f"{timing.get('duration', '-')} min"),
+        ]
+    )
 
 
 def _render_monitor(con, mc_data: dict) -> None:
@@ -700,8 +789,10 @@ def _render_monitor(con, mc_data: dict) -> None:
     last_run = cron_runs.get("runs", [{}])[0]
     if last_run.get("summary"):
         summary_lines = last_run["summary"].strip().split("\n")
-        con.print(f"  [dim]Last run ({str(last_run.get('timestamp', ''))[:16]}): "
-                      f"{summary_lines[0][:100]}[/dim]")
+        con.print(
+            f"  [dim]Last run ({str(last_run.get('timestamp', ''))[:16]}): "
+            f"{summary_lines[0][:100]}[/dim]"
+        )
 
 
 def _render_sources(con, mc_data: dict) -> None:
@@ -725,12 +816,14 @@ def _render_sources(con, mc_data: dict) -> None:
 def _render_meta(con, dossier, mc_data: dict) -> None:
     """Render the dossier meta section."""
     _section("📊 DOSSIER META")
-    _kv_table([
-        ("Version", dossier.dossier_version),
-        ("Created", str(dossier.created_at)[:19]),
-        ("Last Updated", str(dossier.last_updated)[:19]),
-        ("Update Count", str(dossier.update_count)),
-    ])
+    _kv_table(
+        [
+            ("Version", dossier.dossier_version),
+            ("Created", str(dossier.created_at)[:19]),
+            ("Last Updated", str(dossier.last_updated)[:19]),
+            ("Update Count", str(dossier.update_count)),
+        ]
+    )
     if mc_data.get("generated_at_local"):
         con.print(f"  [dim]Mission Control: {str(mc_data['generated_at_local'])[:19]}[/dim]")
 
@@ -767,8 +860,10 @@ def dossier_ships() -> None:
     from tesla_cli.core.backends.dossier import fetch_tesla_ships
 
     with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-        transient=True, disable=is_json_mode(),
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
     ) as progress:
         progress.add_task("Fetching ship tracking data...", total=None)
         ships = fetch_tesla_ships()
@@ -857,12 +952,16 @@ def dossier_vin(
     table.add_row("12-17", vin[11:17], f"Serial #{decoded.serial_number}")
 
     console.print(table)
-    console.print(f"\n  [dim]Country: {decoded.plant_country} | Battery: {decoded.battery_chemistry}[/dim]")
+    console.print(
+        f"\n  [dim]Country: {decoded.plant_country} | Battery: {decoded.battery_chemistry}[/dim]"
+    )
 
 
 @dossier_app.command("diff")
 def dossier_diff(
-    snap_a: str = typer.Argument(None, help="Snapshot A: index (1-based) or filename. Default: second-to-last"),
+    snap_a: str = typer.Argument(
+        None, help="Snapshot A: index (1-based) or filename. Default: second-to-last"
+    ),
     snap_b: str = typer.Argument(None, help="Snapshot B: index or filename. Default: latest"),
 ) -> None:
     """Compare two dossier snapshots side by side.
@@ -888,7 +987,9 @@ def dossier_diff(
         elif ref.isdigit():
             idx = int(ref) - 1
             if idx < 0 or idx >= len(history):
-                console.print(f"[red]Snapshot #{ref} not found. There are {len(history)} snapshots.[/red]")
+                console.print(
+                    f"[red]Snapshot #{ref} not found. There are {len(history)} snapshots.[/red]"
+                )
                 raise typer.Exit(1)
             entry = history[idx]
         else:
@@ -899,6 +1000,7 @@ def dossier_diff(
             entry = matches[0]
 
         from pathlib import Path
+
         path = Path(entry["file"])
         try:
             data = _json.loads(path.read_text())
@@ -916,11 +1018,13 @@ def dossier_diff(
         return
 
     console.print()
-    console.print(Panel(
-        f"[dim]A:[/dim] [cyan]{ts_a[:19]}[/cyan]  vs  [dim]B:[/dim] [cyan]{ts_b[:19]}[/cyan]",
-        title="[bold]Dossier Diff[/bold]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[dim]A:[/dim] [cyan]{ts_a[:19]}[/cyan]  vs  [dim]B:[/dim] [cyan]{ts_b[:19]}[/cyan]",
+            title="[bold]Dossier Diff[/bold]",
+            border_style="cyan",
+        )
+    )
 
     changes = _compute_diff(data_a, data_b)
     if not changes:
@@ -945,7 +1049,9 @@ def dossier_diff(
         else:
             sym = "[bold yellow]≠[/bold yellow]"
             changed += 1
-        table.add_row(sym, item["path"], str(item.get("old", ""))[:35], str(item.get("new", ""))[:50])
+        table.add_row(
+            sym, item["path"], str(item.get("old", ""))[:35], str(item.get("new", ""))[:50]
+        )
 
     console.print(table)
     console.print(
@@ -976,8 +1082,17 @@ def _compute_diff(a: dict, b: dict, path: str = "") -> list[dict]:
             changes.append({"symbol": "+", "path": full_path, "old": None, "new": val_b})
         elif val_a is not None and val_b is None:
             changes.append({"symbol": "−", "path": full_path, "old": val_a, "new": None})
-        elif (isinstance(val_a, (list, dict)) or isinstance(val_b, (list, dict))) and (len(str(val_a)) > 200 or len(str(val_b)) > 200):
-            changes.append({"symbol": "≠", "path": full_path, "old": f"[{type(val_a).__name__}]", "new": f"[{type(val_b).__name__}]"})
+        elif (isinstance(val_a, (list, dict)) or isinstance(val_b, (list, dict))) and (
+            len(str(val_a)) > 200 or len(str(val_b)) > 200
+        ):
+            changes.append(
+                {
+                    "symbol": "≠",
+                    "path": full_path,
+                    "old": f"[{type(val_a).__name__}]",
+                    "new": f"[{type(val_b).__name__}]",
+                }
+            )
         else:
             changes.append({"symbol": "≠", "path": full_path, "old": val_a, "new": val_b})
 
@@ -986,7 +1101,9 @@ def _compute_diff(a: dict, b: dict, path: str = "") -> list[dict]:
 
 @dossier_app.command("checklist")
 def dossier_checklist(
-    mark: str = typer.Option(None, "--mark", "-m", help="Mark an item by number as done (e.g. --mark 3)"),
+    mark: str = typer.Option(
+        None, "--mark", "-m", help="Mark an item by number as done (e.g. --mark 3)"
+    ),
     reset: bool = typer.Option(False, "--reset", help="Reset all items to unchecked"),
 ) -> None:
     """Interactive Tesla delivery inspection checklist.
@@ -1001,50 +1118,65 @@ def dossier_checklist(
     CHECKLIST_FILE = Path.home() / ".tesla-cli" / "delivery_checklist.json"
 
     ITEMS = [
-        ("Exterior", [
-            "Panel gaps: check all doors, hood, trunk, frunk are even",
-            "Paint: no chips, scratches, swirl marks, or clear-coat bubbles",
-            "Glass: no cracks or chips on windshield, rear window, sunroof, side windows",
-            "Lights: all headlights, taillights, turn signals, DRL operational",
-            "Wheels & tires: no curb rash, correct PSI, no sidewall damage",
-            "Body trim: all chrome/plastic trim flush and undamaged",
-            "Cameras: Autopilot cameras clean and correctly positioned",
-            "Door seals: all door and trunk seals present and seated",
-        ]),
-        ("Interior", [
-            "Seats: no tears, stains, or misalignment (front + rear)",
-            "Dashboard & trim: no cracks, loose panels, or scratches",
-            "Touchscreen: no dead pixels, scratches, or touch issues",
-            "Rear screen (if equipped): functional",
-            "Climate vents: all open/close correctly",
-            "Speaker grilles: all intact, no rattles",
-            "Steering wheel: no scratches or play beyond spec",
-            "Center console: all compartments open/close smoothly",
-        ]),
-        ("Mechanicals", [
-            "Frunk: opens/closes properly, latch secure",
-            "Trunk/liftgate: opens/closes, auto-close working",
-            "Charging port: opens/closes, correct connector (NACS/CCS)",
-            "Charge cable (if included): no damage",
-            "Under-frunk storage: present and clean",
-            "12V outlet / USB ports: functional",
-            "Door handles: all present and functional (auto-present if equipped)",
-            "Key cards (2): both work, tap to unlock",
-        ]),
-        ("Electronics & Software", [
-            "VIN on door jamb matches registration documents",
-            "Software version: check Settings > Software",
-            "Mobile app: vehicle appears and can be controlled",
-            "Autopilot cameras: all visible in Autopilot settings",
-            "Sentry Mode: can be enabled",
-            "Music / Media: streaming works over LTE",
-            "Navigation: GPS accurate",
-        ]),
-        ("Final", [
-            "Battery state of charge at delivery (note %)",
-            "Walk-around video recorded",
-            "All documents received: registration, window sticker, owner's manual",
-        ]),
+        (
+            "Exterior",
+            [
+                "Panel gaps: check all doors, hood, trunk, frunk are even",
+                "Paint: no chips, scratches, swirl marks, or clear-coat bubbles",
+                "Glass: no cracks or chips on windshield, rear window, sunroof, side windows",
+                "Lights: all headlights, taillights, turn signals, DRL operational",
+                "Wheels & tires: no curb rash, correct PSI, no sidewall damage",
+                "Body trim: all chrome/plastic trim flush and undamaged",
+                "Cameras: Autopilot cameras clean and correctly positioned",
+                "Door seals: all door and trunk seals present and seated",
+            ],
+        ),
+        (
+            "Interior",
+            [
+                "Seats: no tears, stains, or misalignment (front + rear)",
+                "Dashboard & trim: no cracks, loose panels, or scratches",
+                "Touchscreen: no dead pixels, scratches, or touch issues",
+                "Rear screen (if equipped): functional",
+                "Climate vents: all open/close correctly",
+                "Speaker grilles: all intact, no rattles",
+                "Steering wheel: no scratches or play beyond spec",
+                "Center console: all compartments open/close smoothly",
+            ],
+        ),
+        (
+            "Mechanicals",
+            [
+                "Frunk: opens/closes properly, latch secure",
+                "Trunk/liftgate: opens/closes, auto-close working",
+                "Charging port: opens/closes, correct connector (NACS/CCS)",
+                "Charge cable (if included): no damage",
+                "Under-frunk storage: present and clean",
+                "12V outlet / USB ports: functional",
+                "Door handles: all present and functional (auto-present if equipped)",
+                "Key cards (2): both work, tap to unlock",
+            ],
+        ),
+        (
+            "Electronics & Software",
+            [
+                "VIN on door jamb matches registration documents",
+                "Software version: check Settings > Software",
+                "Mobile app: vehicle appears and can be controlled",
+                "Autopilot cameras: all visible in Autopilot settings",
+                "Sentry Mode: can be enabled",
+                "Music / Media: streaming works over LTE",
+                "Navigation: GPS accurate",
+            ],
+        ),
+        (
+            "Final",
+            [
+                "Battery state of charge at delivery (note %)",
+                "Walk-around video recorded",
+                "All documents received: registration, window sticker, owner's manual",
+            ],
+        ),
     ]
 
     # Load/init state
@@ -1089,17 +1221,20 @@ def dossier_checklist(
 
     # Render
     from rich.panel import Panel
+
     done_count = sum(1 for i in range(1, len(flat) + 1) if state.get(str(i), False))
     total = len(flat)
 
     console.print()
-    console.print(Panel(
-        f"[dim]Progress: [bold]{done_count}/{total}[/bold] items checked "
-        f"({'[green]COMPLETE[/green]' if done_count == total else f'[yellow]{total - done_count} remaining[/yellow]'})\n"
-        f"[dim]Use [bold]--mark N[/bold] to check/uncheck an item, [bold]--reset[/bold] to start over[/dim]",
-        title="[bold]🚗 Tesla Delivery Inspection Checklist[/bold]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[dim]Progress: [bold]{done_count}/{total}[/bold] items checked "
+            f"({'[green]COMPLETE[/green]' if done_count == total else f'[yellow]{total - done_count} remaining[/yellow]'})\n"
+            f"[dim]Use [bold]--mark N[/bold] to check/uncheck an item, [bold]--reset[/bold] to start over[/dim]",
+            title="[bold]🚗 Tesla Delivery Inspection Checklist[/bold]",
+            border_style="cyan",
+        )
+    )
 
     current_section = ""
     for section, idx, text in flat:
@@ -1134,24 +1269,29 @@ def dossier_gates() -> None:
 
     # Gate definitions: (id, label, phase_trigger)
     GATES = [
-        ("01", "Order Placed",              "ordered"),
-        ("02", "VIN Assigned",              "produced"),
-        ("03", "Production Started",        "produced"),
-        ("04", "Quality Control / Exit",    "produced"),
-        ("05", "Ready for Transport",       "shipped"),
-        ("06", "Departed Factory",          "shipped"),
-        ("07", "At Origin Port",            "shipped"),
-        ("08", "Departed Origin Port",      "shipped"),
-        ("09", "In Transit (ocean)",        "shipped"),
-        ("10", "Arrived Destination Port",  "in_country"),
-        ("11", "Customs Clearance",         "in_country"),
-        ("12", "In Transit to Delivery",    "delivery_scheduled"),
-        ("13", "Delivered 🎉",             "delivered"),
+        ("01", "Order Placed", "ordered"),
+        ("02", "VIN Assigned", "produced"),
+        ("03", "Production Started", "produced"),
+        ("04", "Quality Control / Exit", "produced"),
+        ("05", "Ready for Transport", "shipped"),
+        ("06", "Departed Factory", "shipped"),
+        ("07", "At Origin Port", "shipped"),
+        ("08", "Departed Origin Port", "shipped"),
+        ("09", "In Transit (ocean)", "shipped"),
+        ("10", "Arrived Destination Port", "in_country"),
+        ("11", "Customs Clearance", "in_country"),
+        ("12", "In Transit to Delivery", "delivery_scheduled"),
+        ("13", "Delivered 🎉", "delivered"),
     ]
 
     PHASE_ORDER = [
-        "ordered", "produced", "shipped", "in_country",
-        "registered", "delivery_scheduled", "delivered",
+        "ordered",
+        "produced",
+        "shipped",
+        "in_country",
+        "registered",
+        "delivery_scheduled",
+        "delivered",
     ]
 
     if dossier:
@@ -1168,7 +1308,11 @@ def dossier_gates() -> None:
         gates_out = []
         for gid, label, trigger in GATES:
             phase_i = _gate_phase_idx(trigger)
-            status = "complete" if phase_i < current_idx else ("current" if phase_i == current_idx else "pending")
+            status = (
+                "complete"
+                if phase_i < current_idx
+                else ("current" if phase_i == current_idx else "pending")
+            )
             gates_out.append({"gate": gid, "label": label, "status": status})
         console.print_json(_json.dumps(gates_out, indent=2))
         return
@@ -1177,11 +1321,13 @@ def dossier_gates() -> None:
     phase_label = current_phase.replace("_", " ").title() if current_phase else "Unknown"
 
     console.print()
-    console.print(Panel(
-        f"[dim]VIN:[/dim] [cyan]{vin}[/cyan]  │  [dim]Current phase:[/dim] [bold]{phase_label}[/bold]",
-        title="[bold]🚀 Delivery Journey — 13 Gates[/bold]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[dim]VIN:[/dim] [cyan]{vin}[/cyan]  │  [dim]Current phase:[/dim] [bold]{phase_label}[/bold]",
+            title="[bold]🚀 Delivery Journey — 13 Gates[/bold]",
+            border_style="cyan",
+        )
+    )
     console.print()
 
     for gid, label, trigger in GATES:
@@ -1222,13 +1368,13 @@ def dossier_estimate() -> None:
     # Community-sourced avg calendar days remaining until delivery, by phase.
     # Format: phase → (optimistic_days, typical_days, conservative_days, note)
     PHASE_ESTIMATES: dict[str, tuple[int, int, int, str]] = {
-        "ordered":              (45,  120, 240, "Highly variable — depends on allocation, market, and model"),
-        "produced":             (20,   35,  55, "Vehicle built, waiting for transport slot"),
-        "shipped":              (12,   22,  35, "On a carrier ship — varies by origin port and route"),
-        "in_country":           ( 5,   12,  21, "Cleared customs, in local logistics"),
-        "registered":           ( 3,    7,  14, "Registration in progress, delivery center prep"),
-        "delivery_scheduled":   ( 0,    2,   5, "Delivery appointment set"),
-        "delivered":            ( 0,    0,   0, "Already delivered 🎉"),
+        "ordered": (45, 120, 240, "Highly variable — depends on allocation, market, and model"),
+        "produced": (20, 35, 55, "Vehicle built, waiting for transport slot"),
+        "shipped": (12, 22, 35, "On a carrier ship — varies by origin port and route"),
+        "in_country": (5, 12, 21, "Cleared customs, in local logistics"),
+        "registered": (3, 7, 14, "Registration in progress, delivery center prep"),
+        "delivery_scheduled": (0, 2, 5, "Delivery appointment set"),
+        "delivered": (0, 0, 0, "Already delivered 🎉"),
     }
 
     backend = DossierBackend()
@@ -1254,9 +1400,9 @@ def dossier_estimate() -> None:
         "typical_days": typical,
         "conservative_days": conservative,
         "estimated_delivery_range": {
-            "optimistic":    opt_date.strftime("%Y-%m-%d"),
-            "typical":       typ_date.strftime("%Y-%m-%d"),
-            "conservative":  con_date.strftime("%Y-%m-%d"),
+            "optimistic": opt_date.strftime("%Y-%m-%d"),
+            "typical": typ_date.strftime("%Y-%m-%d"),
+            "conservative": con_date.strftime("%Y-%m-%d"),
         },
         "confirmed_delivery_date": confirmed_delivery or None,
         "note": note,
@@ -1271,26 +1417,38 @@ def dossier_estimate() -> None:
 
     # If already delivered
     if phase == "delivered":
-        console.print(Panel.fit(
-            "[bold green]🎉 Delivered![/bold green]\n\n"
-            "Your vehicle has been delivered.\n"
-            "Run [bold]tesla dossier show[/bold] for full details.",
-            border_style="green",
-        ))
+        console.print(
+            Panel.fit(
+                "[bold green]🎉 Delivered![/bold green]\n\n"
+                "Your vehicle has been delivered.\n"
+                "Run [bold]tesla dossier show[/bold] for full details.",
+                border_style="green",
+            )
+        )
         return
 
     if confirmed_delivery:
         console.print()
-        console.print(Panel(
-            f"[bold green]📅 Confirmed delivery date: {confirmed_delivery}[/bold green]\n"
-            f"[dim]Phase: {phase_label} · Set with: tesla dossier set-delivery {confirmed_delivery}[/dim]",
-            title="[bold]Delivery Estimate[/bold]",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                f"[bold green]📅 Confirmed delivery date: {confirmed_delivery}[/bold green]\n"
+                f"[dim]Phase: {phase_label} · Set with: tesla dossier set-delivery {confirmed_delivery}[/dim]",
+                title="[bold]Delivery Estimate[/bold]",
+                border_style="green",
+            )
+        )
         return
 
     # Phase progress bar  (7 phases)
-    PHASE_ORDER = ["ordered", "produced", "shipped", "in_country", "registered", "delivery_scheduled", "delivered"]
+    PHASE_ORDER = [
+        "ordered",
+        "produced",
+        "shipped",
+        "in_country",
+        "registered",
+        "delivery_scheduled",
+        "delivered",
+    ]
     phase_idx = PHASE_ORDER.index(phase) if phase in PHASE_ORDER else 0
     progress_bar = ""
     for i, _p in enumerate(PHASE_ORDER):
@@ -1311,15 +1469,19 @@ def dossier_estimate() -> None:
     )
 
     console.print()
-    console.print(Panel(
-        body,
-        title="[bold]📅 Delivery Estimate[/bold]",
-        border_style="cyan",
-        subtitle="[dim]community-sourced data — varies by market[/dim]",
-    ))
+    console.print(
+        Panel(
+            body,
+            title="[bold]📅 Delivery Estimate[/bold]",
+            border_style="cyan",
+            subtitle="[dim]community-sourced data — varies by market[/dim]",
+        )
+    )
 
     if not dossier:
-        console.print("\n[yellow]No dossier found — estimates based on 'ordered' phase. Run: tesla dossier build[/yellow]")
+        console.print(
+            "\n[yellow]No dossier found — estimates based on 'ordered' phase. Run: tesla dossier build[/yellow]"
+        )
 
 
 @dossier_app.command("option-codes")
@@ -1351,7 +1513,9 @@ def dossier_option_codes() -> None:
             raw = ""
 
     if not raw:
-        console.print("[yellow]No option codes found in dossier. Try rebuilding: tesla dossier build[/yellow]")
+        console.print(
+            "[yellow]No option codes found in dossier. Try rebuilding: tesla dossier build[/yellow]"
+        )
         raise typer.Exit(1)
 
     decoded = decode_option_codes(raw)
@@ -1366,13 +1530,26 @@ def dossier_option_codes() -> None:
 
     # Group by category
     from collections import defaultdict
+
     by_cat: dict[str, list] = defaultdict(list)
     for c in decoded.codes:
         by_cat[c.category].append(c)
 
     # Category display order
-    CAT_ORDER = ["model", "motor", "paint", "interior", "wheels", "seats", "autopilot",
-                 "charging", "connectivity", "features", "hardware", "unknown"]
+    CAT_ORDER = [
+        "model",
+        "motor",
+        "paint",
+        "interior",
+        "wheels",
+        "seats",
+        "autopilot",
+        "charging",
+        "connectivity",
+        "features",
+        "hardware",
+        "unknown",
+    ]
 
     total = len(decoded.codes)
     known = sum(1 for c in decoded.codes if c.category != "unknown")
@@ -1415,7 +1592,9 @@ def _kv_table(rows: list[tuple[str, str]]) -> None:
 @dossier_app.command("clean")
 def dossier_clean(
     keep: int = typer.Option(10, "--keep", "-n", help="Number of snapshots to keep (most recent)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without deleting"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be deleted without deleting"
+    ),
 ) -> None:
     """Prune old dossier snapshots, keeping the N most recent.
 
@@ -1441,8 +1620,8 @@ def dossier_clean(
         console.print(f"  [green]Nothing to clean[/green] — {total} snapshot(s), keep={keep}")
         return
 
-    to_delete = all_snaps[:total - keep]
-    to_keep = all_snaps[total - keep:]
+    to_delete = all_snaps[: total - keep]
+    to_keep = all_snaps[total - keep :]
 
     removed_names = [f.name for f in to_delete]
 
@@ -1451,16 +1630,23 @@ def dossier_clean(
             f.unlink(missing_ok=True)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "deleted": len(to_delete),
-            "kept": len(to_keep),
-            "dry_run": dry_run,
-            "files_removed": removed_names,
-        }, indent=2))
+        console.print(
+            _json.dumps(
+                {
+                    "deleted": len(to_delete),
+                    "kept": len(to_keep),
+                    "dry_run": dry_run,
+                    "files_removed": removed_names,
+                },
+                indent=2,
+            )
+        )
         return
 
     verb = "Would delete" if dry_run else "Deleted"
-    console.print(f"  {verb} [red]{len(to_delete)}[/red] snapshot(s), kept [green]{len(to_keep)}[/green]")
+    console.print(
+        f"  {verb} [red]{len(to_delete)}[/red] snapshot(s), kept [green]{len(to_keep)}[/green]"
+    )
     if dry_run:
         for name in removed_names:
             console.print(f"    [dim]- {name}[/dim]")
@@ -1506,12 +1692,14 @@ def dossier_battery_health(
             timestamp = snap.get("last_updated") or snap.get("timestamp") or snap_path.stem
             if battery_level and battery_range and float(battery_level) > 10:
                 rated = float(battery_range) / (float(battery_level) / 100.0)
-                points.append({
-                    "timestamp": str(timestamp)[:16],
-                    "battery_level": float(battery_level),
-                    "battery_range_mi": float(battery_range),
-                    "estimated_rated_range_mi": round(rated, 1),
-                })
+                points.append(
+                    {
+                        "timestamp": str(timestamp)[:16],
+                        "battery_level": float(battery_level),
+                        "battery_range_mi": float(battery_range),
+                        "estimated_rated_range_mi": round(rated, 1),
+                    }
+                )
         except Exception:
             continue
 
@@ -1541,6 +1729,7 @@ def dossier_battery_health(
         return
 
     from rich.table import Table
+
     console.print()
 
     # Summary panel
@@ -1553,7 +1742,9 @@ def dossier_battery_health(
     console.print()
 
     # Recent data table (last 10 points)
-    table = Table(title="Estimated Rated Range Over Time (last 10 readings)", header_style="bold cyan")
+    table = Table(
+        title="Estimated Rated Range Over Time (last 10 readings)", header_style="bold cyan"
+    )
     table.add_column("Timestamp", width=17)
     table.add_column("Batt %", justify="right", width=7)
     table.add_column("Range mi", justify="right", width=9)
@@ -1608,15 +1799,18 @@ def dossier_export_pdf(
                 snap_data = {}
 
     # Gather data sections
-    charge_state = snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
-    config_data  = snap_data.get("vehicle_config") or {}
+    charge_state = (
+        snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
+    )
+    config_data = snap_data.get("vehicle_config") or {}
     order_status = snap_data.get("order_status") or {}
-    recalls      = snap_data.get("nhtsa_recalls") or []
-    vin_decoded  = snap_data.get("vin_decode") or {}
+    recalls = snap_data.get("nhtsa_recalls") or []
+    vin_decoded = snap_data.get("vin_decode") or {}
     generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
 
     # Resolve VIN
     from tesla_cli.core.config import load_config
+
     cfg = load_config()
     resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
 
@@ -1752,14 +1946,17 @@ def dossier_export_html(
                 snap_data = {}
 
     # Gather data sections
-    charge_state = snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
-    config_data  = snap_data.get("vehicle_config") or {}
+    charge_state = (
+        snap_data.get("charge_state") or snap_data.get("vehicle", {}).get("charge_state") or {}
+    )
+    config_data = snap_data.get("vehicle_config") or {}
     order_status = snap_data.get("order_status") or {}
-    recalls      = snap_data.get("nhtsa_recalls") or []
-    vin_decoded  = snap_data.get("vin_decode") or {}
+    recalls = snap_data.get("nhtsa_recalls") or []
+    vin_decoded = snap_data.get("vin_decode") or {}
     generated_at = snap_data.get("last_updated") or snap_data.get("timestamp") or "unknown"
 
     from tesla_cli.core.config import load_config as _lc
+
     cfg = _lc()
     resolved_vin = vin or snap_data.get("vin") or cfg.general.default_vin or "unknown"
 
@@ -1769,36 +1966,38 @@ def dossier_export_html(
     def kv_row(label: str, value: object) -> str:
         if not value or str(value) in ("None", "none", ""):
             return ""
-        return (
-            f"<tr><td class='lbl'>{e(label)}</td>"
-            f"<td>{e(value)}</td></tr>"
-        )
+        return f"<tr><td class='lbl'>{e(label)}</td><td>{e(value)}</td></tr>"
 
     # Build sections
-    identity_rows = "".join([
-        kv_row("VIN", resolved_vin),
-        kv_row("Model", vin_decoded.get("model") or config_data.get("car_type", "")),
-        kv_row("Year", vin_decoded.get("model_year") or config_data.get("model_year", "")),
-        kv_row("Plant", vin_decoded.get("manufacturer", "")),
-        kv_row("Exterior Color", config_data.get("exterior_color", "")),
-        kv_row("Wheel Type", config_data.get("wheel_type", "")),
-        kv_row("Battery Type", config_data.get("battery_type", "")),
-        kv_row("Drive Unit", config_data.get("drive_unit", "")),
-    ])
+    identity_rows = "".join(
+        [
+            kv_row("VIN", resolved_vin),
+            kv_row("Model", vin_decoded.get("model") or config_data.get("car_type", "")),
+            kv_row("Year", vin_decoded.get("model_year") or config_data.get("model_year", "")),
+            kv_row("Plant", vin_decoded.get("manufacturer", "")),
+            kv_row("Exterior Color", config_data.get("exterior_color", "")),
+            kv_row("Wheel Type", config_data.get("wheel_type", "")),
+            kv_row("Battery Type", config_data.get("battery_type", "")),
+            kv_row("Drive Unit", config_data.get("drive_unit", "")),
+        ]
+    )
 
     battery_level = charge_state.get("battery_level", "")
     bar_pct = battery_level if isinstance(battery_level, (int, float)) else 0
-    battery_rows = "".join([
-        kv_row("Battery Level", f"{battery_level}%"),
-        kv_row("Battery Range", f"{charge_state.get('battery_range', '')} mi"),
-        kv_row("Charge Limit", f"{charge_state.get('charge_limit_soc', '')}%"),
-        kv_row("Charging State", charge_state.get("charging_state", "")),
-        kv_row("Energy Added", f"{charge_state.get('charge_energy_added', '')} kWh"),
-        kv_row("Charger Power", f"{charge_state.get('charger_power', '')} kW"),
-    ])
+    battery_rows = "".join(
+        [
+            kv_row("Battery Level", f"{battery_level}%"),
+            kv_row("Battery Range", f"{charge_state.get('battery_range', '')} mi"),
+            kv_row("Charge Limit", f"{charge_state.get('charge_limit_soc', '')}%"),
+            kv_row("Charging State", charge_state.get("charging_state", "")),
+            kv_row("Energy Added", f"{charge_state.get('charge_energy_added', '')} kWh"),
+            kv_row("Charger Power", f"{charge_state.get('charger_power', '')} kW"),
+        ]
+    )
     battery_bar = (
         f"<div class='bar-wrap'><div class='bar' style='width:{bar_pct}%'>{bar_pct}%</div></div>"
-        if bar_pct else ""
+        if bar_pct
+        else ""
     )
 
     order_rows = ""
@@ -1830,7 +2029,7 @@ def dossier_export_html(
         all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
         snap_count = len(all_snaps)
         first = all_snaps[0].stem if all_snaps else "none"
-        last  = all_snaps[-1].stem if all_snaps else "none"
+        last = all_snaps[-1].stem if all_snaps else "none"
         snap_summary = (
             f"<p>{snap_count} snapshots — "
             f"first: <code>{e(first)}</code>, latest: <code>{e(last)}</code></p>"
@@ -1841,19 +2040,19 @@ def dossier_export_html(
 
     # ── Theme CSS variables ──────────────────────────────────────────────────
     if theme.lower() == "light":
-        _css_root   = "--bg: #f5f5f5; --card: #ffffff; --border: #d0d0d0;\n    --text: #1a1a1a; --muted: #666; --accent: #c0001a;\n    --label: #444; --bar-bg: #e0e0e0; --bar-fg: #c0001a;"
-        _h2_bg      = "#f0f0f0"
-        _h2_col     = "#333"
-        _tr_hover   = "rgba(0,0,0,0.04)"
-        _code_bg    = "#ebebeb"
-        _recall_bg  = "rgba(192,0,26,0.06)"
+        _css_root = "--bg: #f5f5f5; --card: #ffffff; --border: #d0d0d0;\n    --text: #1a1a1a; --muted: #666; --accent: #c0001a;\n    --label: #444; --bar-bg: #e0e0e0; --bar-fg: #c0001a;"
+        _h2_bg = "#f0f0f0"
+        _h2_col = "#333"
+        _tr_hover = "rgba(0,0,0,0.04)"
+        _code_bg = "#ebebeb"
+        _recall_bg = "rgba(192,0,26,0.06)"
     else:  # dark (default)
-        _css_root   = "--bg: #0d0d0d; --card: #1a1a1a; --border: #2e2e2e;\n    --text: #e8e8e8; --muted: #888; --accent: #e82127;\n    --label: #aaa; --bar-bg: #2e2e2e; --bar-fg: #e82127;"
-        _h2_bg      = "#222"
-        _h2_col     = "#ccc"
-        _tr_hover   = "rgba(255,255,255,0.03)"
-        _code_bg    = "#222"
-        _recall_bg  = "rgba(232,33,39,0.07)"
+        _css_root = "--bg: #0d0d0d; --card: #1a1a1a; --border: #2e2e2e;\n    --text: #e8e8e8; --muted: #888; --accent: #e82127;\n    --label: #aaa; --bar-bg: #2e2e2e; --bar-fg: #e82127;"
+        _h2_bg = "#222"
+        _h2_col = "#ccc"
+        _tr_hover = "rgba(255,255,255,0.03)"
+        _code_bg = "#222"
+        _recall_bg = "rgba(232,33,39,0.07)"
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1914,7 +2113,7 @@ def dossier_export_html(
   </div>
 </div>
 
-{'<div class="section"><h2>&#x1F4E6; Order &amp; Delivery Status</h2><div class="body"><table>' + order_rows + '</table></div></div>' if order_rows else ''}
+{'<div class="section"><h2>&#x1F4E6; Order &amp; Delivery Status</h2><div class="body"><table>' + order_rows + "</table></div></div>" if order_rows else ""}
 
 <div class="section">
   <h2>&#x26A0;&#xFE0F; NHTSA Recalls</h2>

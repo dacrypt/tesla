@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin
-from tesla_cli.core.models.charge import ChargeState
 from tesla_cli.cli.output import (
     console,
     is_json_mode,
@@ -16,6 +13,9 @@ from tesla_cli.cli.output import (
     render_success,
     render_table,
 )
+from tesla_cli.core.backends import get_vehicle_backend
+from tesla_cli.core.config import load_config, resolve_vin
+from tesla_cli.core.models.charge import ChargeState
 
 charge_app = typer.Typer(name="charge", help="Battery and charging management.")
 
@@ -34,6 +34,7 @@ def _vin(vin: str | None) -> str:
 def charge_status(vin: str | None = VinOption) -> None:
     """Show current charge state."""
     from tesla_cli.cli.output import console
+
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_charge_state(v), v)
     state = ChargeState.model_validate(data)
@@ -68,7 +69,9 @@ def charge_stop(vin: str | None = VinOption) -> None:
 
 @charge_app.command("limit")
 def charge_limit(
-    percent: int | None = typer.Argument(None, help="Charge limit percentage (50-100). Omit to show current."),
+    percent: int | None = typer.Argument(
+        None, help="Charge limit percentage (50-100). Omit to show current."
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show or set charge limit percentage.
@@ -152,9 +155,7 @@ def charge_schedule(
 ) -> None:
     """Enable/disable scheduled charging."""
     v = _vin(vin)
-    _with_wake(
-        lambda b, v: b.command(v, "set_scheduled_charging", enable=enable, time=time), v
-    )
+    _with_wake(lambda b, v: b.command(v, "set_scheduled_charging", enable=enable, time=time), v)
     status = "enabled" if enable else "disabled"
     render_success(f"Scheduled charging {status}")
 
@@ -162,9 +163,15 @@ def charge_schedule(
 @charge_app.command("departure")
 def charge_departure(
     time: str = typer.Argument(..., help="Departure time (HH:MM, 24h)"),
-    precondition: bool = typer.Option(False, "--precondition/--no-precondition", help="Enable cabin preconditioning"),
-    off_peak: bool = typer.Option(False, "--off-peak/--no-off-peak", help="Enable off-peak charging window"),
-    off_peak_end: str = typer.Option("07:00", "--off-peak-end", help="Off-peak charging end time (HH:MM)"),
+    precondition: bool = typer.Option(
+        False, "--precondition/--no-precondition", help="Enable cabin preconditioning"
+    ),
+    off_peak: bool = typer.Option(
+        False, "--off-peak/--no-off-peak", help="Enable off-peak charging window"
+    ),
+    off_peak_end: str = typer.Option(
+        "07:00", "--off-peak-end", help="Off-peak charging end time (HH:MM)"
+    ),
     disable: bool = typer.Option(False, "--disable", help="Disable scheduled departure"),
     vin: str | None = VinOption,
 ) -> None:
@@ -191,6 +198,7 @@ def charge_departure(
         )
         if is_json_mode():
             from tesla_cli.cli.output import console
+
             console.print(_json.dumps({"scheduled_departure": False}, indent=2))
             return
         render_success("Scheduled departure disabled")
@@ -214,13 +222,19 @@ def charge_departure(
 
     if is_json_mode():
         from tesla_cli.cli.output import console
-        console.print(_json.dumps({
-            "scheduled_departure": True,
-            "time": time,
-            "time_minutes": dep_minutes,
-            "precondition": precondition,
-            "off_peak": off_peak,
-        }, indent=2))
+
+        console.print(
+            _json.dumps(
+                {
+                    "scheduled_departure": True,
+                    "time": time,
+                    "time_minutes": dep_minutes,
+                    "precondition": precondition,
+                    "off_peak": off_peak,
+                },
+                indent=2,
+            )
+        )
         return
 
     msg = f"Scheduled departure set to {time}"
@@ -243,15 +257,15 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
     data = _with_wake(lambda b, v: b.get_charge_state(v), v)
 
     # Extract scheduling fields
-    sched_mode  = data.get("scheduled_charging_mode", "Off")
+    sched_mode = data.get("scheduled_charging_mode", "Off")
     sched_start = data.get("scheduled_charging_start_time_app")  # minutes after midnight
     sched_start_utc = data.get("scheduled_charging_start_time")
-    dep_mode    = data.get("scheduled_departure_time_minutes")    # minutes after midnight
-    dep_time    = data.get("scheduled_departure_time")            # epoch
-    precond     = data.get("preconditioning_enabled", False)
+    dep_mode = data.get("scheduled_departure_time_minutes")  # minutes after midnight
+    dep_time = data.get("scheduled_departure_time")  # epoch
+    precond = data.get("preconditioning_enabled", False)
     precond_wkd = data.get("preconditioning_weekdays_only", False)
-    off_peak    = data.get("off_peak_charging_enabled", False)
-    off_peak_end = data.get("off_peak_hours_end_time")            # minutes after midnight
+    off_peak = data.get("off_peak_charging_enabled", False)
+    off_peak_end = data.get("off_peak_hours_end_time")  # minutes after midnight
 
     def _minutes_to_hhmm(mins: int | None) -> str:
         if mins is None:
@@ -260,17 +274,23 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
 
     if is_json_mode():
         from tesla_cli.cli.output import console as _con
-        _con.print(_json.dumps({
-            "scheduled_charging_mode": sched_mode,
-            "scheduled_charging_start": _minutes_to_hhmm(sched_start),
-            "scheduled_charging_start_utc": sched_start_utc,
-            "scheduled_departure_time": _minutes_to_hhmm(dep_mode),
-            "scheduled_departure_epoch": dep_time,
-            "preconditioning_enabled": precond,
-            "preconditioning_weekdays_only": precond_wkd,
-            "off_peak_charging_enabled": off_peak,
-            "off_peak_hours_end_time": _minutes_to_hhmm(off_peak_end),
-        }, indent=2))
+
+        _con.print(
+            _json.dumps(
+                {
+                    "scheduled_charging_mode": sched_mode,
+                    "scheduled_charging_start": _minutes_to_hhmm(sched_start),
+                    "scheduled_charging_start_utc": sched_start_utc,
+                    "scheduled_departure_time": _minutes_to_hhmm(dep_mode),
+                    "scheduled_departure_epoch": dep_time,
+                    "preconditioning_enabled": precond,
+                    "preconditioning_weekdays_only": precond_wkd,
+                    "off_peak_charging_enabled": off_peak,
+                    "off_peak_hours_end_time": _minutes_to_hhmm(off_peak_end),
+                },
+                indent=2,
+            )
+        )
         return
 
     from rich.panel import Panel
@@ -306,9 +326,15 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
 
 @charge_app.command("profile")
 def charge_profile(
-    limit: int | None = typer.Option(None, "--limit", "-l", min=50, max=100, help="Charge limit percent (50–100)"),
-    amps:  int | None = typer.Option(None, "--amps",  "-a", min=1,  max=48,  help="Charge current amps (1–48)"),
-    schedule: str | None = typer.Option(None, "--schedule", "-s", help="Scheduled charge ON time HH:MM (empty string to disable)"),
+    limit: int | None = typer.Option(
+        None, "--limit", "-l", min=50, max=100, help="Charge limit percent (50–100)"
+    ),
+    amps: int | None = typer.Option(
+        None, "--amps", "-a", min=1, max=48, help="Charge current amps (1–48)"
+    ),
+    schedule: str | None = typer.Option(
+        None, "--schedule", "-s", help="Scheduled charge ON time HH:MM (empty string to disable)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """View or set a charge profile (limit + amps + schedule in one command).
@@ -325,8 +351,8 @@ def charge_profile(
     from tesla_cli.core.exceptions import VehicleAsleepError
 
     cfg = load_config()
-    v   = resolve_vin(cfg, vin)
-    b   = get_vehicle_backend(cfg)
+    v = resolve_vin(cfg, vin)
+    b = get_vehicle_backend(cfg)
 
     # ── No args → show current profile ──────────────────────────────────────
     if limit is None and amps is None and schedule is None:
@@ -337,22 +363,29 @@ def charge_profile(
             raise typer.Exit(1)
 
         if is_json_mode():
-            console.print(_json.dumps({
-                "charge_limit_soc":           cs.get("charge_limit_soc"),
-                "charge_amps":                cs.get("charge_amps"),
-                "scheduled_charging_pending": cs.get("scheduled_charging_pending"),
-                "scheduled_charging_start_time": str(cs.get("scheduled_charging_start_time") or ""),
-            }))
+            console.print(
+                _json.dumps(
+                    {
+                        "charge_limit_soc": cs.get("charge_limit_soc"),
+                        "charge_amps": cs.get("charge_amps"),
+                        "scheduled_charging_pending": cs.get("scheduled_charging_pending"),
+                        "scheduled_charging_start_time": str(
+                            cs.get("scheduled_charging_start_time") or ""
+                        ),
+                    }
+                )
+            )
             return
 
         from rich.table import Table
+
         t = Table(show_header=False, box=None, padding=(0, 2))
         t.add_column("k", style="dim", width=26)
         t.add_column("v")
-        t.add_row("Charge limit",      f"{cs.get('charge_limit_soc', '?')}%")
-        t.add_row("Charge amps",       f"{cs.get('charge_amps', '?')} A")
+        t.add_row("Charge limit", f"{cs.get('charge_limit_soc', '?')}%")
+        t.add_row("Charge amps", f"{cs.get('charge_amps', '?')} A")
         t.add_row("Scheduled pending", str(cs.get("scheduled_charging_pending", "?")))
-        t.add_row("Scheduled time",    str(cs.get("scheduled_charging_start_time") or "—"))
+        t.add_row("Scheduled time", str(cs.get("scheduled_charging_start_time") or "—"))
         console.print(t)
         return
 
@@ -380,8 +413,10 @@ def charge_profile(
 
     if ok:
         parts = []
-        if limit is not None:  parts.append(f"limit=[bold]{limit}%[/bold]")
-        if amps  is not None:  parts.append(f"amps=[bold]{amps}A[/bold]")
+        if limit is not None:
+            parts.append(f"limit=[bold]{limit}%[/bold]")
+        if amps is not None:
+            parts.append(f"amps=[bold]{amps}A[/bold]")
         if schedule is not None:
             parts.append(f"schedule=[bold]{'off' if schedule == '' else schedule}[/bold]")
         render_success("Charge profile updated: " + "  ".join(parts))
@@ -392,9 +427,11 @@ def charge_profile(
 
 @charge_app.command("schedule-amps")
 def charge_schedule_amps(
-    schedule_time: str = typer.Argument(..., metavar="HH:MM", help="Scheduled charge start time (24-hour)"),
-    amps: int         = typer.Argument(..., help="Charge current in amps (1–48)"),
-    vin: str | None   = VinOption,
+    schedule_time: str = typer.Argument(
+        ..., metavar="HH:MM", help="Scheduled charge start time (24-hour)"
+    ),
+    amps: int = typer.Argument(..., help="Charge current in amps (1–48)"),
+    vin: str | None = VinOption,
 ) -> None:
     """Enable scheduled charging at a specific time and amperage in one command.
 
@@ -453,18 +490,18 @@ def charge_forecast(vin: str | None = VinOption) -> None:
         console.print(f"[red]Failed to get charge state:[/red] {exc}")
         raise typer.Exit(1)
 
-    level      = cs.get("battery_level") or 0
-    limit      = cs.get("charge_limit_soc") or 80
-    rate_kw    = float(cs.get("charger_power") or 0)
-    range_mi   = float(cs.get("battery_range") or 0)
-    ttf_hrs    = float(cs.get("time_to_full_charge") or 0)
-    state      = cs.get("charging_state") or "Unknown"
+    level = cs.get("battery_level") or 0
+    limit = cs.get("charge_limit_soc") or 80
+    rate_kw = float(cs.get("charger_power") or 0)
+    range_mi = float(cs.get("battery_range") or 0)
+    ttf_hrs = float(cs.get("time_to_full_charge") or 0)
+    state = cs.get("charging_state") or "Unknown"
 
     # Compute estimated completion time
     if ttf_hrs > 0:
-        eta_dt  = _dt.datetime.now() + _dt.timedelta(hours=ttf_hrs)
+        eta_dt = _dt.datetime.now() + _dt.timedelta(hours=ttf_hrs)
         eta_str = eta_dt.strftime("%H:%M")
-        mins    = int(ttf_hrs * 60)
+        mins = int(ttf_hrs * 60)
         dur_str = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
     else:
         eta_str = "—"
@@ -475,45 +512,52 @@ def charge_forecast(vin: str | None = VinOption) -> None:
     kwh_needed = round(rate_kw * ttf_hrs, 2) if ttf_hrs > 0 and rate_kw > 0 else None
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "battery_level":     level,
-            "charge_limit_soc":  limit,
-            "charging_state":    state,
-            "charger_power_kw":  rate_kw,
-            "time_to_full_hrs":  ttf_hrs,
-            "time_to_full_str":  dur_str,
-            "eta":               eta_str,
-            "kwh_needed":        kwh_needed,
-            "battery_range_mi":  range_mi,
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "battery_level": level,
+                    "charge_limit_soc": limit,
+                    "charging_state": state,
+                    "charger_power_kw": rate_kw,
+                    "time_to_full_hrs": ttf_hrs,
+                    "time_to_full_str": dur_str,
+                    "eta": eta_str,
+                    "kwh_needed": kwh_needed,
+                    "battery_range_mi": range_mi,
+                }
+            )
+        )
         return
 
     from rich.table import Table
+
     t = Table(title="Charge Forecast", show_header=False, box=None, padding=(0, 2))
     t.add_column("k", style="dim", width=22)
     t.add_column("v")
 
     state_color = "green" if state == "Charging" else "yellow" if state == "Complete" else "dim"
-    t.add_row("Status",          f"[{state_color}]{state}[/{state_color}]")
-    t.add_row("Battery level",   f"{level}%")
-    t.add_row("Charge limit",    f"{limit}%")
-    t.add_row("Charger power",   f"{rate_kw:.1f} kW" if rate_kw else "—")
-    t.add_row("Time to limit",   f"[bold]{dur_str}[/bold]" if dur_str != "—" else "—")
-    t.add_row("ETA",             f"[bold]{eta_str}[/bold]" if eta_str != "—" else "—")
+    t.add_row("Status", f"[{state_color}]{state}[/{state_color}]")
+    t.add_row("Battery level", f"{level}%")
+    t.add_row("Charge limit", f"{limit}%")
+    t.add_row("Charger power", f"{rate_kw:.1f} kW" if rate_kw else "—")
+    t.add_row("Time to limit", f"[bold]{dur_str}[/bold]" if dur_str != "—" else "—")
+    t.add_row("ETA", f"[bold]{eta_str}[/bold]" if eta_str != "—" else "—")
     if kwh_needed is not None:
-        t.add_row("Energy to add",   f"{kwh_needed:.2f} kWh")
-    t.add_row("Range",           f"{range_mi:.1f} mi")
+        t.add_row("Energy to add", f"{kwh_needed:.2f} kWh")
+    t.add_row("Range", f"{range_mi:.1f} mi")
 
     console.print(t)
     if state not in ("Charging",):
-        console.print("\n  [dim]Vehicle is not currently charging — connect to a charger to get a live forecast.[/dim]")
+        console.print(
+            "\n  [dim]Vehicle is not currently charging — connect to a charger to get a live forecast.[/dim]"
+        )
 
 
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
-    from tesla_cli.core.exceptions import BackendNotSupportedError
     from tesla_cli.cli.output import console
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
     backend = _backend()
     try:
