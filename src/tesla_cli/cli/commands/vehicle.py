@@ -1987,3 +1987,97 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
         console.print(f"\n  [yellow]⚠ {warnings} item(s) to review[/yellow]")
     else:
         console.print("\n  [green]✓ All checks passed[/green]")
+
+
+@vehicle_app.command("summary")
+def vehicle_summary(vin: str | None = VinOption) -> None:
+    """Compact one-line-per-item vehicle snapshot.
+
+    Quick status check: battery, range, charging, climate, location,
+    locks, sentry, software — all in a single compact view.
+
+    tesla vehicle summary
+    tesla vehicle summary --vin modely
+    tesla -j vehicle summary
+    """
+    import json as _json
+
+    from rich.panel import Panel
+    from rich.text import Text
+
+    v = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, default=str))
+        return
+
+    cs = data.get("charge_state", {})
+    cl = data.get("climate_state", {})
+    ds = data.get("drive_state", {})
+    vs = data.get("vehicle_state", {})
+
+    # Battery
+    level = cs.get("battery_level", "?")
+    range_mi = cs.get("battery_range", 0)
+    range_km = round(range_mi * 1.60934, 1) if range_mi else "?"
+    charge_state = cs.get("charging_state", "Unknown")
+    limit = cs.get("charge_limit_soc", "?")
+
+    # Charging details
+    charge_line = f"⚡ {charge_state}"
+    if charge_state == "Charging":
+        rate = cs.get("charger_power", 0)
+        eta = cs.get("time_to_full_charge", 0)
+        eta_str = f"{int(eta)}h{int((eta % 1) * 60):02d}m" if eta else ""
+        charge_line += f" @ {rate} kW — {eta_str} to {limit}%"
+    elif charge_state == "Complete":
+        charge_line += " ✓"
+    elif charge_state == "Stopped":
+        charge_line += f" (limit: {limit}%)"
+
+    # Climate
+    inside = cl.get("inside_temp")
+    outside = cl.get("outside_temp")
+    hvac = cl.get("is_climate_on", False)
+    climate_line = ""
+    if inside is not None:
+        climate_line = f"🌡 {inside}°C inside"
+        if outside is not None:
+            climate_line += f" / {outside}°C outside"
+        if hvac:
+            climate_line += " — [green]HVAC ON[/green]"
+
+    # Location
+    lat = ds.get("latitude")
+    lon = ds.get("longitude")
+    speed = ds.get("speed") or 0
+    loc_line = ""
+    if lat and lon:
+        loc_line = f"📍 {lat:.4f}, {lon:.4f}"
+        if speed > 0:
+            loc_line += f" — {speed} km/h"
+
+    # State
+    locked = vs.get("locked", False)
+    sentry = vs.get("sentry_mode", False)
+    odo = vs.get("odometer")
+    sw = vs.get("car_version", "?")
+
+    lock_icon = "🔒" if locked else "🔓"
+    sentry_icon = "🛡 ON" if sentry else "🛡 off"
+
+    lines = Text()
+    lines.append(f"🔋 {level}% — {range_km} km — limit {limit}%\n")
+    lines.append(f"{charge_line}\n")
+    if climate_line:
+        lines.append(f"{climate_line}\n")
+    if loc_line:
+        lines.append(f"{loc_line}\n")
+    lines.append(f"{lock_icon} {'Locked' if locked else 'Unlocked'}  |  {sentry_icon}  |  🚗 {sw}\n")
+    if odo:
+        odo_km = round(odo * 1.60934)
+        lines.append(f"📏 {odo_km:,} km")
+
+    vin_short = v[-6:] if len(v) > 6 else v
+    console.print(Panel(lines, title=f"Tesla — {vin_short}", border_style="blue", padding=(0, 1)))

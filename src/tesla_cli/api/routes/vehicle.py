@@ -139,3 +139,50 @@ def vehicle_wake(request: Request) -> dict:
         return {"status": "ok", "result": result}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/summary")
+def vehicle_summary(request: Request) -> dict:
+    """Compact vehicle snapshot: battery, charging, climate, location, locks, software."""
+    backend, v = _backend_and_vin(request)
+    try:
+        data = backend.get_vehicle_data(v)
+    except VehicleAsleepError:
+        raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+
+    cs = data.get("charge_state", {})
+    cl = data.get("climate_state", {})
+    ds = data.get("drive_state", {})
+    vs = data.get("vehicle_state", {})
+
+    range_mi = cs.get("battery_range", 0)
+    odo = vs.get("odometer")
+
+    return {
+        "vin": v,
+        "battery": {
+            "level": cs.get("battery_level"),
+            "range_km": round(range_mi * 1.60934, 1) if range_mi else None,
+            "limit": cs.get("charge_limit_soc"),
+            "charging_state": cs.get("charging_state"),
+            "charger_power": cs.get("charger_power"),
+            "time_to_full_charge": cs.get("time_to_full_charge"),
+        },
+        "climate": {
+            "inside_temp": cl.get("inside_temp"),
+            "outside_temp": cl.get("outside_temp"),
+            "hvac_on": cl.get("is_climate_on", False),
+        },
+        "location": {
+            "latitude": ds.get("latitude"),
+            "longitude": ds.get("longitude"),
+            "speed": ds.get("speed"),
+            "heading": ds.get("heading"),
+        },
+        "state": {
+            "locked": vs.get("locked", False),
+            "sentry_mode": vs.get("sentry_mode", False),
+            "software": vs.get("car_version"),
+            "odometer_km": round(odo * 1.60934) if odo else None,
+        },
+    }
