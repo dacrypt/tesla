@@ -8,10 +8,8 @@ from tesla_cli.cli.commands.vehicle import _with_wake
 from tesla_cli.cli.output import (
     console,
     is_json_mode,
-    render_dict,
     render_model,
     render_success,
-    render_table,
 )
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
@@ -556,8 +554,11 @@ def charge_forecast(vin: str | None = VinOption) -> None:
 @charge_app.command("history")
 def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
     """Show charging history (Fleet API) or redirect to TeslaMate."""
+    from rich.table import Table
+
     from tesla_cli.cli.output import console
     from tesla_cli.core.exceptions import BackendNotSupportedError
+    from tesla_cli.core.models.charge import ChargingHistory
 
     backend = _backend()
     try:
@@ -570,11 +571,29 @@ def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
         )
         raise typer.Exit(1)
 
-    if isinstance(data, list):
-        render_table(
-            data,
-            columns=["date", "location", "kwh", "cost", "duration"],
-            title="Charging History",
-        )
-    else:
-        render_dict(data, title="Charging History")
+    if is_json_mode():
+        import json
+
+        console.print_json(json.dumps(data))
+        return
+
+    history = ChargingHistory.from_api(data)
+
+    if not history.points:
+        console.print("[yellow]No charging history available.[/yellow]")
+        return
+
+    t = Table(title=f"Charging History — {history.total_label}", show_lines=False)
+    t.add_column("Date", style="cyan")
+    t.add_column("kWh", justify="right", style="green")
+    t.add_column("Location", style="dim")
+
+    for pt in history.points:
+        t.add_row(pt.timestamp, f"{pt.kwh:.1f}", pt.location)
+
+    console.print(t)
+
+    if history.breakdown:
+        console.print()
+        for label in history.breakdown.values():
+            console.print(f"  [dim]{label}[/dim]")

@@ -102,7 +102,12 @@ def mock_fleet_backend():
     }
     backend.get_release_notes.return_value = {"release_notes": []}
     backend.get_recent_alerts.return_value = {"recent_alerts": []}
-    backend.get_charge_history.return_value = []
+    backend.get_charge_history.return_value = {
+        "screen_title": "Charging History",
+        "total_charged": {"title": "Total", "value": "0", "after_adornment": "kWh"},
+        "charging_history_graph": {"data_points": []},
+        "total_charged_breakdown": {},
+    }
     backend.get_invitations.return_value = []
     backend.list_vehicles.return_value = [MOCK_VEHICLE_DATA]
     backend.command.return_value = MOCK_COMMAND_OK

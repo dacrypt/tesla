@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
-from tesla_cli.core.exceptions import VehicleAsleepError
+from tesla_cli.core.exceptions import BackendNotSupportedError, VehicleAsleepError
 
 router = APIRouter()
 
@@ -82,3 +82,23 @@ def charge_stop(request: Request) -> dict:
         return {"status": "ok"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+
+
+@router.get("/history")
+def charge_history(request: Request) -> dict:
+    """Charging history (Fleet API). Returns parsed history with total kWh and per-session data."""
+    from tesla_cli.core.models.charge import ChargingHistory
+
+    cfg = load_config()
+    backend = get_vehicle_backend(cfg)
+    try:
+        raw = backend.get_charge_history()
+    except BackendNotSupportedError:
+        raise HTTPException(
+            status_code=501,
+            detail="charge history requires Fleet API backend. "
+            "Use /api/teslaMate/charging for TeslaMate data.",
+        )
+
+    history = ChargingHistory.from_api(raw)
+    return history.model_dump()
