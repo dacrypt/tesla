@@ -558,8 +558,10 @@ export const api = {
     client().post<{ ok: boolean; expires_in?: number }>('/api/auth/callback', { code, state }).then(r => r.data),
   postAuthTessie: (token: string) =>
     client().post<{ ok: boolean }>('/api/auth/tessie', { token }).then(r => r.data),
+  browserLogin: (email: string, password: string, mfa_code?: string) =>
+    client().post<any>('/api/auth/browser-login', { email, password, mfa_code }, { timeout: 120000 }).then(r => r.data),
   getAuthStatus: () =>
-    client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
+    client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_order: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
 
   // Data Sources
   getSources: () =>

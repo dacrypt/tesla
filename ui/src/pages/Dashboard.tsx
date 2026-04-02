@@ -251,8 +251,11 @@ const Dashboard: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(true); // Assume true initially
   const [authLoading, setAuthLoading] = useState(false);
-  const [showAuthInput, setShowAuthInput] = useState(false);
-  const [callbackUrl, setCallbackUrl] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginMfa, setLoginMfa] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const history = useHistory();
 
   // Check auth status on mount
@@ -263,28 +266,31 @@ const Dashboard: React.FC = () => {
     }).catch(() => setAuthChecked(true));
   }, []);
 
-  const startLogin = async () => {
+  const doLogin = async () => {
+    if (!loginEmail.trim() || !loginPassword.trim()) return;
     setAuthLoading(true);
+    setLoginError('');
     try {
-      const data = await api.getAuthLogin();
-      setShowAuthInput(true);
-      window.open(data.auth_url, 'tesla-auth', 'width=600,height=700');
-    } catch { /* */ } finally { setAuthLoading(false); }
-  };
-
-  const submitCallback = async () => {
-    if (!callbackUrl.trim()) return;
-    setAuthLoading(true);
-    try {
-      const url = new URL(callbackUrl.trim());
-      const code = url.searchParams.get('code');
-      if (!code) return;
-      await api.postAuthCallback(code, url.searchParams.get('state') || '');
-      setAuthenticated(true);
-      setShowAuthInput(false);
-      setCallbackUrl('');
-      refresh();
-    } catch { /* */ } finally { setAuthLoading(false); }
+      const result = await api.browserLogin(loginEmail.trim(), loginPassword.trim(), loginMfa || undefined);
+      if (result.ok) {
+        setAuthenticated(true);
+        setMfaRequired(false);
+        refresh();
+      } else if (result.mfa_required) {
+        setMfaRequired(true);
+      } else {
+        setLoginError(result.error || 'Login failed');
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e.message || 'Login failed';
+      if (msg.includes('MFA') || msg.includes('mfa')) {
+        setMfaRequired(true);
+      } else {
+        setLoginError(msg);
+      }
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const handleCommand = async (command: string, params?: Record<string, unknown>, label?: string) => {
@@ -399,39 +405,50 @@ const Dashboard: React.FC = () => {
               Connect your Tesla account to monitor your vehicle, track deliveries, and access all features.
             </div>
 
-            {!showAuthInput ? (
-              <button
-                onClick={startLogin}
+            <div style={{ width: '100%', maxWidth: 320 }}>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="Tesla email"
+                className="tesla-input"
+                style={{ marginBottom: 8, fontSize: 14 }}
                 disabled={authLoading}
-                className="tesla-btn"
-                style={{ width: '100%', maxWidth: 300, fontSize: 16, padding: '14px 24px', borderRadius: 12 }}
-              >
-                {authLoading ? <span style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} /> : 'Login with Tesla'}
-              </button>
-            ) : (
-              <div style={{ width: '100%', maxWidth: 320 }}>
-                <div style={{ color: '#86888f', fontSize: 12, marginBottom: 8, lineHeight: 1.5, textAlign: 'center' }}>
-                  After signing in, you'll see a blank page.<br />
-                  <strong style={{ color: '#fff' }}>Copy the full URL</strong> and paste it below.
-                </div>
+              />
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="Password"
+                className="tesla-input"
+                style={{ marginBottom: 8, fontSize: 14 }}
+                disabled={authLoading}
+                onKeyDown={(e) => e.key === 'Enter' && doLogin()}
+              />
+              {mfaRequired && (
                 <input
-                  type="url"
-                  value={callbackUrl}
-                  onChange={(e) => setCallbackUrl(e.target.value)}
-                  placeholder="https://auth.tesla.com/void/callback?code=..."
-                  className="tesla-input mono"
-                  style={{ marginBottom: 8, fontSize: 12 }}
+                  type="text"
+                  value={loginMfa}
+                  onChange={(e) => setLoginMfa(e.target.value)}
+                  placeholder="MFA code"
+                  className="tesla-input"
+                  style={{ marginBottom: 8, fontSize: 14, textAlign: 'center', letterSpacing: '0.2em' }}
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && doLogin()}
                 />
-                <button
-                  onClick={submitCallback}
-                  disabled={authLoading || !callbackUrl.trim()}
-                  className="tesla-btn"
-                  style={{ width: '100%', fontSize: 14, padding: '12px 16px' }}
-                >
-                  {authLoading ? 'Connecting...' : 'Connect'}
-                </button>
-              </div>
-            )}
+              )}
+              {loginError && (
+                <div style={{ color: '#FF6B6B', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{loginError}</div>
+              )}
+              <button
+                onClick={doLogin}
+                disabled={authLoading || !loginEmail.trim() || !loginPassword.trim()}
+                className="tesla-btn"
+                style={{ width: '100%', fontSize: 16, padding: '14px 24px', borderRadius: 12 }}
+              >
+                {authLoading ? 'Connecting...' : mfaRequired ? 'Verify MFA' : 'Login with Tesla'}
+              </button>
+            </div>
 
             <div style={{ color: '#86888f', fontSize: 11, marginTop: 24, opacity: 0.5 }}>
               Your credentials are sent directly to Tesla — we never see your password.
