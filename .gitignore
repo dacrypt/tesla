@@ -58,3 +58,4 @@ src/tesla_cli/api/ui_dist/
 # Temp
 fix-live-sources.py
 superchargers-co.json
+.env.local

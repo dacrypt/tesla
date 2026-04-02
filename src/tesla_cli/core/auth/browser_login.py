@@ -1,19 +1,21 @@
 """Automated Tesla login via headless browser (patchright).
 
-The user provides email + password in our app. We automate the full
-Tesla OAuth login flow in a headless browser, capturing both the
-Owner API token (for orders) and Fleet API token (for vehicle data).
-
-Uses patchright (undetectable Playwright fork) to avoid bot detection.
+Uses patchright (undetectable Playwright fork) to automate Tesla OAuth.
+Tesla uses hCaptcha on the login page — patchright can sometimes bypass it
+due to its undetectable nature, but it may fail if hCaptcha triggers.
 """
 
 from __future__ import annotations
 
-import json
+import base64
+import hashlib
 import logging
-import re
+import secrets
 import time
+import urllib.parse
 from typing import Any
+
+import httpx
 
 log = logging.getLogger("tesla-cli.browser-login")
 
@@ -28,18 +30,12 @@ def browser_login(
     mfa_code: str | None = None,
     client_id: str = "ownerapi",
     scopes: str = "openid email offline_access",
-    timeout: int = 60,
+    timeout: int = 90,
 ) -> dict[str, Any]:
-    """Automate Tesla login in headless browser.
+    """Automate Tesla login in browser via patchright.
 
-    Returns: {access_token, refresh_token, token_type, expires_in, id_token}
-    Raises: Exception on failure with descriptive message.
+    Returns: {access_token, refresh_token, token_type, expires_in}
     """
-    import hashlib
-    import secrets
-    import base64
-    import urllib.parse
-
     from patchright.sync_api import sync_playwright
 
     # PKCE
@@ -60,56 +56,64 @@ def browser_login(
     })
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800},
         )
         page = context.new_page()
 
         try:
-            # Navigate to Tesla auth
-            log.info("Opening Tesla login page...")
-            page.goto(auth_url, wait_until="domcontentloaded", timeout=timeout * 1000)
-            page.wait_for_timeout(2000)
+            log.info("Opening Tesla login...")
+            page.goto(auth_url, timeout=timeout * 1000)
+
+            # Wait for email input
+            log.info("Waiting for email field...")
+            email_input = page.wait_for_selector('input#identity, input[name="identity"]', timeout=20000)
+            if not email_input:
+                raise Exception("Email input not found")
 
             # Fill email
-            log.info("Filling email...")
-            email_input = page.wait_for_selector('input#form-input-identity', timeout=15000)
-            if not email_input:
-                raise Exception("Email input not found on Tesla login page")
             email_input.fill(email)
             page.wait_for_timeout(500)
 
-            # Click "Next" or submit
-            submit_btn = page.query_selector('button[type="submit"], button#form-submit-continue')
-            if submit_btn:
-                submit_btn.click()
-                page.wait_for_timeout(2000)
+            # Click Next
+            next_btn = page.query_selector('button:has-text("Next")')
+            if next_btn and next_btn.is_visible():
+                next_btn.click()
+            else:
+                page.keyboard.press("Enter")
 
-            # Fill password
-            log.info("Filling password...")
-            password_input = page.wait_for_selector('input#form-input-credential', timeout=10000)
+            page.wait_for_timeout(3000)
+
+            # Wait for password field
+            log.info("Waiting for password field...")
+            password_input = page.wait_for_selector(
+                'input#credential, input[name="credential"], input[type="password"]',
+                timeout=15000,
+            )
             if not password_input:
                 raise Exception("Password input not found")
+
             password_input.fill(password)
             page.wait_for_timeout(500)
 
-            # Submit login
-            submit_btn = page.query_selector('button[type="submit"], button#form-submit-continue')
-            if submit_btn:
+            # Submit
+            submit_btn = page.query_selector('button:has-text("Sign In"), button:has-text("Submit"), button[type="submit"]')
+            if submit_btn and submit_btn.is_visible():
                 submit_btn.click()
+            else:
+                page.keyboard.press("Enter")
 
-            # Wait for redirect or MFA
+            # Wait for result
             log.info("Waiting for auth result...")
             deadline = time.monotonic() + timeout
 
             while time.monotonic() < deadline:
-                current_url = page.url
+                url = page.url
 
-                # Success: redirected to void/callback with code
-                if "void/callback" in current_url and "code=" in current_url:
-                    parsed = urllib.parse.urlparse(current_url)
+                # Success
+                if "void/callback" in url and "code=" in url:
+                    parsed = urllib.parse.urlparse(url)
                     qs = urllib.parse.parse_qs(parsed.query)
                     code = qs.get("code", [""])[0]
                     if code:
@@ -117,32 +121,34 @@ def browser_login(
                         browser.close()
                         return _exchange_code(code, client_id, verifier)
 
-                # MFA required
-                mfa_input = page.query_selector('input[name="credential"], input#form-input-credential')
-                if mfa_input and "passcode" in (page.content() or "").lower():
+                # MFA
+                mfa_el = page.query_selector('input#credential, input[name="credential"]')
+                page_text = page.text_content("body") or ""
+                if mfa_el and mfa_el.is_visible() and ("passcode" in page_text.lower() or "verification" in page_text.lower()):
                     if mfa_code:
-                        log.info("Filling MFA code...")
-                        mfa_input.fill(mfa_code)
-                        submit = page.query_selector('button[type="submit"]')
-                        if submit:
-                            submit.click()
+                        log.info("Filling MFA...")
+                        mfa_el.fill(mfa_code)
+                        btn = page.query_selector('button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]')
+                        if btn:
+                            btn.click()
                         page.wait_for_timeout(3000)
                     else:
                         browser.close()
                         raise Exception("MFA_REQUIRED")
 
-                # Error on page
-                error_el = page.query_selector('.error-message, .form-error, [data-testid="error"]')
-                if error_el:
-                    error_text = error_el.inner_text()
-                    if error_text.strip():
-                        browser.close()
-                        raise Exception(f"Tesla login error: {error_text.strip()}")
+                # Check for error messages
+                for sel in ['.error-message', '.form-error', '[class*="error"]', '[class*="Error"]']:
+                    err_el = page.query_selector(sel)
+                    if err_el and err_el.is_visible():
+                        txt = err_el.inner_text().strip()
+                        if txt and len(txt) > 5 and "captcha" not in txt.lower():
+                            browser.close()
+                            raise Exception(f"Tesla: {txt}")
 
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
 
             browser.close()
-            raise Exception("Login timed out. Check credentials or try again.")
+            raise Exception("Login timed out. Tesla may require manual captcha completion.")
 
         except Exception:
             try:
@@ -154,7 +160,6 @@ def browser_login(
 
 def _exchange_code(code: str, client_id: str, verifier: str) -> dict[str, Any]:
     """Exchange auth code for tokens."""
-    import httpx
     r = httpx.post(TESLA_TOKEN_URL, data={
         "grant_type": "authorization_code",
         "client_id": client_id,
@@ -166,18 +171,16 @@ def _exchange_code(code: str, client_id: str, verifier: str) -> dict[str, Any]:
     return r.json()
 
 
-def full_login(email: str, password: str, mfa_code: str | None = None, fleet_client_id: str | None = None) -> dict[str, Any]:
-    """Full login: get both Owner API and Fleet API tokens.
-
-    Returns: {
-        order: {access_token, refresh_token, ...},
-        fleet: {access_token, refresh_token, ...} | None,
-        email: str,
-    }
-    """
+def full_login(
+    email: str,
+    password: str,
+    mfa_code: str | None = None,
+    fleet_client_id: str | None = None,
+) -> dict[str, Any]:
+    """Get both Owner API and Fleet API tokens in one flow."""
     result: dict[str, Any] = {"email": email}
 
-    # Step 1: Owner API token (for orders)
+    # Owner API token (for orders)
     log.info("Getting Owner API token...")
     order_tokens = browser_login(
         email, password, mfa_code,
@@ -186,7 +189,7 @@ def full_login(email: str, password: str, mfa_code: str | None = None, fleet_cli
     )
     result["order"] = order_tokens
 
-    # Step 2: Fleet API token (for vehicle data) — if we have a client_id
+    # Fleet API token (for vehicle data)
     if fleet_client_id:
         log.info("Getting Fleet API token...")
         try:
@@ -197,7 +200,7 @@ def full_login(email: str, password: str, mfa_code: str | None = None, fleet_cli
             )
             result["fleet"] = fleet_tokens
         except Exception as exc:
-            log.warning("Fleet token failed (order token still valid): %s", exc)
+            log.warning("Fleet token failed: %s", exc)
             result["fleet"] = None
     else:
         result["fleet"] = None
