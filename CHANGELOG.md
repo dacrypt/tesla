@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-04-02
+
+### Documentation
+
+- **Restructured documentation** into `docs/` directory with single-responsibility files:
+  - `docs/user-guide.md` — complete CLI command reference (13 groups)
+  - `docs/architecture.md` — system design, provider layers, ADRs, testing patterns
+  - `docs/configuration.md` — config keys, auth, tokens, environment variables
+  - `docs/api-reference.md` — REST endpoints, SSE, Prometheus, web dashboard
+  - `docs/data-sources.md` — Tesla API catalog, 15 registered sources
+  - `docs/roadmap.md` — forward-looking only (shipped features in CHANGELOG)
+  - `docs/research/competitive-analysis.md` — 20-tool ecosystem deep dive
+- **README.md** reduced from 857 to 99 lines (intro + quick start + links to docs)
+- **CLAUDE.md** added for Claude Code project context in every session
+- **Eliminated**: IMPLEMENTATION-PLAN.md (obsolete), redundant ROADMAP.md
+- **Custom slash commands**: `.claude/commands/test.md`, `review.md`, `release.md`
+
+### Improvements
+
+- **`tesla charge history`** — improved with structured `ChargingHistory` Pydantic model:
+  - Rich table output with Date/kWh/Location columns
+  - Breakdown summary (Home vs Supercharging)
+  - JSON mode support (`-j`)
+  - Graceful fallback to TeslaMate when Fleet API unavailable
+- **`GET /api/charge/history`** — new REST endpoint returning parsed charging history
+- **Fleet backend** — fixed `charge_history` to use POST (per Tesla API spec)
+
+### Fixes
+
+- Mark `TestBrowserLogin` and `TestBrowserLoginAPI` as `@pytest.mark.integration`
+- Fix vampire drain test mock to match current SQL schema (`km_per_hour`)
+- Fix TeslaMate status test assertion for managed stack mode
+- Remove stale `has_token` patches from teslamate_stack tests
+- Fix 76 lint issues (ruff auto-fix: unsorted imports, unused imports)
+- Simplify `is_running()` to use `any()` (SIM110)
+
+### Tests
+
+- 1121 tests passing (7 new for charge history)
+
 ## [4.0.0] - 2026-04-01
 
 ### Architecture — Clean Architecture + Monorepo + TeslaMate Managed Stack
