@@ -96,22 +96,24 @@ def _auto_provision_teslamate() -> None:
             log.warning("Auto-install of TeslaMate stack failed: %s", exc)
 
 
-def _auto_refresh_dossier() -> None:
-    """Periodically refresh the dossier to keep data fresh."""
+def _auto_refresh_sources() -> None:
+    """Periodically refresh stale data sources."""
     import time as _t
-    log = logging.getLogger("tesla-cli.dossier-refresh")
-    _t.sleep(30)  # Wait for server to be fully ready
+    log = logging.getLogger("tesla-cli.sources-refresh")
+    _t.sleep(60)  # Wait for server to be fully ready
     while True:
         try:
-            cfg = load_config()
-            vin = cfg.general.default_vin
-            if vin:
-                from tesla_cli.core.backends.dossier import build_dossier
-                build_dossier(vin, cfg)
-                log.info("Dossier auto-refreshed.")
+            from tesla_cli.core.sources import refresh_stale
+            result = refresh_stale()
+            refreshed = result.get("refreshed", [])
+            failed = result.get("failed", [])
+            if refreshed:
+                log.info("Sources refreshed: %s", ", ".join(refreshed))
+            if failed:
+                log.debug("Sources failed: %s", ", ".join(f["id"] for f in failed))
         except Exception as exc:
-            log.debug("Dossier auto-refresh skipped: %s", exc)
-        _t.sleep(3600)  # Every hour
+            log.debug("Source auto-refresh failed: %s", exc)
+        _t.sleep(1800)  # Every 30 minutes
 
 
 @asynccontextmanager
@@ -119,7 +121,7 @@ async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
     import threading
     threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
-    threading.Thread(target=_auto_refresh_dossier, daemon=True).start()
+    threading.Thread(target=_auto_refresh_sources, daemon=True).start()
     yield
 
 
@@ -153,6 +155,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.charge import router as charge_router
     from tesla_cli.api.routes.colombia import router as colombia_router
+    from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.order import router as order_router
@@ -160,6 +163,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
     app.include_router(auth_router,      prefix="/api/auth",       tags=["Auth"])
+    app.include_router(sources_router,   prefix="/api/sources",    tags=["Sources"])
     app.include_router(colombia_router,  prefix="/api/co",         tags=["Colombia"])
     app.include_router(vehicle_router,   prefix="/api/vehicle",    tags=["Vehicle"])
     app.include_router(charge_router,    prefix="/api/charge",     tags=["Charge"])
