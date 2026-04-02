@@ -102,3 +102,49 @@ def charge_history(request: Request) -> dict:
 
     history = ChargingHistory.from_api(raw)
     return history.model_dump()
+
+
+@router.get("/sessions")
+def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
+    """Unified charging sessions from best available source (TeslaMate > Fleet API).
+
+    Returns a list of normalized ChargingSession objects with source attribution.
+    Applies cost_per_kwh estimation when actual cost is missing.
+    """
+    from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh
+    sessions: list[ChargingSession] = []
+
+    # Try TeslaMate first
+    try:
+        if cfg.teslaMate.dsn:
+            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+            tm = TeslaMateBacked(cfg.teslaMate.dsn)
+            rows = tm.get_charging_sessions(limit=limit)
+            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
+    except Exception:
+        pass
+
+    # Fall back to Fleet API
+    if not sessions:
+        try:
+            backend = get_vehicle_backend(cfg)
+            raw = backend.get_charge_history()
+            history = ChargingHistory.from_api(raw)
+            sessions = [
+                ChargingSession.from_fleet_point(pt, cost_per_kwh)
+                for pt in history.points[:limit]
+            ]
+        except Exception:
+            pass
+
+    if not sessions:
+        raise HTTPException(
+            status_code=404,
+            detail="No charging sessions. Connect TeslaMate or use Fleet API backend.",
+        )
+
+    return [s.model_dump() for s in sessions]

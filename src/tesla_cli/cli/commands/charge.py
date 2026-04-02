@@ -597,3 +597,103 @@ def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
         console.print()
         for label in history.breakdown.values():
             console.print(f"  [dim]{label}[/dim]")
+
+
+@charge_app.command("sessions")
+def charge_sessions(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions"),
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Unified charging sessions from all available sources.
+
+    Prefers TeslaMate (richer data: per-session costs, battery levels).
+    Falls back to Fleet API. Applies cost_per_kwh estimation when actual cost is missing.
+    """
+    import json
+
+    from rich.table import Table
+
+    from tesla_cli.cli.output import console
+    from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh
+    sessions: list[ChargingSession] = []
+    source_used = ""
+
+    # Try TeslaMate first (richer data)
+    try:
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+        if cfg.teslaMate.dsn:
+            tm = TeslaMateBacked(cfg.teslaMate.dsn)
+            rows = tm.get_charging_sessions(limit=limit)
+            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
+            source_used = "TeslaMate"
+    except Exception:
+        pass
+
+    # Fall back to Fleet API
+    if not sessions:
+        try:
+            backend = _backend()
+            raw = backend.get_charge_history()
+            history = ChargingHistory.from_api(raw)
+            sessions = [
+                ChargingSession.from_fleet_point(pt, cost_per_kwh)
+                for pt in history.points[:limit]
+            ]
+            source_used = "Fleet API"
+        except Exception:
+            pass
+
+    if not sessions:
+        console.print("[yellow]No charging sessions available.[/yellow]")
+        console.print(
+            "[dim]Tip: Connect TeslaMate (`tesla teslaMate connect`) "
+            "or use Fleet API backend for charging data.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    if is_json_mode():
+        console.print_json(json.dumps([s.model_dump() for s in sessions]))
+        return
+
+    t = Table(
+        title=f"Charging Sessions ({source_used})",
+        caption=f"{len(sessions)} sessions" + (f" | cost_per_kwh: ${cost_per_kwh}" if cost_per_kwh else ""),
+    )
+    t.add_column("#", style="dim", justify="right")
+    t.add_column("Date", style="cyan")
+    t.add_column("Location", max_width=30)
+    t.add_column("kWh", justify="right", style="green")
+    t.add_column("Cost", justify="right")
+    t.add_column("Battery", justify="center")
+
+    total_kwh = 0.0
+    total_cost = 0.0
+
+    for i, s in enumerate(sessions, 1):
+        cost_str = "—"
+        if s.cost is not None:
+            cost_str = f"${s.cost:.2f}"
+            if s.cost_estimated:
+                cost_str += " ~"
+            total_cost += s.cost
+
+        batt_str = "—"
+        if s.battery_start is not None and s.battery_end is not None:
+            batt_str = f"{s.battery_start}% → {s.battery_end}%"
+
+        total_kwh += s.kwh
+        t.add_row(str(i), s.date, s.location, f"{s.kwh:.1f}", cost_str, batt_str)
+
+    console.print(t)
+
+    # Summary line
+    summary = f"  [bold]{total_kwh:.1f} kWh[/bold] total"
+    if total_cost > 0:
+        summary += f" | [bold]${total_cost:.2f}[/bold] total cost"
+        if any(s.cost_estimated for s in sessions):
+            summary += " [dim](~ = estimated)[/dim]"
+    console.print(summary)

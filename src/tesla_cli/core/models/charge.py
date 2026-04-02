@@ -87,3 +87,53 @@ class ChargingHistory(BaseModel):
             points=points,
             breakdown=breakdown,
         )
+
+
+class ChargingSession(BaseModel):
+    """Unified charging session from any source (TeslaMate, Fleet API, Tessie)."""
+
+    date: str = ""
+    location: str = ""
+    kwh: float = 0.0
+    cost: float | None = None
+    cost_estimated: bool = False
+    battery_start: int | None = None
+    battery_end: int | None = None
+    source: str = ""  # "teslamate", "fleet", "tessie"
+
+    @classmethod
+    def from_teslamate(cls, row: dict, cost_per_kwh: float = 0.0) -> ChargingSession:
+        """Create from TeslaMate charging_processes row."""
+        kwh = float(row.get("energy_added_kwh") or 0)
+        cost = row.get("cost")
+        estimated = False
+        if cost is None and cost_per_kwh > 0 and kwh > 0:
+            cost = round(kwh * cost_per_kwh, 2)
+            estimated = True
+        return cls(
+            date=str(row.get("start_date") or "")[:16],
+            location=(row.get("location") or "Unknown")[:40],
+            kwh=round(kwh, 2),
+            cost=round(float(cost), 2) if cost is not None else None,
+            cost_estimated=estimated,
+            battery_start=row.get("start_battery_level"),
+            battery_end=row.get("end_battery_level"),
+            source="teslamate",
+        )
+
+    @classmethod
+    def from_fleet_point(cls, pt: ChargingHistoryPoint, cost_per_kwh: float = 0.0) -> ChargingSession:
+        """Create from Fleet API charging history data point."""
+        cost = None
+        estimated = False
+        if cost_per_kwh > 0 and pt.kwh > 0:
+            cost = round(pt.kwh * cost_per_kwh, 2)
+            estimated = True
+        return cls(
+            date=pt.timestamp,
+            location=pt.location,
+            kwh=pt.kwh,
+            cost=cost,
+            cost_estimated=estimated,
+            source="fleet",
+        )
