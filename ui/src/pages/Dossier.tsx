@@ -288,6 +288,40 @@ const Dossier: React.FC = () => {
 
                         {/* Data */}
                         {sd?.data && <SourceData data={sd.data} />}
+
+                        {/* Changes detected */}
+                        {sd?.data?.changes && Array.isArray(sd.data.changes) && sd.data.changes.length > 0 && (
+                          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(249,151,22,0.08)', border: '1px solid rgba(249,151,22,0.15)', borderRadius: 8 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: '#F99716', marginBottom: 4 }}>Cambios detectados</div>
+                            {sd.data.changes.map((ch: any, ci: number) => (
+                              <div key={ci} style={{ fontSize: 10, color: '#86888f', marginBottom: 2 }}>
+                                <span style={{ color: '#fff' }}>{ch.field}</span>: {ch.old || '—'} → <span style={{ color: '#0BE881' }}>{ch.new || '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Audit PDF link */}
+                        {src.uses_playwright && sd?.data && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const audits = await api.getSourceAudits(src.id);
+                                if (audits.length > 0) {
+                                  const baseUrl = (api as any).getBaseUrl?.() || '';
+                                  window.open(`${baseUrl}/api/sources/${src.id}/audit/${audits[0].filename}`, '_blank');
+                                }
+                              } catch { /* */ }
+                            }}
+                            style={{
+                              marginTop: 6, background: 'none', border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                              color: '#86888f', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4,
+                            }}
+                          >
+                            📄 Ver evidencia PDF
+                          </button>
+                        )}
                       </div>
                     );
                   })}

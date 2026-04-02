@@ -55,6 +55,29 @@ def update_source_config(req: ConfigUpdate) -> dict:
     return {"ok": True, "changed": changed}
 
 
+@router.get("/{source_id}/history")
+def source_history(source_id: str, limit: int = 50) -> list:
+    """History of data changes for a source."""
+    return sources.get_history(source_id, limit)
+
+
+@router.get("/{source_id}/audits")
+def source_audits(source_id: str) -> list:
+    """List available audit/evidence PDFs for a source."""
+    return sources.get_audits(source_id)
+
+
+@router.get("/{source_id}/audit/{filename}")
+def source_audit_pdf(source_id: str, filename: str):
+    """Download an audit evidence PDF."""
+    from fastapi.responses import FileResponse
+    from tesla_cli.core.config import CONFIG_DIR
+    pdf_path = CONFIG_DIR / "source_audits" / filename
+    if not pdf_path.exists() or not filename.startswith(source_id):
+        raise HTTPException(404, "Audit PDF not found")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
+
+
 @router.post("/refresh-stale")
 def sources_refresh_stale() -> dict:
     """Refresh all stale sources."""
