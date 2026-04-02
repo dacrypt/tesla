@@ -177,7 +177,11 @@ def missing_auth() -> list[dict]:
     return result
 
 
-# ── Cache ────────────────────────────────────────────────────────────────────
+# ── Cache + History + Audit ──────────────────────────────────────────────────
+
+HISTORY_DIR = CONFIG_DIR / "source_history"
+AUDIT_DIR = CONFIG_DIR / "source_audits"
+
 
 def _load_cache(source_id: str) -> dict | None:
     path = SOURCES_DIR / f"{source_id}.json"
@@ -189,12 +193,127 @@ def _load_cache(source_id: str) -> dict | None:
         return None
 
 
-def _save_cache(source_id: str, data: Any, error: str | None = None) -> dict:
+def _save_cache(source_id: str, data: Any, error: str | None = None, audit: Any = None) -> dict:
     SOURCES_DIR.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).isoformat()
     cached = {"data": data, "refreshed_at": now, "error": error}
+
+    # Detect changes from previous data
+    prev = _load_cache(source_id)
+    changes = _detect_changes(source_id, prev.get("data") if prev else None, data) if data else []
+    if changes:
+        cached["changes"] = changes
+
     (SOURCES_DIR / f"{source_id}.json").write_text(json.dumps(cached, default=str, indent=2))
+
+    # Save to history (append-only log)
+    if data:
+        _append_history(source_id, data, changes)
+
+    # Save audit PDF if present
+    if audit:
+        _save_audit(source_id, audit, now)
+
     return cached
+
+
+def _detect_changes(source_id: str, old_data: Any, new_data: Any) -> list[dict]:
+    """Compare old and new data, return list of changes."""
+    if not old_data or not new_data:
+        return []
+    if not isinstance(old_data, dict) or not isinstance(new_data, dict):
+        return []
+
+    changes = []
+    # Skip metadata fields
+    skip = {"queried_at", "audit", "refreshed_at"}
+    all_keys = set(old_data.keys()) | set(new_data.keys())
+
+    for key in sorted(all_keys - skip):
+        old_val = old_data.get(key)
+        new_val = new_data.get(key)
+        if old_val != new_val and (old_val or new_val):
+            changes.append({
+                "field": key,
+                "old": str(old_val) if old_val is not None else None,
+                "new": str(new_val) if new_val is not None else None,
+            })
+
+    return changes
+
+
+def _append_history(source_id: str, data: Any, changes: list) -> None:
+    """Append a snapshot to the source's history log."""
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    history_file = HISTORY_DIR / f"{source_id}.jsonl"
+
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "data_hash": hashlib.sha256(json.dumps(data, default=str, sort_keys=True).encode()).hexdigest()[:16],
+        "changes": changes,
+    }
+    with open(history_file, "a") as f:
+        f.write(json.dumps(entry, default=str) + "\n")
+
+
+def _save_audit(source_id: str, audit: Any, timestamp: str) -> None:
+    """Save audit evidence (PDF, screenshots) to disk."""
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Handle openquery AuditRecord
+    audit_data = audit.model_dump() if hasattr(audit, "model_dump") else audit if isinstance(audit, dict) else {}
+
+    # Save PDF if present
+    pdf_b64 = audit_data.get("pdf_base64", "")
+    if pdf_b64:
+        import base64
+        ts_slug = timestamp[:19].replace(":", "-").replace("T", "_")
+        pdf_path = AUDIT_DIR / f"{source_id}_{ts_slug}.pdf"
+        pdf_path.write_bytes(base64.b64decode(pdf_b64))
+        log.info("Audit PDF saved: %s (%d KB)", pdf_path.name, pdf_path.stat().st_size // 1024)
+
+    # Save audit metadata (without large base64 fields)
+    meta = {k: v for k, v in audit_data.items() if not k.endswith("_base64") and k != "screenshots"}
+    meta["has_pdf"] = bool(pdf_b64)
+    meta["screenshot_count"] = len(audit_data.get("screenshots", []))
+    meta_path = AUDIT_DIR / f"{source_id}_{timestamp[:19].replace(':', '-').replace('T', '_')}.json"
+    meta_path.write_text(json.dumps(meta, default=str, indent=2))
+
+
+def get_history(source_id: str, limit: int = 50) -> list[dict]:
+    """Read recent history entries for a source."""
+    history_file = HISTORY_DIR / f"{source_id}.jsonl"
+    if not history_file.exists():
+        return []
+    lines = history_file.read_text().strip().splitlines()
+    entries = []
+    for line in lines[-limit:]:
+        try:
+            entries.append(json.loads(line))
+        except Exception:
+            pass
+    return entries
+
+
+def get_audits(source_id: str) -> list[dict]:
+    """List available audit files for a source."""
+    if not AUDIT_DIR.exists():
+        return []
+    audits = []
+    for f in sorted(AUDIT_DIR.glob(f"{source_id}_*.pdf"), reverse=True):
+        meta_path = f.with_suffix(".json")
+        meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+        audits.append({
+            "filename": f.name,
+            "size_kb": f.stat().st_size // 1024,
+            "timestamp": meta.get("queried_at", f.stem.split("_", 1)[1] if "_" in f.stem else ""),
+            "source": meta.get("source", source_id),
+            "duration_ms": meta.get("duration_ms"),
+        })
+    return audits
+
+
+import hashlib
 
 
 def _is_stale(source_id: str) -> bool:
@@ -248,8 +367,15 @@ elif doc_number == "$PLACA":
         doc_number = runt_data.get("placa", "")
 
 dt_map = {{"vin": DocumentType.VIN, "placa": DocumentType.PLATE, "cedula": DocumentType.CEDULA, "custom": DocumentType.CUSTOM}}
-qi = QueryInput(document_type=dt_map.get(doc_type, DocumentType.CUSTOM), document_number=doc_number, extra=params.get("extra", {{}}))
+qi = QueryInput(document_type=dt_map.get(doc_type, DocumentType.CUSTOM), document_number=doc_number, extra=params.get("extra", {{}}), audit=True)
 result = src.query(qi)
+
+# Save audit evidence to disk if present
+if result.audit:
+    from tesla_cli.core.sources import _save_audit
+    from datetime import datetime, timezone
+    _save_audit("{source_id}", result.audit, datetime.now(timezone.utc).isoformat())
+
 print(json.dumps(result.model_dump(exclude={{"audit"}}), default=str))
 """
     try:
