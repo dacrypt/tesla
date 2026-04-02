@@ -7196,3 +7196,152 @@ class TestVehicleOdometerApi:
         finally:
             self._teardown(patches)
         assert resp.status_code == 503
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Charge History (Fleet API)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeHistory:
+    """Tests for `tesla charge history` and ChargingHistory model."""
+
+    MOCK_API_RESPONSE = {
+        "screen_title": "Charging History",
+        "total_charged": {
+            "title": "Total Charged",
+            "value": "1234.5",
+            "after_adornment": "kWh",
+        },
+        "charging_history_graph": {
+            "data_points": [
+                {
+                    "timestamp": {"display_string": "Mar 15"},
+                    "values": [
+                        {
+                            "value": "45.2",
+                            "raw_value": 45.2,
+                            "after_adornment": "kWh",
+                            "sub_title": "Home",
+                        }
+                    ],
+                },
+                {
+                    "timestamp": {"display_string": "Mar 20"},
+                    "values": [
+                        {
+                            "value": "32.1",
+                            "raw_value": 32.1,
+                            "after_adornment": "kWh",
+                            "sub_title": "Supercharger",
+                        }
+                    ],
+                },
+                {
+                    "timestamp": {"display_string": "Mar 25"},
+                    "values": [
+                        {
+                            "value": "0",
+                            "raw_value": 0,
+                            "after_adornment": "kWh",
+                            "sub_title": "",
+                        }
+                    ],
+                },
+            ]
+        },
+        "total_charged_breakdown": {
+            "home": {
+                "value": "800",
+                "after_adornment": "kWh",
+                "sub_title": "at Home",
+            },
+            "super": {
+                "value": "434.5",
+                "after_adornment": "kWh",
+                "sub_title": "Supercharging",
+            },
+        },
+    }
+
+    def test_model_parses_api_response(self):
+        from tesla_cli.core.models.charge import ChargingHistory
+
+        history = ChargingHistory.from_api(self.MOCK_API_RESPONSE)
+        assert history.total_kwh == 1234.5
+        assert "1234.5" in history.total_label
+        assert len(history.points) == 2  # zero-value point filtered out
+        assert history.points[0].kwh == 45.2
+        assert history.points[0].location == "Home"
+        assert history.points[1].kwh == 32.1
+        assert history.points[1].timestamp == "Mar 20"
+        assert len(history.breakdown) == 2
+
+    def test_model_handles_empty_response(self):
+        from tesla_cli.core.models.charge import ChargingHistory
+
+        history = ChargingHistory.from_api({})
+        assert history.total_kwh == 0.0
+        assert history.points == []
+        assert history.breakdown == {}
+
+    def test_model_handles_missing_values(self):
+        from tesla_cli.core.models.charge import ChargingHistory
+
+        data = {
+            "charging_history_graph": {
+                "data_points": [
+                    {"timestamp": {}, "values": []},
+                ]
+            }
+        }
+        history = ChargingHistory.from_api(data)
+        assert history.points == []
+
+    @patch("tesla_cli.cli.commands.charge.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cli_renders_history(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="TEST123", backend="fleet")
+        backend = MagicMock()
+        backend.get_charge_history.return_value = self.MOCK_API_RESPONSE
+        mock_bk.return_value = backend
+
+        result = _run("charge", "history")
+        assert result.exit_code == 0
+        assert "45.2" in result.output or "Charging History" in result.output
+
+    @patch("tesla_cli.cli.commands.charge.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cli_json_mode(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="TEST123", backend="fleet")
+        backend = MagicMock()
+        backend.get_charge_history.return_value = self.MOCK_API_RESPONSE
+        mock_bk.return_value = backend
+
+        result = _run("--json", "charge", "history")
+        assert result.exit_code == 0
+
+    @patch("tesla_cli.cli.commands.charge.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_cli_backend_not_supported(self, mock_cfg, mock_bk):
+        from tesla_cli.core.exceptions import BackendNotSupportedError
+
+        mock_cfg.return_value = MagicMock(default_vin="TEST123", backend="owner")
+        backend = MagicMock()
+        backend.get_charge_history.side_effect = BackendNotSupportedError(
+            "charge history", "fleet"
+        )
+        mock_bk.return_value = backend
+
+        result = _run("charge", "history")
+        assert result.exit_code == 1
+        assert "teslaMate" in result.output.lower() or "fleet" in result.output.lower()
+
+    def test_model_serializes_to_dict(self):
+        from tesla_cli.core.models.charge import ChargingHistory
+
+        history = ChargingHistory.from_api(self.MOCK_API_RESPONSE)
+        d = history.model_dump()
+        assert d["total_kwh"] == 1234.5
+        assert len(d["points"]) == 2
+        assert d["points"][0]["location"] == "Home"

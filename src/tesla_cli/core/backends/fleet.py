@@ -103,7 +103,7 @@ class FleetBackend(VehicleBackend):
         return self._get(f"/api/1/vehicles/{vin}/recent_alerts")
 
     def get_charge_history(self) -> dict[str, Any]:
-        return self._get("/api/1/vehicles/charge_history")
+        return self._post("/api/1/vehicles/charge_history")
 
     def get_fleet_status(self, vin: str) -> dict[str, Any]:
         return self._get(f"/api/1/vehicles/{vin}/fleet_status")
