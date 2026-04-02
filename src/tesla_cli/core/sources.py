@@ -11,11 +11,10 @@ import json
 import logging
 import subprocess
 import sys
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from tesla_cli.core.config import CONFIG_DIR, load_config
 
@@ -27,6 +26,7 @@ SOURCES_DIR = CONFIG_DIR / "sources"
 @dataclass
 class SourceDef:
     """Definition of a data source."""
+
     id: str
     name: str
     category: str  # vehiculo | registro | infracciones | financiero | seguridad | servicios
@@ -57,18 +57,20 @@ def list_sources() -> list[dict[str, Any]]:
     result = []
     for sid, src in _SOURCES.items():
         cached = _load_cache(sid)
-        result.append({
-            "id": sid,
-            "name": src.name,
-            "category": src.category,
-            "country": src.country,
-            "requires_auth": src.requires_auth,
-            "ttl": src.ttl,
-            "refreshed_at": cached.get("refreshed_at") if cached else None,
-            "stale": _is_stale(sid),
-            "has_data": cached is not None and "data" in cached,
-            "error": cached.get("error") if cached else None,
-        })
+        result.append(
+            {
+                "id": sid,
+                "name": src.name,
+                "category": src.category,
+                "country": src.country,
+                "requires_auth": src.requires_auth,
+                "ttl": src.ttl,
+                "refreshed_at": cached.get("refreshed_at") if cached else None,
+                "stale": _is_stale(sid),
+                "has_data": cached is not None and "data" in cached,
+                "error": cached.get("error") if cached else None,
+            }
+        )
     return result
 
 
@@ -102,11 +104,16 @@ def refresh_source(source_id: str) -> dict:
 
     # Check auth requirements
     if src.requires_auth:
-        from tesla_cli.core.auth.tokens import has_token, FLEET_ACCESS_TOKEN, ORDER_ACCESS_TOKEN
+        from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, ORDER_ACCESS_TOKEN, has_token
+
         if src.requires_auth == "fleet" and not has_token(FLEET_ACCESS_TOKEN):
-            return _save_cache(source_id, None, error="Fleet API authentication required. Login in Settings.")
+            return _save_cache(
+                source_id, None, error="Fleet API authentication required. Login in Settings."
+            )
         if src.requires_auth == "order" and not has_token(ORDER_ACCESS_TOKEN):
-            return _save_cache(source_id, None, error="Tesla order authentication required. Login in Settings.")
+            return _save_cache(
+                source_id, None, error="Tesla order authentication required. Login in Settings."
+            )
 
     # Check required config values — try auto-detect from other sources
     params = src.openquery_params
@@ -119,7 +126,9 @@ def refresh_source(source_id: str) -> dict:
             if runt_cache and runt_cache.get("data"):
                 cedula = runt_cache["data"].get("no_identificacion", "")
         if not cedula:
-            return _save_cache(source_id, None, error="Cédula del propietario requerida. Configúrala en Settings.")
+            return _save_cache(
+                source_id, None, error="Cédula del propietario requerida. Configúrala en Settings."
+            )
     if params.get("doc_number") == "$VIN":
         cfg = load_config()
         if not cfg.general.default_vin:
@@ -160,13 +169,28 @@ def refresh_stale() -> dict[str, Any]:
 
 def missing_auth() -> list[dict]:
     """Return sources that need authentication the user hasn't provided."""
-    from tesla_cli.core.auth.tokens import has_token, FLEET_ACCESS_TOKEN, ORDER_ACCESS_TOKEN
+    from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, ORDER_ACCESS_TOKEN, has_token
+
     missing = []
     for sid, src in _SOURCES.items():
         if src.requires_auth == "fleet" and not has_token(FLEET_ACCESS_TOKEN):
-            missing.append({"source": sid, "name": src.name, "auth_type": "fleet", "message": "Connect your Tesla account in Settings"})
+            missing.append(
+                {
+                    "source": sid,
+                    "name": src.name,
+                    "auth_type": "fleet",
+                    "message": "Connect your Tesla account in Settings",
+                }
+            )
         elif src.requires_auth == "order" and not has_token(ORDER_ACCESS_TOKEN):
-            missing.append({"source": sid, "name": src.name, "auth_type": "order", "message": "Connect Tesla order tracking in Settings"})
+            missing.append(
+                {
+                    "source": sid,
+                    "name": src.name,
+                    "auth_type": "order",
+                    "message": "Connect Tesla order tracking in Settings",
+                }
+            )
     # Dedupe by auth_type
     seen = set()
     result = []
@@ -195,7 +219,7 @@ def _load_cache(source_id: str) -> dict | None:
 
 def _save_cache(source_id: str, data: Any, error: str | None = None, audit: Any = None) -> dict:
     SOURCES_DIR.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     cached = {"data": data, "refreshed_at": now, "error": error}
 
     # Detect changes from previous data
@@ -233,11 +257,13 @@ def _detect_changes(source_id: str, old_data: Any, new_data: Any) -> list[dict]:
         old_val = old_data.get(key)
         new_val = new_data.get(key)
         if old_val != new_val and (old_val or new_val):
-            changes.append({
-                "field": key,
-                "old": str(old_val) if old_val is not None else None,
-                "new": str(new_val) if new_val is not None else None,
-            })
+            changes.append(
+                {
+                    "field": key,
+                    "old": str(old_val) if old_val is not None else None,
+                    "new": str(new_val) if new_val is not None else None,
+                }
+            )
 
     return changes
 
@@ -248,8 +274,10 @@ def _append_history(source_id: str, data: Any, changes: list) -> None:
     history_file = HISTORY_DIR / f"{source_id}.jsonl"
 
     entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "data_hash": hashlib.sha256(json.dumps(data, default=str, sort_keys=True).encode()).hexdigest()[:16],
+        "timestamp": datetime.now(UTC).isoformat(),
+        "data_hash": hashlib.sha256(
+            json.dumps(data, default=str, sort_keys=True).encode()
+        ).hexdigest()[:16],
         "changes": changes,
     }
     with open(history_file, "a") as f:
@@ -261,12 +289,19 @@ def _save_audit(source_id: str, audit: Any, timestamp: str) -> None:
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Handle openquery AuditRecord
-    audit_data = audit.model_dump() if hasattr(audit, "model_dump") else audit if isinstance(audit, dict) else {}
+    audit_data = (
+        audit.model_dump()
+        if hasattr(audit, "model_dump")
+        else audit
+        if isinstance(audit, dict)
+        else {}
+    )
 
     # Save PDF if present
     pdf_b64 = audit_data.get("pdf_base64", "")
     if pdf_b64:
         import base64
+
         ts_slug = timestamp[:19].replace(":", "-").replace("T", "_")
         pdf_path = AUDIT_DIR / f"{source_id}_{ts_slug}.pdf"
         pdf_path.write_bytes(base64.b64decode(pdf_b64))
@@ -303,13 +338,17 @@ def get_audits(source_id: str) -> list[dict]:
     for f in sorted(AUDIT_DIR.glob(f"{source_id}_*.pdf"), reverse=True):
         meta_path = f.with_suffix(".json")
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
-        audits.append({
-            "filename": f.name,
-            "size_kb": f.stat().st_size // 1024,
-            "timestamp": meta.get("queried_at", f.stem.split("_", 1)[1] if "_" in f.stem else ""),
-            "source": meta.get("source", source_id),
-            "duration_ms": meta.get("duration_ms"),
-        })
+        audits.append(
+            {
+                "filename": f.name,
+                "size_kb": f.stat().st_size // 1024,
+                "timestamp": meta.get(
+                    "queried_at", f.stem.split("_", 1)[1] if "_" in f.stem else ""
+                ),
+                "source": meta.get("source", source_id),
+                "duration_ms": meta.get("duration_ms"),
+            }
+        )
     return audits
 
 
@@ -325,13 +364,14 @@ def _is_stale(source_id: str) -> bool:
         return True
     try:
         refreshed = datetime.fromisoformat(cached["refreshed_at"].replace("Z", "+00:00"))
-        age = (datetime.now(timezone.utc) - refreshed).total_seconds()
+        age = (datetime.now(UTC) - refreshed).total_seconds()
         return age > src.ttl
     except Exception:
         return True
 
 
 # ── Refresh methods ──────────────────────────────────────────────────────────
+
 
 def _refresh_subprocess(source_id: str, src: SourceDef) -> dict:
     """Refresh a Playwright-based source via subprocess."""
@@ -381,7 +421,9 @@ print(json.dumps(result.model_dump(exclude={{"audit"}}), default=str))
     try:
         result = subprocess.run(
             [sys.executable, "-c", script],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout.strip())
@@ -414,7 +456,12 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
             runt_cache = _load_cache("co.runt")
             doc_number = (runt_cache or {}).get("data", {}).get("placa", "") if runt_cache else ""
 
-        dt_map = {"vin": DocumentType.VIN, "placa": DocumentType.PLATE, "cedula": DocumentType.CEDULA, "custom": DocumentType.CUSTOM}
+        dt_map = {
+            "vin": DocumentType.VIN,
+            "placa": DocumentType.PLATE,
+            "cedula": DocumentType.CEDULA,
+            "custom": DocumentType.CUSTOM,
+        }
         qi = QueryInput(
             document_type=dt_map.get(params.get("doc_type", "custom"), DocumentType.CUSTOM),
             document_number=doc_number,
@@ -430,31 +477,46 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
 
 # ── Default source registrations ─────────────────────────────────────────────
 
+
 def _register_defaults() -> None:
     """Register all built-in data sources."""
 
     # ── Tesla Portal (full web data) ──
-    register_source(SourceDef(
-        id="tesla.portal", name="Tesla Portal — Orden Completa", category="financiero",
-        requires_auth="order", ttl=3600, country="",
-        # Refreshed via /api/auth/portal-scrape, not via source refresh
-    ))
+    register_source(
+        SourceDef(
+            id="tesla.portal",
+            name="Tesla Portal — Orden Completa",
+            category="financiero",
+            requires_auth="order",
+            ttl=3600,
+            country="",
+            # Refreshed via /api/auth/portal-scrape, not via source refresh
+        )
+    )
 
     # ── Vehicle identity ──
     def _fetch_vin_decode():
         from tesla_cli.core.backends.dossier import decode_vin
+
         cfg = load_config()
         return decode_vin(cfg.general.default_vin).model_dump() if cfg.general.default_vin else None
 
-    register_source(SourceDef(
-        id="vin.decode", name="VIN Decode", category="vehiculo",
-        ttl=86400 * 30, country="", fetch_fn=_fetch_vin_decode,
-    ))
+    register_source(
+        SourceDef(
+            id="vin.decode",
+            name="VIN Decode",
+            category="vehiculo",
+            ttl=86400 * 30,
+            country="",
+            fetch_fn=_fetch_vin_decode,
+        )
+    )
 
     # ── Tesla Order ──
     def _fetch_order():
         from tesla_cli.core.backends.order import OrderBackend
         from tesla_cli.core.config import save_config as _save
+
         cfg = load_config()
         rn = cfg.order.reservation_number
         backend = OrderBackend()
@@ -477,110 +539,201 @@ def _register_defaults() -> None:
                 return order
         return order_list[0] if order_list else None
 
-    register_source(SourceDef(
-        id="tesla.order", name="Tesla Order", category="financiero",
-        requires_auth="order", ttl=1800, country="", fetch_fn=_fetch_order,
-    ))
+    register_source(
+        SourceDef(
+            id="tesla.order",
+            name="Tesla Order",
+            category="financiero",
+            requires_auth="order",
+            ttl=1800,
+            country="",
+            fetch_fn=_fetch_order,
+        )
+    )
 
     # ── Colombia: RUNT (Playwright) ──
-    register_source(SourceDef(
-        id="co.runt", name="RUNT — Registro Vehicular", category="registro",
-        uses_playwright=True, ttl=3600, country="CO",
-        openquery_source="co.runt",
-        openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.runt",
+            name="RUNT — Registro Vehicular",
+            category="registro",
+            uses_playwright=True,
+            ttl=3600,
+            country="CO",
+            openquery_source="co.runt",
+            openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
+        )
+    )
 
     # ── Colombia: RUNT SOAT (by placa, Playwright) ──
-    register_source(SourceDef(
-        id="co.runt_soat", name="RUNT — SOAT", category="registro",
-        uses_playwright=True, ttl=3600, country="CO",
-        openquery_source="co.runt_soat",
-        openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.runt_soat",
+            name="RUNT — SOAT",
+            category="registro",
+            uses_playwright=True,
+            ttl=3600,
+            country="CO",
+            openquery_source="co.runt_soat",
+            openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+        )
+    )
 
     # ── Colombia: RUNT RTM (by placa, Playwright) ──
-    register_source(SourceDef(
-        id="co.runt_rtm", name="RUNT — Técnico-Mecánica", category="registro",
-        uses_playwright=True, ttl=3600, country="CO",
-        openquery_source="co.runt_rtm",
-        openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.runt_rtm",
+            name="RUNT — Técnico-Mecánica",
+            category="registro",
+            uses_playwright=True,
+            ttl=3600,
+            country="CO",
+            openquery_source="co.runt_rtm",
+            openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+        )
+    )
 
     # ── Colombia: RUNT Conductor (by cedula, Playwright) ──
-    register_source(SourceDef(
-        id="co.runt_conductor", name="RUNT — Conductor", category="registro",
-        uses_playwright=True, ttl=86400, country="CO",
-        openquery_source="co.runt_conductor",
-        openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.runt_conductor",
+            name="RUNT — Conductor",
+            category="registro",
+            uses_playwright=True,
+            ttl=86400,
+            country="CO",
+            openquery_source="co.runt_conductor",
+            openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
+        )
+    )
 
     # ── Colombia: SIMIT (Playwright) ──
-    register_source(SourceDef(
-        id="co.simit", name="SIMIT — Multas de Tránsito", category="infracciones",
-        uses_playwright=True, ttl=3600, country="CO",
-        openquery_source="co.simit",
-        openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.simit",
+            name="SIMIT — Multas de Tránsito",
+            category="infracciones",
+            uses_playwright=True,
+            ttl=3600,
+            country="CO",
+            openquery_source="co.simit",
+            openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
+        )
+    )
 
     # ── Colombia: Pico y Placa (fast, no Playwright) ──
-    register_source(SourceDef(
-        id="co.pico_y_placa", name="Pico y Placa", category="servicios",
-        ttl=43200, country="CO",  # 12h (changes daily)
-        openquery_source="co.pico_y_placa",
-        openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
-    ))
+    register_source(
+        SourceDef(
+            id="co.pico_y_placa",
+            name="Pico y Placa",
+            category="servicios",
+            ttl=43200,
+            country="CO",  # 12h (changes daily)
+            openquery_source="co.pico_y_placa",
+            openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+        )
+    )
 
     # ── Colombia: EV Stations (fast API) ──
     def _fetch_ev_stations():
         import httpx
-        r = httpx.get("https://www.datos.gov.co/resource/qqm3-dw2u.json", params={"$limit": 100}, timeout=10)
+
+        r = httpx.get(
+            "https://www.datos.gov.co/resource/qqm3-dw2u.json", params={"$limit": 100}, timeout=10
+        )
         r.raise_for_status()
         return {"estaciones": r.json(), "total": len(r.json())}
 
-    register_source(SourceDef(
-        id="co.estaciones_ev", name="Electrolineras", category="servicios",
-        ttl=86400, country="CO", fetch_fn=_fetch_ev_stations,
-    ))
+    register_source(
+        SourceDef(
+            id="co.estaciones_ev",
+            name="Electrolineras",
+            category="servicios",
+            ttl=86400,
+            country="CO",
+            fetch_fn=_fetch_ev_stations,
+        )
+    )
 
     # ── Colombia: SIC Recalls (Playwright) ──
-    register_source(SourceDef(
-        id="co.recalls", name="SIC — Recalls", category="seguridad",
-        uses_playwright=True, ttl=86400, country="CO",
-        openquery_source="co.recalls",
-        openquery_params={"doc_type": "custom", "doc_number": "TESLA", "extra": {"marca": "TESLA"}},
-    ))
+    register_source(
+        SourceDef(
+            id="co.recalls",
+            name="SIC — Recalls",
+            category="seguridad",
+            uses_playwright=True,
+            ttl=86400,
+            country="CO",
+            openquery_source="co.recalls",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "TESLA",
+                "extra": {"marca": "TESLA"},
+            },
+        )
+    )
 
     # ── Colombia: Fasecolda (Playwright) ──
-    register_source(SourceDef(
-        id="co.fasecolda", name="Fasecolda — Valor Comercial", category="financiero",
-        uses_playwright=True, ttl=86400 * 7, country="CO",
-        openquery_source="co.fasecolda",
-        openquery_params={"doc_type": "custom", "doc_number": "TESLA", "extra": {"marca": "TESLA", "linea": "MODEL Y"}},
-    ))
+    register_source(
+        SourceDef(
+            id="co.fasecolda",
+            name="Fasecolda — Valor Comercial",
+            category="financiero",
+            uses_playwright=True,
+            ttl=86400 * 7,
+            country="CO",
+            openquery_source="co.fasecolda",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "TESLA",
+                "extra": {"marca": "TESLA", "linea": "MODEL Y"},
+            },
+        )
+    )
 
     # ── US: NHTSA Recalls (fast API) ──
-    register_source(SourceDef(
-        id="us.nhtsa_recalls", name="NHTSA Recalls", category="seguridad",
-        ttl=86400, country="US",
-        openquery_source="us.nhtsa_recalls",
-        openquery_params={"doc_type": "custom", "doc_number": "TESLA", "extra": {"make": "TESLA", "model": "Model Y", "year": "2026"}},
-    ))
+    register_source(
+        SourceDef(
+            id="us.nhtsa_recalls",
+            name="NHTSA Recalls",
+            category="seguridad",
+            ttl=86400,
+            country="US",
+            openquery_source="us.nhtsa_recalls",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "TESLA",
+                "extra": {"make": "TESLA", "model": "Model Y", "year": "2026"},
+            },
+        )
+    )
 
     # ── US: NHTSA VIN Decode (fast API) ──
-    register_source(SourceDef(
-        id="us.nhtsa_vin", name="NHTSA VIN Decode", category="vehiculo",
-        ttl=86400 * 30, country="US",
-        openquery_source="us.nhtsa_vin",
-        openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
-    ))
+    register_source(
+        SourceDef(
+            id="us.nhtsa_vin",
+            name="NHTSA VIN Decode",
+            category="vehiculo",
+            ttl=86400 * 30,
+            country="US",
+            openquery_source="us.nhtsa_vin",
+            openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
+        )
+    )
 
     # ── INTL: Ship Tracking ──
-    register_source(SourceDef(
-        id="intl.ship_tracking", name="Ship Tracking", category="servicios",
-        uses_playwright=True, ttl=3600, country="",
-        openquery_source="intl.ship_tracking",
-        openquery_params={"doc_type": "custom", "doc_number": "Grand Venus"},
-    ))
+    register_source(
+        SourceDef(
+            id="intl.ship_tracking",
+            name="Ship Tracking",
+            category="servicios",
+            uses_playwright=True,
+            ttl=3600,
+            country="",
+            openquery_source="intl.ship_tracking",
+            openquery_params={"doc_type": "custom", "doc_number": "Grand Venus"},
+        )
+    )
 
 
 # Auto-register on import

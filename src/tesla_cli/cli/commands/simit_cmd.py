@@ -53,7 +53,8 @@ def _resolve_cedula() -> str:
 
 
 EnrichOption = typer.Option(
-    True, "--enrich/--no-enrich",
+    True,
+    "--enrich/--no-enrich",
     help="Also query Procuraduría and Policía when querying by cédula (default: on)",
 )
 
@@ -104,7 +105,11 @@ def simit_query(
     else:
         console.print(f"\n[bold red]⚠️  FINES FOUND[/bold red] — {label}\n")
 
-    table = Table(title=f"SIMIT — {label}", show_header=False, border_style="green" if data.paz_y_salvo else "red")
+    table = Table(
+        title=f"SIMIT — {label}",
+        show_header=False,
+        border_style="green" if data.paz_y_salvo else "red",
+    )
     table.add_column("Campo", style="bold cyan", width=22)
     table.add_column("Valor")
 
@@ -123,7 +128,9 @@ def simit_query(
     # Show historial if available
     if data.historial:
         console.print()
-        hist_table = Table(title=f"Historial ({len(data.historial)} registros)", border_style="blue")
+        hist_table = Table(
+            title=f"Historial ({len(data.historial)} registros)", border_style="blue"
+        )
         hist_table.add_column("Comparendo", style="dim")
         hist_table.add_column("Secretaría")
         hist_table.add_column("Fecha curso")
@@ -133,7 +140,9 @@ def simit_query(
 
         for record in data.historial:
             hist_table.add_row(
-                record.get("comparendo", "")[:20] + "..." if len(record.get("comparendo", "")) > 20 else record.get("comparendo", ""),
+                record.get("comparendo", "")[:20] + "..."
+                if len(record.get("comparendo", "")) > 20
+                else record.get("comparendo", ""),
                 record.get("secretaria", ""),
                 record.get("fecha_curso", ""),
                 record.get("ciudad", ""),
@@ -161,25 +170,35 @@ def _show_background_checks(cedula: str) -> None:
 
     for source_name, title in [
         ("co.procuraduria", "Procuraduría — antecedentes disciplinarios"),
-        ("co.policia",      "Policía — antecedentes judiciales"),
+        ("co.policia", "Policía — antecedentes judiciales"),
     ]:
         try:
-            with Progress(SpinnerColumn(), TextColumn("[dim]{task.description}"),
-                          transient=True, disable=is_json_mode()) as p:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[dim]{task.description}"),
+                transient=True,
+                disable=is_json_mode(),
+            ) as p:
                 p.add_task(f"{title}…", total=None)
                 result = get_source(source_name).query(
-                    QueryInput(document_type=DocumentType.CEDULA, document_number=cedula))
+                    QueryInput(document_type=DocumentType.CEDULA, document_number=cedula)
+                )
 
             d = result.model_dump(exclude={"audit", "queried_at"})
-            t = Table(title=title, show_header=False, box=None, padding=(0, 2),
-                      border_style="green" if d.get("sin_antecedentes") else "yellow")
+            t = Table(
+                title=title,
+                show_header=False,
+                box=None,
+                padding=(0, 2),
+                border_style="green" if d.get("sin_antecedentes") else "yellow",
+            )
             t.add_column("k", style="bold dim", width=28)
             t.add_column("v")
             for k, v in d.items():
                 if v is None or v == "" or v == []:
                     continue
                 if isinstance(v, bool):
-                    v_str = ("[green]Sí ✓[/green]" if v else "[red]No ✗[/red]")
+                    v_str = "[green]Sí ✓[/green]" if v else "[red]No ✗[/red]"
                 elif isinstance(v, list):
                     v_str = f"[dim]({len(v)} items)[/dim]"
                 else:

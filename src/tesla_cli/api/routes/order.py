@@ -13,8 +13,9 @@ router = APIRouter()
 def order_status() -> dict:
     """Current order / delivery status."""
     from tesla_cli.core.backends.order import OrderBackend
+
     cfg = load_config()
-    rn  = cfg.order.reservation_number
+    rn = cfg.order.reservation_number
     if not rn:
         raise HTTPException(status_code=404, detail="No reservation number configured.")
     try:

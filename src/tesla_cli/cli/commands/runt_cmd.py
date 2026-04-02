@@ -12,21 +12,22 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.core.config import load_config, resolve_vin
 
 runt_app = typer.Typer(name="runt", help="RUNT — Colombia vehicle registry queries.")
 
-VinOption   = typer.Option(None, "--vin",   "-v", help="VIN to query (uses default if omitted)")
+VinOption = typer.Option(None, "--vin", "-v", help="VIN to query (uses default if omitted)")
 PlateOption = typer.Option(None, "--placa", "-p", help="License plate to query")
-EnrichOption = typer.Option(True, "--enrich/--no-enrich",
-                             help="Pull SIMIT, pico y placa and FASECOLDA data (default: on)")
+EnrichOption = typer.Option(
+    True, "--enrich/--no-enrich", help="Pull SIMIT, pico y placa and FASECOLDA data (default: on)"
+)
 
 
 @runt_app.command("query")
 def runt_query(
-    vin:    str | None = VinOption,
-    placa:  str | None = PlateOption,
+    vin: str | None = VinOption,
+    placa: str | None = PlateOption,
     enrich: bool = EnrichOption,
 ) -> None:
     """Query RUNT for vehicle data by VIN or plate.
@@ -66,9 +67,12 @@ def runt_query(
 
     if is_json_mode():
         import json as _json
+
         output = data.model_dump()
         if enrich and effective_placa:
-            output["enrichment"] = _fetch_enrichment_json(effective_placa, data.marca, data.modelo_ano)
+            output["enrichment"] = _fetch_enrichment_json(
+                effective_placa, data.marca, data.modelo_ano
+            )
         console.print(_json.dumps(output, indent=2, default=str))
         return
 
@@ -88,48 +92,52 @@ def runt_query(
             val = value
         table.add_row(label, val)
 
-    _row("Estado",           data.estado)
-    _row("Placa",            data.placa or "—")
-    _row("Marca",            data.marca)
-    _row("Línea",            data.linea)
-    _row("Modelo (año)",     data.modelo_ano)
-    _row("Color",            data.color)
-    _row("Clase",            data.clase_vehiculo)
-    _row("Tipo servicio",    data.tipo_servicio or "—")
-    _row("Combustible",      data.tipo_combustible)
-    _row("Carrocería",       data.tipo_carroceria)
-    _row("VIN",              data.numero_vin)
-    _row("Chasis",           data.numero_chasis)
-    _row("Motor",            data.numero_motor or "—")
-    _row("Cilindraje",       data.cilindraje)
-    _row("Puertas",          str(data.puertas) if data.puertas else "—")
-    _row("Peso bruto (kg)",  str(data.peso_bruto_kg) if data.peso_bruto_kg else "—")
-    _row("Pasajeros",        str(data.capacidad_pasajeros) if data.capacidad_pasajeros else "—")
-    _row("Ejes",             str(data.numero_ejes) if data.numero_ejes else "—")
+    _row("Estado", data.estado)
+    _row("Placa", data.placa or "—")
+    _row("Marca", data.marca)
+    _row("Línea", data.linea)
+    _row("Modelo (año)", data.modelo_ano)
+    _row("Color", data.color)
+    _row("Clase", data.clase_vehiculo)
+    _row("Tipo servicio", data.tipo_servicio or "—")
+    _row("Combustible", data.tipo_combustible)
+    _row("Carrocería", data.tipo_carroceria)
+    _row("VIN", data.numero_vin)
+    _row("Chasis", data.numero_chasis)
+    _row("Motor", data.numero_motor or "—")
+    _row("Cilindraje", data.cilindraje)
+    _row("Puertas", str(data.puertas) if data.puertas else "—")
+    _row("Peso bruto (kg)", str(data.peso_bruto_kg) if data.peso_bruto_kg else "—")
+    _row("Pasajeros", str(data.capacidad_pasajeros) if data.capacidad_pasajeros else "—")
+    _row("Ejes", str(data.numero_ejes) if data.numero_ejes else "—")
 
     # Legal status with colour coding
-    _row("Gravámenes",  "Sí" if data.gravamenes else "No",  ok=not data.gravamenes)
-    _row("Prendas",     "Sí" if data.prendas    else "No",  ok=not data.prendas)
-    _row("Repotenciado","Sí" if data.repotenciado else "No")
+    _row("Gravámenes", "Sí" if data.gravamenes else "No", ok=not data.gravamenes)
+    _row("Prendas", "Sí" if data.prendas else "No", ok=not data.prendas)
+    _row("Repotenciado", "Sí" if data.repotenciado else "No")
 
     # SOAT & RTM (from openquery's richer RuntResult)
-    soat_vigente  = getattr(data, "soat_vigente",        None)
-    soat_aseg     = getattr(data, "soat_aseguradora",    "") or ""
-    soat_venc     = getattr(data, "soat_vencimiento",    "") or ""
-    rtm_vigente   = getattr(data, "tecnomecanica_vigente", None)
-    rtm_venc      = getattr(data, "tecnomecanica_vencimiento", "") or ""
+    soat_vigente = getattr(data, "soat_vigente", None)
+    soat_aseg = getattr(data, "soat_aseguradora", "") or ""
+    soat_venc = getattr(data, "soat_vencimiento", "") or ""
+    rtm_vigente = getattr(data, "tecnomecanica_vigente", None)
+    rtm_venc = getattr(data, "tecnomecanica_vencimiento", "") or ""
 
     if soat_vigente is not None:
-        soat_label = "Sí" + (f" — {soat_aseg}" if soat_aseg else "") + (f" (vence {soat_venc})" if soat_venc else "")
-        _row("SOAT vigente",  soat_label if soat_vigente else "No", ok=soat_vigente)
+        soat_label = (
+            "Sí"
+            + (f" — {soat_aseg}" if soat_aseg else "")
+            + (f" (vence {soat_venc})" if soat_venc else "")
+        )
+        _row("SOAT vigente", soat_label if soat_vigente else "No", ok=soat_vigente)
     if rtm_vigente is not None:
         rtm_label = "Sí" + (f" (vence {rtm_venc})" if rtm_venc else "")
-        _row("Tecnomecánica", rtm_label if rtm_vigente else "No",    ok=rtm_vigente)
+        _row("Tecnomecánica", rtm_label if rtm_vigente else "No", ok=rtm_vigente)
 
-    _row("Fecha matrícula",    data.fecha_matricula    or "—")
+    _row("Fecha matrícula", data.fecha_matricula or "—")
     _row("Autoridad tránsito", data.autoridad_transito or "—")
-    _row("País origen",        data.nombre_pais        or "—")
-    _row("Consultado",         str(data.queried_at.strftime("%Y-%m-%d %H:%M:%S")))
+    _row("País origen", data.nombre_pais or "—")
+    _row("Consultado", str(data.queried_at.strftime("%Y-%m-%d %H:%M:%S")))
 
     console.print(table)
 
@@ -139,6 +147,7 @@ def runt_query(
 
 
 # ─── Enrichment helpers ───────────────────────────────────────────────────────
+
 
 def _fetch_enrichment_json(placa: str, marca: str, modelo_ano: str) -> dict:
     """Fetch enrichment data as plain dicts (for JSON mode)."""
@@ -152,7 +161,8 @@ def _fetch_enrichment_json(placa: str, marca: str, modelo_ano: str) -> dict:
     # SIMIT fines
     try:
         simit = get_source("co.simit").query(
-            QueryInput(document_type=DocumentType.PLATE, document_number=placa))
+            QueryInput(document_type=DocumentType.PLATE, document_number=placa)
+        )
         result["simit"] = simit.model_dump(exclude={"audit"})
     except Exception:
         pass
@@ -160,7 +170,8 @@ def _fetch_enrichment_json(placa: str, marca: str, modelo_ano: str) -> dict:
     # Pico y placa
     try:
         pyp = get_source("co.pico_y_placa").query(
-            QueryInput(document_type=DocumentType.PLATE, document_number=placa))
+            QueryInput(document_type=DocumentType.PLATE, document_number=placa)
+        )
         result["pico_y_placa"] = pyp.model_dump(exclude={"audit"})
     except Exception:
         pass
@@ -169,8 +180,12 @@ def _fetch_enrichment_json(placa: str, marca: str, modelo_ano: str) -> dict:
     if marca:
         try:
             fasec = get_source("co.fasecolda").query(
-                QueryInput(document_type=DocumentType.CUSTOM, document_number="",
-                           extra={"marca": marca, "modelo": modelo_ano}))
+                QueryInput(
+                    document_type=DocumentType.CUSTOM,
+                    document_number="",
+                    extra={"marca": marca, "modelo": modelo_ano},
+                )
+            )
             result["fasecolda"] = fasec.model_dump(exclude={"audit"})
         except Exception:
             pass
@@ -190,11 +205,16 @@ def _show_enrichment(placa: str, marca: str, modelo_ano: str) -> None:
 
     # ── SIMIT (multas) ────────────────────────────────────────────────────────
     try:
-        with Progress(SpinnerColumn(), TextColumn("[dim]{task.description}"),
-                      transient=True, disable=is_json_mode()) as p:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[dim]{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
+        ) as p:
             p.add_task(f"SIMIT — multas placa {placa}…", total=None)
             simit = get_source("co.simit").query(
-                QueryInput(document_type=DocumentType.PLATE, document_number=placa))
+                QueryInput(document_type=DocumentType.PLATE, document_number=placa)
+            )
 
         _print_simit_panel(simit, placa)
     except Exception as exc:
@@ -202,11 +222,16 @@ def _show_enrichment(placa: str, marca: str, modelo_ano: str) -> None:
 
     # ── Pico y placa ──────────────────────────────────────────────────────────
     try:
-        with Progress(SpinnerColumn(), TextColumn("[dim]{task.description}"),
-                      transient=True, disable=is_json_mode()) as p:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[dim]{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
+        ) as p:
             p.add_task(f"Pico y placa — {placa}…", total=None)
             pyp = get_source("co.pico_y_placa").query(
-                QueryInput(document_type=DocumentType.PLATE, document_number=placa))
+                QueryInput(document_type=DocumentType.PLATE, document_number=placa)
+            )
 
         _print_pyp_panel(pyp, placa)
     except Exception as exc:
@@ -215,12 +240,20 @@ def _show_enrichment(placa: str, marca: str, modelo_ano: str) -> None:
     # ── FASECOLDA (precio de referencia) ──────────────────────────────────────
     if marca:
         try:
-            with Progress(SpinnerColumn(), TextColumn("[dim]{task.description}"),
-                          transient=True, disable=is_json_mode()) as p:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[dim]{task.description}"),
+                transient=True,
+                disable=is_json_mode(),
+            ) as p:
                 p.add_task(f"FASECOLDA — {marca} {modelo_ano}…", total=None)
                 fasec = get_source("co.fasecolda").query(
-                    QueryInput(document_type=DocumentType.CUSTOM, document_number="",
-                               extra={"marca": marca, "modelo": modelo_ano}))
+                    QueryInput(
+                        document_type=DocumentType.CUSTOM,
+                        document_number="",
+                        extra={"marca": marca, "modelo": modelo_ano},
+                    )
+                )
 
             _print_fasecolda_panel(fasec, marca, modelo_ano)
         except Exception as exc:
@@ -229,8 +262,13 @@ def _show_enrichment(placa: str, marca: str, modelo_ano: str) -> None:
 
 def _print_simit_panel(simit, placa: str) -> None:
     border = "green" if simit.paz_y_salvo else "red"
-    t = Table(title=f"SIMIT — multas placa {placa}", show_header=False,
-              border_style=border, box=None, padding=(0, 2))
+    t = Table(
+        title=f"SIMIT — multas placa {placa}",
+        show_header=False,
+        border_style=border,
+        box=None,
+        padding=(0, 2),
+    )
     t.add_column("k", style="bold dim", width=22)
     t.add_column("v")
 
@@ -247,8 +285,13 @@ def _print_simit_panel(simit, placa: str) -> None:
 
 def _print_pyp_panel(pyp, placa: str) -> None:
     d = pyp.model_dump(exclude={"audit", "queried_at"})
-    t = Table(title=f"Pico y Placa — {placa}", show_header=False,
-              border_style="yellow", box=None, padding=(0, 2))
+    t = Table(
+        title=f"Pico y Placa — {placa}",
+        show_header=False,
+        border_style="yellow",
+        box=None,
+        padding=(0, 2),
+    )
     t.add_column("k", style="bold dim", width=22)
     t.add_column("v")
     for k, v in d.items():
@@ -262,8 +305,13 @@ def _print_pyp_panel(pyp, placa: str) -> None:
 
 def _print_fasecolda_panel(fasec, marca: str, modelo_ano: str) -> None:
     d = fasec.model_dump(exclude={"audit", "queried_at"})
-    t = Table(title=f"FASECOLDA — {marca} {modelo_ano}", show_header=False,
-              border_style="blue", box=None, padding=(0, 2))
+    t = Table(
+        title=f"FASECOLDA — {marca} {modelo_ano}",
+        show_header=False,
+        border_style="blue",
+        box=None,
+        padding=(0, 2),
+    )
     t.add_column("k", style="bold dim", width=22)
     t.add_column("v")
     for k, v in d.items():

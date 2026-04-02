@@ -75,5 +75,3 @@ class DeliveryAppointment(BaseModel):
     disclaimer: str = ""
     duration_minutes: int = 0
     raw: dict = Field(default_factory=dict)
-
-

@@ -50,9 +50,7 @@ class OwnerApiVehicleBackend(VehicleBackend):
         refresh = tokens.get_token(tokens.ORDER_REFRESH_TOKEN)
 
         if not refresh:
-            raise AuthenticationError(
-                "Not authenticated. Run: tesla config auth order"
-            )
+            raise AuthenticationError("Not authenticated. Run: tesla config auth order")
 
         if access:
             try:
@@ -195,7 +193,9 @@ class OwnerApiVehicleBackend(VehicleBackend):
             except VehicleAsleepError:
                 if attempt == max_attempts - 1:
                     raise
-                logger.info("Vehicle asleep (attempt %d/%d) — waking up…", attempt + 1, max_attempts)
+                logger.info(
+                    "Vehicle asleep (attempt %d/%d) — waking up…", attempt + 1, max_attempts
+                )
                 self._post(f"/api/1/vehicles/{vid}/wake_up")
                 _time.sleep(8)
         # Should never reach here

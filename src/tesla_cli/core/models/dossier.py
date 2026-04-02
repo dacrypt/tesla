@@ -38,7 +38,9 @@ class OptionCode(BaseModel):
     """A single decoded option code."""
 
     code: str = ""
-    category: str = ""  # model, motor, paint, interior, wheels, seats, autopilot, charging, connectivity
+    category: str = (
+        ""  # model, motor, paint, interior, wheels, seats, autopilot, charging, connectivity
+    )
     description: str = ""
     description_es: str = ""  # Spanish
 

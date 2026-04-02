@@ -68,42 +68,49 @@ class VehicleBackend(ABC):
     def get_service_data(self, vin: str) -> dict[str, Any]:
         """Get service / trip data."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle service-data", "owner or fleet")
 
     def get_nearby_charging_sites(self, vin: str) -> dict[str, Any]:
         """Get nearby Superchargers and destination chargers."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle nearby", "owner or fleet")
 
     def get_release_notes(self, vin: str) -> dict[str, Any]:
         """Get OTA firmware release notes."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle release-notes", "fleet")
 
     def get_recent_alerts(self, vin: str) -> dict[str, Any]:
         """Get recent vehicle fault alerts."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle alerts", "fleet")
 
     def get_charge_history(self) -> dict[str, Any]:
         """Get lifetime charging history (Fleet API only)."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError(
-            "charge history",
-            "fleet  (or use `tesla teslaMate charging` if you have TeslaMate)"
+            "charge history", "fleet  (or use `tesla teslaMate charging` if you have TeslaMate)"
         )
 
     def get_invitations(self, vin: str) -> list[dict[str, Any]]:
         """List driver invitations for the vehicle."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing list", "fleet")
 
     def create_invitation(self, vin: str) -> dict[str, Any]:
         """Create a new driver invitation."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing invite", "fleet")
 
     def revoke_invitation(self, vin: str, invitation_id: str) -> dict[str, Any]:
         """Revoke a driver invitation."""
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing revoke", "fleet")

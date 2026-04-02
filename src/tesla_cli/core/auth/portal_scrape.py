@@ -9,7 +9,6 @@ This is the ONLY way to get detailed order data that the Tesla mobile app shows
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -55,9 +54,7 @@ def scrape_portal(
                 )
                 if pwd_el:
                     pwd_el.fill(password)
-                submit = page.query_selector(
-                    'button:has-text("Sign In"), button[type="submit"]'
-                )
+                submit = page.query_selector('button:has-text("Sign In"), button[type="submit"]')
                 if submit:
                     submit.click()
                 page.wait_for_timeout(5000)

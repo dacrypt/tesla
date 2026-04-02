@@ -45,17 +45,18 @@ class SimitBackend:
             from openquery.sources.base import DocumentType, QueryInput
         except ImportError as exc:
             raise SimitError(
-                "openquery is required for SIMIT queries. "
-                "Install: pip install 'tesla-cli[query]'"
+                "openquery is required for SIMIT queries. Install: pip install 'tesla-cli[query]'"
             ) from exc
 
         dt = DocumentType.CEDULA if doc_type == "cedula" else DocumentType.PLATE
         try:
             src = get_source("co.simit")
-            result = src.query(QueryInput(
-                document_type=dt,
-                document_number=value,
-            ))
+            result = src.query(
+                QueryInput(
+                    document_type=dt,
+                    document_number=value,
+                )
+            )
         except Exception as exc:
             raise SimitError(f"SIMIT query failed: {exc}") from exc
 

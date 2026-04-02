@@ -6,6 +6,7 @@ Usage:
     ciphertext = encrypt_token("my-secret-token", password="s3cr3t")
     plaintext  = decrypt_token(ciphertext, password="s3cr3t")
 """
+
 from __future__ import annotations
 
 import base64

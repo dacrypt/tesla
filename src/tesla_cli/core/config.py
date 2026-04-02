@@ -64,48 +64,55 @@ class TeslamateConfig(BaseModel):
 
 class GeofencesConfig(BaseModel):
     """Named geographic zones for geofence watch alerts."""
+
     zones: dict[str, dict] = Field(default_factory=dict)
     # zones[name] = {"lat": float, "lon": float, "radius_km": float}
 
 
 class AbrpConfig(BaseModel):
     """A Better Route Planner live telemetry integration."""
-    api_key: str = ""        # Developer API key (get from ABRP dashboard)
-    user_token: str = ""     # Per-user token from ABRP app → share → API
+
+    api_key: str = ""  # Developer API key (get from ABRP dashboard)
+    user_token: str = ""  # Per-user token from ABRP app → share → API
 
 
 class BleConfig(BaseModel):
     """BLE (Bluetooth Low Energy) direct control via tesla-control binary."""
-    key_path: str = ""       # Path to private key .pem for BLE pairing
-    ble_mac: str = ""        # Vehicle BLE MAC address (optional, auto-detected)
+
+    key_path: str = ""  # Path to private key .pem for BLE pairing
+    ble_mac: str = ""  # Vehicle BLE MAC address (optional, auto-detected)
 
 
 class HomeAssistantConfig(BaseModel):
     """Home Assistant integration."""
-    url: str = ""            # e.g. http://homeassistant.local:8123
-    token: str = ""          # Long-lived access token
+
+    url: str = ""  # e.g. http://homeassistant.local:8123
+    token: str = ""  # Long-lived access token
 
 
 class GrafanaConfig(BaseModel):
     """Grafana / TeslaMate dashboard URLs."""
+
     url: str = "http://localhost:3000"
 
 
 class MqttConfig(BaseModel):
     """MQTT broker telemetry publisher."""
-    broker: str = ""            # e.g. localhost or mqtt.example.com
+
+    broker: str = ""  # e.g. localhost or mqtt.example.com
     port: int = 1883
-    topic_prefix: str = "tesla" # Base topic; messages go to <prefix>/<vin>/<key>
+    topic_prefix: str = "tesla"  # Base topic; messages go to <prefix>/<vin>/<key>
     username: str = ""
     password: str = ""
-    qos: int = 0                # MQTT QoS level (0, 1, or 2)
-    retain: bool = False        # Whether to set the retain flag on published messages
-    tls: bool = False           # Use TLS/SSL (port 8883 typical)
+    qos: int = 0  # MQTT QoS level (0, 1, or 2)
+    retain: bool = False  # Whether to set the retain flag on published messages
+    tls: bool = False  # Use TLS/SSL (port 8883 typical)
 
 
 class ServerConfig(BaseModel):
     """Local API server settings."""
-    api_key: str = ""           # If set, require X-API-Key header on all /api/* requests
+
+    api_key: str = ""  # If set, require X-API-Key header on all /api/* requests
     pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
 
 

@@ -85,27 +85,32 @@ class TessieBackend(VehicleBackend):
     # Fleet-only methods — override to give Tessie-specific message
     def get_release_notes(self, vin: str) -> dict[str, Any]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle release-notes", "fleet")
 
     def get_recent_alerts(self, vin: str) -> dict[str, Any]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("vehicle alerts", "fleet")
 
     def get_charge_history(self) -> dict[str, Any]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError(
-            "charge history",
-            "fleet  (or use `tesla teslaMate charging` if you have TeslaMate)"
+            "charge history", "fleet  (or use `tesla teslaMate charging` if you have TeslaMate)"
         )
 
     def get_invitations(self, vin: str) -> list[dict[str, Any]]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing list", "fleet")
 
     def create_invitation(self, vin: str) -> dict[str, Any]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing invite", "fleet")
 
     def revoke_invitation(self, vin: str, invitation_id: str) -> dict[str, Any]:
         from tesla_cli.core.exceptions import BackendNotSupportedError
+
         raise BackendNotSupportedError("sharing revoke", "fleet")

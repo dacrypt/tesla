@@ -8,8 +8,8 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.core.config import load_config, save_config
 from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
+from tesla_cli.core.config import load_config, save_config
 
 teslaMate_app = typer.Typer(
     name="teslaMate",
@@ -19,6 +19,7 @@ teslaMate_app = typer.Typer(
 
 def _backend():
     from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
     cfg = load_config()
     url = cfg.teslaMate.database_url
     if not url:
@@ -30,8 +31,10 @@ def _backend():
         raise typer.Exit(1)
     # Warn if managed stack is installed but not running
     if cfg.teslaMate.managed:
-        from tesla_cli.infra.teslamate_stack import TeslaMateStack
         from pathlib import Path
+
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+
         stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
         if stack.is_installed() and not stack.is_running():
             console.print(
@@ -59,6 +62,7 @@ def teslaMate_connect(
 
     # Test connection
     from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
     backend = TeslaMateBacked(database_url, car_id=car_id)
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
@@ -81,7 +85,9 @@ def teslaMate_connect(
         console.print("\n  [dim]Cars in DB:[/dim]")
         for car in cars:
             active = " ← [bold cyan](selected)[/bold cyan]" if car["id"] == car_id else ""
-            console.print(f"    [{car['id']}] {car.get('name') or '(unnamed)'} — {car.get('vin', '?')}{active}")
+            console.print(
+                f"    [{car['id']}] {car.get('name') or '(unnamed)'} — {car.get('vin', '?')}{active}"
+            )
 
 
 @teslaMate_app.command("status")
@@ -89,7 +95,9 @@ def teslaMate_status() -> None:
     """Show TeslaMate connection status and lifetime stats."""
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching stats...", total=None)
         ok = backend.ping()
         drive_stats = backend.get_stats() if ok else {}
@@ -101,8 +109,10 @@ def teslaMate_status() -> None:
     # Managed stack info
     stack_info: dict = {}
     if cfg.teslaMate.managed:
-        from tesla_cli.infra.teslamate_stack import TeslaMateStack
         from pathlib import Path
+
+        from tesla_cli.infra.teslamate_stack import TeslaMateStack
+
         stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
         stack_info = {
             "managed": True,
@@ -112,7 +122,9 @@ def teslaMate_status() -> None:
 
     status_data = {
         "connected": ok,
-        "database_url": cfg.teslaMate.database_url.split("@")[-1] if "@" in cfg.teslaMate.database_url else cfg.teslaMate.database_url,
+        "database_url": cfg.teslaMate.database_url.split("@")[-1]
+        if "@" in cfg.teslaMate.database_url
+        else cfg.teslaMate.database_url,
         "car_id": cfg.teslaMate.car_id,
         "total_drives": drive_stats.get("total_drives", 0),
         "total_km": str(drive_stats.get("total_km", 0)),
@@ -131,14 +143,17 @@ def teslaMate_status() -> None:
         return
 
     from rich.panel import Panel
+
     status_icon = "[green]Connected[/green]" if ok else "[red]Not connected[/red]"
     mode_label = "[cyan]managed[/cyan]" if cfg.teslaMate.managed else "[dim]external[/dim]"
     console.print()
-    console.print(Panel(
-        f"{status_icon}  |  Mode: {mode_label}  |  DB: [dim]{status_data['database_url']}[/dim]  |  Car ID: [cyan]{cfg.teslaMate.car_id}[/cyan]",
-        title="[bold]TeslaMate Integration[/bold]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"{status_icon}  |  Mode: {mode_label}  |  DB: [dim]{status_data['database_url']}[/dim]  |  Car ID: [cyan]{cfg.teslaMate.car_id}[/cyan]",
+            title="[bold]TeslaMate Integration[/bold]",
+            border_style="cyan",
+        )
+    )
 
     # Show managed stack container status
     if stack_info and stack_info.get("services"):
@@ -150,34 +165,44 @@ def teslaMate_status() -> None:
         st.add_column("Status")
         for svc in stack_info["services"]:
             state = svc.get("state", "unknown")
-            state_styled = f"[green]{state}[/green]" if state == "running" else f"[red]{state}[/red]"
+            state_styled = (
+                f"[green]{state}[/green]" if state == "running" else f"[red]{state}[/red]"
+            )
             st.add_row(svc["name"], state_styled, svc.get("image", ""), svc.get("status", ""))
         console.print(st)
 
     if ok:
         console.print("\n[bold]Driving[/bold]")
-        _kv([
-            ("Total trips", str(drive_stats.get("total_drives", 0))),
-            ("Total distance", f"{drive_stats.get('total_km', 0)} km"),
-            ("Total energy", f"{drive_stats.get('total_kwh', 0)} kWh"),
-            ("Avg per trip", f"{drive_stats.get('avg_km_per_trip', 0)} km"),
-            ("Longest trip", f"{drive_stats.get('longest_trip_km', 0)} km"),
-            ("First drive", str(drive_stats.get("first_drive", ""))[:19]),
-            ("Last drive", str(drive_stats.get("last_drive", ""))[:19]),
-        ])
+        _kv(
+            [
+                ("Total trips", str(drive_stats.get("total_drives", 0))),
+                ("Total distance", f"{drive_stats.get('total_km', 0)} km"),
+                ("Total energy", f"{drive_stats.get('total_kwh', 0)} kWh"),
+                ("Avg per trip", f"{drive_stats.get('avg_km_per_trip', 0)} km"),
+                ("Longest trip", f"{drive_stats.get('longest_trip_km', 0)} km"),
+                ("First drive", str(drive_stats.get("first_drive", ""))[:19]),
+                ("Last drive", str(drive_stats.get("last_drive", ""))[:19]),
+            ]
+        )
         console.print("\n[bold]Charging[/bold]")
-        _kv([
-            ("Total sessions", str(charge_stats.get("total_sessions", 0))),
-            ("Total energy added", f"{charge_stats.get('total_kwh_added', 0)} kWh"),
-            ("Total cost", f"${charge_stats.get('total_cost', 0):.2f}"),
-            ("Avg per session", f"{charge_stats.get('avg_kwh_per_session', 0)} kWh"),
-        ])
+        _kv(
+            [
+                ("Total sessions", str(charge_stats.get("total_sessions", 0))),
+                ("Total energy added", f"{charge_stats.get('total_kwh_added', 0)} kWh"),
+                ("Total cost", f"${charge_stats.get('total_cost', 0):.2f}"),
+                ("Avg per session", f"{charge_stats.get('avg_kwh_per_session', 0)} kWh"),
+            ]
+        )
 
     if cars:
         console.print("\n[bold]Cars in DB[/bold]")
         for car in cars:
-            active = " <- [bold cyan]active[/bold cyan]" if car["id"] == cfg.teslaMate.car_id else ""
-            console.print(f"  [{car['id']}] {car.get('name') or '(unnamed)'}  VIN: [dim]{car.get('vin', '?')}[/dim]{active}")
+            active = (
+                " <- [bold cyan]active[/bold cyan]" if car["id"] == cfg.teslaMate.car_id else ""
+            )
+            console.print(
+                f"  [{car['id']}] {car.get('name') or '(unnamed)'}  VIN: [dim]{car.get('vin', '?')}[/dim]{active}"
+            )
 
 
 @teslaMate_app.command("trips")
@@ -193,13 +218,16 @@ def teslaMate_trips(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Fetching last {limit} trips...", total=None)
         trips = backend.get_trips(limit=limit)
 
     if csv_out:
         import csv as _csv
         import pathlib  # noqa: F401
+
         if not trips:
             console.print("[yellow]No data to export.[/yellow]")
             raise typer.Exit(0)
@@ -249,7 +277,9 @@ def teslaMate_trips(
     # Summary line
     total_km = sum(float(t.get("distance_km") or 0) for t in trips)
     total_kwh = sum(float(t.get("energy_kwh") or 0) for t in trips)
-    console.print(f"\n  [dim]Showing {len(trips)} trips │ {total_km:.0f} km │ {total_kwh:.1f} kWh[/dim]")
+    console.print(
+        f"\n  [dim]Showing {len(trips)} trips │ {total_km:.0f} km │ {total_kwh:.1f} kWh[/dim]"
+    )
 
 
 @teslaMate_app.command("charging")
@@ -265,13 +295,16 @@ def teslaMate_charging(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Fetching last {limit} charging sessions...", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
 
     if csv_out:
         import csv as _csv
         import pathlib  # noqa: F401
+
         if not sessions:
             console.print("[yellow]No data to export.[/yellow]")
             raise typer.Exit(0)
@@ -279,7 +312,9 @@ def teslaMate_charging(
             writer = _csv.DictWriter(fh, fieldnames=list(sessions[0].keys()))
             writer.writeheader()
             writer.writerows(sessions)
-        console.print(f"  [green]\u2713[/green] Saved {len(sessions)} rows to [bold]{csv_out}[/bold]")
+        console.print(
+            f"  [green]\u2713[/green] Saved {len(sessions)} rows to [bold]{csv_out}[/bold]"
+        )
         return
 
     if is_json_mode():
@@ -316,7 +351,9 @@ def teslaMate_charging(
 
     total_kwh = sum(float(s.get("energy_added_kwh") or 0) for s in sessions)
     total_cost = sum(float(s.get("cost") or 0) for s in sessions)
-    console.print(f"\n  [dim]{len(sessions)} sessions │ {total_kwh:.1f} kWh added │ ${total_cost:.2f} total cost[/dim]")
+    console.print(
+        f"\n  [dim]{len(sessions)} sessions │ {total_kwh:.1f} kWh added │ ${total_cost:.2f} total cost[/dim]"
+    )
 
 
 @teslaMate_app.command("updates")
@@ -328,7 +365,9 @@ def teslaMate_updates() -> None:
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Fetching OTA history...", total=None)
         updates = backend.get_updates()
 
@@ -358,6 +397,7 @@ def teslaMate_updates() -> None:
         if end_dt and start_dt:
             try:
                 from datetime import datetime
+
                 s = datetime.fromisoformat(str(start_dt).replace("Z", "+00:00").replace(" ", "T"))
                 e = datetime.fromisoformat(str(end_dt).replace("Z", "+00:00").replace(" ", "T"))
                 mins = int((e - s).total_seconds() / 60)
@@ -384,13 +424,16 @@ def teslaMate_efficiency(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Calculating efficiency for last {limit} trips...", total=None)
         trips = backend.get_efficiency(limit=limit)
 
     if csv_out:
         import csv as _csv
         import pathlib  # noqa: F401
+
         if not trips:
             console.print("[yellow]No data to export.[/yellow]")
             raise typer.Exit(0)
@@ -460,7 +503,9 @@ def teslaMate_vampire(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Analyzing vampire drain over {days} days...", total=None)
         result = backend.get_vampire_drain(days=days)
 
@@ -478,7 +523,13 @@ def teslaMate_vampire(
     # Summary
     console.print()
     if avg_per_hour is not None:
-        color = "green" if float(avg_per_hour) < 0.05 else "yellow" if float(avg_per_hour) < 0.15 else "red"
+        color = (
+            "green"
+            if float(avg_per_hour) < 0.05
+            else "yellow"
+            if float(avg_per_hour) < 0.15
+            else "red"
+        )
         console.print(f"  Average vampire drain: [{color}]{avg_per_hour:.3f}% / hour[/{color}]")
         daily_equiv = round(float(avg_per_hour) * 24, 1)
         console.print(f"  \u2248 [dim]{daily_equiv}% per 24 hours while parked[/dim]")
@@ -522,7 +573,9 @@ def teslaMate_geo(
     import json as _json
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
+    ) as p:
         p.add_task("Loading location data...", total=None)
         locations = backend.get_top_locations(limit=limit)
 
@@ -533,11 +586,14 @@ def teslaMate_geo(
     if csv_out:
         import csv as _csv
         from pathlib import Path  # noqa: F401
+
         with open(csv_out, "w", newline="", encoding="utf-8") as fh:
             writer = _csv.DictWriter(fh, fieldnames=list(locations[0].keys()))
             writer.writeheader()
             writer.writerows([{k: str(v) for k, v in row.items()} for row in locations])
-        console.print(f"  [green]\u2713[/green] Saved {len(locations)} rows to [bold]{csv_out}[/bold]")
+        console.print(
+            f"  [green]\u2713[/green] Saved {len(locations)} rows to [bold]{csv_out}[/bold]"
+        )
         return
 
     if is_json_mode():
@@ -545,13 +601,16 @@ def teslaMate_geo(
         return
 
     render_table(
-        [{
-            "location": r["location"][:40] if r["location"] else "\u2014",
-            "visits": r["visit_count"],
-            "lat": f"{r['latitude']:.4f}" if r.get("latitude") else "\u2014",
-            "lon": f"{r['longitude']:.4f}" if r.get("longitude") else "\u2014",
-            "arrival_pct": f"{r['min_arrival_pct']}\u2013{r['max_arrival_pct']}%",
-        } for r in locations],
+        [
+            {
+                "location": r["location"][:40] if r["location"] else "\u2014",
+                "visits": r["visit_count"],
+                "lat": f"{r['latitude']:.4f}" if r.get("latitude") else "\u2014",
+                "lon": f"{r['longitude']:.4f}" if r.get("longitude") else "\u2014",
+                "arrival_pct": f"{r['min_arrival_pct']}\u2013{r['max_arrival_pct']}%",
+            }
+            for r in locations
+        ],
         columns=["location", "visits", "lat", "lon", "arrival_pct"],
         title=f"Top {len(locations)} Most Visited Locations",
     )
@@ -561,7 +620,8 @@ def teslaMate_geo(
 def teslaMate_report(
     month: str = typer.Option(
         "",
-        "--month", "-m",
+        "--month",
+        "-m",
         help="Month to report on (YYYY-MM). Defaults to current month.",
     ),
 ) -> None:
@@ -578,7 +638,9 @@ def teslaMate_report(
         month = datetime.now().strftime("%Y-%m")
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
+    ) as p:
         p.add_task(f"Loading report for {month}...", total=None)
         data = backend.get_monthly_report(month=month)
 
@@ -594,7 +656,9 @@ def teslaMate_report(
     console.print()
 
     # Driving section
-    console.print("  [bold cyan]\u2500\u2500 Driving \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]")
+    console.print(
+        "  [bold cyan]\u2500\u2500 Driving \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]"
+    )
     trips = driving.get("trips") or 0
     total_km = driving.get("total_km") or 0
     total_mi = round(float(total_km) * 0.621371, 1) if total_km else 0
@@ -607,7 +671,9 @@ def teslaMate_report(
     console.print()
 
     # Charging section
-    console.print("  [bold cyan]\u2500\u2500 Charging \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]")
+    console.print(
+        "  [bold cyan]\u2500\u2500 Charging \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500[/bold cyan]"
+    )
     sessions = charging.get("sessions") or 0
     total_kwh = charging.get("total_kwh_charged") or 0
     total_cost = charging.get("total_cost")
@@ -635,7 +701,12 @@ def teslaMate_daily_chart(
     import shutil
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as p:
         p.add_task(f"Fetching daily energy for last {days} days...", total=None)
         rows = backend.get_daily_energy(days=days)
 
@@ -650,8 +721,8 @@ def teslaMate_daily_chart(
     terminal_cols = shutil.get_terminal_size((80, 24)).columns
     BAR_MAX = max(10, min(terminal_cols - 26, 60))
 
-    kwh_vals  = [float(r.get("kwh_added") or 0) for r in rows]
-    max_kwh   = max(kwh_vals) if any(v > 0 for v in kwh_vals) else 1.0
+    kwh_vals = [float(r.get("kwh_added") or 0) for r in rows]
+    max_kwh = max(kwh_vals) if any(v > 0 for v in kwh_vals) else 1.0
     total_kwh = sum(kwh_vals)
     total_sessions = sum(int(r.get("sessions") or 0) for r in rows)
 
@@ -661,19 +732,21 @@ def teslaMate_daily_chart(
     console.print()
 
     for r in rows:
-        day  = str(r.get("day") or "")[:10]
-        kwh  = float(r.get("kwh_added") or 0)
+        day = str(r.get("day") or "")[:10]
+        kwh = float(r.get("kwh_added") or 0)
         sess = int(r.get("sessions") or 0)
 
         bar_len = round((kwh / max_kwh) * BAR_MAX) if max_kwh > 0 else 0
-        bar     = "█" * bar_len
+        bar = "█" * bar_len
 
         bc = "green" if kwh >= 30 else "yellow" if kwh >= 10 else "red" if kwh > 0 else "dim"
         sess_str = f"[dim]({sess})[/dim]" if sess > 1 else ""
         console.print(f"  [dim]{day}[/dim]  [{bc}]{bar}[/{bc}] {kwh:.1f} kWh {sess_str}")
 
     console.print()
-    console.print(f"  [dim]{len(rows)} days with charging │ {total_kwh:.1f} kWh total │ {total_sessions} sessions[/dim]")
+    console.print(
+        f"  [dim]{len(rows)} days with charging │ {total_kwh:.1f} kWh total │ {total_sessions} sessions[/dim]"
+    )
 
 
 @teslaMate_app.command("graph")
@@ -690,7 +763,12 @@ def teslaMate_graph(
     import shutil
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as p:
         p.add_task(f"Fetching last {limit} charging sessions...", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
 
@@ -706,8 +784,8 @@ def teslaMate_graph(
     BAR_MAX_WIDTH = max(10, min(terminal_cols - 32, 60))
 
     kwh_values = [float(s.get("energy_added_kwh") or 0) for s in sessions]
-    max_kwh    = max(kwh_values) if any(v > 0 for v in kwh_values) else 1.0
-    total_kwh  = sum(kwh_values)
+    max_kwh = max(kwh_values) if any(v > 0 for v in kwh_values) else 1.0
+    total_kwh = sum(kwh_values)
     total_cost = sum(float(s.get("cost") or 0) for s in sessions)
 
     console.print()
@@ -716,13 +794,13 @@ def teslaMate_graph(
     console.print()
 
     for s in sessions:
-        kwh  = float(s.get("energy_added_kwh") or 0)
+        kwh = float(s.get("energy_added_kwh") or 0)
         date = str(s.get("start_date") or "")[:10]
-        loc  = (s.get("location") or "Unknown")[:16]
+        loc = (s.get("location") or "Unknown")[:16]
         label = f"{date}  {loc:<16}"
 
         bar_len = round((kwh / max_kwh) * BAR_MAX_WIDTH) if max_kwh > 0 else 0
-        bar     = "█" * bar_len
+        bar = "█" * bar_len
 
         bc = "green" if kwh >= 30 else "yellow" if kwh >= 10 else "red"
         console.print(f"  [dim]{label}[/dim]  [{bc}]{bar}[/{bc}] {kwh:.1f} kWh")
@@ -744,7 +822,9 @@ def teslaMate_stats() -> None:
     import json as _json
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
+    ) as p:
         p.add_task("Loading lifetime stats...", total=None)
         drive_stats = backend.get_stats()
         charge_stats = backend.get_charging_stats()
@@ -765,13 +845,13 @@ def teslaMate_stats() -> None:
     # ── Driving ──
     console.print("  [bold cyan]── Driving ─────────────────────────────────────[/bold cyan]")
     total_drives = drive_stats.get("total_drives") or 0
-    total_km     = float(drive_stats.get("total_km") or 0)
-    total_mi     = round(total_km * 0.621371, 0)
-    avg_km       = drive_stats.get("avg_km_per_trip") or "—"
-    longest_km   = drive_stats.get("longest_trip_km") or "—"
-    total_kwh    = drive_stats.get("total_kwh") or "—"
-    first_drive  = str(drive_stats.get("first_drive") or "—")[:10]
-    last_drive   = str(drive_stats.get("last_drive") or "—")[:10]
+    total_km = float(drive_stats.get("total_km") or 0)
+    total_mi = round(total_km * 0.621371, 0)
+    avg_km = drive_stats.get("avg_km_per_trip") or "—"
+    longest_km = drive_stats.get("longest_trip_km") or "—"
+    total_kwh = drive_stats.get("total_kwh") or "—"
+    first_drive = str(drive_stats.get("first_drive") or "—")[:10]
+    last_drive = str(drive_stats.get("last_drive") or "—")[:10]
 
     console.print(f"  Total drives       : [bold]{total_drives}[/bold]")
     console.print(f"  Total distance     : [bold]{total_km:,.0f} km[/bold] ({total_mi:,.0f} mi)")
@@ -784,11 +864,11 @@ def teslaMate_stats() -> None:
 
     # ── Charging ──
     console.print("  [bold cyan]── Charging ────────────────────────────────────[/bold cyan]")
-    sessions       = charge_stats.get("total_sessions") or 0
-    total_kwh_ch   = charge_stats.get("total_kwh_added") or "—"
-    total_cost     = charge_stats.get("total_cost")
-    avg_kwh        = charge_stats.get("avg_kwh_per_session") or "—"
-    last_session   = str(charge_stats.get("last_session") or "—")[:10]
+    sessions = charge_stats.get("total_sessions") or 0
+    total_kwh_ch = charge_stats.get("total_kwh_added") or "—"
+    total_cost = charge_stats.get("total_cost")
+    avg_kwh = charge_stats.get("avg_kwh_per_session") or "—"
+    last_session = str(charge_stats.get("last_session") or "—")[:10]
 
     console.print(f"  Total sessions     : [bold]{sessions}[/bold]")
     console.print(f"  Total kWh added    : [bold]{total_kwh_ch} kWh[/bold]")
@@ -810,8 +890,10 @@ def teslaMate_stats() -> None:
 
 @teslaMate_app.command("heatmap")
 def teslaMate_heatmap(
-    days: int          = typer.Option(365, "--days", "-d", help="Calendar window in days (default 365)"),
-    year: int | None   = typer.Option(None, "--year", "-y", help="Show a specific calendar year (e.g. 2025)"),
+    days: int = typer.Option(365, "--days", "-d", help="Calendar window in days (default 365)"),
+    year: int | None = typer.Option(
+        None, "--year", "-y", help="Show a specific calendar year (e.g. 2025)"
+    ),
 ) -> None:
     """GitHub-style driving heatmap — calendar grid of active driving days.
 
@@ -824,7 +906,9 @@ def teslaMate_heatmap(
     import datetime as _dt
 
     backend = _backend()
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
+    ) as p:
         p.add_task("Loading drive history...", total=None)
         if year is not None:
             rows = backend.get_drive_days_year(year)
@@ -835,7 +919,15 @@ def teslaMate_heatmap(
     activity: dict[str, float] = {str(r["day"]): float(r["km"] or 0) for r in rows}
 
     if is_json_mode():
-        console.print(json.dumps([{"date": str(r["day"]), "drives": r["drives"], "km": float(r["km"] or 0)} for r in rows], indent=2))
+        console.print(
+            json.dumps(
+                [
+                    {"date": str(r["day"]), "drives": r["drives"], "km": float(r["km"] or 0)}
+                    for r in rows
+                ],
+                indent=2,
+            )
+        )
         return
 
     # ── Calendar grid ─────────────────────────────────────────────────────────
@@ -843,8 +935,8 @@ def teslaMate_heatmap(
         start = _dt.date(year, 1, 1)
         today = min(_dt.date.today(), _dt.date(year, 12, 31))
     else:
-        today    = _dt.date.today()
-        start    = today - _dt.timedelta(days=days - 1)
+        today = _dt.date.today()
+        start = today - _dt.timedelta(days=days - 1)
     # Align to Monday of start week
     week_start = start - _dt.timedelta(days=start.weekday())
 
@@ -899,7 +991,7 @@ def teslaMate_heatmap(
 
     # Legend
     console.print()
-    total_km   = sum(activity.values())
+    total_km = sum(activity.values())
     active_days = len(activity)
     console.print(
         "  [dim]Legend:[/dim]  [dim]·[/dim] no drive  "
@@ -925,7 +1017,9 @@ def teslaMate_timeline(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Loading timeline for last {days} days…", total=None)
         events = backend.get_timeline(days=days)
 
@@ -945,19 +1039,19 @@ def teslaMate_timeline(
         show_header=True,
         header_style="bold cyan",
     )
-    table.add_column("Date",   width=17)
-    table.add_column("Type",   width=9)
-    table.add_column("Value",  justify="right", width=10)
+    table.add_column("Date", width=17)
+    table.add_column("Type", width=9)
+    table.add_column("Value", justify="right", width=10)
     table.add_column("Detail", width=32)
     table.add_column("Duration", justify="right", width=10)
 
     for ev in events:
-        ev_type   = str(ev.get("type") or "")
-        icon      = _TYPE_ICON.get(ev_type, "•")
-        color     = _TYPE_COLOR.get(ev_type, "white")
-        date      = str(ev.get("start_date") or "")[:16]
-        val       = ev.get("value")
-        detail    = str(ev.get("detail") or "")[:30]
+        ev_type = str(ev.get("type") or "")
+        icon = _TYPE_ICON.get(ev_type, "•")
+        color = _TYPE_COLOR.get(ev_type, "white")
+        date = str(ev.get("start_date") or "")[:16]
+        val = ev.get("value")
+        detail = str(ev.get("detail") or "")[:30]
 
         # Format value
         if ev_type == "trip":
@@ -969,10 +1063,11 @@ def teslaMate_timeline(
 
         # Duration
         start = ev.get("start_date")
-        end   = ev.get("end_date")
+        end = ev.get("end_date")
         if start and end:
             try:
                 import datetime as _dt
+
                 if isinstance(start, str):
                     start = _dt.datetime.fromisoformat(start)
                 if isinstance(end, str):
@@ -1002,8 +1097,10 @@ def teslaMate_timeline(
 
 @teslaMate_app.command("cost-report")
 def teslaMate_cost_report(
-    month: str | None = typer.Option(None, "--month", "-m", help="Filter to YYYY-MM (default: all available)"),
-    limit: int        = typer.Option(100, "--limit", "-n", help="Max sessions to analyse"),
+    month: str | None = typer.Option(
+        None, "--month", "-m", help="Filter to YYYY-MM (default: all available)"
+    ),
+    limit: int = typer.Option(100, "--limit", "-n", help="Max sessions to analyse"),
 ) -> None:
     """Charging cost report grouped by month, using TeslaMate sessions + cost_per_kwh config.
 
@@ -1018,7 +1115,9 @@ def teslaMate_cost_report(
     cost_per_kwh = cfg.general.cost_per_kwh or 0.0
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task("Loading charging sessions…", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
 
@@ -1028,7 +1127,9 @@ def teslaMate_cost_report(
 
     if is_json_mode():
         # Build per-month summary
-        by_month: dict[str, dict] = collections.defaultdict(lambda: {"sessions": 0, "kwh": 0.0, "cost": 0.0})
+        by_month: dict[str, dict] = collections.defaultdict(
+            lambda: {"sessions": 0, "kwh": 0.0, "cost": 0.0}
+        )
         for s in sessions:
             ym = str(s.get("start_date") or "")[:7]
             kwh = float(s.get("energy_added_kwh") or 0)
@@ -1039,11 +1140,17 @@ def teslaMate_cost_report(
         for v in by_month.values():
             v["kwh"] = round(v["kwh"], 2)
             v["cost"] = round(v["cost"], 2)
-        console.print_json(json.dumps({
-            "cost_per_kwh": cost_per_kwh,
-            "months": dict(sorted(by_month.items(), reverse=True)),
-            "sessions": len(sessions),
-        }, indent=2, default=str))
+        console.print_json(
+            json.dumps(
+                {
+                    "cost_per_kwh": cost_per_kwh,
+                    "months": dict(sorted(by_month.items(), reverse=True)),
+                    "sessions": len(sessions),
+                },
+                indent=2,
+                default=str,
+            )
+        )
         return
 
     if not sessions:
@@ -1062,33 +1169,38 @@ def teslaMate_cost_report(
 
     for ym in sorted(by_month_list.keys(), reverse=True):
         sess_list = by_month_list[ym]
-        m_kwh  = sum(float(s.get("energy_added_kwh") or 0) for s in sess_list)
+        m_kwh = sum(float(s.get("energy_added_kwh") or 0) for s in sess_list)
         m_cost = m_kwh * cost_per_kwh
-        total_kwh  += m_kwh
+        total_kwh += m_kwh
         total_cost += m_cost
         total_sessions += len(sess_list)
 
         t = Table(
             title=f"[bold]{ym}[/bold]  {len(sess_list)} sessions · {m_kwh:.1f} kWh · ${m_cost:.2f}",
-            show_header=True, header_style="bold cyan",
+            show_header=True,
+            header_style="bold cyan",
         )
-        t.add_column("Date",     width=17)
+        t.add_column("Date", width=17)
         t.add_column("Location", width=22)
-        t.add_column("SoC %",    width=12)
-        t.add_column("kWh",      justify="right", width=8)
-        t.add_column("Cost",     justify="right", width=9)
+        t.add_column("SoC %", width=12)
+        t.add_column("kWh", justify="right", width=8)
+        t.add_column("Cost", justify="right", width=9)
 
         for s in sess_list:
-            date     = str(s.get("start_date") or "")[:16]
-            loc      = str(s.get("location") or "—")[:20]
-            soc      = f"{s.get('start_battery_level') or '?'}→{s.get('end_battery_level') or '?'}"
-            kwh      = float(s.get("energy_added_kwh") or 0)
-            cost     = kwh * cost_per_kwh
+            date = str(s.get("start_date") or "")[:16]
+            loc = str(s.get("location") or "—")[:20]
+            soc = f"{s.get('start_battery_level') or '?'}→{s.get('end_battery_level') or '?'}"
+            kwh = float(s.get("energy_added_kwh") or 0)
+            cost = kwh * cost_per_kwh
             t.add_row(date, loc, soc, f"{kwh:.2f}", f"${cost:.2f}")
 
         console.print(t)
 
-    rate_note = f" (@ ${cost_per_kwh:.3f}/kWh)" if cost_per_kwh else " [dim](set cost_per_kwh in config for cost estimates)[/dim]"
+    rate_note = (
+        f" (@ ${cost_per_kwh:.3f}/kWh)"
+        if cost_per_kwh
+        else " [dim](set cost_per_kwh in config for cost estimates)[/dim]"
+    )
     console.print(
         f"\n  [bold]Total:[/bold] {total_sessions} sessions · {total_kwh:.1f} kWh · [green]${total_cost:.2f}[/green]{rate_note}"
     )
@@ -1107,7 +1219,9 @@ def teslaMate_trip_stats(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Loading trip stats for last {days} days…", total=None)
         result = backend.get_trip_stats(days=days)
 
@@ -1125,31 +1239,37 @@ def teslaMate_trip_stats(
     from rich.table import Table as _Table
 
     # Summary table
-    st = _Table(title=f"Trip Statistics — Last {days} Days", show_header=False, box=None, padding=(0, 2))
+    st = _Table(
+        title=f"Trip Statistics — Last {days} Days", show_header=False, box=None, padding=(0, 2)
+    )
     st.add_column("k", style="dim", width=22)
     st.add_column("v")
-    st.add_row("Total trips",     str(s.get("total_trips") or "—"))
-    st.add_row("Total distance",  f"{s.get('total_km') or 0:.1f} km")
-    st.add_row("Avg per trip",    f"{s.get('avg_km') or 0:.1f} km")
-    st.add_row("Longest trip",    f"{s.get('longest_km') or 0:.1f} km")
-    st.add_row("Shortest trip",   f"{s.get('shortest_km') or 0:.1f} km")
-    st.add_row("Avg duration",    f"{int(s.get('avg_duration_min') or 0)} min")
+    st.add_row("Total trips", str(s.get("total_trips") or "—"))
+    st.add_row("Total distance", f"{s.get('total_km') or 0:.1f} km")
+    st.add_row("Avg per trip", f"{s.get('avg_km') or 0:.1f} km")
+    st.add_row("Longest trip", f"{s.get('longest_km') or 0:.1f} km")
+    st.add_row("Shortest trip", f"{s.get('shortest_km') or 0:.1f} km")
+    st.add_row("Avg duration", f"{int(s.get('avg_duration_min') or 0)} min")
     console.print(st)
 
     if routes:
         rt = _Table(title="Top Routes", show_header=True, header_style="bold cyan")
-        rt.add_column("From",  width=25)
-        rt.add_column("To",    width=25)
+        rt.add_column("From", width=25)
+        rt.add_column("To", width=25)
         rt.add_column("Trips", justify="right", width=7)
         for r in routes:
-            rt.add_row(str(r.get("from_addr") or "—")[:23], str(r.get("to_addr") or "—")[:23], str(r.get("count") or 0))
+            rt.add_row(
+                str(r.get("from_addr") or "—")[:23],
+                str(r.get("to_addr") or "—")[:23],
+                str(r.get("count") or 0),
+            )
         console.print(rt)
 
 
 @teslaMate_app.command("charging-locations")
 def teslaMate_charging_locations(
-    days:  int = typer.Option(90,  "--days",  "-d", help="Look-back window in days"),
-    limit: int = typer.Option(10,  "--limit", "-n", help="Max locations to show"),
+    days: int = typer.Option(90, "--days", "-d", help="Look-back window in days"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Max locations to show"),
 ) -> None:
     """Top charging locations ranked by session count.
 
@@ -1160,7 +1280,9 @@ def teslaMate_charging_locations(
     """
     backend = _backend()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
         p.add_task(f"Loading charging locations for last {days} days…", total=None)
         rows = backend.get_charging_locations(days=days, limit=limit)
 
@@ -1173,26 +1295,27 @@ def teslaMate_charging_locations(
         return
 
     from rich.table import Table as _Table
+
     t = _Table(
         title=f"Top Charging Locations — Last {days} Days",
         show_header=True,
         header_style="bold cyan",
     )
-    t.add_column("#",         width=4,  style="dim")
-    t.add_column("Location",  width=28)
-    t.add_column("Sessions",  justify="right", width=10)
+    t.add_column("#", width=4, style="dim")
+    t.add_column("Location", width=28)
+    t.add_column("Sessions", justify="right", width=10)
     t.add_column("Total kWh", justify="right", width=11)
-    t.add_column("Avg kWh",   justify="right", width=10)
-    t.add_column("Last Visit",width=17)
+    t.add_column("Avg kWh", justify="right", width=10)
+    t.add_column("Last Visit", width=17)
 
     total_sessions = 0
     total_kwh = 0.0
     for i, r in enumerate(rows, 1):
-        loc   = str(r.get("location") or "—")[:26]
-        sess  = int(r.get("sessions") or 0)
-        tkwh  = float(r.get("total_kwh") or 0)
-        akwh  = float(r.get("avg_kwh_per_session") or 0)
-        last  = str(r.get("last_visit") or "—")[:16]
+        loc = str(r.get("location") or "—")[:26]
+        sess = int(r.get("sessions") or 0)
+        tkwh = float(r.get("total_kwh") or 0)
+        akwh = float(r.get("avg_kwh_per_session") or 0)
+        last = str(r.get("last_visit") or "—")[:16]
         total_sessions += sess
         total_kwh += tkwh
         t.add_row(str(i), loc, str(sess), f"{tkwh:.1f}", f"{akwh:.1f}", last)
@@ -1206,14 +1329,14 @@ def teslaMate_charging_locations(
 # ── Grafana ──────────────────────────────────────────────────────────────────
 
 _GRAFANA_DASHBOARDS: dict[str, str] = {
-    "overview":   "/d/overview/overview",
-    "trips":      "/d/ZihFSXoZk/trips",
-    "charges":    "/d/7Cp9k_7Zz/charges",
-    "battery":    "/d/pf6xQMd7k/battery",
+    "overview": "/d/overview/overview",
+    "trips": "/d/ZihFSXoZk/trips",
+    "charges": "/d/7Cp9k_7Zz/charges",
+    "battery": "/d/pf6xQMd7k/battery",
     "efficiency": "/d/5k7CaGFZz/efficiency",
-    "locations":  "/d/GhFG_aS7k/locations",
-    "vampire":    "/d/g_EIOX5Zz/vampire-drain",
-    "updates":    "/d/f4V4XRhZz/updates",
+    "locations": "/d/GhFG_aS7k/locations",
+    "vampire": "/d/g_EIOX5Zz/vampire-drain",
+    "updates": "/d/f4V4XRhZz/updates",
 }
 
 _GRAFANA_NAMES = ", ".join(_GRAFANA_DASHBOARDS.keys())
@@ -1233,14 +1356,13 @@ def teslaMate_grafana(
     import json as _json
     import webbrowser
 
-    cfg  = load_config()
+    cfg = load_config()
     base = (cfg.grafana.url or "http://localhost:3000").rstrip("/")
 
     key = dashboard.lower()
     if key not in _GRAFANA_DASHBOARDS:
         console.print(
-            f"[red]Unknown dashboard:[/red] {dashboard}\n"
-            f"[dim]Available:[/dim] {_GRAFANA_NAMES}"
+            f"[red]Unknown dashboard:[/red] {dashboard}\n[dim]Available:[/dim] {_GRAFANA_NAMES}"
         )
         raise typer.Exit(1)
 
@@ -1256,7 +1378,9 @@ def teslaMate_grafana(
 
 @teslaMate_app.command("energy-report")
 def teslaMate_energy_report(
-    months: int = typer.Option(6, "--months", "-m", min=1, max=24, help="Number of months to summarise"),
+    months: int = typer.Option(
+        6, "--months", "-m", min=1, max=24, help="Number of months to summarise"
+    ),
 ) -> None:
     """Monthly energy usage summary from TeslaMate.
 
@@ -1269,25 +1393,33 @@ def teslaMate_energy_report(
 
     backend = _backend()
     days = months * 31
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-                  transient=True, disable=is_json_mode()) as p:
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as p:
         p.add_task(f"Fetching energy data for last {months} months…", total=None)
         daily = backend.get_daily_energy(days=days)
 
     # Aggregate by YYYY-MM
     by_month: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "km": 0.0, "days": 0})
     for row in daily:
-        ym   = str(row.get("date") or "")[:7]
-        kwh  = float(row.get("kwh") or 0)
-        km   = float(row.get("km") or row.get("distance") or 0)
+        ym = str(row.get("date") or "")[:7]
+        kwh = float(row.get("kwh") or 0)
+        km = float(row.get("km") or row.get("distance") or 0)
         if ym:
-            by_month[ym]["kwh"]  = round(by_month[ym]["kwh"] + kwh, 3)
-            by_month[ym]["km"]   = round(by_month[ym]["km"]  + km,  1)
+            by_month[ym]["kwh"] = round(by_month[ym]["kwh"] + kwh, 3)
+            by_month[ym]["km"] = round(by_month[ym]["km"] + km, 1)
             by_month[ym]["days"] += 1
 
     rows = [
-        {"month": ym, "kwh": d["kwh"], "km": d["km"],
-         "wh_per_km": round(d["kwh"] * 1000 / d["km"], 1) if d["km"] > 0 else None}
+        {
+            "month": ym,
+            "kwh": d["kwh"],
+            "km": d["km"],
+            "wh_per_km": round(d["kwh"] * 1000 / d["km"], 1) if d["km"] > 0 else None,
+        }
         for ym, d in sorted(by_month.items(), reverse=True)
     ]
 
@@ -1300,10 +1432,10 @@ def teslaMate_energy_report(
         return
 
     table = Table(title=f"Energy Report — last {months} months", border_style="green")
-    table.add_column("Month",    style="bold cyan", width=10)
-    table.add_column("kWh",      justify="right")
-    table.add_column("km",       justify="right")
-    table.add_column("Wh/km",    justify="right")
+    table.add_column("Month", style="bold cyan", width=10)
+    table.add_column("kWh", justify="right")
+    table.add_column("km", justify="right")
+    table.add_column("Wh/km", justify="right")
 
     for r in rows:
         wh_str = f"{r['wh_per_km']:.1f}" if r["wh_per_km"] is not None else "—"
@@ -1315,11 +1447,15 @@ def teslaMate_energy_report(
         )
 
     total_kwh = sum(r["kwh"] for r in rows)
-    total_km  = sum(r["km"]  for r in rows)
+    total_km = sum(r["km"] for r in rows)
     avg_wh = round(total_kwh * 1000 / total_km, 1) if total_km > 0 else 0
     table.add_section()
-    table.add_row("[bold]Total[/bold]", f"[bold]{total_kwh:.1f}[/bold]",
-                  f"[bold]{total_km:.0f}[/bold]", f"[bold]{avg_wh:.1f}[/bold]")
+    table.add_row(
+        "[bold]Total[/bold]",
+        f"[bold]{total_kwh:.1f}[/bold]",
+        f"[bold]{total_km:.0f}[/bold]",
+        f"[bold]{avg_wh:.1f}[/bold]",
+    )
 
     console.print(table)
 
@@ -1341,12 +1477,15 @@ def teslaMate_sync_tokens() -> None:
         console.print("[yellow]TeslaMate is not managed by CLI.[/yellow]")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
     from pathlib import Path
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
     if not stack.is_running():
-        console.print("[yellow]TeslaMate stack is not running.[/yellow] Start with: tesla teslaMate start")
+        console.print(
+            "[yellow]TeslaMate stack is not running.[/yellow] Start with: tesla teslaMate start"
+        )
         raise typer.Exit(1)
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
@@ -1356,7 +1495,9 @@ def teslaMate_sync_tokens() -> None:
     if ok:
         render_success("Tokens synced to TeslaMate. It should start collecting data shortly.")
     else:
-        console.print("[red]Token sync failed.[/red] Make sure you have valid Fleet API tokens (tesla config auth fleet).")
+        console.print(
+            "[red]Token sync failed.[/red] Make sure you have valid Fleet API tokens (tesla config auth fleet)."
+        )
         raise typer.Exit(1)
 
 
@@ -1377,8 +1518,8 @@ def teslaMate_install(
     tesla teslaMate install
     tesla teslaMate install --grafana-port 3001 --tz America/New_York
     """
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
     from tesla_cli.core.exceptions import DockerNotFoundError, TeslaMateStackError
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack()
 
@@ -1390,7 +1531,9 @@ def teslaMate_install(
         if conflicts:
             names = ", ".join(f"{n} (:{p})" for n, p in conflicts)
             console.print(f"[red]Port conflict:[/red] {names} already in use.")
-            console.print("[dim]Use --postgres-port, --grafana-port, etc. to pick different ports.[/dim]")
+            console.print(
+                "[dim]Use --postgres-port, --grafana-port, etc. to pick different ports.[/dim]"
+            )
             raise typer.Exit(1)
 
         p.update(task, description="Installing TeslaMate stack...")
@@ -1425,19 +1568,20 @@ def teslaMate_install(
     render_success("TeslaMate stack installed and running")
     console.print(f"\n  Stack health: {health_icon}")
     console.print(f"  TeslaMate UI: [link]http://localhost:{teslamate_port}[/link]")
-    console.print(f"  Grafana:      [link]http://localhost:{grafana_port}[/link]  (admin / {result['grafana_password']})")
+    console.print(
+        f"  Grafana:      [link]http://localhost:{grafana_port}[/link]  (admin / {result['grafana_password']})"
+    )
     console.print(f"  PostgreSQL:   localhost:{postgres_port}")
     console.print(f"  MQTT:         localhost:{mqtt_port}")
 
     # Auto-sync tokens from keyring → TeslaMate
     import time as _t
+
     _t.sleep(5)  # Wait for TeslaMate to be ready
     if stack.sync_tokens_from_keyring():
         console.print("\n  [green]Tesla tokens synced automatically.[/green]")
     elif not result["has_tesla_tokens"]:
-        console.print(
-            "\n[yellow]No Tesla tokens found.[/yellow] Run: tesla config auth fleet"
-        )
+        console.print("\n[yellow]No Tesla tokens found.[/yellow] Run: tesla config auth fleet")
     console.print()
 
 
@@ -1453,9 +1597,10 @@ def teslaMate_start() -> None:
         console.print("Run [bold]tesla teslaMate install[/bold] to set up a managed stack.")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
-    from tesla_cli.core.exceptions import TeslaMateStackError
     from pathlib import Path
+
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
 
@@ -1471,6 +1616,7 @@ def teslaMate_start() -> None:
 
     # Auto-sync tokens
     import time as _t
+
     _t.sleep(5)
     if stack.sync_tokens_from_keyring():
         console.print("  [green]Tokens synced.[/green]")
@@ -1487,8 +1633,9 @@ def teslaMate_stop() -> None:
         console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
     from pathlib import Path
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
     stack.stop()
@@ -1506,9 +1653,10 @@ def teslaMate_restart() -> None:
         console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
-    from tesla_cli.core.exceptions import TeslaMateStackError
     from pathlib import Path
+
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
 
@@ -1534,8 +1682,9 @@ def teslaMate_update() -> None:
         console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
     from pathlib import Path
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
 
@@ -1551,7 +1700,9 @@ def teslaMate_update() -> None:
 
 @teslaMate_app.command("logs")
 def teslaMate_logs(
-    service: str | None = typer.Option(None, "--service", "-s", help="Service: teslamate, postgres, grafana, mosquitto"),
+    service: str | None = typer.Option(
+        None, "--service", "-s", help="Service: teslamate, postgres, grafana, mosquitto"
+    ),
     lines: int = typer.Option(100, "--lines", "-n", help="Number of log lines"),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
 ) -> None:
@@ -1566,9 +1717,10 @@ def teslaMate_logs(
         console.print("[yellow]TeslaMate is configured as external (not managed by CLI).[/yellow]")
         raise typer.Exit(1)
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
-    from tesla_cli.core.exceptions import TeslaMateStackError
     from pathlib import Path
+
+    from tesla_cli.core.exceptions import TeslaMateStackError
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
 
@@ -1591,7 +1743,9 @@ def teslaMate_logs(
 
 @teslaMate_app.command("uninstall")
 def teslaMate_uninstall(
-    remove_data: bool = typer.Option(False, "--remove-data", help="Also remove database volumes (destructive)"),
+    remove_data: bool = typer.Option(
+        False, "--remove-data", help="Also remove database volumes (destructive)"
+    ),
 ) -> None:
     """Stop and remove managed TeslaMate containers.
 
@@ -1604,13 +1758,16 @@ def teslaMate_uninstall(
         raise typer.Exit(1)
 
     if remove_data:
-        console.print("[red]WARNING: This will permanently delete all TeslaMate data (trips, charging history, etc.)[/red]")
+        console.print(
+            "[red]WARNING: This will permanently delete all TeslaMate data (trips, charging history, etc.)[/red]"
+        )
         confirm = typer.confirm("Are you sure?")
         if not confirm:
             raise typer.Abort()
 
-    from tesla_cli.infra.teslamate_stack import TeslaMateStack
     from pathlib import Path
+
+    from tesla_cli.infra.teslamate_stack import TeslaMateStack
 
     stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
     stack.uninstall(remove_volumes=remove_data)
@@ -1620,10 +1777,14 @@ def teslaMate_uninstall(
     cfg.teslaMate.stack_dir = ""
     save_config(cfg)
 
-    render_success("TeslaMate stack removed" + (" (data deleted)" if remove_data else " (data volumes preserved)"))
+    render_success(
+        "TeslaMate stack removed"
+        + (" (data deleted)" if remove_data else " (data volumes preserved)")
+    )
 
 
 # ── helpers ──
+
 
 def _kv(rows: list[tuple[str, str]]) -> None:
     table = Table(show_header=False, box=None, padding=(0, 2))

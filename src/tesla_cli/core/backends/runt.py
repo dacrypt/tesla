@@ -46,8 +46,7 @@ class RuntBackend:
             from openquery.sources.base import DocumentType, QueryInput
         except ImportError as exc:
             raise RuntError(
-                "openquery is required for RUNT queries. "
-                "Install: pip install 'tesla-cli[query]'"
+                "openquery is required for RUNT queries. Install: pip install 'tesla-cli[query]'"
             ) from exc
 
         if doc_type == "vin":
@@ -59,10 +58,12 @@ class RuntBackend:
 
         try:
             src = get_source("co.runt")
-            result = src.query(QueryInput(
-                document_type=dt,
-                document_number=value,
-            ))
+            result = src.query(
+                QueryInput(
+                    document_type=dt,
+                    document_number=value,
+                )
+            )
         except Exception as exc:
             raise RuntError(f"RUNT query failed: {exc}") from exc
 

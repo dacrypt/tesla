@@ -6,8 +6,8 @@ import typer
 
 from tesla_cli import __version__
 from tesla_cli.cli.commands.config_cmd import config_app
-from tesla_cli.core.exceptions import TeslaCliError
 from tesla_cli.cli.output import render_error, set_json_mode
+from tesla_cli.core.exceptions import TeslaCliError
 
 app = typer.Typer(
     name="tesla",
@@ -39,10 +39,12 @@ def global_options(
     set_json_mode(json_output)
     if lang:
         from tesla_cli.cli.i18n import set_lang
+
         set_lang(lang)
     if anon:
-        from tesla_cli.core.config import load_config
         from tesla_cli.cli.output import set_anon_mode
+        from tesla_cli.core.config import load_config
+
         cfg = load_config()
         set_anon_mode(
             True,
@@ -103,6 +105,7 @@ def _register_commands() -> None:
     from tesla_cli.cli.commands.serve import serve_app
     from tesla_cli.cli.commands.setup import setup_wizard
     from tesla_cli.cli.commands.teslaMate import teslaMate_app
+
     app.command("setup")(setup_wizard)
     app.add_typer(teslaMate_app, name="teslaMate")
     app.add_typer(abrp_app, name="abrp")

@@ -5,9 +5,9 @@ from __future__ import annotations
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
+from tesla_cli.cli.output import console, is_json_mode, render_model, render_success
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.models.climate import ClimateState
-from tesla_cli.cli.output import console, is_json_mode, render_model, render_success
 
 climate_app = typer.Typer(name="climate", help="Climate and HVAC controls.")
 
@@ -45,8 +45,12 @@ def climate_off(vin: str | None = VinOption) -> None:
 
 @climate_app.command("temp")
 def climate_temp(
-    celsius: float | None = typer.Argument(None, help="Driver temp in °C (15.0-30.0). Omit to show current."),
-    passenger: float | None = typer.Option(None, "--passenger", "-p", help="Passenger temp in °C (defaults to driver)."),
+    celsius: float | None = typer.Argument(
+        None, help="Driver temp in °C (15.0-30.0). Omit to show current."
+    ),
+    passenger: float | None = typer.Option(
+        None, "--passenger", "-p", help="Passenger temp in °C (defaults to driver)."
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show or set climate temperature.
@@ -78,14 +82,18 @@ def climate_temp(
         v,
     )
     if is_json_mode():
-        console.print(_json.dumps({"driver_temp": celsius, "passenger_temp": pass_temp, "status": "ok"}))
+        console.print(
+            _json.dumps({"driver_temp": celsius, "passenger_temp": pass_temp, "status": "ok"})
+        )
         return
     render_success(f"Temperature set to {celsius}°C / {pass_temp}°C")
 
 
 @climate_app.command("seat-heater")
 def seat_heater(
-    seat: int = typer.Argument(..., help="Seat (0=driver, 1=passenger, 2=rear-left, 4=rear-center, 5=rear-right)"),
+    seat: int = typer.Argument(
+        ..., help="Seat (0=driver, 1=passenger, 2=rear-left, 4=rear-center, 5=rear-right)"
+    ),
     level: int = typer.Argument(..., help="Level (0=off, 1=low, 2=med, 3=high)"),
     vin: str | None = VinOption,
 ) -> None:
@@ -105,26 +113,28 @@ def steering_heater(
 ) -> None:
     """Toggle steering wheel heater."""
     v = _vin(vin)
-    _with_wake(
-        lambda b, v: b.command(v, "remote_steering_wheel_heater_request", on=on), v
-    )
+    _with_wake(lambda b, v: b.command(v, "remote_steering_wheel_heater_request", on=on), v)
     status = "ON" if on else "OFF"
     render_success(f"Steering wheel heater {status}")
 
 
 _SEAT_MAP: dict[str, int] = {
-    "driver":       0,
-    "passenger":    1,
-    "rear-left":    2,
-    "rear-center":  4,
-    "rear-right":   5,
+    "driver": 0,
+    "passenger": 1,
+    "rear-left": 2,
+    "rear-center": 4,
+    "rear-right": 5,
 }
 
 
 @climate_app.command("seat")
 def seat_heater_named(
-    position: str | None = typer.Argument(None, help="driver|passenger|rear-left|rear-center|rear-right. Omit to show all."),
-    level: int | None = typer.Argument(None, help="Heat level 0-3 (0=off, 1-3=heat). Required when POSITION given."),
+    position: str | None = typer.Argument(
+        None, help="driver|passenger|rear-left|rear-center|rear-right. Omit to show all."
+    ),
+    level: int | None = typer.Argument(
+        None, help="Heat level 0-3 (0=off, 1-3=heat). Required when POSITION given."
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show seat heater levels or set by named position.
@@ -141,11 +151,11 @@ def seat_heater_named(
     if position is None:
         data = _with_wake(lambda b, v: b.get_climate_state(v), v)
         seats = {
-            "driver":       data.get("seat_heater_left", 0),
-            "passenger":    data.get("seat_heater_right", 0),
-            "rear-left":    data.get("seat_heater_rear_left", 0),
-            "rear-center":  data.get("seat_heater_rear_center", 0),
-            "rear-right":   data.get("seat_heater_rear_right", 0),
+            "driver": data.get("seat_heater_left", 0),
+            "passenger": data.get("seat_heater_right", 0),
+            "rear-left": data.get("seat_heater_rear_left", 0),
+            "rear-center": data.get("seat_heater_rear_center", 0),
+            "rear-right": data.get("seat_heater_rear_right", 0),
         }
         if is_json_mode():
             console.print(_json.dumps(seats))
@@ -167,14 +177,18 @@ def seat_heater_named(
         lambda b, v: b.command(v, "remote_seat_heater_request", heater=seat_id, level=level), v
     )
     if is_json_mode():
-        console.print(_json.dumps({"seat": pos_lower, "heater_id": seat_id, "level": level, "status": "ok"}))
+        console.print(
+            _json.dumps({"seat": pos_lower, "heater_id": seat_id, "level": level, "status": "ok"})
+        )
         return
     render_success(f"Seat '{pos_lower}' heater set to level {level}")
 
 
 @climate_app.command("steering-wheel")
 def steering_wheel_heater(
-    on: bool | None = typer.Option(None, "--on/--off", help="Turn on or off. Omit to show current state."),
+    on: bool | None = typer.Option(
+        None, "--on/--off", help="Turn on or off. Omit to show current state."
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show or toggle steering wheel heater.
@@ -196,9 +210,7 @@ def steering_wheel_heater(
         label = "[green]ON[/green]" if state else "[dim]OFF[/dim]"
         console.print(f"\n  Steering wheel heater: {label}\n")
         return
-    _with_wake(
-        lambda b, v: b.command(v, "remote_steering_wheel_heater_request", on=on), v
-    )
+    _with_wake(lambda b, v: b.command(v, "remote_steering_wheel_heater_request", on=on), v)
     if is_json_mode():
         console.print(_json.dumps({"steering_wheel_heater": on, "status": "ok"}))
         return
@@ -259,8 +271,6 @@ def defrost(
 ) -> None:
     """Toggle max defrost (preconditioning max)."""
     v = _vin(vin)
-    _with_wake(
-        lambda b, v: b.command(v, "set_preconditioning_max", on=on), v
-    )
+    _with_wake(lambda b, v: b.command(v, "set_preconditioning_max", on=on), v)
     status = "ON" if on else "OFF"
     render_success(f"Max Defrost {status}")

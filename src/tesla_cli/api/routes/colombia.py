@@ -16,8 +16,10 @@ def pico_y_placa(placa: str = "") -> dict:
     """
     if not placa:
         try:
-            from tesla_cli.core.config import load_config, CONFIG_DIR
             import json
+
+            from tesla_cli.core.config import CONFIG_DIR
+
             dossier_path = CONFIG_DIR / "dossier" / "dossier.json"
             if dossier_path.exists():
                 d = json.loads(dossier_path.read_text())
@@ -26,11 +28,17 @@ def pico_y_placa(placa: str = "") -> dict:
             pass
 
     if not placa:
-        return {"available": True, "placa": "", "message": "No plate assigned yet", "restricted": False}
+        return {
+            "available": True,
+            "placa": "",
+            "message": "No plate assigned yet",
+            "restricted": False,
+        }
 
     try:
         from openquery.sources import get_source
         from openquery.sources.base import DocumentType, QueryInput
+
         src = get_source("co.pico_y_placa")
         result = src.query(QueryInput(document_type=DocumentType.PLATE, document_number=placa))
         return result.model_dump(exclude={"audit"})
@@ -43,6 +51,7 @@ def estaciones_ev(ciudad: str = "", limit: int = 50) -> dict:
     """EV charging stations in Colombia from datos.gov.co."""
     try:
         import httpx
+
         params: dict = {"$limit": limit}
         if ciudad:
             # Socrata SoQL search — use contains for accent-insensitive matching
@@ -77,12 +86,15 @@ def fasecolda_value(marca: str = "TESLA", linea: str = "") -> dict:
     try:
         from openquery.sources import get_source
         from openquery.sources.base import DocumentType, QueryInput
+
         src = get_source("co.fasecolda")
-        result = src.query(QueryInput(
-            document_type=DocumentType.CUSTOM,
-            document_number=marca,
-            extra={"marca": marca, "linea": linea or "MODEL Y"},
-        ))
+        result = src.query(
+            QueryInput(
+                document_type=DocumentType.CUSTOM,
+                document_number=marca,
+                extra={"marca": marca, "linea": linea or "MODEL Y"},
+            )
+        )
         return result.model_dump(exclude={"audit"})
     except Exception as exc:
         return {"marca": marca, "linea": linea, "error": str(exc)}
@@ -94,12 +106,15 @@ def recalls_sic(marca: str = "TESLA") -> dict:
     try:
         from openquery.sources import get_source
         from openquery.sources.base import DocumentType, QueryInput
+
         src = get_source("co.recalls")
-        result = src.query(QueryInput(
-            document_type=DocumentType.CUSTOM,
-            document_number=marca,
-            extra={"marca": marca},
-        ))
+        result = src.query(
+            QueryInput(
+                document_type=DocumentType.CUSTOM,
+                document_number=marca,
+                extra={"marca": marca},
+            )
+        )
         return result.model_dump(exclude={"audit"})
     except Exception as exc:
         return {"marca": marca, "recalls": [], "error": str(exc)}
@@ -110,9 +125,12 @@ def peajes(ruta: str = "") -> dict:
     """Toll booth tariffs from datos.gov.co."""
     try:
         import httpx
+
         params: dict = {"$limit": 100}
         if ruta:
-            params["$where"] = f"upper(nombre_estacion_peaje) like '%{ruta.upper()}%' OR upper(sector) like '%{ruta.upper()}%'"
+            params["$where"] = (
+                f"upper(nombre_estacion_peaje) like '%{ruta.upper()}%' OR upper(sector) like '%{ruta.upper()}%'"
+            )
         r = httpx.get("https://www.datos.gov.co/resource/7gj8-j6i3.json", params=params, timeout=10)
         r.raise_for_status()
         return {"total": len(r.json()), "peajes": r.json()}

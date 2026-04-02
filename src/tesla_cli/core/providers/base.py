@@ -13,6 +13,7 @@ from typing import Any
 
 # ── Capability taxonomy ───────────────────────────────────────────────────────
 
+
 class Capability:
     """String-typed capability constants.
 
@@ -26,23 +27,23 @@ class Capability:
     """
 
     # ── Vehicle (real-time) ────────────────────────────────────────────────
-    VEHICLE_STATE    = "vehicle.state"      # full multi-state snapshot
-    VEHICLE_COMMAND  = "vehicle.command"    # send control commands
-    VEHICLE_LOCATION = "vehicle.location"   # GPS coordinates
-    VEHICLE_STREAM   = "vehicle.stream"     # continuous real-time telemetry
+    VEHICLE_STATE = "vehicle.state"  # full multi-state snapshot
+    VEHICLE_COMMAND = "vehicle.command"  # send control commands
+    VEHICLE_LOCATION = "vehicle.location"  # GPS coordinates
+    VEHICLE_STREAM = "vehicle.stream"  # continuous real-time telemetry
 
     # ── Historical / aggregated ────────────────────────────────────────────
-    HISTORY_TRIPS    = "history.trips"      # past drive sessions
-    HISTORY_CHARGES  = "history.charges"    # past charging sessions
-    HISTORY_STATS    = "history.stats"      # lifetime/period statistics
+    HISTORY_TRIPS = "history.trips"  # past drive sessions
+    HISTORY_CHARGES = "history.charges"  # past charging sessions
+    HISTORY_STATS = "history.stats"  # lifetime/period statistics
 
     # ── Outbound integrations ──────────────────────────────────────────────
-    TELEMETRY_PUSH   = "telemetry.push"     # push live telemetry (ABRP, MQTT)
-    HOME_SYNC        = "home.sync"          # push state to home automation
-    NOTIFY           = "notify.push"        # push notifications (Apprise)
+    TELEMETRY_PUSH = "telemetry.push"  # push live telemetry (ABRP, MQTT)
+    HOME_SYNC = "home.sync"  # push state to home automation
+    NOTIFY = "notify.push"  # push notifications (Apprise)
 
     # ── Visualization ──────────────────────────────────────────────────────
-    VISUALIZATION    = "visual.open"        # open a dashboard (Grafana)
+    VISUALIZATION = "visual.open"  # open a dashboard (Grafana)
 
     @classmethod
     def all(cls) -> list[str]:
@@ -51,16 +52,19 @@ class Capability:
 
 # ── Priority ──────────────────────────────────────────────────────────────────
 
+
 class ProviderPriority(IntEnum):
     """Higher number = higher priority = picked first by registry."""
-    CRITICAL = 100   # L0 BLE — offline, no latency, no internet
-    HIGH     = 80    # L1 Direct API — Owner / Tessie / Fleet
-    MEDIUM   = 60    # L2 Local DB  — TeslaMate
-    LOW      = 40    # L3 External  — ABRP, HA, Grafana
-    MINIMAL  = 20    # Fallback / auxiliary
+
+    CRITICAL = 100  # L0 BLE — offline, no latency, no internet
+    HIGH = 80  # L1 Direct API — Owner / Tessie / Fleet
+    MEDIUM = 60  # L2 Local DB  — TeslaMate
+    LOW = 40  # L3 External  — ABRP, HA, Grafana
+    MINIMAL = 20  # Fallback / auxiliary
 
 
 # ── Result envelope ───────────────────────────────────────────────────────────
+
 
 class ProviderResult:
     """Standardized result from any provider call."""
@@ -74,19 +78,19 @@ class ProviderResult:
         latency_ms: float = 0.0,
         error: str | None = None,
     ) -> None:
-        self.ok         = ok
-        self.data       = data
-        self.provider   = provider
+        self.ok = ok
+        self.data = data
+        self.provider = provider
         self.latency_ms = latency_ms
-        self.error      = error
+        self.error = error
 
     def to_dict(self) -> dict:
         return {
-            "ok":         self.ok,
-            "provider":   self.provider,
+            "ok": self.ok,
+            "provider": self.provider,
             "latency_ms": round(self.latency_ms, 1),
-            "error":      self.error,
-            "data":       self.data if self.ok else None,
+            "error": self.error,
+            "data": self.data if self.ok else None,
         }
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -95,6 +99,7 @@ class ProviderResult:
 
 
 # ── Provider ABC ──────────────────────────────────────────────────────────────
+
 
 class Provider(ABC):
     """Abstract base for every ecosystem provider.
@@ -141,11 +146,15 @@ class Provider(ABC):
 
     def fetch(self, operation: str, **kwargs) -> ProviderResult:
         """Read data. Override per-provider. Returns ProviderResult."""
-        return ProviderResult(ok=False, provider=self.name, error=f"fetch({operation}) not implemented")
+        return ProviderResult(
+            ok=False, provider=self.name, error=f"fetch({operation}) not implemented"
+        )
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
         """Send a command or push data. Override per-provider. Returns ProviderResult."""
-        return ProviderResult(ok=False, provider=self.name, error=f"execute({operation}) not implemented")
+        return ProviderResult(
+            ok=False, provider=self.name, error=f"execute({operation}) not implemented"
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -159,12 +168,12 @@ class Provider(ABC):
         """One-line status dict for `tesla providers status`."""
         available = self.is_available()
         return {
-            "name":         self.name,
-            "layer":        f"L{self.layer}",
-            "priority":     self.priority,
-            "available":    available,
+            "name": self.name,
+            "layer": f"L{self.layer}",
+            "priority": self.priority,
+            "available": available,
             "capabilities": list(self.capabilities),
-            "description":  self.description,
+            "description": self.description,
         }
 
     def __repr__(self) -> str:  # pragma: no cover

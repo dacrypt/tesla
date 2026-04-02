@@ -25,10 +25,10 @@ class AbrpProvider(Provider):
     Translates vehicle state dict → ABRP telemetry format and POSTs it.
     """
 
-    name        = "abrp"
+    name = "abrp"
     description = "ABRP live telemetry (route planning predictions)"
-    layer       = 3
-    priority    = ProviderPriority.LOW
+    layer = 3
+    priority = ProviderPriority.LOW
     capabilities = frozenset({Capability.TELEMETRY_PUSH})
 
     def __init__(self, config: Config) -> None:
@@ -44,19 +44,21 @@ class AbrpProvider(Provider):
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
         if operation not in ("push", "send"):
-            return ProviderResult(ok=False, provider=self.name, error=f"Unknown operation: {operation}")
+            return ProviderResult(
+                ok=False, provider=self.name, error=f"Unknown operation: {operation}"
+            )
 
         data = kwargs.get("data") or {}
-        cs   = data.get("charge_state") or {}
-        ds   = data.get("drive_state") or {}
+        cs = data.get("charge_state") or {}
+        ds = data.get("drive_state") or {}
         clim = data.get("climate_state") or {}
 
         tlm: dict = {
-            "utc":           int(time.time()),
-            "soc":           cs.get("battery_level"),
-            "speed":         round((ds.get("speed") or 0) * 1.60934, 1),
-            "power":         ds.get("power") or 0,
-            "is_charging":   int(cs.get("charging_state") in ("Charging", "Complete")),
+            "utc": int(time.time()),
+            "soc": cs.get("battery_level"),
+            "speed": round((ds.get("speed") or 0) * 1.60934, 1),
+            "power": ds.get("power") or 0,
+            "is_charging": int(cs.get("charging_state") in ("Charging", "Complete")),
             "charger_power": cs.get("charger_power") or 0,
         }
         if ds.get("latitude") is not None:
@@ -72,18 +74,20 @@ class AbrpProvider(Provider):
             import json as _json
             import urllib.request as _req
 
-            params  = f"token={self._cfg.abrp.user_token}"
+            params = f"token={self._cfg.abrp.user_token}"
             if self._cfg.abrp.api_key:
                 params += f"&api_key={self._cfg.abrp.api_key}"
-            url     = f"{_ABRP_API}?{params}"
+            url = f"{_ABRP_API}?{params}"
             payload = _json.dumps({"tlm": tlm}).encode()
-            req     = _req.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            req = _req.Request(url, data=payload, headers={"Content-Type": "application/json"})
 
             t0 = time.monotonic()
             with _req.urlopen(req, timeout=10) as resp:  # noqa: S310
                 resp_data = _json.loads(resp.read().decode())
             ms = (time.monotonic() - t0) * 1000
 
-            return ProviderResult(ok=True, data={"tlm": tlm, "response": resp_data}, provider=self.name, latency_ms=ms)
+            return ProviderResult(
+                ok=True, data={"tlm": tlm, "response": resp_data}, provider=self.name, latency_ms=ms
+            )
         except Exception as exc:  # noqa: BLE001
             return ProviderResult(ok=False, provider=self.name, error=str(exc))

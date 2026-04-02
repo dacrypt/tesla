@@ -12,8 +12,8 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin, save_config
 from tesla_cli.cli.output import console, is_json_mode, render_success
+from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 abrp_app = typer.Typer(
     name="abrp",
@@ -31,25 +31,25 @@ def _vin(vin: str | None) -> str:
 
 def _build_tlm(data: dict) -> dict:
     """Extract ABRP telemetry fields from full vehicle_data response."""
-    cs   = data.get("charge_state") or {}
-    ds   = data.get("drive_state") or {}
+    cs = data.get("charge_state") or {}
+    ds = data.get("drive_state") or {}
     clim = data.get("climate_state") or {}
 
-    soc         = cs.get("battery_level")
-    speed       = ds.get("speed") or 0          # mph (Tesla API native)
-    power       = ds.get("power") or 0           # kW (negative = regen)
-    lat         = ds.get("latitude")
-    lon         = ds.get("longitude")
+    soc = cs.get("battery_level")
+    speed = ds.get("speed") or 0  # mph (Tesla API native)
+    power = ds.get("power") or 0  # kW (negative = regen)
+    lat = ds.get("latitude")
+    lon = ds.get("longitude")
     is_charging = cs.get("charging_state") in ("Charging", "Complete")
-    charger_pwr = cs.get("charger_power") or 0   # kW
+    charger_pwr = cs.get("charger_power") or 0  # kW
 
     tlm: dict = {"utc": int(time.time())}
     if soc is not None:
         tlm["soc"] = soc
-    tlm["speed"]          = round(speed * 1.60934, 1)   # convert mph → km/h
-    tlm["power"]          = power
-    tlm["is_charging"]    = int(is_charging)
-    tlm["charger_power"]  = charger_pwr
+    tlm["speed"] = round(speed * 1.60934, 1)  # convert mph → km/h
+    tlm["power"] = power
+    tlm["is_charging"] = int(is_charging)
+    tlm["charger_power"] = charger_pwr
     if lat is not None:
         tlm["lat"] = lat
     if lon is not None:
@@ -72,7 +72,7 @@ def _push(cfg, tlm: dict) -> dict:
         raise RuntimeError("urllib not available")
 
     user_token = cfg.abrp.user_token
-    api_key    = cfg.abrp.api_key
+    api_key = cfg.abrp.api_key
 
     if not user_token:
         raise typer.BadParameter(
@@ -85,9 +85,9 @@ def _push(cfg, tlm: dict) -> dict:
     if api_key:
         params += f"&api_key={api_key}"
 
-    url     = f"{_ABRP_API}?{params}"
+    url = f"{_ABRP_API}?{params}"
     payload = _json.dumps({"tlm": tlm}).encode()
-    req     = _req.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    req = _req.Request(url, data=payload, headers={"Content-Type": "application/json"})
 
     with _req.urlopen(req, timeout=10) as resp:  # noqa: S310
         return _json.loads(resp.read().decode())
@@ -106,9 +106,9 @@ def abrp_send(vin: str | None = VinOption) -> None:
     import json as _json
 
     cfg = load_config()
-    v   = _vin(vin)
+    v = _vin(vin)
     data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
-    tlm  = _build_tlm(data)
+    tlm = _build_tlm(data)
     resp = _push(cfg, tlm)
 
     if is_json_mode():
@@ -116,9 +116,9 @@ def abrp_send(vin: str | None = VinOption) -> None:
         return
 
     status = resp.get("status", "unknown")
-    soc    = tlm.get("soc", "?")
-    speed  = tlm.get("speed", 0)
-    power  = tlm.get("power", 0)
+    soc = tlm.get("soc", "?")
+    speed = tlm.get("speed", 0)
+    power = tlm.get("power", 0)
     charging = "yes" if tlm.get("is_charging") else "no"
     console.print(
         f"[green]✓[/green] ABRP telemetry sent  "
@@ -132,7 +132,9 @@ def abrp_send(vin: str | None = VinOption) -> None:
 
 @abrp_app.command("stream")
 def abrp_stream(
-    interval: int = typer.Option(30, "--interval", "-i", help="Push interval in seconds (default 30)"),
+    interval: int = typer.Option(
+        30, "--interval", "-i", help="Push interval in seconds (default 30)"
+    ),
     notify: str = typer.Option("", "--notify", help="Apprise URL for error alerts"),
     vin: str | None = VinOption,
 ) -> None:
@@ -144,7 +146,7 @@ def abrp_stream(
     import json as _json
 
     cfg = load_config()
-    v   = _vin(vin)
+    v = _vin(vin)
 
     console.print(
         f"[bold cyan]ABRP live stream[/bold cyan]  "
@@ -152,7 +154,7 @@ def abrp_stream(
         "Press [bold]Ctrl+C[/bold] to stop.\n"
     )
 
-    push_count  = 0
+    push_count = 0
     error_count = 0
 
     try:
@@ -160,20 +162,27 @@ def abrp_stream(
             ts = int(time.time())
             try:
                 data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
-                tlm  = _build_tlm(data)
+                tlm = _build_tlm(data)
                 resp = _push(cfg, tlm)
                 push_count += 1
-                soc    = tlm.get("soc", "?")
-                speed  = tlm.get("speed", 0)
-                power  = tlm.get("power", 0)
+                soc = tlm.get("soc", "?")
+                speed = tlm.get("speed", 0)
+                power = tlm.get("power", 0)
                 status = resp.get("status", "?")
                 if is_json_mode():
-                    console.print(_json.dumps({
-                        "ts": ts, "push": push_count,
-                        "telemetry": tlm, "abrp_response": resp,
-                    }))
+                    console.print(
+                        _json.dumps(
+                            {
+                                "ts": ts,
+                                "push": push_count,
+                                "telemetry": tlm,
+                                "abrp_response": resp,
+                            }
+                        )
+                    )
                 else:
                     from datetime import datetime
+
                     ts_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
                     console.print(
                         f"[dim]{ts_str}[/dim]  "
@@ -188,6 +197,7 @@ def abrp_stream(
                 if notify:
                     try:
                         import apprise as _apprise  # type: ignore[import]
+
                         a = _apprise.Apprise()
                         a.add(notify)
                         a.notify(title="ABRP stream error", body=str(exc))
@@ -215,22 +225,27 @@ def abrp_status() -> None:
 
     cfg = load_config()
     has_user_token = bool(cfg.abrp.user_token)
-    has_api_key    = bool(cfg.abrp.api_key)
+    has_api_key = bool(cfg.abrp.api_key)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "user_token_set": has_user_token,
-            "api_key_set":    has_api_key,
-            "abrp_api":       _ABRP_API,
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "user_token_set": has_user_token,
+                    "api_key_set": has_api_key,
+                    "abrp_api": _ABRP_API,
+                }
+            )
+        )
         return
 
     from rich.table import Table
+
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("k", style="dim", width=22)
     t.add_column("v")
-    t.add_row("User Token",  "[green]set[/green]" if has_user_token else "[red]not set[/red]")
-    t.add_row("API Key",     "[green]set[/green]" if has_api_key    else "[dim]not set (optional)[/dim]")
+    t.add_row("User Token", "[green]set[/green]" if has_user_token else "[red]not set[/red]")
+    t.add_row("API Key", "[green]set[/green]" if has_api_key else "[dim]not set (optional)[/dim]")
     t.add_row("API Endpoint", f"[dim]{_ABRP_API}[/dim]")
     console.print(t)
 
@@ -259,7 +274,5 @@ def abrp_setup(
         cfg.abrp.api_key = api_key
     save_config(cfg)
     render_success(
-        "ABRP configured."
-        + (" API key saved." if api_key else "")
-        + "\nTest with: tesla abrp send"
+        "ABRP configured." + (" API key saved." if api_key else "") + "\nTest with: tesla abrp send"
     )

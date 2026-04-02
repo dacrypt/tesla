@@ -36,10 +36,10 @@ class MqttProvider(Provider):
     Telegraf, and any other MQTT consumer.
     """
 
-    name        = "mqtt"
+    name = "mqtt"
     description = "MQTT broker telemetry publisher"
-    layer       = 3
-    priority    = ProviderPriority.LOW
+    layer = 3
+    priority = ProviderPriority.LOW
     capabilities = frozenset({Capability.TELEMETRY_PUSH})
 
     def __init__(self, config: Config) -> None:
@@ -54,6 +54,7 @@ class MqttProvider(Provider):
             return False
         try:
             import paho.mqtt.client  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -64,8 +65,11 @@ class MqttProvider(Provider):
         try:
             import paho.mqtt.client  # noqa: F401
         except ImportError:
-            return {"status": "down", "latency_ms": 0,
-                    "detail": "paho-mqtt not installed (pip install 'tesla-cli[mqtt]')"}
+            return {
+                "status": "down",
+                "latency_ms": 0,
+                "detail": "paho-mqtt not installed (pip install 'tesla-cli[mqtt]')",
+            }
 
         try:
             t0 = time.monotonic()
@@ -73,17 +77,22 @@ class MqttProvider(Provider):
             client.connect(self._mcfg.broker, self._mcfg.port, keepalive=5)
             client.disconnect()
             ms = (time.monotonic() - t0) * 1000
-            return {"status": "ok", "latency_ms": round(ms, 1),
-                    "detail": f"broker={self._mcfg.broker}:{self._mcfg.port}"}
+            return {
+                "status": "ok",
+                "latency_ms": round(ms, 1),
+                "detail": f"broker={self._mcfg.broker}:{self._mcfg.port}",
+            }
         except Exception as exc:  # noqa: BLE001
             return {"status": "down", "latency_ms": 0, "detail": str(exc)}
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
         if operation not in ("push", "send"):
-            return ProviderResult(ok=False, provider=self.name, error=f"Unknown operation: {operation}")
+            return ProviderResult(
+                ok=False, provider=self.name, error=f"Unknown operation: {operation}"
+            )
 
         data = kwargs.get("data") or {}
-        vin  = kwargs.get("vin") or "unknown"
+        vin = kwargs.get("vin") or "unknown"
 
         try:
             prefix = (self._mcfg.topic_prefix or "tesla").rstrip("/")
@@ -96,15 +105,19 @@ class MqttProvider(Provider):
             # Publish each top-level state key as its own subtopic
             for key in ("charge_state", "drive_state", "climate_state", "vehicle_state"):
                 if key in data and data[key]:
-                    topic   = f"{prefix}/{vin}/{key}"
+                    topic = f"{prefix}/{vin}/{key}"
                     payload = json.dumps(data[key], default=str)
                     client.publish(topic, payload, qos=self._mcfg.qos, retain=self._mcfg.retain)
                     msgs_published += 1
 
             # Also publish the full blob for consumers that want everything
             full_topic = f"{prefix}/{vin}/state"
-            client.publish(full_topic, json.dumps(data, default=str),
-                           qos=self._mcfg.qos, retain=self._mcfg.retain)
+            client.publish(
+                full_topic,
+                json.dumps(data, default=str),
+                qos=self._mcfg.qos,
+                retain=self._mcfg.retain,
+            )
             msgs_published += 1
 
             client.loop(timeout=0.5)  # flush outgoing queue
@@ -129,11 +142,11 @@ class MqttProvider(Provider):
         if available:
             detail = f"{self._mcfg.broker}:{self._mcfg.port}"
         return {
-            "name":        self.name,
-            "layer":       f"L{self.layer}",
-            "available":   available,
+            "name": self.name,
+            "layer": f"L{self.layer}",
+            "available": available,
             "capabilities": ", ".join(sorted(self.capabilities)),
-            "detail":      detail,
+            "detail": detail,
         }
 
     # ── Helpers ───────────────────────────────────────────────────────────────

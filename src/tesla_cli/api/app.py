@@ -4,23 +4,23 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-import logging
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from tesla_cli import __version__
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 
 # ── App factory ───────────────────────────────────────────────────────────────
+
 
 def _auto_provision_teslamate() -> None:
     """Install or start the managed TeslaMate stack if Docker is available."""
@@ -29,9 +29,8 @@ def _auto_provision_teslamate() -> None:
 
     try:
         from tesla_cli.infra.teslamate_stack import TeslaMateStack
-        stack = TeslaMateStack(
-            Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None
-        )
+
+        stack = TeslaMateStack(Path(cfg.teslaMate.stack_dir) if cfg.teslaMate.stack_dir else None)
         stack.check_docker()
         stack.check_docker_compose()
     except Exception:
@@ -49,6 +48,7 @@ def _auto_provision_teslamate() -> None:
         # Always sync tokens from keyring → TeslaMate
         try:
             import time as _t
+
             _t.sleep(5)  # Wait for TeslaMate to be fully ready
             if stack.sync_tokens_from_keyring():
                 log.info("Tesla tokens synced to TeslaMate.")
@@ -61,8 +61,14 @@ def _auto_provision_teslamate() -> None:
         log.info("TeslaMate not configured — auto-installing managed stack...")
         try:
             from tesla_cli.core.config import save_config
+
             # Pick free ports (avoid conflicts with host services)
-            ports = {"postgres_port": 5432, "grafana_port": 3000, "teslamate_port": 4000, "mqtt_port": 1883}
+            ports = {
+                "postgres_port": 5432,
+                "grafana_port": 3000,
+                "teslamate_port": 4000,
+                "mqtt_port": 1883,
+            }
             for key, default in ports.items():
                 port = default
                 while stack.port_in_use(port):
@@ -85,10 +91,13 @@ def _auto_provision_teslamate() -> None:
             log.info(
                 "TeslaMate stack installed (%s). "
                 "UI: http://localhost:%s  Grafana: http://localhost:%s",
-                health, result["teslamate_port"], result["grafana_port"],
+                health,
+                result["teslamate_port"],
+                result["grafana_port"],
             )
             # Sync tokens to TeslaMate after install
             import time as _t
+
             _t.sleep(8)  # Wait for TeslaMate to fully start
             if stack.sync_tokens_from_keyring():
                 log.info("Tesla tokens synced to TeslaMate after install.")
@@ -99,11 +108,13 @@ def _auto_provision_teslamate() -> None:
 def _auto_refresh_sources() -> None:
     """Periodically refresh stale data sources."""
     import time as _t
+
     log = logging.getLogger("tesla-cli.sources-refresh")
     _t.sleep(60)  # Wait for server to be fully ready
     while True:
         try:
             from tesla_cli.core.sources import refresh_stale
+
             result = refresh_stale()
             refreshed = result.get("refreshed", [])
             failed = result.get("failed", [])
@@ -120,6 +131,7 @@ def _auto_refresh_sources() -> None:
 async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
     import threading
+
     threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
     threading.Thread(target=_auto_refresh_sources, daemon=True).start()
     yield
@@ -145,6 +157,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
     # API Key auth middleware (no-op when key not configured)
     from tesla_cli.api.auth import ApiKeyMiddleware
+
     cfg0 = load_config()
     app.add_middleware(ApiKeyMiddleware, api_key=cfg0.server.api_key)
 
@@ -154,23 +167,23 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     # ── Register routes ───────────────────────────────────────────────────────
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.charge import router as charge_router
-    from tesla_cli.api.routes.colombia import router as colombia_router
-    from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.climate import router as climate_router
+    from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.order import router as order_router
+    from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
-    app.include_router(auth_router,      prefix="/api/auth",       tags=["Auth"])
-    app.include_router(sources_router,   prefix="/api/sources",    tags=["Sources"])
-    app.include_router(colombia_router,  prefix="/api/co",         tags=["Colombia"])
-    app.include_router(vehicle_router,   prefix="/api/vehicle",    tags=["Vehicle"])
-    app.include_router(charge_router,    prefix="/api/charge",     tags=["Charge"])
-    app.include_router(climate_router,   prefix="/api/climate",    tags=["Climate"])
-    app.include_router(order_router,     prefix="/api/order",      tags=["Order"])
-    app.include_router(dossier_router,   prefix="/api/dossier",    tags=["Dossier"])
-    app.include_router(teslaMate_router, prefix="/api/teslaMate",  tags=["TeslaMate"])
+    app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+    app.include_router(sources_router, prefix="/api/sources", tags=["Sources"])
+    app.include_router(colombia_router, prefix="/api/co", tags=["Colombia"])
+    app.include_router(vehicle_router, prefix="/api/vehicle", tags=["Vehicle"])
+    app.include_router(charge_router, prefix="/api/charge", tags=["Charge"])
+    app.include_router(climate_router, prefix="/api/climate", tags=["Climate"])
+    app.include_router(order_router, prefix="/api/order", tags=["Order"])
+    app.include_router(dossier_router, prefix="/api/dossier", tags=["Dossier"])
+    app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
 
     # ── System endpoints ──────────────────────────────────────────────────────
 
@@ -178,10 +191,10 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     def api_status(request: Request) -> dict:
         cfg = load_config()
         return {
-            "version":  __version__,
-            "backend":  cfg.general.backend,
-            "vin":      cfg.general.default_vin,
-            "server":   "tesla-cli API",
+            "version": __version__,
+            "backend": cfg.general.backend,
+            "vin": cfg.general.default_vin,
+            "server": "tesla-cli API",
         }
 
     @app.get("/api/vehicles", tags=["System"])
@@ -203,16 +216,16 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     def api_config() -> dict:
         cfg = load_config()
         return {
-            "backend":          cfg.general.backend,
-            "default_vin":      cfg.general.default_vin,
-            "cost_per_kwh":     cfg.general.cost_per_kwh,
-            "teslaMate_url":    bool(cfg.teslaMate.database_url),
-            "ha_url":           cfg.home_assistant.url,
-            "abrp_configured":  bool(cfg.abrp.user_token),
-            "geofences":        list(cfg.geofences.zones.keys()),
-            "notifications":    cfg.notifications.enabled,
-            "vehicles":         cfg.vehicles.aliases,
-            "auth_enabled":     bool(cfg.server.api_key),
+            "backend": cfg.general.backend,
+            "default_vin": cfg.general.default_vin,
+            "cost_per_kwh": cfg.general.cost_per_kwh,
+            "teslaMate_url": bool(cfg.teslaMate.database_url),
+            "ha_url": cfg.home_assistant.url,
+            "abrp_configured": bool(cfg.abrp.user_token),
+            "geofences": list(cfg.geofences.zones.keys()),
+            "notifications": cfg.notifications.enabled,
+            "vehicles": cfg.vehicles.aliases,
+            "auth_enabled": bool(cfg.server.api_key),
         }
 
     # ── Provider registry endpoints ───────────────────────────────────────────
@@ -221,6 +234,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     def api_providers() -> list:
         """Ecosystem provider status — availability and capabilities."""
         from tesla_cli.core.providers import get_registry
+
         return get_registry().status()
 
     @app.get("/api/providers/capabilities", tags=["System"])
@@ -228,12 +242,13 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         """Capability map — which providers serve which capabilities."""
         from tesla_cli.core.providers import get_registry
         from tesla_cli.core.providers.base import Capability
+
         registry = get_registry()
         out = {}
         for cap in sorted(Capability.all()):
             available = [p.name for p in registry.for_capability(cap)]
-            all_p     = [p.name for p in registry.for_capability(cap, available_only=False)]
-            out[cap]  = {"available": available, "all": all_p}
+            all_p = [p.name for p in registry.for_capability(cap, available_only=False)]
+            out[cap] = {"available": available, "all": all_p}
         return out
 
     # ── Geofences endpoint ────────────────────────────────────────────────────
@@ -242,10 +257,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     def api_geofences() -> list:
         """Return all configured geofence zones."""
         cfg = load_config()
-        return [
-            {"name": name, **zone}
-            for name, zone in cfg.geofences.zones.items()
-        ]
+        return [{"name": name, **zone} for name, zone in cfg.geofences.zones.items()]
 
     # ── Prometheus metrics endpoint ──────────────────────────────────────────
 
@@ -260,7 +272,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         from fastapi.responses import PlainTextResponse
 
         cfg = load_config()
-        v   = resolve_vin(cfg, app.state.override_vin)
+        v = resolve_vin(cfg, app.state.override_vin)
 
         # Try to get fresh data; fall back to empty on any error
         try:
@@ -270,7 +282,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             data = {}
 
         cs = data.get("charge_state") or {}
-        ds = data.get("drive_state")  or {}
+        ds = data.get("drive_state") or {}
         vs = data.get("vehicle_state") or {}
 
         def _g(name: str, help_text: str, value, labels: str = "") -> str:
@@ -281,17 +293,29 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             return f"# HELP {name} {help_text}\n# TYPE {name} gauge\n{name}{lbl} {val_str}\n"
 
         lines = [
-            _g("tesla_battery_level",   "Battery level percent",         cs.get("battery_level")),
-            _g("tesla_battery_range",   "Estimated range in miles",       cs.get("battery_range")),
-            _g("tesla_charge_limit",    "Charge limit SoC percent",       cs.get("charge_limit_soc")),
-            _g("tesla_charger_power",   "Charger power in kW",            cs.get("charger_power")),
-            _g("tesla_energy_added",    "Energy added in kWh this session",cs.get("charge_energy_added")),
-            _g("tesla_odometer",        "Odometer in miles",              vs.get("odometer")),
-            _g("tesla_speed",           "Vehicle speed in mph",           ds.get("speed")),
-            _g("tesla_latitude",        "Vehicle latitude",               ds.get("latitude")),
-            _g("tesla_longitude",       "Vehicle longitude",              ds.get("longitude")),
-            _g("tesla_locked",          "Doors locked (1=locked 0=unlocked)", int(bool(vs.get("locked"))) if vs.get("locked") is not None else None),
-            _g("tesla_sentry_mode",     "Sentry mode active (1=on 0=off)",    int(bool(vs.get("sentry_mode"))) if vs.get("sentry_mode") is not None else None),
+            _g("tesla_battery_level", "Battery level percent", cs.get("battery_level")),
+            _g("tesla_battery_range", "Estimated range in miles", cs.get("battery_range")),
+            _g("tesla_charge_limit", "Charge limit SoC percent", cs.get("charge_limit_soc")),
+            _g("tesla_charger_power", "Charger power in kW", cs.get("charger_power")),
+            _g(
+                "tesla_energy_added",
+                "Energy added in kWh this session",
+                cs.get("charge_energy_added"),
+            ),
+            _g("tesla_odometer", "Odometer in miles", vs.get("odometer")),
+            _g("tesla_speed", "Vehicle speed in mph", ds.get("speed")),
+            _g("tesla_latitude", "Vehicle latitude", ds.get("latitude")),
+            _g("tesla_longitude", "Vehicle longitude", ds.get("longitude")),
+            _g(
+                "tesla_locked",
+                "Doors locked (1=locked 0=unlocked)",
+                int(bool(vs.get("locked"))) if vs.get("locked") is not None else None,
+            ),
+            _g(
+                "tesla_sentry_mode",
+                "Sentry mode active (1=on 0=off)",
+                int(bool(vs.get("sentry_mode"))) if vs.get("sentry_mode") is not None else None,
+            ),
         ]
 
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
@@ -303,9 +327,10 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
         """
         from tesla_cli.cli.commands.config_cmd import _run_config_checks
+
         cfg = load_config()
         checks = _run_config_checks(cfg)
-        errors   = sum(1 for c in checks if c["status"] == "error")
+        errors = sum(1 for c in checks if c["status"] == "error")
         warnings = sum(1 for c in checks if c["status"] == "warn")
         return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
 
@@ -314,9 +339,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     @app.get("/api/vehicle/stream", tags=["Vehicle"])
     async def vehicle_stream(
         request: Request,
-        interval: int  = 10,
-        fanout: bool   = False,
-        topics: str    = "",
+        interval: int = 10,
+        fanout: bool = False,
+        topics: str = "",
     ) -> StreamingResponse:
         """Server-Sent Events stream of live vehicle data.
 
@@ -334,13 +359,13 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         - `geofence` — enter/exit zone event (when `topics` includes `geofence`)
         """
         cfg = load_config()
-        v   = resolve_vin(cfg, app.state.override_vin)
-        topic_set      = {t.strip() for t in topics.split(",") if t.strip()}
-        want_geofence  = "geofence" in topic_set
-        want_battery   = "battery"  in topic_set
-        want_climate   = "climate"  in topic_set
-        want_drive     = "drive"    in topic_set
-        want_location  = "location" in topic_set
+        v = resolve_vin(cfg, app.state.override_vin)
+        topic_set = {t.strip() for t in topics.split(",") if t.strip()}
+        want_geofence = "geofence" in topic_set
+        want_battery = "battery" in topic_set
+        want_climate = "climate" in topic_set
+        want_drive = "drive" in topic_set
+        want_location = "location" in topic_set
         geofence_state: dict[str, bool] = {}  # zone_name → was_inside
 
         async def _generate():
@@ -354,10 +379,12 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
                         None, lambda: backend.get_vehicle_data(v)
                     )
                     ts = int(time.time())
-                    payload = json.dumps({
-                        "ts":   ts,
-                        "data": _sanitize(data),
-                    })
+                    payload = json.dumps(
+                        {
+                            "ts": ts,
+                            "data": _sanitize(data),
+                        }
+                    )
                     yield f"event: vehicle\ndata: {payload}\n\n"
 
                     # Fine-grained named topic events
@@ -376,10 +403,10 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
                     if want_location:
                         ds = data.get("drive_state") or {}
                         loc = {
-                            "lat":     ds.get("latitude"),
-                            "lon":     ds.get("longitude"),
+                            "lat": ds.get("latitude"),
+                            "lon": ds.get("longitude"),
                             "heading": ds.get("heading"),
-                            "speed":   ds.get("speed"),
+                            "speed": ds.get("speed"),
                         }
                         yield f"event: location\ndata: {json.dumps({'ts': ts, 'data': loc})}\n\n"
 
@@ -391,16 +418,15 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
                     # Geofence crossing detection
                     if want_geofence:
-                        drive = (
-                            data.get("drive_state")
-                            or data.get("response", {}).get("drive_state", {})
+                        drive = data.get("drive_state") or data.get("response", {}).get(
+                            "drive_state", {}
                         )
                         lat = drive.get("latitude") if isinstance(drive, dict) else None
                         lon = drive.get("longitude") if isinstance(drive, dict) else None
                         if lat is not None and lon is not None:
                             reload_cfg = load_config()
                             for name, zone in reload_cfg.geofences.zones.items():
-                                dist   = _haversine_km(lat, lon, zone["lat"], zone["lon"])
+                                dist = _haversine_km(lat, lon, zone["lat"], zone["lon"])
                                 inside = dist <= zone.get("radius_km", 0.5)
                                 was_inside = geofence_state.get(name)
                                 if was_inside is None:
@@ -408,14 +434,16 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
                                 elif inside != was_inside:
                                     geofence_state[name] = inside
                                     event = "enter" if inside else "exit"
-                                    gf_payload = json.dumps({
-                                        "ts":      ts,
-                                        "zone":    name,
-                                        "event":   event,
-                                        "lat":     lat,
-                                        "lon":     lon,
-                                        "dist_km": round(dist, 3),
-                                    })
+                                    gf_payload = json.dumps(
+                                        {
+                                            "ts": ts,
+                                            "zone": name,
+                                            "event": event,
+                                            "lat": lat,
+                                            "lon": lon,
+                                            "dist_km": round(dist, 3),
+                                        }
+                                    )
                                     yield f"event: geofence\ndata: {gf_payload}\n\n"
 
                 except Exception as exc:  # noqa: BLE001
@@ -426,7 +454,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             _generate(),
             media_type="text/event-stream",
             headers={
-                "Cache-Control":     "no-cache",
+                "Cache-Control": "no-cache",
                 "X-Accel-Buffering": "no",
             },
         )
@@ -461,13 +489,15 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _fanout_telemetry(data: dict, vin: str, cfg) -> None:
     """Push vehicle state to all configured telemetry/home-sync sinks."""
     from tesla_cli.core.providers.base import Capability
     from tesla_cli.core.providers.loader import build_registry
+
     registry = build_registry(cfg)
     registry.fanout(Capability.TELEMETRY_PUSH, "push", data=data, vin=vin)
-    registry.fanout(Capability.HOME_SYNC,      "push", data=data, vin=vin)
+    registry.fanout(Capability.HOME_SYNC, "push", data=data, vin=vin)
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

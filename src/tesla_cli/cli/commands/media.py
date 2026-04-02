@@ -5,8 +5,8 @@ from __future__ import annotations
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.cli.output import render_success
+from tesla_cli.core.config import load_config, resolve_vin
 
 media_app = typer.Typer(name="media", help="Media playback controls.")
 

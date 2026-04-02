@@ -14,8 +14,8 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.core.config import load_config, resolve_vin, save_config
 from tesla_cli.cli.output import console, is_json_mode, render_success
+from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 ha_app = typer.Typer(
     name="ha",
@@ -30,24 +30,24 @@ _ENTITY_PREFIX = "tesla"
 # Mapping: (nested_key_path) → (entity_slug, friendly_name, unit, device_class)
 _SENSORS: list[tuple[str, str, str, str, str | None]] = [
     # (data_section, key, entity_slug, friendly_name, unit)
-    ("charge_state",  "battery_level",        "battery_level",    "Battery Level",       "%"),
-    ("charge_state",  "battery_range",         "battery_range",    "Battery Range",       "mi"),
-    ("charge_state",  "charging_state",        "charging_state",   "Charging State",      None),
-    ("charge_state",  "charge_limit_soc",      "charge_limit",     "Charge Limit",        "%"),
-    ("charge_state",  "charge_energy_added",   "energy_added",     "Energy Added",        "kWh"),
-    ("charge_state",  "charger_power",         "charger_power",    "Charger Power",       "kW"),
-    ("drive_state",   "speed",                 "speed",            "Speed",               "mph"),
-    ("drive_state",   "shift_state",           "shift_state",      "Shift State",         None),
-    ("drive_state",   "latitude",              "latitude",         "Latitude",            "°"),
-    ("drive_state",   "longitude",             "longitude",        "Longitude",           "°"),
-    ("drive_state",   "heading",               "heading",          "Heading",             "°"),
-    ("climate_state", "inside_temp",           "inside_temp",      "Cabin Temperature",   "°C"),
-    ("climate_state", "outside_temp",          "outside_temp",     "Outside Temperature", "°C"),
-    ("climate_state", "is_climate_on",         "climate_on",       "Climate On",          None),
-    ("vehicle_state", "locked",                "locked",           "Locked",              None),
-    ("vehicle_state", "odometer",              "odometer",         "Odometer",            "mi"),
-    ("vehicle_state", "software_version",      "sw_version",       "Software Version",    None),
-    ("vehicle_state", "is_user_present",       "user_present",     "User Present",        None),
+    ("charge_state", "battery_level", "battery_level", "Battery Level", "%"),
+    ("charge_state", "battery_range", "battery_range", "Battery Range", "mi"),
+    ("charge_state", "charging_state", "charging_state", "Charging State", None),
+    ("charge_state", "charge_limit_soc", "charge_limit", "Charge Limit", "%"),
+    ("charge_state", "charge_energy_added", "energy_added", "Energy Added", "kWh"),
+    ("charge_state", "charger_power", "charger_power", "Charger Power", "kW"),
+    ("drive_state", "speed", "speed", "Speed", "mph"),
+    ("drive_state", "shift_state", "shift_state", "Shift State", None),
+    ("drive_state", "latitude", "latitude", "Latitude", "°"),
+    ("drive_state", "longitude", "longitude", "Longitude", "°"),
+    ("drive_state", "heading", "heading", "Heading", "°"),
+    ("climate_state", "inside_temp", "inside_temp", "Cabin Temperature", "°C"),
+    ("climate_state", "outside_temp", "outside_temp", "Outside Temperature", "°C"),
+    ("climate_state", "is_climate_on", "climate_on", "Climate On", None),
+    ("vehicle_state", "locked", "locked", "Locked", None),
+    ("vehicle_state", "odometer", "odometer", "Odometer", "mi"),
+    ("vehicle_state", "software_version", "sw_version", "Software Version", None),
+    ("vehicle_state", "is_user_present", "user_present", "User Present", None),
 ]
 
 
@@ -63,9 +63,9 @@ def _push_state(base_url: str, token: str, entity_id: str, state: str, attribute
     import json as _json
     import urllib.request as _req
 
-    url     = f"{base_url.rstrip('/')}/api/states/{entity_id}"
+    url = f"{base_url.rstrip('/')}/api/states/{entity_id}"
     payload = _json.dumps({"state": str(state), "attributes": attributes}).encode()
-    req     = _req.Request(url, data=payload, method="PUT", headers=_ha_headers(token))
+    req = _req.Request(url, data=payload, method="PUT", headers=_ha_headers(token))
 
     with _req.urlopen(req, timeout=10) as resp:  # noqa: S310
         return _json.loads(resp.read().decode())
@@ -75,19 +75,23 @@ def _push_all(data: dict, base_url: str, token: str, vin: str) -> list[dict]:
     """Push all sensor values from vehicle_data to HA. Returns list of results."""
     results = []
     for section, key, slug, friendly_name, unit in _SENSORS:
-        sec  = data.get(section) or {}
-        val  = sec.get(key)
+        sec = data.get(section) or {}
+        val = sec.get(key)
         if val is None:
             continue
-        entity_id  = f"sensor.{_ENTITY_PREFIX}_{slug}"
+        entity_id = f"sensor.{_ENTITY_PREFIX}_{slug}"
         attributes = {"friendly_name": f"Tesla {friendly_name}", "vin": vin[-6:]}
         if unit:
             attributes["unit_of_measurement"] = unit
         try:
             resp = _push_state(base_url, token, entity_id, val, attributes)
-            results.append({"entity": entity_id, "state": str(val), "status": "ok", "ha_response": resp})
+            results.append(
+                {"entity": entity_id, "state": str(val), "status": "ok", "ha_response": resp}
+            )
         except Exception as exc:  # noqa: BLE001
-            results.append({"entity": entity_id, "state": str(val), "status": "error", "error": str(exc)})
+            results.append(
+                {"entity": entity_id, "state": str(val), "status": "error", "error": str(exc)}
+            )
     return results
 
 
@@ -96,7 +100,9 @@ def _push_all(data: dict, base_url: str, token: str, vin: str) -> list[dict]:
 
 @ha_app.command("setup")
 def ha_setup(
-    url: str = typer.Argument(..., help="Home Assistant URL (e.g. http://homeassistant.local:8123)"),
+    url: str = typer.Argument(
+        ..., help="Home Assistant URL (e.g. http://homeassistant.local:8123)"
+    ),
     token: str = typer.Argument(..., help="Long-Lived Access Token from HA profile"),
 ) -> None:
     """Configure Home Assistant URL and access token.
@@ -104,7 +110,7 @@ def ha_setup(
     tesla ha setup http://homeassistant.local:8123 eyJ0eXAi...
     """
     cfg = load_config()
-    cfg.home_assistant.url   = url.rstrip("/")
+    cfg.home_assistant.url = url.rstrip("/")
     cfg.home_assistant.token = token
     save_config(cfg)
     render_success(f"Home Assistant configured: {url}\nTest with: tesla ha push")
@@ -120,25 +126,30 @@ def ha_status() -> None:
     import json as _json
     import urllib.request as _req
 
-    cfg        = load_config()
-    base_url   = cfg.home_assistant.url
-    token      = cfg.home_assistant.token
+    cfg = load_config()
+    base_url = cfg.home_assistant.url
+    token = cfg.home_assistant.token
     configured = bool(base_url and token)
 
     if is_json_mode():
-        console.print(_json.dumps({
-            "configured": configured,
-            "url":        base_url or "",
-            "token_set":  bool(token),
-        }))
+        console.print(
+            _json.dumps(
+                {
+                    "configured": configured,
+                    "url": base_url or "",
+                    "token_set": bool(token),
+                }
+            )
+        )
         return
 
     from rich.table import Table
+
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("k", style="dim", width=22)
     t.add_column("v")
-    t.add_row("URL",       base_url or "[dim]not set[/dim]")
-    t.add_row("Token",     "[green]set[/green]" if token else "[red]not set[/red]")
+    t.add_row("URL", base_url or "[dim]not set[/dim]")
+    t.add_row("Token", "[green]set[/green]" if token else "[red]not set[/red]")
 
     # Try pinging HA API
     if configured:
@@ -150,7 +161,7 @@ def ha_status() -> None:
             with _req.urlopen(req, timeout=5) as resp:  # noqa: S310
                 body = _json.loads(resp.read().decode())
                 ha_ver = body.get("version", "?")
-            t.add_row("HA Version",  f"[green]{ha_ver}[/green]")
+            t.add_row("HA Version", f"[green]{ha_ver}[/green]")
             t.add_row("Connectivity", "[green]✓ OK[/green]")
         except Exception as exc:  # noqa: BLE001
             t.add_row("Connectivity", f"[red]✗ {exc}[/red]")
@@ -158,8 +169,7 @@ def ha_status() -> None:
 
     if not configured:
         console.print(
-            "\n[yellow]Not configured.[/yellow]\n"
-            "Run: [bold]tesla ha setup <URL> <TOKEN>[/bold]"
+            "\n[yellow]Not configured.[/yellow]\nRun: [bold]tesla ha setup <URL> <TOKEN>[/bold]"
         )
 
 
@@ -172,9 +182,9 @@ def ha_push(vin: str | None = VinOption) -> None:
     """
     import json as _json
 
-    cfg  = load_config()
-    v    = resolve_vin(cfg, vin)
-    url  = cfg.home_assistant.url
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    url = cfg.home_assistant.url
     token = cfg.home_assistant.token
 
     if not url or not token:
@@ -184,10 +194,10 @@ def ha_push(vin: str | None = VinOption) -> None:
         )
         raise typer.Exit(1)
 
-    data    = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
+    data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
     results = _push_all(data, url, token, v)
 
-    ok     = sum(1 for r in results if r["status"] == "ok")
+    ok = sum(1 for r in results if r["status"] == "ok")
     errors = sum(1 for r in results if r["status"] == "error")
 
     if is_json_mode():
@@ -204,7 +214,9 @@ def ha_push(vin: str | None = VinOption) -> None:
 
 @ha_app.command("sync")
 def ha_sync(
-    interval: int = typer.Option(60, "--interval", "-i", help="Push interval in seconds (default 60)"),
+    interval: int = typer.Option(
+        60, "--interval", "-i", help="Push interval in seconds (default 60)"
+    ),
     notify: str = typer.Option("", "--notify", help="Apprise URL for error alerts"),
     vin: str | None = VinOption,
 ) -> None:
@@ -216,9 +228,9 @@ def ha_sync(
     import json as _json
     from datetime import datetime as _dt
 
-    cfg   = load_config()
-    v     = resolve_vin(cfg, vin)
-    url   = cfg.home_assistant.url
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    url = cfg.home_assistant.url
     token = cfg.home_assistant.token
 
     if not url or not token:
@@ -232,6 +244,7 @@ def ha_sync(
     if notify:
         try:
             import apprise
+
             notifier = apprise.Apprise()
             notifier.add(notify)
         except ImportError:
@@ -243,29 +256,35 @@ def ha_sync(
         "Press [bold]Ctrl+C[/bold] to stop.\n"
     )
 
-    push_count  = 0
+    push_count = 0
     error_count = 0
 
     try:
         while True:
             ts = _dt.now().strftime("%H:%M:%S")
             try:
-                data    = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
+                data = _with_wake(lambda b, vv: b.get_vehicle_data(vv), v)
                 results = _push_all(data, url, token, v)
-                ok      = sum(1 for r in results if r["status"] == "ok")
-                errs    = sum(1 for r in results if r["status"] == "error")
-                push_count  += 1
+                ok = sum(1 for r in results if r["status"] == "ok")
+                errs = sum(1 for r in results if r["status"] == "error")
+                push_count += 1
                 error_count += errs
 
-                batt   = (data.get("charge_state") or {}).get("battery_level", "?")
+                batt = (data.get("charge_state") or {}).get("battery_level", "?")
                 locked = (data.get("vehicle_state") or {}).get("locked", "?")
                 climate = (data.get("climate_state") or {}).get("is_climate_on", False)
 
                 if is_json_mode():
-                    console.print(_json.dumps({
-                        "ts": ts, "push": push_count,
-                        "entities_ok": ok, "entities_error": errs,
-                    }))
+                    console.print(
+                        _json.dumps(
+                            {
+                                "ts": ts,
+                                "push": push_count,
+                                "entities_ok": ok,
+                                "entities_error": errs,
+                            }
+                        )
+                    )
                 else:
                     err_str = f"  [red]{errs} err[/red]" if errs else ""
                     console.print(

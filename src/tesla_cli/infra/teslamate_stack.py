@@ -23,7 +23,6 @@ from tesla_cli.core.auth.tokens import (
     TESLAMATE_ENCRYPTION_KEY,
     TESLAMATE_GRAFANA_PASSWORD,
     get_token,
-    has_token,
     set_token,
 )
 from tesla_cli.core.config import CONFIG_DIR
@@ -247,6 +246,7 @@ class TeslaMateStack:
         # Get Fleet API client_id from config for TeslaMate token refresh
         try:
             from tesla_cli.core.config import load_config as _lc
+
             _fleet_client_id = _lc().fleet.client_id
         except Exception:
             _fleet_client_id = ""
@@ -274,9 +274,7 @@ class TeslaMateStack:
         # Wait for healthy
         healthy = self._wait_healthy(timeout=90)
 
-        database_url = (
-            f"postgresql://teslamate:{db_password}@localhost:{postgres_port}/teslamate"
-        )
+        database_url = f"postgresql://teslamate:{db_password}@localhost:{postgres_port}/teslamate"
 
         return {
             "database_url": database_url,
@@ -299,8 +297,7 @@ class TeslaMateStack:
         self._docker_compose("up", "-d")
         if not self._wait_healthy(timeout=60):
             raise TeslaMateStackError(
-                "Stack started but not all services are healthy.\n"
-                "Check logs: tesla teslaMate logs"
+                "Stack started but not all services are healthy.\nCheck logs: tesla teslaMate logs"
             )
 
     def stop(self) -> None:
@@ -374,24 +371,27 @@ class TeslaMateStack:
         refresh_escaped = refresh_token.replace('"', '\\"')
 
         elixir_code = (
-            'alias TeslaMate.Repo; '
-            'alias TeslaMate.Auth.Tokens; '
-            'Repo.delete_all(Tokens); '
-            '%Tokens{} '
+            "alias TeslaMate.Repo; "
+            "alias TeslaMate.Auth.Tokens; "
+            "Repo.delete_all(Tokens); "
+            "%Tokens{} "
             f'|> Ecto.Changeset.change(%{{access: "{access_escaped}", refresh: "{refresh_escaped}"}}) '
-            '|> Repo.insert!(); '
+            "|> Repo.insert!(); "
             'IO.puts("OK")'
         )
 
         try:
             result = subprocess.run(
                 ["docker", "exec", "teslamate-teslamate-1", "bin/teslamate", "rpc", elixir_code],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if "OK" in (result.stdout or ""):
                 return True
             # Log error for debugging
             import logging
+
             logging.getLogger("tesla-cli.teslamate").warning(
                 "Token injection RPC output: %s %s",
                 result.stdout[:200] if result.stdout else "",
@@ -428,23 +428,22 @@ class TeslaMateStack:
                 continue
             try:
                 obj = json.loads(line)
-                services.append({
-                    "name": obj.get("Service", obj.get("Name", "")),
-                    "state": obj.get("State", "unknown"),
-                    "status": obj.get("Status", ""),
-                    "image": obj.get("Image", ""),
-                    "ports": obj.get("Ports", obj.get("Publishers", "")),
-                })
+                services.append(
+                    {
+                        "name": obj.get("Service", obj.get("Name", "")),
+                        "state": obj.get("State", "unknown"),
+                        "status": obj.get("Status", ""),
+                        "image": obj.get("Image", ""),
+                        "ports": obj.get("Ports", obj.get("Publishers", "")),
+                    }
+                )
             except json.JSONDecodeError:
                 continue
         return services
 
     def is_running(self) -> bool:
         """Check if the stack has at least one running container."""
-        for svc in self.status():
-            if svc.get("state") == "running":
-                return True
-        return False
+        return any(svc.get("state") == "running" for svc in self.status())
 
     def health_check(self) -> dict[str, bool]:
         """Per-service running/not-running map."""
@@ -460,8 +459,7 @@ class TeslaMateStack:
     def _require_installed(self) -> None:
         if not self.is_installed():
             raise TeslaMateStackError(
-                "TeslaMate stack is not installed.\n"
-                "Run: tesla teslaMate install"
+                "TeslaMate stack is not installed.\nRun: tesla teslaMate install"
             )
 
     def _docker_compose(

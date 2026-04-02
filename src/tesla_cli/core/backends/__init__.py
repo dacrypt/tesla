@@ -33,9 +33,7 @@ def get_vehicle_backend(config: Config):
         from tesla_cli.core.exceptions import AuthenticationError
 
         if not get_token(ORDER_REFRESH_TOKEN):
-            raise AuthenticationError(
-                "Owner API not configured. Run: tesla config auth order"
-            )
+            raise AuthenticationError("Owner API not configured. Run: tesla config auth order")
         return OwnerApiVehicleBackend()
 
     else:
