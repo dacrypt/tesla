@@ -193,13 +193,21 @@ function PreDeliveryDashboard() {
       )}
 
       {/* ── CTA: View full detail ── */}
+      {/* ── CTA: View full detail ── */}
       <button
         onClick={() => history.push('/info')}
         className="tesla-btn"
-        style={{ width: '100%', fontSize: 14, padding: '14px 20px', borderRadius: 12, marginBottom: 12 }}
+        style={{ width: '100%', fontSize: 14, padding: '14px 20px', borderRadius: 12, marginBottom: 8 }}
       >
         Ver detalle completo →
       </button>
+
+      {/* Last updated */}
+      {dossier?.last_updated && (
+        <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingBottom: 8 }}>
+          Actualizado: {new Date(dossier.last_updated).toLocaleString()}
+        </div>
+      )}
     </div>
   );
 }
