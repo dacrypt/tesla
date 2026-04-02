@@ -31,6 +31,7 @@ skip_no_creds = pytest.mark.skipif(
 )
 
 
+@pytest.mark.integration
 @skip_no_creds
 class TestBrowserLogin:
     """Integration tests for Tesla headless browser login."""
@@ -48,7 +49,7 @@ class TestBrowserLogin:
         )
 
         assert "access_token" in tokens, f"No access_token in response: {list(tokens.keys())}"
-        assert "refresh_token" in tokens, f"No refresh_token in response"
+        assert "refresh_token" in tokens, "No refresh_token in response"
         assert len(tokens["access_token"]) > 100, "Access token too short"
         print(f"\n  Fleet token captured: {tokens['access_token'][:40]}...")
 
@@ -91,7 +92,7 @@ class TestBrowserLogin:
         """Wrong password should raise an error."""
         from tesla_cli.core.auth.browser_login import browser_login
 
-        with pytest.raises(Exception):
+        with pytest.raises((Exception, RuntimeError)):
             browser_login(
                 email=TESLA_EMAIL,
                 password="wrong_password_123",
@@ -100,6 +101,7 @@ class TestBrowserLogin:
             )
 
 
+@pytest.mark.integration
 @skip_no_creds
 class TestBrowserLoginAPI:
     """Integration test for the /api/auth/browser-login endpoint."""

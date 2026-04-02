@@ -24,6 +24,7 @@ from tesla_cli.api.app import create_app  # noqa: E402
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -115,6 +116,7 @@ def _make_tm_backend():
 
 
 # ── Tests: TeslaMate Timeline ─────────────────────────────────────────────────
+
 
 class TestTeslaMateTimeline:
     def _mock_backend(self, m):
@@ -234,6 +236,7 @@ class TestTeslaMateTimeline:
 
 # ── Tests: TeslaMate Cost Report ──────────────────────────────────────────────
 
+
 class TestTeslaMateCostReport:
     def _mock_backend(self, m):
         return patch("tesla_cli.cli.commands.teslaMate._backend", return_value=m)
@@ -245,14 +248,20 @@ class TestTeslaMateCostReport:
     def test_cost_report_rich_output(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("teslaMate", "cost-report")
         assert r.exit_code == 0
 
     def test_cost_report_json_mode(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         assert r.exit_code == 0
         data = json.loads(r.output)
@@ -263,7 +272,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_json_cost_per_kwh(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.30)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         data = json.loads(r.output)
         assert data["cost_per_kwh"] == 0.30
@@ -271,7 +283,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_json_month_grouping(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         data = json.loads(r.output)
         months = data["months"]
@@ -282,7 +297,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_json_kwh_totals(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         data = json.loads(r.output)
         assert data["months"]["2026-03"]["kwh"] == 30.5
@@ -291,7 +309,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_json_cost_calculation(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.10)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         data = json.loads(r.output)
         # 30.5 kWh * 0.10 = 3.05
@@ -300,7 +321,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_json_sessions_count(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report")
         data = json.loads(r.output)
         assert data["sessions"] == 2
@@ -308,7 +332,10 @@ class TestTeslaMateCostReport:
     def test_cost_report_month_filter(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("-j", "teslaMate", "cost-report", "--month", "2026-03")
         data = json.loads(r.output)
         assert "2026-03" in data["months"]
@@ -319,7 +346,10 @@ class TestTeslaMateCostReport:
         m = _make_tm_backend()
         m.get_charging_sessions.return_value = []
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("teslaMate", "cost-report")
         assert r.exit_code == 0
         assert "No charging sessions" in r.output
@@ -327,40 +357,56 @@ class TestTeslaMateCostReport:
     def test_cost_report_limit_passed_to_backend(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             _run("teslaMate", "cost-report", "--limit", "50")
         m.get_charging_sessions.assert_called_once_with(limit=50)
 
     def test_cost_report_default_limit(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             _run("teslaMate", "cost-report")
         m.get_charging_sessions.assert_called_once_with(limit=100)
 
     def test_cost_report_zero_cost_per_kwh(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.0)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("teslaMate", "cost-report")
         assert r.exit_code == 0
 
     def test_cost_report_rich_shows_total(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("teslaMate", "cost-report")
         assert "Total" in r.output
 
     def test_cost_report_rich_shows_kwh(self):
         m = _make_tm_backend()
         cfg = self._make_cfg_with_cost(0.25)
-        with self._mock_backend(m), patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg):
+        with (
+            self._mock_backend(m),
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+        ):
             r = _run("teslaMate", "cost-report")
         assert "kWh" in r.output
 
 
 # ── Tests: Prometheus /api/metrics endpoint ───────────────────────────────────
+
 
 class TestApiMetrics:
     @pytest.fixture
@@ -488,17 +534,15 @@ class TestApiMetrics:
         assert "tesla_longitude" in r.text
 
 
-
-
 # ── Tests: Version ────────────────────────────────────────────────────────────
+
 
 class TestVersion290:
     def test_version_string(self):
         from tesla_cli import __version__
+
         assert __version__ >= "2.9.0"
 
     def test_version_in_cli_output(self):
         r = _run("--version")
-        assert "tesla-cli" in r.output.lower() or any(
-            c.isdigit() for c in r.output
-        )
+        assert "tesla-cli" in r.output.lower() or any(c.isdigit() for c in r.output)

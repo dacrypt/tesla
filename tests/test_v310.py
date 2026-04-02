@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from tesla_cli.cli.app import app as cli_app
@@ -19,12 +18,14 @@ MOCK_VIN2 = "5YJ3E1EA1PF000002"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _run(*args):
     return _runner.invoke(cli_app, list(args))
 
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -56,6 +57,7 @@ def _make_vehicle_backend():
 
 
 # ── TestVehicleWatchAll ───────────────────────────────────────────────────────
+
 
 class TestVehicleWatchAll:
     def test_watch_all_flag_in_help(self):
@@ -139,6 +141,7 @@ class TestVehicleWatchAll:
     def test_watch_all_no_vins(self):
         """--all with no VINs configured exits with an error."""
         from tesla_cli.core.config import Config
+
         cfg = Config()  # no default_vin, no aliases
         cfg.general.backend = "owner"
 
@@ -157,6 +160,7 @@ class TestVehicleWatchAll:
 
 
 # ── TestChargeProfile ─────────────────────────────────────────────────────────
+
 
 class TestChargeProfile:
     def test_profile_show_no_args(self):
@@ -207,7 +211,9 @@ class TestChargeProfile:
         ):
             result = _run("charge", "profile", "--amps", "12")
         assert result.exit_code == 0
-        backend.command.assert_called_once_with(MOCK_VIN, "set_charging_amps", {"charging_amps": 12})
+        backend.command.assert_called_once_with(
+            MOCK_VIN, "set_charging_amps", {"charging_amps": 12}
+        )
 
     def test_profile_set_schedule(self):
         cfg = _make_cfg()
@@ -245,7 +251,9 @@ class TestChargeProfile:
             patch("tesla_cli.cli.commands.charge.resolve_vin", return_value=MOCK_VIN),
             patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
         ):
-            result = _run("charge", "profile", "--limit", "75", "--amps", "16", "--schedule", "22:30")
+            result = _run(
+                "charge", "profile", "--limit", "75", "--amps", "16", "--schedule", "22:30"
+            )
         assert result.exit_code == 0
         assert backend.command.call_count == 3
 
@@ -282,9 +290,8 @@ class TestChargeProfile:
         assert "profile" in result.output
 
 
-
-
 # ── TestConfigValidate ────────────────────────────────────────────────────────
+
 
 class TestConfigValidate:
     def test_validate_clean_config(self):
@@ -352,6 +359,7 @@ class TestConfigValidate:
 
     def test_validate_no_vin_is_warn(self):
         from tesla_cli.core.config import Config
+
         cfg = Config()
         cfg.general.backend = "owner"
         # no default_vin — should warn but not fail
@@ -386,9 +394,11 @@ class TestConfigValidate:
 
 # ── TestVersion310 ────────────────────────────────────────────────────────────
 
+
 class TestVersion310:
     def test_version_string(self):
         from tesla_cli import __version__
+
         # Passes as long as version is >= 3.1.0
         parts = tuple(int(x) for x in __version__.split("."))
         assert parts >= (3, 1, 0)

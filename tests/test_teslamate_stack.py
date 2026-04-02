@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
-from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tesla_cli.infra.teslamate_stack import TeslaMateStack, COMPOSE_TEMPLATE
 from tesla_cli.core.exceptions import DockerNotFoundError, TeslaMateStackError
+from tesla_cli.infra.teslamate_stack import COMPOSE_TEMPLATE, TeslaMateStack
 
 
 @pytest.fixture
@@ -28,23 +26,26 @@ def stack(stack_dir):
 
 class TestDockerChecks:
     def test_check_docker_not_installed(self, stack):
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            with pytest.raises(DockerNotFoundError, match="Install Docker"):
-                stack.check_docker()
+        with patch("subprocess.run", side_effect=FileNotFoundError), pytest.raises(
+            DockerNotFoundError, match="Install Docker"
+        ):
+            stack.check_docker()
 
     def test_check_docker_daemon_not_running(self, stack):
-        with patch("subprocess.run", return_value=MagicMock(returncode=1)):
-            with pytest.raises(DockerNotFoundError, match="daemon is not running"):
-                stack.check_docker()
+        with patch("subprocess.run", return_value=MagicMock(returncode=1)), pytest.raises(
+            DockerNotFoundError, match="daemon is not running"
+        ):
+            stack.check_docker()
 
     def test_check_docker_ok(self, stack):
         with patch("subprocess.run", return_value=MagicMock(returncode=0)):
             stack.check_docker()  # should not raise
 
     def test_check_docker_compose_not_found(self, stack):
-        with patch("subprocess.run", return_value=MagicMock(returncode=1, stdout="")):
-            with pytest.raises(DockerNotFoundError, match="compose.*plugin"):
-                stack.check_docker_compose()
+        with patch(
+            "subprocess.run", return_value=MagicMock(returncode=1, stdout="")
+        ), pytest.raises(DockerNotFoundError, match="compose.*plugin"):
+            stack.check_docker_compose()
 
     def test_check_docker_compose_ok(self, stack):
         with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n")):
@@ -116,8 +117,7 @@ class TestInstall:
     @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
     @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
     @patch("tesla_cli.infra.teslamate_stack.set_token")
-    @patch("tesla_cli.infra.teslamate_stack.has_token", return_value=False)
-    def test_install_creates_files(self, _ht, _st, _gt, mock_run, _wh, stack, stack_dir):
+    def test_install_creates_files(self, _st, _gt, mock_run, _wh, stack, stack_dir):
         result = stack.install()
 
         assert stack_dir.exists()
@@ -138,8 +138,7 @@ class TestInstall:
     @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
     @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
     @patch("tesla_cli.infra.teslamate_stack.set_token")
-    @patch("tesla_cli.infra.teslamate_stack.has_token", return_value=False)
-    def test_install_custom_ports(self, _ht, _st, _gt, mock_run, _wh, stack, stack_dir):
+    def test_install_custom_ports(self, _st, _gt, mock_run, _wh, stack, stack_dir):
         result = stack.install(
             postgres_port=5433,
             grafana_port=3001,
@@ -158,8 +157,9 @@ class TestInstall:
     @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
     @patch("tesla_cli.infra.teslamate_stack.get_token")
     @patch("tesla_cli.infra.teslamate_stack.set_token")
-    @patch("tesla_cli.infra.teslamate_stack.has_token", return_value=False)
-    def test_install_includes_tesla_tokens(self, _ht, _st, mock_gt, mock_run, _wh, stack, stack_dir):
+    def test_install_includes_tesla_tokens(
+        self, _st, mock_gt, mock_run, _wh, stack, stack_dir
+    ):
         def token_lookup(key):
             return {
                 "fleet-access-token": "access123",
@@ -185,10 +185,8 @@ class TestInstall:
     @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
     @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
     @patch("tesla_cli.infra.teslamate_stack.set_token")
-    @patch("tesla_cli.infra.teslamate_stack.has_token", return_value=False)
-    def test_install_env_permissions(self, _ht, _st, _gt, mock_run, _wh, stack, stack_dir):
+    def test_install_env_permissions(self, _st, _gt, mock_run, _wh, stack, stack_dir):
         stack.install()
-        import stat
         mode = (stack_dir / ".env").stat().st_mode
         assert mode & 0o077 == 0  # no group/other permissions
 
@@ -253,12 +251,46 @@ class TestStatus:
         self.stack = stack
 
     def test_status_parses_json(self):
-        ps_output = "\n".join([
-            json.dumps({"Service": "postgres", "State": "running", "Status": "Up 2 hours", "Image": "postgres:16", "Ports": "0.0.0.0:5432->5432/tcp"}),
-            json.dumps({"Service": "teslamate", "State": "running", "Status": "Up 2 hours", "Image": "teslamate/teslamate:latest", "Ports": "0.0.0.0:4000->4000/tcp"}),
-            json.dumps({"Service": "grafana", "State": "running", "Status": "Up 2 hours", "Image": "teslamate/grafana:latest", "Ports": "0.0.0.0:3000->3000/tcp"}),
-            json.dumps({"Service": "mosquitto", "State": "running", "Status": "Up 2 hours", "Image": "eclipse-mosquitto:2", "Ports": "0.0.0.0:1883->1883/tcp"}),
-        ])
+        ps_output = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "Service": "postgres",
+                        "State": "running",
+                        "Status": "Up 2 hours",
+                        "Image": "postgres:16",
+                        "Ports": "0.0.0.0:5432->5432/tcp",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "Service": "teslamate",
+                        "State": "running",
+                        "Status": "Up 2 hours",
+                        "Image": "teslamate/teslamate:latest",
+                        "Ports": "0.0.0.0:4000->4000/tcp",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "Service": "grafana",
+                        "State": "running",
+                        "Status": "Up 2 hours",
+                        "Image": "teslamate/grafana:latest",
+                        "Ports": "0.0.0.0:3000->3000/tcp",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "Service": "mosquitto",
+                        "State": "running",
+                        "Status": "Up 2 hours",
+                        "Image": "eclipse-mosquitto:2",
+                        "Ports": "0.0.0.0:1883->1883/tcp",
+                    }
+                ),
+            ]
+        )
 
         with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout=ps_output)):
             services = self.stack.status()
@@ -277,10 +309,12 @@ class TestStatus:
             assert not self.stack.is_running()
 
     def test_health_check_map(self):
-        ps_output = "\n".join([
-            json.dumps({"Service": "postgres", "State": "running"}),
-            json.dumps({"Service": "teslamate", "State": "exited"}),
-        ])
+        ps_output = "\n".join(
+            [
+                json.dumps({"Service": "postgres", "State": "running"}),
+                json.dumps({"Service": "teslamate", "State": "exited"}),
+            ]
+        )
         with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout=ps_output)):
             health = self.stack.health_check()
             assert health["postgres"] is True

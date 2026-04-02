@@ -24,8 +24,10 @@ from tesla_cli.api.app import create_app  # noqa: E402
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -76,6 +78,7 @@ def _make_tm_backend():
 
 # ── Fixture ───────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def srv():
     cfg = _make_cfg()
@@ -99,6 +102,7 @@ def srv():
 
 
 # ── TestMultiVehicleDashboard ─────────────────────────────────────────────────
+
 
 class TestMultiVehicleDashboard:
     def test_api_vehicles_endpoint(self, srv):
@@ -143,13 +147,16 @@ class TestMultiVehicleDashboard:
 
     def test_vehicle_route_reads_query_vin(self):
         """Check that _backend_and_vin reads from request.query_params."""
-        source = Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "routes" / "vehicle.py"
+        source = (
+            Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "routes" / "vehicle.py"
+        )
         content = source.read_text()
         assert "query_params.get" in content
         assert "vin_override" in content
 
 
 # ── TestVehicleScheduleUpdate ─────────────────────────────────────────────────
+
 
 class TestVehicleScheduleUpdate:
     def test_schedule_update_immediate(self):
@@ -212,6 +219,7 @@ class TestVehicleScheduleUpdate:
 
 
 # ── TestTeslaMateTimelineRoute ────────────────────────────────────────────────
+
 
 class TestTeslaMateTimelineRoute:
     def _make_srv_tm(self, tm_backend):
@@ -297,9 +305,11 @@ class TestTeslaMateTimelineRoute:
 
 # ── TestNotificationTemplates ─────────────────────────────────────────────────
 
+
 class TestNotificationTemplates:
     def test_default_template_in_config(self):
         from tesla_cli.core.config import NotificationsConfig
+
         n = NotificationsConfig()
         assert "{event}" in n.message_template
         assert "{vehicle}" in n.message_template
@@ -352,9 +362,11 @@ class TestNotificationTemplates:
 
     def test_template_format(self):
         from tesla_cli.core.config import NotificationsConfig
+
         n = NotificationsConfig()
         tmpl = n.message_template
         import time
+
         formatted = tmpl.format(
             event="test",
             vehicle="tesla-cli",
@@ -366,6 +378,7 @@ class TestNotificationTemplates:
 
 
 # ── TestConfigMigrate ─────────────────────────────────────────────────────────
+
 
 class TestConfigMigrate:
     def test_migrate_up_to_date(self):
@@ -385,6 +398,7 @@ class TestConfigMigrate:
         del old_dict["notifications"]["message_template"]
 
         from tesla_cli.core.config import Config
+
         old_cfg = Config.model_validate(old_dict)
         # Re-add a field to new that old is missing by patching
         # We patch load_config to return old_cfg and check additions shown
@@ -466,11 +480,13 @@ class TestConfigMigrate:
 
 # ── TestVersion300 ────────────────────────────────────────────────────────────
 
+
 class TestVersion300:
     def test_version_string(self):
         from packaging.version import Version
 
         import tesla_cli
+
         assert Version(tesla_cli.__version__) >= Version("3.0.0")
 
     def test_pyproject_version(self):
@@ -478,7 +494,9 @@ class TestVersion300:
         content = pyproject.read_text()
         # version must be 3.0.0 or later
         import re
+
         m = re.search(r'^version = "(\d+\.\d+\.\d+)"', content, re.MULTILINE)
         assert m is not None
         from packaging.version import Version
+
         assert Version(m.group(1)) >= Version("3.0.0")

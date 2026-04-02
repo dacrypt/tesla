@@ -15,6 +15,7 @@ _runner = CliRunner()
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     for k, v in overrides.items():
@@ -31,6 +32,7 @@ def _run(*args):
 
 
 # ── Tests: mqtt setup ─────────────────────────────────────────────────────────
+
 
 class TestMqttSetup:
     def test_setup_saves_broker(self):
@@ -51,7 +53,9 @@ class TestMqttSetup:
             patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.mqtt_cmd.save_config"),
         ):
-            r = _run("mqtt", "setup", "broker.local", "--port", "8883", "--prefix", "myhome", "--tls")
+            r = _run(
+                "mqtt", "setup", "broker.local", "--port", "8883", "--prefix", "myhome", "--tls"
+            )
         assert r.exit_code == 0
         assert cfg.mqtt.port == 8883
         assert cfg.mqtt.topic_prefix == "myhome"
@@ -63,7 +67,9 @@ class TestMqttSetup:
             patch("tesla_cli.cli.commands.mqtt_cmd.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.mqtt_cmd.save_config"),
         ):
-            r = _run("mqtt", "setup", "mqtt.example.com", "--username", "user", "--password", "pass")
+            r = _run(
+                "mqtt", "setup", "mqtt.example.com", "--username", "user", "--password", "pass"
+            )
         assert r.exit_code == 0
         assert cfg.mqtt.username == "user"
         assert cfg.mqtt.password == "pass"
@@ -79,6 +85,7 @@ class TestMqttSetup:
 
 
 # ── Tests: mqtt status ────────────────────────────────────────────────────────
+
 
 class TestMqttStatus:
     def test_status_not_configured(self):
@@ -118,6 +125,7 @@ class TestMqttStatus:
 
 
 # ── Tests: mqtt test ──────────────────────────────────────────────────────────
+
 
 class TestMqttTest:
     def test_test_not_configured_exits(self):
@@ -184,6 +192,7 @@ class TestMqttTest:
 
 # ── Tests: mqtt publish ───────────────────────────────────────────────────────
 
+
 class TestMqttPublish:
     def test_publish_not_configured_exits(self):
         cfg = _make_cfg()
@@ -249,6 +258,7 @@ class TestMqttPublish:
 
 
 # ── Tests: mqtt ha-discovery ──────────────────────────────────────────────────
+
 
 class TestMqttHaDiscovery:
     def test_ha_discovery_not_configured_exits(self):
@@ -359,14 +369,15 @@ class TestMqttHaDiscovery:
         # Check first payload
         first_call = mock_client.publish.call_args_list[0]
         payload = json.loads(first_call[0][1])
-        assert "unique_id"      in payload
-        assert "name"           in payload
-        assert "state_topic"    in payload
+        assert "unique_id" in payload
+        assert "name" in payload
+        assert "state_topic" in payload
         assert "value_template" in payload
-        assert "device"         in payload
+        assert "device" in payload
 
 
 # ── Tests: mqtt registered in CLI ─────────────────────────────────────────────
+
 
 class TestMqttRegistered:
     def test_mqtt_in_help(self):
@@ -376,14 +387,15 @@ class TestMqttRegistered:
     def test_mqtt_subcommands_in_help(self):
         r = _run("mqtt", "--help")
         assert r.exit_code == 0
-        assert "setup"        in r.output
-        assert "status"       in r.output
-        assert "test"         in r.output
-        assert "publish"      in r.output
+        assert "setup" in r.output
+        assert "status" in r.output
+        assert "test" in r.output
+        assert "publish" in r.output
         assert "ha-discovery" in r.output
 
 
 # ── Tests: SSE topic filtering ────────────────────────────────────────────────
+
 
 class TestSSETopicFiltering:
     """Test fine-grained topic filtering — tested via source code analysis and
@@ -391,33 +403,36 @@ class TestSSETopicFiltering:
 
     def _server_src(self) -> str:
         from pathlib import Path
+
         return (Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "app.py").read_text()
 
     def test_battery_topic_in_source(self):
         src = self._server_src()
-        assert 'want_battery' in src
-        assert '"battery"  in topic_set' in src or '"battery" in topic_set' in src or 'battery' in src
+        assert "want_battery" in src
+        assert (
+            '"battery"  in topic_set' in src or '"battery" in topic_set' in src or "battery" in src
+        )
 
     def test_climate_topic_in_source(self):
-        assert 'want_climate' in self._server_src()
+        assert "want_climate" in self._server_src()
 
     def test_drive_topic_in_source(self):
-        assert 'want_drive' in self._server_src()
+        assert "want_drive" in self._server_src()
 
     def test_location_topic_in_source(self):
-        assert 'want_location' in self._server_src()
+        assert "want_location" in self._server_src()
 
     def test_battery_event_emitted_in_source(self):
-        assert 'event: battery' in self._server_src()
+        assert "event: battery" in self._server_src()
 
     def test_climate_event_emitted_in_source(self):
-        assert 'event: climate' in self._server_src()
+        assert "event: climate" in self._server_src()
 
     def test_drive_event_emitted_in_source(self):
-        assert 'event: drive' in self._server_src()
+        assert "event: drive" in self._server_src()
 
     def test_location_event_emitted_in_source(self):
-        assert 'event: location' in self._server_src()
+        assert "event: location" in self._server_src()
 
     def test_topic_set_parsed_from_comma_string(self):
         # topic_set is built by splitting on comma
@@ -426,9 +441,9 @@ class TestSSETopicFiltering:
 
     def test_docstring_lists_new_topics(self):
         src = self._server_src()
-        assert '`battery`' in src
-        assert '`climate`' in src
-        assert '`location`' in src
+        assert "`battery`" in src
+        assert "`climate`" in src
+        assert "`location`" in src
 
     def test_battery_event_format(self):
         """Verify the battery event string format matches SSE spec."""
@@ -450,15 +465,18 @@ class TestSSETopicFiltering:
 
 # ── Tests: version 2.8.0 ─────────────────────────────────────────────────────
 
+
 class TestVersion280:
     def test_version_string(self):
         from tesla_cli import __version__
+
         # v2.8.0 features shipped; current version is >= 2.8.0
         major, minor, patch = (int(x) for x in __version__.split("."))
         assert (major, minor) >= (2, 8)
 
     def test_pyproject_version(self):
         from pathlib import Path
+
         pyproject = Path(__file__).parent.parent / "pyproject.toml"
         content = pyproject.read_text()
         # Project version should be >= 2.8.0

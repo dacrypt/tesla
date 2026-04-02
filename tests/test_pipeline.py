@@ -9,7 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from importlib.util import module_from_spec, spec_from_file_location
 
-_spec = spec_from_file_location("change_detector", Path(__file__).parent.parent / "change-detector.py")
+_spec = spec_from_file_location(
+    "change_detector", Path(__file__).parent.parent / "change-detector.py"
+)
 cd = module_from_spec(_spec)
 _spec.loader.exec_module(cd)
 
@@ -108,6 +110,7 @@ class TestDetectChanges:
         cd.LAST_SNAPSHOT = self._orig_snap
         cd.CHANGES_LOG = self._orig_log
         import shutil
+
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     def test_no_changes_identical(self):

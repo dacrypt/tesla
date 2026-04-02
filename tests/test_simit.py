@@ -104,8 +104,14 @@ class TestSimitBackendDelegation:
         assert data.paz_y_salvo is True
 
     def test_query_by_placa_delegates_to_openquery(self):
-        result = _mock_simit_result(extra_fields={"cedula": "XYZ123", "paz_y_salvo": False,
-                                                   "comparendos": 2, "total_deuda": 500000.0})
+        result = _mock_simit_result(
+            extra_fields={
+                "cedula": "XYZ123",
+                "paz_y_salvo": False,
+                "comparendos": 2,
+                "total_deuda": 500000.0,
+            }
+        )
         with patch("openquery.sources.get_source", return_value=_mock_source(result)):
             data = SimitBackend().query_by_placa("XYZ123")
         assert isinstance(data, SimitData)
@@ -115,11 +121,15 @@ class TestSimitBackendDelegation:
     def test_raises_simit_error_on_source_exception(self):
         src = MagicMock()
         src.query.side_effect = RuntimeError("connection refused")
-        with patch("openquery.sources.get_source", return_value=src), pytest.raises(SimitError, match="SIMIT query failed"):
+        with (
+            patch("openquery.sources.get_source", return_value=src),
+            pytest.raises(SimitError, match="SIMIT query failed"),
+        ):
             SimitBackend().query_by_cedula("12345678")
 
     def test_raises_simit_error_when_openquery_not_installed(self):
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -127,17 +137,22 @@ class TestSimitBackendDelegation:
                 raise ImportError("No module named 'openquery'")
             return real_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=mock_import), pytest.raises(SimitError, match="openquery is required"):
+        with (
+            patch("builtins.__import__", side_effect=mock_import),
+            pytest.raises(SimitError, match="openquery is required"),
+        ):
             SimitBackend().query_by_cedula("12345678")
 
     def test_simit_data_fields_mapped_correctly(self):
-        result = _mock_simit_result(extra_fields={
-            "comparendos": 3,
-            "multas": 1,
-            "total_deuda": 750000.0,
-            "paz_y_salvo": False,
-            "historial": [{"comparendo": "ABC123", "estado": "Pendiente"}],
-        })
+        result = _mock_simit_result(
+            extra_fields={
+                "comparendos": 3,
+                "multas": 1,
+                "total_deuda": 750000.0,
+                "paz_y_salvo": False,
+                "historial": [{"comparendo": "ABC123", "estado": "Pendiente"}],
+            }
+        )
         with patch("openquery.sources.get_source", return_value=_mock_source(result)):
             data = SimitBackend().query_by_cedula("12345678")
         assert data.comparendos == 3
@@ -148,10 +163,12 @@ class TestSimitBackendDelegation:
 
     def test_extra_openquery_fields_ignored_gracefully(self):
         """Fields not in SimitData.model_fields are silently discarded."""
-        result = _mock_simit_result(extra_fields={
-            "unknown_field": "surprise",
-            "another_extra": 999,
-        })
+        result = _mock_simit_result(
+            extra_fields={
+                "unknown_field": "surprise",
+                "another_extra": 999,
+            }
+        )
         with patch("openquery.sources.get_source", return_value=_mock_source(result)):
             data = SimitBackend().query_by_placa("XYZ123")
         assert isinstance(data, SimitData)
@@ -160,6 +177,7 @@ class TestSimitBackendDelegation:
     def test_cedula_doc_type_passed_to_openquery(self):
         """query_by_cedula must use DocumentType.CEDULA."""
         from openquery.sources.base import DocumentType, QueryInput
+
         result = _mock_simit_result()
         src = _mock_source(result)
         with patch("openquery.sources.get_source", return_value=src):
@@ -172,6 +190,7 @@ class TestSimitBackendDelegation:
     def test_plate_doc_type_passed_to_openquery(self):
         """query_by_placa must use DocumentType.PLATE."""
         from openquery.sources.base import DocumentType
+
         result = _mock_simit_result()
         src = _mock_source(result)
         with patch("openquery.sources.get_source", return_value=src):

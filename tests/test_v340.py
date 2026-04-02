@@ -31,6 +31,7 @@ def _run(*args):
 
 def _make_cfg(**overrides):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = MOCK_VIN
     cfg.general.backend = "owner"
@@ -144,11 +145,14 @@ def srv_no_tm():
 
 # ── TestChargingLocations ─────────────────────────────────────────────────────
 
+
 class TestChargingLocations:
     def _run_cmd(self, tm_mock, extra_args=None):
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
-        with patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg), \
-             patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_mock):
+        with (
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm_mock),
+        ):
             return _run("teslaMate", "charging-locations", *(extra_args or []))
 
     def test_charging_locations_output(self):
@@ -162,8 +166,10 @@ class TestChargingLocations:
     def test_charging_locations_json(self):
         tm = _make_tm_backend()
         cfg = _make_cfg(**{"teslaMate.database_url": "postgresql://localhost/tm"})
-        with patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg), \
-             patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm):
+        with (
+            patch("tesla_cli.cli.commands.teslaMate.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked", return_value=tm),
+        ):
             result = _run("-j", "teslaMate", "charging-locations")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -197,16 +203,25 @@ class TestChargingLocations:
 
     def test_charging_locations_backend_method(self):
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
         assert hasattr(TeslaMateBacked, "get_charging_locations")
 
     def test_charging_locations_sql(self):
-        src = Path(__file__).parent.parent / "src" / "tesla_cli" / "core" / "backends" / "teslaMate.py"
+        src = (
+            Path(__file__).parent.parent
+            / "src"
+            / "tesla_cli"
+            / "core"
+            / "backends"
+            / "teslaMate.py"
+        )
         text = src.read_text()
         assert "charge_energy_added" in text
         assert "GROUP BY" in text
 
 
 # ── TestVehicleHealthCheck ─────────────────────────────────────────────────────
+
 
 class TestVehicleHealthCheck:
     def _run_health(self, data_overrides=None, cs_overrides=None, extra_args=None):
@@ -220,9 +235,11 @@ class TestVehicleHealthCheck:
         cfg = _make_cfg()
         backend = MagicMock()
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             return _run("vehicle", "health-check", *(extra_args or []))
 
     def test_health_check_output(self):
@@ -236,9 +253,11 @@ class TestVehicleHealthCheck:
         cfg = _make_cfg()
         backend = MagicMock()
         backend.get_vehicle_data.return_value = _make_vehicle_data()
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -256,9 +275,11 @@ class TestVehicleHealthCheck:
         backend = MagicMock()
         data = _make_vehicle_data(battery_level=72)
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         batt = next(c for c in data_out["checks"] if c["name"] == "Battery level")
@@ -269,9 +290,11 @@ class TestVehicleHealthCheck:
         backend = MagicMock()
         data = _make_vehicle_data(battery_level=15)
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         batt = next(c for c in data_out["checks"] if c["name"] == "Battery level")
@@ -282,9 +305,11 @@ class TestVehicleHealthCheck:
         backend = MagicMock()
         data = _make_vehicle_data(battery_level=5)
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         batt = next(c for c in data_out["checks"] if c["name"] == "Battery level")
@@ -295,9 +320,11 @@ class TestVehicleHealthCheck:
         backend = MagicMock()
         data = _make_vehicle_data(charge_limit_soc=100)
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         chk = next(c for c in data_out["checks"] if c["name"] == "Charge limit")
@@ -309,9 +336,11 @@ class TestVehicleHealthCheck:
         data = _make_vehicle_data()
         data["vehicle_state"]["software_update"] = {}
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         fw = next(c for c in data_out["checks"] if c["name"] == "Firmware")
@@ -323,9 +352,11 @@ class TestVehicleHealthCheck:
         data = _make_vehicle_data()
         data["vehicle_state"]["locked"] = False
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         lock = next(c for c in data_out["checks"] if c["name"] == "Doors locked")
@@ -337,9 +368,11 @@ class TestVehicleHealthCheck:
         data = _make_vehicle_data()
         data["vehicle_state"]["tpms_pressure_fl"] = 2.1
         backend.get_vehicle_data.return_value = data
-        with patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg), \
-             patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend), \
-             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN):
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
             result = _run("-j", "vehicle", "health-check")
         data_out = json.loads(result.output)
         tyre = next(c for c in data_out["checks"] if c["name"] == "Tyre pressure")
@@ -352,6 +385,7 @@ class TestVehicleHealthCheck:
 
 
 # ── TestApiTripStats ──────────────────────────────────────────────────────────
+
 
 class TestApiTripStats:
     def test_trip_stats_endpoint_ok(self, srv_tm):
@@ -406,15 +440,18 @@ class TestApiTripStats:
 
 # ── TestVersion340 ────────────────────────────────────────────────────────────
 
+
 class TestVersion340:
     def test_version_string(self):
         from packaging.version import Version
 
         import tesla_cli
+
         assert Version(tesla_cli.__version__) >= Version("3.4.0")
 
     def test_pyproject_version(self):
         from packaging.version import Version
+
         pyproject = Path(__file__).parent.parent / "pyproject.toml"
         text = pyproject.read_text()
         for line in text.splitlines():

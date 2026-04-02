@@ -19,35 +19,35 @@ from tests.conftest import MOCK_VIN  # noqa: E402
 
 MOCK_VEHICLE_DATA = {
     "charge_state": {
-        "battery_level":      72,
-        "battery_range":      220.5,
-        "charging_state":     "Disconnected",
-        "charge_limit_soc":   80,
-        "charger_power":      0,
+        "battery_level": 72,
+        "battery_range": 220.5,
+        "charging_state": "Disconnected",
+        "charge_limit_soc": 80,
+        "charger_power": 0,
         "charge_energy_added": 5.2,
     },
     "drive_state": {
-        "speed":       0,
-        "power":       0,
+        "speed": 0,
+        "power": 0,
         "shift_state": "P",
-        "latitude":    37.4219,
-        "longitude":   -122.0840,
-        "heading":     90,
+        "latitude": 37.4219,
+        "longitude": -122.0840,
+        "heading": 90,
     },
     "climate_state": {
-        "inside_temp":              22.0,
-        "outside_temp":             18.5,
-        "is_climate_on":            False,
-        "driver_temp_setting":      21.0,
-        "passenger_temp_setting":   21.0,
+        "inside_temp": 22.0,
+        "outside_temp": 18.5,
+        "is_climate_on": False,
+        "driver_temp_setting": 21.0,
+        "passenger_temp_setting": 21.0,
     },
     "vehicle_state": {
-        "locked":           True,
-        "df":               0,
-        "pf":               0,
-        "is_user_present":  False,
-        "sentry_mode":      False,
-        "odometer":         12500.0,
+        "locked": True,
+        "df": 0,
+        "pf": 0,
+        "is_user_present": False,
+        "sentry_mode": False,
+        "odometer": 12500.0,
         "software_version": "2024.14.3",
     },
 }
@@ -55,46 +55,48 @@ MOCK_VEHICLE_DATA = {
 
 def _make_cfg(vin=MOCK_VIN):
     from tesla_cli.core.config import Config
+
     cfg = Config()
     cfg.general.default_vin = vin
-    cfg.general.backend     = "owner"
+    cfg.general.backend = "owner"
     return cfg
 
 
 def _make_backend():
     m = MagicMock()
-    m.get_vehicle_data.return_value     = MOCK_VEHICLE_DATA
-    m.get_charge_state.return_value     = MOCK_VEHICLE_DATA["charge_state"]
-    m.get_climate_state.return_value    = MOCK_VEHICLE_DATA["climate_state"]
-    m.get_drive_state.return_value      = MOCK_VEHICLE_DATA["drive_state"]
-    m.get_vehicle_state.return_value    = MOCK_VEHICLE_DATA["vehicle_state"]
-    m.command.return_value              = {"result": True}
-    m.wake_up.return_value              = {"state": "online"}
-    m.list_vehicles.return_value        = [{"vin": MOCK_VIN, "display_name": "Test Car"}]
+    m.get_vehicle_data.return_value = MOCK_VEHICLE_DATA
+    m.get_charge_state.return_value = MOCK_VEHICLE_DATA["charge_state"]
+    m.get_climate_state.return_value = MOCK_VEHICLE_DATA["climate_state"]
+    m.get_drive_state.return_value = MOCK_VEHICLE_DATA["drive_state"]
+    m.get_vehicle_state.return_value = MOCK_VEHICLE_DATA["vehicle_state"]
+    m.command.return_value = {"result": True}
+    m.wake_up.return_value = {"state": "online"}
+    m.list_vehicles.return_value = [{"vin": MOCK_VIN, "display_name": "Test Car"}]
     return m
 
 
 # ── Fixture ───────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def srv():
     """Yield (client, backend_mock, cfg) with all server patches active."""
-    cfg     = _make_cfg()
+    cfg = _make_cfg()
     backend = _make_backend()
-    app     = create_app(vin=None)
+    app = create_app(vin=None)
 
     targets = [
-        ("tesla_cli.api.routes.vehicle.load_config",         cfg),
+        ("tesla_cli.api.routes.vehicle.load_config", cfg),
         ("tesla_cli.api.routes.vehicle.get_vehicle_backend", backend),
-        ("tesla_cli.api.routes.vehicle.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.api.routes.charge.load_config",          cfg),
-        ("tesla_cli.api.routes.charge.get_vehicle_backend",  backend),
-        ("tesla_cli.api.routes.charge.resolve_vin",          MOCK_VIN),
-        ("tesla_cli.api.routes.climate.load_config",         cfg),
+        ("tesla_cli.api.routes.vehicle.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.charge.load_config", cfg),
+        ("tesla_cli.api.routes.charge.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.charge.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.climate.load_config", cfg),
         ("tesla_cli.api.routes.climate.get_vehicle_backend", backend),
-        ("tesla_cli.api.routes.climate.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.api.app.load_config",                    cfg),
-        ("tesla_cli.api.app.resolve_vin",                    MOCK_VIN),
+        ("tesla_cli.api.routes.climate.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.app.load_config", cfg),
+        ("tesla_cli.api.app.resolve_vin", MOCK_VIN),
     ]
 
     patches = []
@@ -120,22 +122,23 @@ def srv():
 def srv_asleep():
     """Server with sleeping vehicle."""
     from tesla_cli.core.exceptions import VehicleAsleepError
-    cfg     = _make_cfg()
+
+    cfg = _make_cfg()
     backend = MagicMock()
-    backend.get_vehicle_data.side_effect  = VehicleAsleepError("asleep")
-    backend.get_charge_state.side_effect  = VehicleAsleepError("asleep")
+    backend.get_vehicle_data.side_effect = VehicleAsleepError("asleep")
+    backend.get_charge_state.side_effect = VehicleAsleepError("asleep")
     backend.get_climate_state.side_effect = VehicleAsleepError("asleep")
-    backend.get_drive_state.side_effect   = VehicleAsleepError("asleep")
+    backend.get_drive_state.side_effect = VehicleAsleepError("asleep")
     app = create_app(vin=None)
 
     targets = [
-        ("tesla_cli.api.routes.vehicle.load_config",         cfg),
+        ("tesla_cli.api.routes.vehicle.load_config", cfg),
         ("tesla_cli.api.routes.vehicle.get_vehicle_backend", backend),
-        ("tesla_cli.api.routes.vehicle.resolve_vin",         MOCK_VIN),
-        ("tesla_cli.api.routes.charge.load_config",          cfg),
-        ("tesla_cli.api.routes.charge.get_vehicle_backend",  backend),
-        ("tesla_cli.api.routes.charge.resolve_vin",          MOCK_VIN),
-        ("tesla_cli.api.app.load_config",                    cfg),
+        ("tesla_cli.api.routes.vehicle.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.charge.load_config", cfg),
+        ("tesla_cli.api.routes.charge.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.charge.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.app.load_config", cfg),
     ]
     patches = [patch(t, return_value=rv) for t, rv in targets]
     for p in patches:
@@ -148,8 +151,8 @@ def srv_asleep():
 
 # ── System endpoints ──────────────────────────────────────────────────────────
 
-class TestSystemEndpoints:
 
+class TestSystemEndpoints:
     def test_status_ok(self, srv):
         client, _, _ = srv
         r = client.get("/api/status")
@@ -190,8 +193,8 @@ class TestSystemEndpoints:
 
 # ── Vehicle endpoints ─────────────────────────────────────────────────────────
 
-class TestVehicleRoutes:
 
+class TestVehicleRoutes:
     def test_vehicle_state(self, srv):
         client, backend, _ = srv
         r = client.get("/api/vehicle/state")
@@ -241,10 +244,13 @@ class TestVehicleRoutes:
 
     def test_vehicle_command_with_params(self, srv):
         client, backend, _ = srv
-        r = client.post("/api/vehicle/command", json={
-            "command": "set_charge_limit",
-            "params": {"percent": 80},
-        })
+        r = client.post(
+            "/api/vehicle/command",
+            json={
+                "command": "set_charge_limit",
+                "params": {"percent": 80},
+            },
+        )
         assert r.status_code == 200
         backend.command.assert_called_with(MOCK_VIN, "set_charge_limit", percent=80)
 
@@ -270,8 +276,8 @@ class TestVehicleRoutes:
 
 # ── Charge routes ─────────────────────────────────────────────────────────────
 
-class TestChargeRoutes:
 
+class TestChargeRoutes:
     def test_charge_status(self, srv):
         client, _, _ = srv
         r = client.get("/api/charge/status")
@@ -324,8 +330,8 @@ class TestChargeRoutes:
 
 # ── Climate routes ────────────────────────────────────────────────────────────
 
-class TestClimateRoutes:
 
+class TestClimateRoutes:
     def test_climate_status(self, srv):
         client, _, _ = srv
         r = client.get("/api/climate/status")
