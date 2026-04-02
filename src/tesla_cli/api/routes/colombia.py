@@ -45,7 +45,8 @@ def estaciones_ev(ciudad: str = "", limit: int = 50) -> dict:
         import httpx
         params: dict = {"$limit": limit}
         if ciudad:
-            params["$where"] = f"upper(ciudad) like '%{ciudad.upper()}%'"
+            # Socrata SoQL search — use contains for accent-insensitive matching
+            params["$q"] = ciudad
         r = httpx.get("https://www.datos.gov.co/resource/qqm3-dw2u.json", params=params, timeout=10)
         r.raise_for_status()
         stations = r.json()

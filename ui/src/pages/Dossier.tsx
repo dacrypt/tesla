@@ -18,7 +18,7 @@ function EVStationsSection() {
   const [stations, setStations] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
-    api.getEstacionesEV('medellin').then(d => setStations(d.estaciones || [])).catch(() => {}).finally(() => setLoading(false));
+    api.getEstacionesEV('').then(d => setStations(d.estaciones || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
   if (loading) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>Cargando...</div>;
   if (!stations.length) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>No se encontraron estaciones</div>;
@@ -46,7 +46,12 @@ function FasecoldaSection() {
     api.getFasecolda().then(setData).catch(() => {}).finally(() => setLoading(false));
   }, []);
   if (loading) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>Consultando Fasecolda...</div>;
-  if (!data || data.error) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>{data?.error || 'No disponible'}</div>;
+  if (!data || data.error) return (
+    <div style={{ textAlign: 'center', padding: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)' }}>No disponible actualmente</div>
+      <a href="https://guiadevalores.fasecolda.com/ConsultaExplorador/" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#0FBCF9', textDecoration: 'none' }}>Consultar manualmente en Fasecolda ↗</a>
+    </div>
+  );
   return (
     <>
       {data.valor && (
