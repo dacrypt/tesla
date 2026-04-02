@@ -9,7 +9,59 @@ import RuntCard from '../components/dossier/RuntCard';
 import SimitCard from '../components/dossier/SimitCard';
 import LogisticsCard from '../components/dossier/LogisticsCard';
 import Analytics from './Analytics';
+import { api } from '../api/client';
 import type { RuntData } from '../api/client';
+
+/* ── Colombian data sections ── */
+
+function EVStationsSection() {
+  const [stations, setStations] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    api.getEstacionesEV('medellin').then(d => setStations(d.estaciones || [])).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  if (loading) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>Cargando...</div>;
+  if (!stations.length) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>No se encontraron estaciones</div>;
+  return (
+    <>
+      <div style={{ fontSize: 11, color: 'var(--tesla-text-dim)', marginBottom: 8 }}>{stations.length} estaciones encontradas</div>
+      {stations.slice(0, 10).map((s, i) => (
+        <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < Math.min(stations.length, 10) - 1 ? '1px solid var(--tesla-card-border)' : 'none' }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tesla-text)' }}>{s.nombre}</div>
+          <div style={{ fontSize: 10, color: 'var(--tesla-text-secondary)' }}>{s.direccion} · {s.ciudad}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+            <span style={{ fontSize: 10, color: s.tipo?.includes('pida') ? '#0BE881' : '#0FBCF9' }}>{s.tipo}</span>
+            <span style={{ fontSize: 10, color: 'var(--tesla-text-dim)' }}>{s.horario}</span>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function FasecoldaSection() {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    api.getFasecolda().then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  if (loading) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>Consultando Fasecolda...</div>;
+  if (!data || data.error) return <div style={{ fontSize: 12, color: 'var(--tesla-text-secondary)', textAlign: 'center', padding: 12 }}>{data?.error || 'No disponible'}</div>;
+  return (
+    <>
+      {data.valor && (
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <div style={{ fontSize: 10, color: 'var(--tesla-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Valor Comercial</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#05C46B', marginTop: 4 }}>${Number(data.valor).toLocaleString()}</div>
+          <div style={{ fontSize: 11, color: 'var(--tesla-text-dim)' }}>COP · {data.ano || ''}</div>
+        </div>
+      )}
+      {data.marca && <div className="stat-row"><span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Marca</span><span style={{ color: 'var(--tesla-text)', fontSize: 12 }}>{data.marca}</span></div>}
+      {data.linea && <div className="stat-row"><span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Línea</span><span style={{ color: 'var(--tesla-text)', fontSize: 12 }}>{data.linea}</span></div>}
+      {data.clase && <div className="stat-row"><span style={{ color: 'var(--tesla-text-secondary)', fontSize: 12 }}>Clase</span><span style={{ color: 'var(--tesla-text)', fontSize: 12 }}>{data.clase}</span></div>}
+    </>
+  );
+}
 
 function Spin() {
   return (
@@ -586,6 +638,19 @@ export default function Dossier() {
               {/* ════════════════════════════════════════════════════════════ */}
               {/* ANALYTICS (embedded)                                       */}
               {/* ════════════════════════════════════════════════════════════ */}
+              {/* ════════════════════════════════════════════════════════════ */}
+              {/* COLOMBIA: EV Stations, Fasecolda, Peajes                   */}
+              {/* ════════════════════════════════════════════════════════════ */}
+              <SectionDivider label="Colombia" />
+
+              <CollapsibleSection title="Electrolineras (Estaciones EV)">
+                <EVStationsSection />
+              </CollapsibleSection>
+
+              <CollapsibleSection title="Valor Comercial (Fasecolda)">
+                <FasecoldaSection />
+              </CollapsibleSection>
+
               <SectionDivider label="Analytics" />
               <div style={{ margin: '0 -16px' }}>
                 <Analytics embedded />

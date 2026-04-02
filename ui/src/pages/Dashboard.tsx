@@ -104,6 +104,14 @@ function DeliveryCountdown() {
 function PreDeliveryDashboard() {
   const { dossier } = useDossierData();
   const history = useHistory();
+  const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const placa = dossier?.runt?.placa;
+    if (placa) {
+      api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
+    }
+  }, [dossier?.runt?.placa]);
 
   const status = dossier?.real_status;
   const order = dossier?.order;
@@ -167,6 +175,25 @@ function PreDeliveryDashboard() {
           </div>
         )}
       </div>
+
+      {/* ── Pico y Placa ── */}
+      {picoYPlaca && picoYPlaca.placa && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 10,
+          borderRadius: 10, border: `1px solid ${picoYPlaca.restringido ? 'rgba(255,107,107,0.2)' : 'rgba(11,232,129,0.15)'}`,
+          background: picoYPlaca.restringido ? 'rgba(255,107,107,0.06)' : 'rgba(11,232,129,0.04)',
+        }}>
+          <span style={{ fontSize: 18 }}>{picoYPlaca.restringido ? '🚫' : '✅'}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: picoYPlaca.restringido ? '#FF6B6B' : '#0BE881' }}>
+              {picoYPlaca.restringido ? 'Pico y Placa hoy — No puedes circular' : 'Sin restricción hoy'}
+            </div>
+            <div style={{ fontSize: 10, color: '#86888f' }}>
+              {picoYPlaca.motivo || `Placa ${picoYPlaca.placa} · ${picoYPlaca.ciudad || ''}`}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Checklist summary ── */}
       {status && (

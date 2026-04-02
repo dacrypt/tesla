@@ -561,6 +561,18 @@ export const api = {
   getAuthStatus: () =>
     client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
 
+  // Colombia sources
+  getPicoYPlaca: (placa?: string) =>
+    client().get<any>('/api/co/pico-y-placa', { params: { placa: placa || '' } }).then(r => r.data),
+  getEstacionesEV: (ciudad?: string) =>
+    client().get<any>('/api/co/estaciones-ev', { params: { ciudad: ciudad || '' } }).then(r => r.data),
+  getFasecolda: () =>
+    client().get<any>('/api/co/fasecolda').then(r => r.data),
+  getRecallsSIC: () =>
+    client().get<any>('/api/co/recalls-sic').then(r => r.data),
+  getPeajes: (ruta?: string) =>
+    client().get<any>('/api/co/peajes', { params: { ruta: ruta || '' } }).then(r => r.data),
+
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
 };
