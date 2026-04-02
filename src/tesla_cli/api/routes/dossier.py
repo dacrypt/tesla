@@ -30,19 +30,30 @@ def dossier_cached() -> dict:
 
 @router.get("/refresh")
 def dossier_refresh() -> dict:
-    """Rebuild the full dossier from all sources (slow, 5-15s).
+    """Rebuild the full dossier from all sources (slow, 30-60s).
 
-    Aggregates data from Tesla API, VIN decode, RUNT, ship tracking,
-    NHTSA recalls, EPA, and more. Saves to disk for future cached reads.
+    Runs as subprocess because openquery uses Playwright (headless browser)
+    for CAPTCHA solving which conflicts with uvicorn's async event loop.
     """
-    from tesla_cli.core.backends.dossier import DossierBackend
+    import subprocess
+    import sys
 
     try:
-        backend = DossierBackend()
-        dossier = backend.build_dossier()
-        return dossier.model_dump(mode="json")
+        result = subprocess.run(
+            [sys.executable, "-m", "tesla_cli", "dossier", "build"],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=502, detail=f"Dossier build failed: {result.stderr[:200] if result.stderr else 'unknown error'}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Dossier build timed out")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+    # Return the freshly built dossier from cache
+    return dossier_cached()
 
 
 @router.get("/runt")

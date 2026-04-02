@@ -561,6 +561,16 @@ export const api = {
   getAuthStatus: () =>
     client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
 
+  // Data Sources
+  getSources: () =>
+    client().get<any[]>('/api/sources').then(r => r.data),
+  getSource: (id: string) =>
+    client().get<any>(`/api/sources/${id}`).then(r => r.data),
+  refreshSource: (id: string) =>
+    client().post<any>(`/api/sources/${id}/refresh`).then(r => r.data),
+  getMissingAuth: () =>
+    client().get<any[]>('/api/sources/missing-auth').then(r => r.data),
+
   // Colombia sources
   getPicoYPlaca: (placa?: string) =>
     client().get<any>('/api/co/pico-y-placa', { params: { placa: placa || '' } }).then(r => r.data),
