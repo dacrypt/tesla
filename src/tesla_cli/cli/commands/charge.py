@@ -697,3 +697,102 @@ def charge_sessions(
         if any(s.cost_estimated for s in sessions):
             summary += " [dim](~ = estimated)[/dim]"
     console.print(summary)
+
+
+@charge_app.command("cost-summary")
+def charge_cost_summary(
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Show charging cost summary across all sources.
+
+    Aggregates from TeslaMate (actual costs) or Fleet API (estimated via cost_per_kwh).
+    Shows total kWh, total cost, average cost per kWh, and source breakdown.
+    """
+    import json
+
+    from rich.table import Table
+
+    from tesla_cli.cli.output import console
+    from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh
+    sessions: list[ChargingSession] = []
+    source_used = ""
+
+    # Try TeslaMate first
+    try:
+        if cfg.teslaMate.dsn:
+            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+            tm = TeslaMateBacked(cfg.teslaMate.dsn)
+            rows = tm.get_charging_sessions(limit=500)
+            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
+            source_used = "TeslaMate"
+    except Exception:
+        pass
+
+    # Fall back to Fleet API
+    if not sessions:
+        try:
+            backend = _backend()
+            raw = backend.get_charge_history()
+            history = ChargingHistory.from_api(raw)
+            sessions = [
+                ChargingSession.from_fleet_point(pt, cost_per_kwh) for pt in history.points
+            ]
+            source_used = "Fleet API"
+        except Exception:
+            pass
+
+    if not sessions:
+        console.print("[yellow]No charging data available.[/yellow]")
+        raise typer.Exit(1)
+
+    # Aggregate
+    total_kwh = sum(s.kwh for s in sessions)
+    sessions_with_cost = [s for s in sessions if s.cost is not None]
+    total_cost = sum(s.cost for s in sessions_with_cost)
+    actual_cost_sessions = [s for s in sessions_with_cost if not s.cost_estimated]
+    estimated_sessions = [s for s in sessions_with_cost if s.cost_estimated]
+
+    avg_cost_per_kwh = total_cost / total_kwh if total_kwh > 0 else 0
+
+    if is_json_mode():
+        console.print_json(
+            json.dumps(
+                {
+                    "source": source_used,
+                    "total_sessions": len(sessions),
+                    "total_kwh": round(total_kwh, 1),
+                    "total_cost": round(total_cost, 2),
+                    "avg_cost_per_kwh": round(avg_cost_per_kwh, 4),
+                    "actual_cost_sessions": len(actual_cost_sessions),
+                    "estimated_cost_sessions": len(estimated_sessions),
+                    "configured_cost_per_kwh": cost_per_kwh,
+                }
+            )
+        )
+        return
+
+    t = Table(title=f"Charging Cost Summary ({source_used})", show_header=False, padding=(0, 2))
+    t.add_column("key", style="bold")
+    t.add_column("value", justify="right")
+
+    t.add_row("Sessions", str(len(sessions)))
+    t.add_row("Total energy", f"{total_kwh:.1f} kWh")
+    t.add_row("Total cost", f"${total_cost:.2f}")
+    t.add_row("Avg cost/kWh", f"${avg_cost_per_kwh:.4f}")
+
+    if actual_cost_sessions:
+        t.add_row("Actual cost data", f"{len(actual_cost_sessions)} sessions")
+    if estimated_sessions:
+        t.add_row("Estimated (via config)", f"{len(estimated_sessions)} sessions @ ${cost_per_kwh}/kWh")
+
+    console.print(t)
+
+    if not cost_per_kwh and not actual_cost_sessions:
+        console.print(
+            "\n  [dim]Tip: Set cost_per_kwh for estimates:[/dim] "
+            "`tesla config set cost-per-kwh 0.22`"
+        )
