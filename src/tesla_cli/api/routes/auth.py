@@ -260,6 +260,77 @@ except Exception as e:
     }
 
 
+# ── Portal scrape (full order data) ───────────────────────────────────────────
+
+class PortalScrapeRequest(BaseModel):
+    email: str
+    password: str
+    mfa_code: str | None = None
+
+
+@router.post("/portal-scrape")
+def auth_portal_scrape(req: PortalScrapeRequest) -> dict:
+    """Scrape Tesla ownership portal for full order/delivery/registration data.
+
+    Automates login to tesla.com/teslaaccount via headless browser,
+    extracts window.Tesla.App.* data including documents, registration,
+    financing, delivery details — everything the mobile app shows.
+
+    If MFA required, returns {ok: false, mfa_required: true}.
+    """
+    import subprocess
+    import sys
+    import json as _json
+
+    cfg = load_config()
+    rn = cfg.order.reservation_number or ""
+
+    script = f'''
+import json
+from tesla_cli.core.auth.portal_scrape import scrape_portal
+try:
+    data = scrape_portal(
+        email={repr(req.email)},
+        password={repr(req.password)},
+        mfa_code={repr(req.mfa_code)},
+        reservation_number={repr(rn)},
+    )
+    # Save to sources cache
+    from tesla_cli.core.sources import _save_cache
+    from pathlib import Path
+    _save_cache("tesla.portal", data)
+    print(json.dumps({{"ok": True, "keys": list(data.keys()), "sections": len(data)}}))
+except Exception as e:
+    msg = str(e)
+    print(json.dumps({{
+        "ok": False,
+        "mfa_required": "MFA_REQUIRED" in msg,
+        "error": msg if "MFA_REQUIRED" not in msg else "MFA code required",
+    }}))
+'''
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=180,
+        )
+        if result.stdout.strip():
+            data = _json.loads(result.stdout.strip())
+        else:
+            raise HTTPException(502, f"Portal scrape failed: {result.stderr[:200]}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Portal scrape timed out")
+    except _json.JSONDecodeError:
+        raise HTTPException(502, f"Portal error: {result.stdout[:100]}")
+
+    if not data.get("ok"):
+        if data.get("mfa_required"):
+            return {"ok": False, "mfa_required": True}
+        raise HTTPException(502, data.get("error", "Scrape failed"))
+
+    return data
+
+
 # ── Status ────────────────────────────────────────────────────────────────────
 
 @router.get("/status")

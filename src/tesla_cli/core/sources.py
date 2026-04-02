@@ -433,6 +433,13 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
 def _register_defaults() -> None:
     """Register all built-in data sources."""
 
+    # ── Tesla Portal (full web data) ──
+    register_source(SourceDef(
+        id="tesla.portal", name="Tesla Portal — Orden Completa", category="financiero",
+        requires_auth="order", ttl=3600, country="",
+        # Refreshed via /api/auth/portal-scrape, not via source refresh
+    ))
+
     # ── Vehicle identity ──
     def _fetch_vin_decode():
         from tesla_cli.core.backends.dossier import decode_vin

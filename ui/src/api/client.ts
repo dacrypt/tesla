@@ -560,6 +560,8 @@ export const api = {
     client().post<{ ok: boolean }>('/api/auth/tessie', { token }).then(r => r.data),
   browserLogin: (email: string, password: string, mfa_code?: string) =>
     client().post<any>('/api/auth/browser-login', { email, password, mfa_code }, { timeout: 120000 }).then(r => r.data),
+  portalScrape: (email: string, password: string, mfa_code?: string) =>
+    client().post<any>('/api/auth/portal-scrape', { email, password, mfa_code }, { timeout: 180000 }).then(r => r.data),
   getAuthStatus: () =>
     client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_order: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
 
