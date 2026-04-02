@@ -7461,3 +7461,87 @@ class TestChargingSessions:
             result = _run("charge", "sessions")
             assert result.exit_code == 0
             assert "45.2" in result.output or "Fleet API" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Summary
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleSummary:
+    """Tests for `tesla vehicle summary`."""
+
+    MOCK_DATA = {
+        "charge_state": {
+            "battery_level": 72,
+            "battery_range": 186.5,
+            "charge_limit_soc": 80,
+            "charging_state": "Stopped",
+            "charger_power": 0,
+            "time_to_full_charge": 0,
+        },
+        "climate_state": {
+            "inside_temp": 22.5,
+            "outside_temp": 18.0,
+            "is_climate_on": False,
+        },
+        "drive_state": {
+            "latitude": 4.711,
+            "longitude": -74.072,
+            "speed": 0,
+            "heading": 180,
+        },
+        "vehicle_state": {
+            "locked": True,
+            "sentry_mode": True,
+            "car_version": "2026.8.7",
+            "odometer": 1234.5,
+        },
+    }
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_cli_renders_summary(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "summary")
+        assert result.exit_code == 0
+        assert "72%" in result.output
+        assert "Locked" in result.output
+        assert "2026.8.7" in result.output
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_cli_json_mode(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("--json", "vehicle", "summary")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["charge_state"]["battery_level"] == 72
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_cli_shows_charging_details(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        charging_data = dict(self.MOCK_DATA)
+        charging_data["charge_state"] = {
+            **self.MOCK_DATA["charge_state"],
+            "charging_state": "Charging",
+            "charger_power": 11,
+            "time_to_full_charge": 1.5,
+        }
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = charging_data
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "summary")
+        assert result.exit_code == 0
+        assert "Charging" in result.output
+        assert "11 kW" in result.output
