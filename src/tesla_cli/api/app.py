@@ -96,11 +96,30 @@ def _auto_provision_teslamate() -> None:
             log.warning("Auto-install of TeslaMate stack failed: %s", exc)
 
 
+def _auto_refresh_dossier() -> None:
+    """Periodically refresh the dossier to keep data fresh."""
+    import time as _t
+    log = logging.getLogger("tesla-cli.dossier-refresh")
+    _t.sleep(30)  # Wait for server to be fully ready
+    while True:
+        try:
+            cfg = load_config()
+            vin = cfg.general.default_vin
+            if vin:
+                from tesla_cli.core.backends.dossier import build_dossier
+                build_dossier(vin, cfg)
+                log.info("Dossier auto-refreshed.")
+        except Exception as exc:
+            log.debug("Dossier auto-refresh skipped: %s", exc)
+        _t.sleep(3600)  # Every hour
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
     import threading
     threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
+    threading.Thread(target=_auto_refresh_dossier, daemon=True).start()
     yield
 
 
