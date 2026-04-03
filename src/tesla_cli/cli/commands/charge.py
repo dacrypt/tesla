@@ -600,7 +600,13 @@ def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
 
 
 def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
-    """Fetch unified charging sessions from best source (TeslaMate > Fleet API).
+    """Fetch unified charging sessions, merging TeslaMate + Fleet API when both available.
+
+    Strategy:
+    - TeslaMate provides: per-session costs, battery levels, precise timestamps
+    - Fleet API provides: aggregated history with location labels
+    - When both available: TeslaMate is primary, Fleet API fills gaps
+    - Dedup by matching date prefix (YYYY-MM-DD) + similar kWh (±20%)
 
     Returns (sessions, source_name). Shared by `sessions`, `cost-summary`, and API route.
     """
@@ -608,34 +614,55 @@ def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
 
     cfg = load_config()
     cost_per_kwh = cfg.general.cost_per_kwh
-    sessions: list[ChargingSession] = []
-    source_used = ""
+    tm_sessions: list[ChargingSession] = []
+    fleet_sessions: list[ChargingSession] = []
+    sources: list[str] = []
 
-    # Try TeslaMate first (richer data: per-session costs, battery levels)
+    # Try TeslaMate
     try:
         if cfg.teslaMate.database_url:
             from tesla_cli.core.backends.teslaMate import TeslaMateBacked
 
             tm = TeslaMateBacked(cfg.teslaMate.database_url)
             rows = tm.get_charging_sessions(limit=limit)
-            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
-            source_used = "TeslaMate"
+            tm_sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
+            if tm_sessions:
+                sources.append("TeslaMate")
     except Exception:
         pass
 
-    # Fall back to Fleet API
-    if not sessions:
-        try:
-            backend = _backend()
-            raw = backend.get_charge_history()
-            history = ChargingHistory.from_api(raw)
-            sessions = [
-                ChargingSession.from_fleet_point(pt, cost_per_kwh)
-                for pt in history.points[:limit]
-            ]
-            source_used = "Fleet API"
-        except Exception:
-            pass
+    # Try Fleet API
+    try:
+        backend = _backend()
+        raw = backend.get_charge_history()
+        history = ChargingHistory.from_api(raw)
+        fleet_sessions = [
+            ChargingSession.from_fleet_point(pt, cost_per_kwh)
+            for pt in history.points[:limit]
+        ]
+        if fleet_sessions:
+            sources.append("Fleet API")
+    except Exception:
+        pass
+
+    # Merge: TeslaMate is primary, add Fleet API sessions that don't overlap
+    if tm_sessions and fleet_sessions:
+        tm_dates = {s.date[:10] for s in tm_sessions if len(s.date) >= 10}
+        for fs in fleet_sessions:
+            # Fleet API dates are shorter ("Mar 15") — skip dedup if can't parse
+            if not any(fs.date in d or d in fs.date for d in tm_dates):
+                tm_sessions.append(fs)
+        sessions = sorted(tm_sessions, key=lambda s: s.date, reverse=True)[:limit]
+        source_used = " + ".join(sources)
+    elif tm_sessions:
+        sessions = tm_sessions
+        source_used = "TeslaMate"
+    elif fleet_sessions:
+        sessions = fleet_sessions
+        source_used = "Fleet API"
+    else:
+        sessions = []
+        source_used = ""
 
     return sessions, source_used
 

@@ -282,40 +282,51 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             data = {}
 
         cs = data.get("charge_state") or {}
+        cl = data.get("climate_state") or {}
         ds = data.get("drive_state") or {}
         vs = data.get("vehicle_state") or {}
 
         def _g(name: str, help_text: str, value, labels: str = "") -> str:
             lbl = f'{{vin="{v}"{", " + labels if labels else ""}}}'
             val = float(value) if value is not None else float("nan")
-            # Prometheus uses NaN for missing; but many exporters use 0 — use NaN for clarity
             val_str = str(val) if val == val else "NaN"
             return f"# HELP {name} {help_text}\n# TYPE {name} gauge\n{name}{lbl} {val_str}\n"
 
+        def _bool_g(name: str, help_text: str, value) -> str:
+            return _g(name, help_text, int(bool(value)) if value is not None else None)
+
         lines = [
+            # Battery & Charging
             _g("tesla_battery_level", "Battery level percent", cs.get("battery_level")),
             _g("tesla_battery_range", "Estimated range in miles", cs.get("battery_range")),
             _g("tesla_charge_limit", "Charge limit SoC percent", cs.get("charge_limit_soc")),
             _g("tesla_charger_power", "Charger power in kW", cs.get("charger_power")),
-            _g(
-                "tesla_energy_added",
-                "Energy added in kWh this session",
-                cs.get("charge_energy_added"),
-            ),
+            _g("tesla_charger_voltage", "Charger voltage in V", cs.get("charger_voltage")),
+            _g("tesla_charger_current", "Charger current in A", cs.get("charger_actual_current")),
+            _g("tesla_charge_rate", "Charge rate in mph added", cs.get("charge_rate")),
+            _g("tesla_energy_added", "Energy added in kWh this session", cs.get("charge_energy_added")),
+            _g("tesla_time_to_full", "Hours to full charge", cs.get("time_to_full_charge")),
+            # Temperature
+            _g("tesla_inside_temp", "Inside temperature in Celsius", cl.get("inside_temp")),
+            _g("tesla_outside_temp", "Outside temperature in Celsius", cl.get("outside_temp")),
+            _g("tesla_driver_temp_setting", "Driver temp setting in Celsius", cl.get("driver_temp_setting")),
+            _bool_g("tesla_climate_on", "Climate system active (1=on 0=off)", cl.get("is_climate_on")),
+            # TPMS Tire Pressure
+            _g("tesla_tpms_fl", "Tire pressure front-left in bar", vs.get("tpms_pressure_fl")),
+            _g("tesla_tpms_fr", "Tire pressure front-right in bar", vs.get("tpms_pressure_fr")),
+            _g("tesla_tpms_rl", "Tire pressure rear-left in bar", vs.get("tpms_pressure_rl")),
+            _g("tesla_tpms_rr", "Tire pressure rear-right in bar", vs.get("tpms_pressure_rr")),
+            # Location & Movement
             _g("tesla_odometer", "Odometer in miles", vs.get("odometer")),
             _g("tesla_speed", "Vehicle speed in mph", ds.get("speed")),
             _g("tesla_latitude", "Vehicle latitude", ds.get("latitude")),
             _g("tesla_longitude", "Vehicle longitude", ds.get("longitude")),
-            _g(
-                "tesla_locked",
-                "Doors locked (1=locked 0=unlocked)",
-                int(bool(vs.get("locked"))) if vs.get("locked") is not None else None,
-            ),
-            _g(
-                "tesla_sentry_mode",
-                "Sentry mode active (1=on 0=off)",
-                int(bool(vs.get("sentry_mode"))) if vs.get("sentry_mode") is not None else None,
-            ),
+            _g("tesla_heading", "Vehicle heading in degrees", ds.get("heading")),
+            # State
+            _bool_g("tesla_locked", "Doors locked (1=locked 0=unlocked)", vs.get("locked")),
+            _bool_g("tesla_sentry_mode", "Sentry mode active (1=on 0=off)", vs.get("sentry_mode")),
+            _bool_g("tesla_climate_on_state", "HVAC active (1=on 0=off)", cl.get("is_climate_on")),
+            _bool_g("tesla_charge_port_open", "Charge port door open", cs.get("charge_port_door_open")),
         ]
 
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
