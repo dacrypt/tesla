@@ -19,7 +19,6 @@ _BACKEND_MODULES = [
     "tesla_cli.core.backends",
     "tesla_cli.cli.commands.vehicle",
     "tesla_cli.cli.commands.charge",
-    "tesla_cli.cli.commands.sharing",
 ]
 
 _CONFIG_MODULES = [
@@ -29,9 +28,6 @@ _CONFIG_MODULES = [
     "tesla_cli.cli.commands.climate",
     "tesla_cli.cli.commands.security",
     "tesla_cli.cli.commands.media",
-    "tesla_cli.cli.commands.nav",
-    "tesla_cli.cli.commands.sharing",
-    "tesla_cli.cli.commands.dashboard",
 ]
 
 

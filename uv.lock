@@ -999,7 +999,7 @@ wheels = [
 
 [[package]]
 name = "openquery"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "../openquery" }
 dependencies = [
     { name = "cachetools" },
@@ -1726,7 +1726,7 @@ wheels = [
 
 [[package]]
 name = "tesla-cli"
-version = "4.1.0"
+version = "4.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "apprise" },

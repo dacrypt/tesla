@@ -92,43 +92,61 @@ def media_send_destination(
     destination: str = typer.Argument(..., help="Address or place name"),
     vin: str | None = VinOption,
 ) -> None:
-    """Send a destination to the vehicle navigation.
+    """Send a destination to the vehicle navigation."""
+    import time as _time
 
-    tesla media send-destination "123 Main St, Austin TX"
-    """
-    from tesla_cli.cli.commands.nav import nav_send
-
-    nav_send(destination=destination, vin=vin)
+    v = _vin(vin)
+    ts = str(int(_time.time() * 1000))
+    _with_wake(
+        lambda b, v: b.command(
+            v, "share",
+            type="share_ext_content_raw",
+            value={"android.intent.extra.TEXT": destination},
+            locale="en-US", timestamp_ms=ts,
+        ), v,
+    )
+    render_success(f"Destination sent: {destination}")
 
 
 @media_app.command("supercharger")
 def media_supercharger(vin: str | None = VinOption) -> None:
-    """Navigate to nearest Supercharger.
-
-    tesla media supercharger
-    """
-    from tesla_cli.cli.commands.nav import nav_supercharger
-
-    nav_supercharger(vin=vin)
+    """Navigate to nearest Supercharger."""
+    v = _vin(vin)
+    _with_wake(lambda b, v: b.command(v, "navigation_sc_request", id=0, order=0, offset=0), v)
+    render_success("Navigating to nearest Supercharger")
 
 
 @media_app.command("home")
 def media_home(vin: str | None = VinOption) -> None:
-    """Navigate home.
+    """Navigate home."""
+    import time as _time
 
-    tesla media home
-    """
-    from tesla_cli.cli.commands.nav import nav_home
-
-    nav_home(vin=vin)
+    v = _vin(vin)
+    ts = str(int(_time.time() * 1000))
+    _with_wake(
+        lambda b, v: b.command(
+            v, "share",
+            type="share_ext_content_raw",
+            value={"android.intent.extra.TEXT": "Home"},
+            locale="en-US", timestamp_ms=ts,
+        ), v,
+    )
+    render_success("Navigating home")
 
 
 @media_app.command("work")
 def media_work(vin: str | None = VinOption) -> None:
-    """Navigate to work.
+    """Navigate to work."""
+    import time as _time
 
-    tesla media work
-    """
-    from tesla_cli.cli.commands.nav import nav_work
-
-    nav_work(vin=vin)
+    v = _vin(vin)
+    ts = str(int(_time.time() * 1000))
+    _with_wake(
+        lambda b, v: b.command(
+            v, "share",
+            type="share_ext_content_raw",
+            value={"android.intent.extra.TEXT": "Work"},
+            locale="en-US", timestamp_ms=ts,
+        ), v,
+    )
+    render_success("Navigating to work")

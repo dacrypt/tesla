@@ -1,18 +1,19 @@
-"""tesla query — Query Colombian public data sources via openquery.
+"""tesla data — Data sources, exports, and Colombian public data queries.
+
+Three sections:
+1. Vehicle data aggregation: build, history, diff, clean, data-sources
+2. Export: export-html, export-pdf
+3. Colombian public data (via openquery): runt, simit, procuraduria, policia, etc.
 
 Usage examples:
-    tesla query sources                          # list all available sources
-    tesla query simit --cedula 12345678          # SIMIT traffic fines
-    tesla query runt --placa ABC123              # RUNT vehicle registry (plate)
-    tesla query runt --vin LRWYGCEK3TC512197     # RUNT vehicle registry (VIN)
-    tesla query procuraduria --cedula 12345678   # disciplinary records
-    tesla query policia --cedula 12345678        # criminal background
-    tesla query adres --cedula 12345678          # health system (EPS)
-    tesla query pico-y-placa --placa ABC123      # driving restrictions
-    tesla query vehiculos --placa ABC123         # national vehicle fleet
-    tesla query run co.combustible --extra '{"municipio": "BOGOTA"}'
-    tesla query run co.estaciones-ev --extra '{"ciudad": "Medellin"}'
-    tesla query run co.fasecolda --extra '{"marca": "TESLA", "modelo": "2026"}'
+    tesla data build                             # build/refresh from all sources
+    tesla data history                           # show snapshot history
+    tesla data diff 1 3                          # compare two snapshots
+    tesla data data-sources                      # show 15 sources + cache status
+    tesla data export-html --theme light         # export HTML report
+    tesla data runt --placa ABC123               # RUNT vehicle registry
+    tesla data simit --cedula 12345678           # SIMIT traffic fines
+    tesla data run co.combustible --extra '{"municipio": "BOGOTA"}'
 """
 
 from __future__ import annotations
@@ -224,7 +225,9 @@ def _save_audit(audit_record, source: str, label: str, audit_dir: str | None) ->
     console.print(f"[green]Audit log:[/green] {meta_path}")
 
 
-# ─── Commands ─────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# Colombian Public Data Queries (via openquery)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 @data_app.command("sources")
@@ -465,7 +468,7 @@ def query_siniestralidad(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Data aggregation & export (migrated from dossier)
+# Vehicle Data Aggregation & Export
 # ═══════════════════════════════════════════════════════════════════════════════
 
 

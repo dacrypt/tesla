@@ -2160,9 +2160,78 @@ def vehicle_stream(
     tesla vehicle stream --interval 10
     tesla vehicle stream --count 20
     """
-    from tesla_cli.cli.commands.stream import stream_live
+    import json as _json
 
-    stream_live(interval=interval, count=count, mqtt_url=mqtt_url, vin=vin)
+    from rich.live import Live
+    from rich.table import Table as _Table
+
+    from tesla_cli.core.config import load_config, resolve_vin
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    backend = _backend()
+
+    iteration = 0
+    try:
+        with Live(console=console, refresh_per_second=1, transient=False) as live:
+            while True:
+                try:
+                    data = backend.get_vehicle_data(v)
+                except VehicleAsleepError:
+                    console.print("[yellow]Vehicle asleep, waking...[/yellow]")
+                    backend.wake_up(v)
+                    time.sleep(5)
+                    continue
+
+                if is_json_mode():
+                    console.print_json(_json.dumps(data, indent=2, default=str))
+                    raise typer.Exit(0)
+
+                cs = data.get("charge_state", {})
+                cl = data.get("climate_state", {})
+                ds = data.get("drive_state", {})
+                vs = data.get("vehicle_state", {})
+
+                t = _Table(title=f"Tesla Stream — {v[-6:]}", show_lines=True)
+                t.add_column("Key", style="cyan", width=22)
+                t.add_column("Value", width=30)
+
+                t.add_row("Battery", f"{cs.get('battery_level', '?')}%")
+                t.add_row("Range", f"{cs.get('battery_range', 0):.1f} mi")
+                t.add_row("Charging", cs.get("charging_state", "?"))
+                if cs.get("charging_state") == "Charging":
+                    t.add_row("Charge Rate", f"{cs.get('charger_power', 0)} kW")
+                t.add_row("Inside Temp", f"{cl.get('inside_temp', '?')}°C")
+                t.add_row("Outside Temp", f"{cl.get('outside_temp', '?')}°C")
+                lat = ds.get("latitude")
+                lon = ds.get("longitude")
+                if lat and lon:
+                    t.add_row("Location", f"{lat:.4f}, {lon:.4f}")
+                t.add_row("Speed", f"{ds.get('speed') or 0} mph")
+                t.add_row("Locked", "Yes" if vs.get("locked") else "No")
+                t.add_row("Sentry", "ON" if vs.get("sentry_mode") else "off")
+                t.add_row("Software", vs.get("car_version", "?"))
+                t.add_row("Odometer", f"{vs.get('odometer', 0):,.0f} mi")
+
+                live.update(t)
+
+                # MQTT publish if configured
+                if mqtt_url:
+                    try:
+                        from tesla_cli.core.providers.impl.mqtt import MqttProvider
+
+                        mp = MqttProvider(cfg)
+                        if mp.available():
+                            mp.push(data)
+                    except Exception:
+                        pass
+
+                iteration += 1
+                if count and iteration >= count:
+                    break
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stream stopped.[/dim]")
 
 
 @vehicle_app.command("dashboard")
@@ -2172,31 +2241,123 @@ def vehicle_dashboard(vin: str | None = VinOption) -> None:
     tesla vehicle dashboard
     tesla -j vehicle dashboard
     """
-    from tesla_cli.cli.commands.dashboard import dashboard_show
+    import json as _json
 
-    dashboard_show(vin=vin)
+    from rich.columns import Columns
+    from rich.panel import Panel
+    from rich.table import Table as _Table
+
+    v = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+
+    if is_json_mode():
+        console.print(_json.dumps(data, indent=2, default=str))
+        return
+
+    charge = data.get("charge_state", {})
+    climate = data.get("climate_state", {})
+    drive = data.get("drive_state", {})
+    vehicle = data.get("vehicle_state", {})
+    config = data.get("vehicle_config", {})
+
+    def _bool_icon(val):
+        return "\u2705" if val else "\u274c" if val is not None else "\u2753"
+
+    def _bar(level):
+        filled = level // 5
+        empty = 20 - filled
+        color = "green" if level > 60 else "yellow" if level > 20 else "red"
+        return f"[{color}]{chr(9608) * filled}{chr(9617) * empty}[/{color}] {level}%"
+
+    battery_level = charge.get("battery_level", 0)
+    bt = _Table(show_header=False, box=None, padding=(0, 1))
+    bt.add_column("K", style="bold cyan", width=20)
+    bt.add_column("V")
+    bt.add_row("Battery", _bar(battery_level))
+    bt.add_row("Range", f"{charge.get('battery_range', 0):.0f} mi")
+    bt.add_row("Charge Limit", f"{charge.get('charge_limit_soc', 0)}%")
+    bt.add_row("Charging", charge.get("charging_state", "Unknown"))
+    if charge.get("charging_state") == "Charging":
+        bt.add_row("Power", f"{charge.get('charger_power', 0)} kW")
+        bt.add_row("Time Left", f"{charge.get('time_to_full_charge', 0):.1f} hr")
+
+    lat = drive.get("latitude", 0)
+    lon = drive.get("longitude", 0)
+    lt = _Table(show_header=False, box=None, padding=(0, 1))
+    lt.add_column("K", style="bold cyan", width=20)
+    lt.add_column("V")
+    lt.add_row("Coordinates", f"{lat:.5f}, {lon:.5f}" if lat else "Unknown")
+    speed = drive.get("speed")
+    lt.add_row("Speed", f"{speed} mph" if speed else "Parked")
+
+    st = _Table(show_header=False, box=None, padding=(0, 1))
+    st.add_column("K", style="bold cyan", width=20)
+    st.add_column("V")
+    st.add_row("Locked", _bool_icon(vehicle.get("locked")))
+    st.add_row("Sentry Mode", _bool_icon(vehicle.get("sentry_mode")))
+    st.add_row("Software", vehicle.get("car_version", "Unknown"))
+    st.add_row("Odometer", f"{vehicle.get('odometer', 0):,.0f} mi")
+
+    ct = _Table(show_header=False, box=None, padding=(0, 1))
+    ct.add_column("K", style="bold cyan", width=20)
+    ct.add_column("V")
+    ct.add_row("Climate On", _bool_icon(climate.get("is_climate_on")))
+    inside = climate.get("inside_temp")
+    outside = climate.get("outside_temp")
+    ct.add_row("Inside", f"{inside}\u00b0C" if inside is not None else "N/A")
+    ct.add_row("Outside", f"{outside}\u00b0C" if outside is not None else "N/A")
+
+    name = data.get("display_name", data.get("vehicle_name", v))
+    model = config.get("car_type", "Tesla")
+
+    panels = [
+        Panel(bt, title="\U0001f50b Battery & Charging", border_style="green"),
+        Panel(lt, title="\U0001f4cd Location", border_style="blue"),
+        Panel(st, title="\U0001f512 Security", border_style="red"),
+        Panel(ct, title="\U0001f321\ufe0f Climate", border_style="yellow"),
+    ]
+
+    console.print()
+    console.print(f"[bold]\U0001f697 {name}[/bold] ({model}) \u2014 {v}")
+    console.print()
+    console.print(Columns(panels, equal=True, expand=True))
 
 
 @vehicle_app.command("invite")
 def vehicle_invite(vin: str | None = VinOption) -> None:
-    """Create a new driver invitation link.
+    """Create a new driver invitation link."""
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
-    tesla vehicle invite
-    """
-    from tesla_cli.cli.commands.sharing import sharing_invite
-
-    sharing_invite(vin=vin)
+    v = _vin(vin)
+    backend = _backend()
+    try:
+        data = backend.create_invitation(v)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    render_dict(data, title="New Invitation")
 
 
 @vehicle_app.command("invitations")
 def vehicle_invitations(vin: str | None = VinOption) -> None:
-    """List current driver invitations.
+    """List current driver invitations."""
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
-    tesla vehicle invitations
-    """
-    from tesla_cli.cli.commands.sharing import sharing_list
-
-    sharing_list(vin=vin)
+    v = _vin(vin)
+    backend = _backend()
+    try:
+        invitations = backend.get_invitations(v)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    if not invitations:
+        render_success("No active invitations")
+        return
+    render_table(
+        invitations,
+        columns=["id", "owner", "state", "created_at"],
+        title="Driver Invitations",
+    )
 
 
 @vehicle_app.command("revoke-invite")
@@ -2204,10 +2365,14 @@ def vehicle_revoke_invite(
     invitation_id: str = typer.Argument(..., help="Invitation ID to revoke"),
     vin: str | None = VinOption,
 ) -> None:
-    """Revoke a driver invitation.
+    """Revoke a driver invitation."""
+    from tesla_cli.core.exceptions import BackendNotSupportedError
 
-    tesla vehicle revoke-invite INV_ID
-    """
-    from tesla_cli.cli.commands.sharing import sharing_revoke
-
-    sharing_revoke(invitation_id=invitation_id, vin=vin)
+    v = _vin(vin)
+    backend = _backend()
+    try:
+        backend.revoke_invitation(v, invitation_id)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    render_success(f"Invitation {invitation_id} revoked")
