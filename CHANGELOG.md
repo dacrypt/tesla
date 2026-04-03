@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.1] - 2026-04-03
+
+### API Completeness
+
+- **`GET /api/vehicle/ready`** — readiness assessment (ready flag, battery, climate, issues list)
+- **`GET /api/charge/last`** — most recent charging session with cost and source
+- React API client: `getVehicleReady()`, `getChargeLast()` methods added
+
+### Documentation
+
+- **Media & Navigation section** added to user-guide.md (play, pause, volume, send-destination, supercharger, home, work)
+- api-reference.md updated with all new endpoints
+- 1222 tests passing
+
 ## [4.5.0] - 2026-04-03
 
 ### Daily Companion Commands
