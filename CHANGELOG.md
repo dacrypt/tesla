@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.3] - 2026-04-02
+
+### Improvements
+
+- **`--csv` export** on `charge sessions` and `charge cost-summary` for analytics workflows
+- **Data Sources section** in `dossier export-html` showing API attribution per section
+- **RecentCharges dashboard card** — last 5 charging sessions with kWh, cost, location
+- **Config validation** — Pydantic Field constraints: cost_per_kwh >= 0, ports 1-65535, QoS 0-2
+- **Refactored** `_fetch_sessions()` helper — eliminated ~80 LOC duplication across 3 call sites
+- **Fixed** all fpdf2 deprecation warnings (`ln=True` → `new_x`/`new_y` params)
+- **New tests** for MQTT commands, providers commands, config validation, CSV export
+- 1148 tests passing, 0 deprecation warnings
+
 ## [4.0.2] - 2026-04-02
 
 ### New Commands
