@@ -327,6 +327,7 @@ const Dashboard: React.FC = () => {
 
   const batteryPct = state?.battery_level ?? charge?.battery_level;
   const isLocked = state?.locked ?? true;
+  const sentryOn = state?.sentry_mode ?? false;
   const vehicleState = state?.state;
   const isCharging = state?.charging_state === 'Charging' || charge?.charging_state === 'Charging';
   const climateOn = state?.is_climate_on ?? climate?.is_climate_on ?? false;
@@ -365,10 +366,19 @@ const Dashboard: React.FC = () => {
       iconBg: 'rgba(249,151,22,0.7)',
     },
     {
-      key: 'horn',
-      icon: <HornIcon />,
-      label: 'Horn',
-      cmd: 'honk_horn',
+      key: 'sentry',
+      icon: <span style={{ fontSize: 18 }}>{sentryOn ? '🛡' : '🛡'}</span>,
+      label: sentryOn ? 'Sentry Off' : 'Sentry On',
+      cmd: sentryOn ? 'set_sentry_mode' : 'set_sentry_mode',
+      cmdParams: { on: !sentryOn },
+      iconBg: sentryOn ? 'rgba(5,196,107,0.7)' : 'rgba(255,255,255,0.1)',
+    },
+    {
+      key: 'trunk',
+      icon: <span style={{ fontSize: 18 }}>🚗</span>,
+      label: 'Trunk',
+      cmd: 'actuate_trunk',
+      cmdParams: { which_trunk: 'rear' },
       iconBg: 'rgba(255,255,255,0.1)',
     },
   ];
@@ -514,7 +524,7 @@ const Dashboard: React.FC = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: 8,
                 marginBottom: 10,
               }}
@@ -522,7 +532,7 @@ const Dashboard: React.FC = () => {
               {actions.map((a) => (
                 <button
                   key={a.key}
-                  onClick={() => handleCommand(a.cmd, undefined, a.key)}
+                  onClick={() => handleCommand(a.cmd, (a as any).cmdParams, a.key)}
                   disabled={!!cmdLoading}
                   style={{
                     background: 'rgba(255,255,255,0.04)',
