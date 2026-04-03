@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.0] - 2026-04-03
+
+### Vehicle Automations
+
+- **`tesla vehicle watch --on-change-exec`** — trigger shell commands on vehicle state changes
+  (battery, charging, locks, climate, sentry). Changes passed as JSON via `TESLA_CHANGES` env var.
+
+### Geofence REST API
+
+- **`GET /api/geofences`** — list zones with vehicle distance + inside/outside flag
+- **`GET /api/geofences/{name}`** — check proximity to a specific zone (haversine calculation)
+- **`POST /api/geofences/{name}`** — add/update zone via REST
+- **`DELETE /api/geofences/{name}`** — remove zone via REST
+
+### Dashboard
+
+- **Sentry toggle** + **Trunk button** in quick actions (6 total)
+- 15 new API client methods (security, notify, alerts, geofences)
+- 6 unused legacy pages deleted (-1,550 lines)
+
+### Tests
+
+- 1184 tests passing
+
 ## [4.3.2] - 2026-04-03
 
 ### React Dashboard
