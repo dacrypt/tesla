@@ -1161,3 +1161,73 @@ def order_eta() -> None:
 
     console.print(t)
     console.print(f"\n  [dim]{result['note']}[/dim]\n")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Delivery lifecycle commands (migrated from dossier)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@order_app.command("gates")
+def order_gates() -> None:
+    """Show 13-gate delivery journey from order to keys-in-hand.
+
+    tesla order gates
+    tesla -j order gates
+    """
+    from tesla_cli.cli.commands.dossier import dossier_gates
+
+    dossier_gates()
+
+
+@order_app.command("estimate")
+def order_estimate() -> None:
+    """Estimate delivery date using community timing data.
+
+    tesla order estimate
+    tesla -j order estimate
+    """
+    from tesla_cli.cli.commands.dossier import dossier_estimate
+
+    dossier_estimate()
+
+
+@order_app.command("checklist")
+def order_checklist(
+    mark: str | None = typer.Option(None, "--mark", "-m", help="Mark items by number (comma-separated)"),
+    reset: bool = typer.Option(False, "--reset", help="Reset all checkmarks"),
+) -> None:
+    """Tesla delivery inspection checklist (34 items).
+
+    tesla order checklist
+    tesla order checklist --mark 5,12,18
+    tesla order checklist --reset
+    """
+    from tesla_cli.cli.commands.dossier import dossier_checklist
+
+    dossier_checklist(mark=mark, reset=reset)
+
+
+@order_app.command("ships")
+def order_ships() -> None:
+    """Track Tesla car carrier ships.
+
+    tesla order ships
+    tesla -j order ships
+    """
+    from tesla_cli.cli.commands.dossier import dossier_ships
+
+    dossier_ships()
+
+
+@order_app.command("set-delivery")
+def order_set_delivery(
+    date: str = typer.Argument(..., help="Delivery date (YYYY-MM-DD)"),
+) -> None:
+    """Set confirmed delivery date.
+
+    tesla order set-delivery 2026-04-15
+    """
+    from tesla_cli.cli.commands.dossier import dossier_set_delivery
+
+    dossier_set_delivery(date=date)

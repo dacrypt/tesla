@@ -7805,3 +7805,76 @@ class TestDossierSources:
         assert "id" in data[0]
         assert "category" in data[0]
         assert "has_data" in data[0]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dossier Migration — New Command Paths
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDossierMigration:
+    """Verify that migrated commands work from their new homes."""
+
+    # ── Order lifecycle ──
+
+    def test_order_gates(self):
+        result = _run("order", "gates")
+        assert result.exit_code in (0, 1)  # 0=ok, 1=no dossier
+
+    def test_order_estimate(self):
+        result = _run("order", "estimate")
+        assert result.exit_code in (0, 1)
+
+    def test_order_checklist(self):
+        result = _run("order", "checklist")
+        assert result.exit_code == 0
+
+    def test_order_ships(self):
+        result = _run("order", "ships")
+        assert result.exit_code in (0, 1)  # may fail without network
+
+    # ── Vehicle identity ──
+
+    def test_vehicle_vin_decode(self):
+        result = _run("vehicle", "vin", "7SAYGDEF1TF123456")
+        assert result.exit_code == 0
+        assert "Model Y" in result.output or "7SAY" in result.output
+
+    def test_vehicle_option_codes(self):
+        result = _run("vehicle", "option-codes")
+        assert result.exit_code in (0, 1)  # 1 if no dossier
+
+    def test_vehicle_battery_health(self):
+        result = _run("vehicle", "battery-health")
+        assert result.exit_code in (0, 1)
+
+    def test_vehicle_profile(self):
+        result = _run("vehicle", "profile")
+        assert result.exit_code in (0, 1)
+
+    # ── Query/data ──
+
+    def test_query_history(self):
+        result = _run("query", "history")
+        assert result.exit_code in (0, 1)  # 1 if no snapshots exist
+
+    def test_query_data_sources(self):
+        result = _run("query", "data-sources")
+        assert result.exit_code == 0
+        assert "registered" in result.output.lower() or "Data Sources" in result.output
+
+    def test_query_data_sources_json(self):
+        result = _run("--json", "query", "data-sources")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+
+    # ── Old paths still work (backward compat) ──
+
+    def test_dossier_gates_still_works(self):
+        result = _run("dossier", "gates")
+        assert result.exit_code in (0, 1)
+
+    def test_dossier_vin_still_works(self):
+        result = _run("dossier", "vin", "7SAYGDEF1TF123456")
+        assert result.exit_code == 0

@@ -2081,3 +2081,62 @@ def vehicle_summary(vin: str | None = VinOption) -> None:
 
     vin_short = v[-6:] if len(v) > 6 else v
     console.print(Panel(lines, title=f"Tesla — {vin_short}", border_style="blue", padding=(0, 1)))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle identity & specs (migrated from dossier)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@vehicle_app.command("vin")
+def vehicle_vin(
+    vin_arg: str | None = typer.Argument(None, help="VIN to decode (uses default if omitted)"),
+) -> None:
+    """Decode a Tesla VIN position by position.
+
+    tesla vehicle vin
+    tesla vehicle vin 7SAYGDEF1TF123456
+    tesla -j vehicle vin
+    """
+    from tesla_cli.cli.commands.dossier import dossier_vin
+
+    # dossier_vin accepts a single `vin` positional arg
+    dossier_vin(vin=vin_arg)
+
+
+@vehicle_app.command("option-codes")
+def vehicle_option_codes() -> None:
+    """Decode Tesla option codes from dossier data.
+
+    tesla vehicle option-codes
+    tesla -j vehicle option-codes
+    """
+    from tesla_cli.cli.commands.dossier import dossier_option_codes
+
+    dossier_option_codes()
+
+
+@vehicle_app.command("battery-health")
+def vehicle_battery_health(
+    vin: str | None = VinOption,
+) -> None:
+    """Estimate battery degradation from snapshot history.
+
+    tesla vehicle battery-health
+    tesla -j vehicle battery-health
+    """
+    from tesla_cli.cli.commands.dossier import dossier_battery_health
+
+    dossier_battery_health(vin=vin)
+
+
+@vehicle_app.command("profile")
+def vehicle_profile() -> None:
+    """Complete multi-source vehicle profile (Tesla API + RUNT + NHTSA + logistics).
+
+    tesla vehicle profile
+    tesla -j vehicle profile
+    """
+    from tesla_cli.cli.commands.dossier import dossier_show
+
+    dossier_show()
