@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-04-03
+
+### Charging Intelligence
+
+- **`tesla charge weekly`** — weekly charging summary (kWh, cost, sessions per ISO week)
+- **`GET /api/charge/weekly`** — REST endpoint for weekly charge data
+
+### Battery Intelligence
+
+- **`tesla teslaMate battery-degradation`** — monthly degradation trend from high-SoC charges
+- **`GET /api/teslaMate/battery-degradation`** — REST endpoint
+
+### Daily Companion
+
+- **`tesla vehicle ready`** — morning readiness check (battery, climate, alerts)
+- **`tesla charge last`** — most recent session with cost
+- **`GET /api/vehicle/ready`** + **`GET /api/charge/last`** — REST endpoints
+
+### Documentation
+
+- Roadmap: Battery Health and Charge History marked as done
+- Media & Navigation section added to user-guide
+- Architecture version updated
+
+### Tests
+
+- 1229 tests passing
+
 ## [4.5.2] - 2026-04-03
 
 ### Battery Intelligence

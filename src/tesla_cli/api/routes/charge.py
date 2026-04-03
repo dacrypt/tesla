@@ -135,3 +135,39 @@ def charge_last() -> dict:
 
     s = sessions[0]
     return {**s.model_dump(), "source_name": source}
+
+
+@router.get("/weekly")
+def charge_weekly(weeks: int = 4) -> dict:
+    """Weekly charging summary — kWh, cost, sessions per week."""
+    from collections import defaultdict
+    from datetime import datetime
+
+    from tesla_cli.cli.commands.charge import _fetch_sessions
+
+    sessions, source = _fetch_sessions(limit=500)
+    if not sessions:
+        raise HTTPException(status_code=404, detail="No charging sessions found.")
+
+    weekly: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0})
+    for s in sessions:
+        try:
+            dt = datetime.strptime(s.date[:10], "%Y-%m-%d")
+            week_key = dt.strftime("%Y-W%V")
+            weekly[week_key]["kwh"] += s.kwh
+            if s.cost is not None:
+                weekly[week_key]["cost"] += s.cost
+            weekly[week_key]["sessions"] += 1
+        except (ValueError, TypeError):
+            continue
+
+    sorted_weeks = sorted(weekly.items(), reverse=True)[:weeks]
+    sorted_weeks.reverse()
+
+    return {
+        "source": source,
+        "weeks": [
+            {"week": w, "kwh": round(d["kwh"], 1), "cost": round(d["cost"], 2), "sessions": d["sessions"]}
+            for w, d in sorted_weeks
+        ],
+    }
