@@ -244,10 +244,14 @@ def charge_departure(
 
 
 @charge_app.command("schedule-preview")
-def charge_schedule_preview(vin: str | None = VinOption) -> None:
+def charge_schedule_preview(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output for tmux/cron"),
+    vin: str | None = VinOption,
+) -> None:
     """Show current scheduled charge and departure settings in one consolidated view.
 
     tesla charge schedule-preview
+    tesla charge schedule-preview --oneline
     """
     import json as _json
 
@@ -269,6 +273,21 @@ def charge_schedule_preview(vin: str | None = VinOption) -> None:
         if mins is None:
             return "—"
         return f"{int(mins) // 60:02d}:{int(mins) % 60:02d}"
+
+    if oneline:
+        parts = []
+        if sched_mode and sched_mode != "Off":
+            parts.append(f"\U0001f50c Charge @ {_minutes_to_hhmm(sched_start)}")
+        else:
+            parts.append("\U0001f50c Charge: off")
+        if dep_mode:
+            parts.append(f"\U0001f697 Depart @ {_minutes_to_hhmm(dep_mode)}")
+            if precond:
+                parts.append("precond ON")
+            if off_peak:
+                parts.append(f"off-peak until {_minutes_to_hhmm(off_peak_end)}")
+        typer.echo(" | ".join(parts))
+        return
 
     if is_json_mode():
         from tesla_cli.cli.output import console as _con

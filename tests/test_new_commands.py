@@ -8039,3 +8039,81 @@ class TestChargeSessionMerge:
 
         assert source == "TeslaMate"
         assert len(sessions) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Oneline Output + Alerts API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestOnelineOutput:
+    """Tests for --oneline flags on vehicle summary and charge schedule-preview."""
+
+    MOCK_VEHICLE_DATA = {
+        "charge_state": {"battery_level": 72, "battery_range": 186.5, "charging_state": "Stopped", "charge_limit_soc": 80},
+        "climate_state": {"inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": False},
+        "drive_state": {"latitude": 4.711, "longitude": -74.072, "speed": 0},
+        "vehicle_state": {"locked": True, "sentry_mode": True, "car_version": "2026.8.7", "odometer": 1234.5},
+    }
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_vehicle_summary_oneline(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_VEHICLE_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "summary", "--oneline")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "72%" in output
+        assert "Locked" in output
+        assert "Sentry ON" in output
+        # Should be a single line
+        assert output.count("\n") == 0
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_vehicle_summary_panel_default(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_VEHICLE_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "summary")
+        assert result.exit_code == 0
+        # Default should be multi-line panel
+        assert "72%" in result.output
+        assert result.output.count("\n") > 3
+
+    def test_schedule_preview_oneline(self):
+        mock_data = {
+            "scheduled_charging_mode": "StartAt",
+            "scheduled_charging_start_time_app": 1410,  # 23:30
+            "scheduled_departure_time_minutes": 420,  # 07:00
+            "preconditioning_enabled": True,
+            "preconditioning_weekdays_only": False,
+            "off_peak_charging_enabled": True,
+            "off_peak_hours_end_time": 480,  # 08:00
+        }
+        backend = MagicMock()
+        backend.get_charge_state.return_value = mock_data
+        cfg = MagicMock(default_vin="7SAYTEST123456", general=MagicMock(default_vin="7SAYTEST123456"))
+        with (
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value="7SAYTEST123456"),
+            patch("tesla_cli.cli.commands.vehicle._backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456"),
+        ):
+            result = _run("charge", "schedule-preview", "--oneline")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "23:30" in output
+        assert "07:00" in output
+        assert "precond ON" in output
+        assert output.count("\n") == 0

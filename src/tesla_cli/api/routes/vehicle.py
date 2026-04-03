@@ -186,3 +186,14 @@ def vehicle_summary(request: Request) -> dict:
             "odometer_km": round(odo * 1.60934) if odo else None,
         },
     }
+
+@router.get("/alerts")
+def vehicle_alerts(request: Request) -> dict:
+    """Recent vehicle alerts and fault codes."""
+    backend, v = _backend_and_vin(request)
+    try:
+        return backend.get_recent_alerts(v)
+    except VehicleAsleepError:
+        raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
