@@ -942,3 +942,79 @@ def charge_last(
     if s.battery_start is not None and s.battery_end is not None:
         console.print(f"  [cyan]Battery[/cyan]   {s.battery_start}% → {s.battery_end}%")
     console.print()
+
+
+@charge_app.command("weekly")
+def charge_weekly(
+    weeks: int = typer.Option(4, "--weeks", "-w", help="Number of weeks to show"),
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Weekly charging summary — kWh, cost, sessions per week.
+
+    tesla charge weekly
+    tesla charge weekly --weeks 8
+    tesla -j charge weekly
+    """
+    import json as _json
+    from collections import defaultdict
+    from datetime import datetime
+
+    from rich.table import Table
+
+    sessions, source = _fetch_sessions(limit=500)
+
+    if not sessions:
+        console.print("[yellow]No charging data available.[/yellow]")
+        raise typer.Exit(1)
+
+    weekly: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0})
+    for s in sessions:
+        try:
+            dt = datetime.strptime(s.date[:10], "%Y-%m-%d")
+            week_key = dt.strftime("%Y-W%V")
+            weekly[week_key]["kwh"] += s.kwh
+            if s.cost is not None:
+                weekly[week_key]["cost"] += s.cost
+            weekly[week_key]["sessions"] += 1
+        except (ValueError, TypeError):
+            continue
+
+    sorted_weeks = sorted(weekly.items(), reverse=True)[:weeks]
+    sorted_weeks.reverse()
+
+    if is_json_mode():
+        console.print_json(
+            _json.dumps(
+                {
+                    "source": source,
+                    "weeks": [
+                        {"week": w, "kwh": round(d["kwh"], 1), "cost": round(d["cost"], 2), "sessions": d["sessions"]}
+                        for w, d in sorted_weeks
+                    ],
+                }
+            )
+        )
+        return
+
+    t = Table(title=f"Weekly Charging Summary ({source})")
+    t.add_column("Week", style="cyan")
+    t.add_column("kWh", justify="right", style="green")
+    t.add_column("Cost", justify="right")
+    t.add_column("Sessions", justify="right", style="dim")
+
+    total_kwh = 0.0
+    total_cost = 0.0
+    for w, d in sorted_weeks:
+        cost_str = f"${d['cost']:.2f}" if d["cost"] > 0 else "\u2014"
+        t.add_row(w, f"{d['kwh']:.1f}", cost_str, str(d["sessions"]))
+        total_kwh += d["kwh"]
+        total_cost += d["cost"]
+
+    console.print(t)
+
+    avg_kwh = total_kwh / len(sorted_weeks) if sorted_weeks else 0
+    console.print(
+        f"\n  [bold]{total_kwh:.1f} kWh[/bold] total"
+        f" | [bold]{avg_kwh:.1f} kWh/week[/bold] avg"
+        + (f" | [bold]${total_cost:.2f}[/bold] total cost" if total_cost > 0 else "")
+    )
