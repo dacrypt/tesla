@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.2] - 2026-04-03
+
+### Battery Intelligence
+
+- **`tesla teslaMate battery-degradation`** — compute battery degradation from TeslaMate charging data
+  - Analyzes high-SoC charges (>=95%) across months to track max rated range trend
+  - Color-coded degradation: green (<3%), yellow (3-8%), red (>8%)
+  - `--months N` to control analysis window (default 12)
+  - JSON mode for scripting
+- **`GET /api/teslaMate/battery-degradation`** — REST endpoint for degradation data
+
+### Tests
+
+- 1226 tests passing (+4 new)
+
 ## [4.5.1] - 2026-04-03
 
 ### API Completeness

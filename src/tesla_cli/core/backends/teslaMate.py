@@ -477,6 +477,56 @@ class TeslaMateBacked:
             cur.execute(sql, (self._car_id, days, limit))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_battery_degradation(self, months: int = 12) -> dict[str, Any]:
+        """Compute battery degradation from high-SoC charging sessions.
+
+        Groups charges by month where end_battery_level >= 95%.
+        Returns monthly max rated range to show degradation trend.
+        """
+        sql = """
+            SELECT
+                TO_CHAR(cp.end_date, 'YYYY-MM') AS month,
+                MAX(cp.end_rated_range_km)       AS max_range_km,
+                MAX(cp.end_battery_level)        AS max_soc,
+                COUNT(*)                         AS sessions
+            FROM charging_processes cp
+            WHERE cp.car_id = %s
+              AND cp.end_battery_level >= 95
+              AND cp.end_date >= NOW() - INTERVAL '%s months'
+              AND cp.end_rated_range_km IS NOT NULL
+            GROUP BY TO_CHAR(cp.end_date, 'YYYY-MM')
+            ORDER BY month
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (self._car_id, months))
+            rows = [dict(r) for r in cur.fetchall()]
+
+        if not rows:
+            return {"months_analyzed": months, "data_points": 0, "monthly": []}
+
+        first_range = float(rows[0]["max_range_km"])
+        last_range = float(rows[-1]["max_range_km"])
+        degradation_pct = round((1 - last_range / first_range) * 100, 1) if first_range > 0 else 0
+
+        return {
+            "months_analyzed": months,
+            "data_points": len(rows),
+            "first_month": rows[0]["month"],
+            "last_month": rows[-1]["month"],
+            "first_range_km": round(first_range, 1),
+            "last_range_km": round(last_range, 1),
+            "degradation_pct": degradation_pct,
+            "monthly": [
+                {
+                    "month": r["month"],
+                    "max_range_km": round(float(r["max_range_km"]), 1),
+                    "max_soc": r["max_soc"],
+                    "sessions": r["sessions"],
+                }
+                for r in rows
+            ],
+        }
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:
