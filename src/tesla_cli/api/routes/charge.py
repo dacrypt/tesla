@@ -122,3 +122,16 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
         )
 
     return [s.model_dump() for s in sessions]
+
+
+@router.get("/last")
+def charge_last() -> dict:
+    """Most recent charging session with cost details."""
+    from tesla_cli.cli.commands.charge import _fetch_sessions
+
+    sessions, source = _fetch_sessions(limit=1)
+    if not sessions:
+        raise HTTPException(status_code=404, detail="No charging sessions found.")
+
+    s = sessions[0]
+    return {**s.model_dump(), "source_name": source}
