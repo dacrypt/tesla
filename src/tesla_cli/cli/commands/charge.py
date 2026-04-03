@@ -29,24 +29,74 @@ def _vin(vin: str | None) -> str:
 
 
 @charge_app.command("status")
-def charge_status(vin: str | None = VinOption) -> None:
-    """Show current charge state."""
+def charge_status(
+    watch: bool = typer.Option(False, "--watch", "-w", help="Live monitor (refresh every 30s)"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+    interval: int = typer.Option(30, "--interval", "-i", help="Watch refresh interval in seconds"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show current charge state.
+
+    tesla charge status                # detailed view
+    tesla charge status --oneline      # 🔋 72% | ⚡ 11kW | 1h30m to 80%
+    tesla charge status --watch        # live monitor (30s refresh)
+    tesla charge status --watch -i 10  # live monitor (10s refresh)
+    """
+    import time as _time
+
     from tesla_cli.cli.output import console
 
     v = _vin(vin)
-    data = _with_wake(lambda b, v: b.get_charge_state(v), v)
-    state = ChargeState.model_validate(data)
-    render_model(state, title="Charge State")
 
-    cfg = load_config()
-    cost_per_kwh = cfg.general.cost_per_kwh
-    energy_added = data.get("charge_energy_added")
-    if cost_per_kwh and cost_per_kwh > 0 and energy_added:
-        estimated_cost = float(energy_added) * float(cost_per_kwh)
-        console.print(
-            f"  [dim]Estimated session cost:[/dim] [bold]${estimated_cost:.2f}[/bold] "
-            f"[dim]({energy_added} kWh \xd7 ${cost_per_kwh:.4f}/kWh)[/dim]"
-        )
+    def _render_once() -> None:
+        data = _with_wake(lambda b, v: b.get_charge_state(v), v)
+
+        if oneline:
+            level = data.get("battery_level", "?")
+            state = data.get("charging_state", "?")
+            parts = [f"\U0001f50b {level}%"]
+            if state == "Charging":
+                power = data.get("charger_power", 0)
+                eta = data.get("time_to_full_charge", 0)
+                limit = data.get("charge_limit_soc", "?")
+                eta_str = f"{int(eta)}h{int((eta % 1) * 60):02d}m" if eta else ""
+                parts.append(f"\u26a1 {power}kW")
+                if eta_str:
+                    parts.append(f"{eta_str} to {limit}%")
+                added = data.get("charge_energy_added", 0)
+                if added:
+                    parts.append(f"+{added:.1f}kWh")
+            else:
+                parts.append(state)
+            typer.echo(" | ".join(parts))
+            return
+
+        cs = ChargeState.model_validate(data)
+        render_model(cs, title="Charge State")
+
+        cfg = load_config()
+        cost_per_kwh = cfg.general.cost_per_kwh
+        energy_added = data.get("charge_energy_added")
+        if cost_per_kwh and cost_per_kwh > 0 and energy_added:
+            estimated_cost = float(energy_added) * float(cost_per_kwh)
+            console.print(
+                f"  [dim]Estimated session cost:[/dim] [bold]${estimated_cost:.2f}[/bold] "
+                f"[dim]({energy_added} kWh \xd7 ${cost_per_kwh:.4f}/kWh)[/dim]"
+            )
+
+    if watch:
+        try:
+            while True:
+                _render_once()
+                if not oneline:
+                    console.print(f"\n  [dim]Refreshing in {interval}s... (Ctrl+C to stop)[/dim]")
+                _time.sleep(interval)
+                if not oneline:
+                    console.print("\033[2J\033[H", end="")  # clear screen
+        except KeyboardInterrupt:
+            console.print("\n[dim]Stopped.[/dim]")
+    else:
+        _render_once()
 
 
 @charge_app.command("start")

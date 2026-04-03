@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-04-03
+
+### New Features
+
+- **`tesla charge status --watch`** — live charging monitor (30s refresh, configurable with `--interval`)
+- **`tesla charge status --oneline`** — `🔋 65% | ⚡ 11kW | 1h30m to 80% | +12.3kWh`
+- **`tesla serve uninstall-service`** — cleanly remove systemd/launchd service files
+
+### Documentation
+
+- Updated user-guide.md with all new commands from v4.1-v4.3
+- Updated README.md feature descriptions
+- Fixed `query` → `data` rename throughout docs
+
+### Tests
+
+- 1181 tests passing
+
 ## [4.3.0] - 2026-04-03
 
 ### New API Routes

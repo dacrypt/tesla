@@ -8194,3 +8194,66 @@ class TestServeUninstall:
         result = _run("serve", "uninstall-service")
         assert result.exit_code == 0
         assert "No" in result.output or "removed" in result.output.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Charge Status Oneline + Watch
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeStatusOneline:
+    """Test charge status --oneline flag."""
+
+    MOCK_CHARGE = {
+        "battery_level": 65,
+        "battery_range": 160.0,
+        "charging_state": "Charging",
+        "charge_limit_soc": 80,
+        "charger_power": 11,
+        "charger_voltage": 240,
+        "charger_actual_current": 48,
+        "charge_rate": 30.0,
+        "charge_amps": 48,
+        "time_to_full_charge": 1.5,
+        "charge_energy_added": 12.3,
+        "charge_port_door_open": True,
+        "charge_port_latch": "Engaged",
+    }
+
+    def test_oneline_charging(self):
+        backend = MagicMock()
+        backend.get_charge_state.return_value = self.MOCK_CHARGE
+        cfg = MagicMock(general=MagicMock(cost_per_kwh=0.0, default_vin="7SAYTEST123456"))
+        with (
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value="7SAYTEST123456"),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456"),
+        ):
+            result = _run("charge", "status", "--oneline")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "65%" in output
+        assert "11kW" in output
+        assert output.count("\n") == 0
+
+    def test_oneline_stopped(self):
+        stopped = dict(self.MOCK_CHARGE)
+        stopped["charging_state"] = "Stopped"
+        stopped["charger_power"] = 0
+        backend = MagicMock()
+        backend.get_charge_state.return_value = stopped
+        cfg = MagicMock(general=MagicMock(cost_per_kwh=0.0, default_vin="7SAYTEST123456"))
+        with (
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.charge.resolve_vin", return_value="7SAYTEST123456"),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456"),
+        ):
+            result = _run("charge", "status", "--oneline")
+        assert result.exit_code == 0
+        assert "Stopped" in result.output
