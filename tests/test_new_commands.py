@@ -7435,7 +7435,7 @@ class TestChargingSessions:
         """When TeslaMate not configured, falls back to Fleet API."""
         cfg = MagicMock()
         cfg.general.cost_per_kwh = 0.22
-        cfg.teslaMate.dsn = ""  # No TeslaMate
+        cfg.teslaMate.database_url = ""  # No TeslaMate
         mock_cfg.return_value = cfg
 
         mock_api_resp = {
@@ -7561,7 +7561,7 @@ class TestChargeCostSummary:
         """Cost summary using TeslaMate data."""
         cfg = MagicMock()
         cfg.general.cost_per_kwh = 0.0
-        cfg.teslaMate.dsn = "postgresql://localhost/teslamate"
+        cfg.teslaMate.database_url = "postgresql://localhost/teslamate"
         mock_cfg.return_value = cfg
 
         mock_rows = [
@@ -7579,7 +7579,7 @@ class TestChargeCostSummary:
     def test_cost_summary_json_mode(self, mock_cfg):
         cfg = MagicMock()
         cfg.general.cost_per_kwh = 0.22
-        cfg.teslaMate.dsn = ""
+        cfg.teslaMate.database_url = ""
         mock_cfg.return_value = cfg
 
         mock_api = {
@@ -7775,3 +7775,33 @@ class TestChargeCsvExport:
         result = _run("charge", "cost-summary", "--csv", csv_path)
         assert result.exit_code == 0
         assert "Exported" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dossier Sources
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDossierSources:
+    """Tests for `tesla dossier sources`."""
+
+    def test_sources_command_registered(self):
+        result = _run("dossier", "sources")
+        assert result.exit_code == 0
+        assert "registered" in result.output.lower() or "Data Sources" in result.output
+
+    def test_sources_shows_known_ids(self):
+        result = _run("dossier", "sources")
+        assert result.exit_code == 0
+        # At least some built-in sources should appear
+        assert "tesla.order" in result.output or "vin.decode" in result.output
+
+    def test_sources_json_mode(self):
+        result = _run("--json", "dossier", "sources")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert "id" in data[0]
+        assert "category" in data[0]
+        assert "has_data" in data[0]

@@ -1764,6 +1764,64 @@ def dossier_battery_health(
     )
 
 
+@dossier_app.command("sources")
+def dossier_sources() -> None:
+    """Show all registered data sources with cache status.
+
+    tesla dossier sources
+    tesla -j dossier sources
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    from tesla_cli.cli.output import console, is_json_mode
+    from tesla_cli.core.sources import list_sources
+
+    sources = list_sources()
+
+    if is_json_mode():
+        console.print_json(_json.dumps(sources, default=str))
+        return
+
+    t = Table(title=f"Data Sources ({len(sources)} registered)")
+    t.add_column("ID", style="cyan")
+    t.add_column("Name")
+    t.add_column("Category", style="dim")
+    t.add_column("TTL")
+    t.add_column("Status", justify="center")
+    t.add_column("Last Refresh", style="dim")
+
+    for s in sources:
+        ttl_h = s["ttl"] / 3600
+        ttl_str = f"{ttl_h:.0f}h" if ttl_h >= 1 else f"{s['ttl'] / 60:.0f}m"
+
+        if s["error"]:
+            status = "[red]✗ error[/red]"
+        elif s["has_data"] and not s["stale"]:
+            status = "[green]✓ fresh[/green]"
+        elif s["has_data"] and s["stale"]:
+            status = "[yellow]⟳ stale[/yellow]"
+        else:
+            status = "[dim]— empty[/dim]"
+
+        refreshed = s["refreshed_at"] or "never"
+        if isinstance(refreshed, str) and len(refreshed) > 16:
+            refreshed = refreshed[:16]
+
+        t.add_row(s["id"], s["name"], s["category"], ttl_str, status, str(refreshed))
+
+    console.print(t)
+
+    fresh = sum(1 for s in sources if s["has_data"] and not s["stale"])
+    stale = sum(1 for s in sources if s["has_data"] and s["stale"])
+    empty = sum(1 for s in sources if not s["has_data"])
+    console.print(
+        f"\n  [green]{fresh} fresh[/green]  |  [yellow]{stale} stale[/yellow]  |  "
+        f"[dim]{empty} empty[/dim]"
+    )
+
+
 @dossier_app.command("export-pdf")
 def dossier_export_pdf(
     output: str = typer.Option("dossier.pdf", "--output", "-o", help="Output PDF file path"),
