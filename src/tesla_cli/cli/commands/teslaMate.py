@@ -1794,3 +1794,51 @@ def _kv(rows: list[tuple[str, str]]) -> None:
         if v and v != "None" and v != "0" and v != "$0.00":
             table.add_row(k, v)
     console.print(table)
+
+
+@teslaMate_app.command("battery-degradation")
+def teslaMate_battery_degradation(
+    months: int = typer.Option(12, "--months", "-m", help="Months of data to analyze"),
+) -> None:
+    """Battery degradation trend from TeslaMate charging data.
+
+    Analyzes high-SoC charges (>=95%) to track max rated range over time.
+    Shows monthly trend and overall degradation percentage.
+
+    tesla teslaMate battery-degradation
+    tesla teslaMate battery-degradation --months 24
+    tesla -j teslaMate battery-degradation
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    backend = _backend()
+    data = backend.get_battery_degradation(months=months)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data))
+        return
+
+    if data["data_points"] == 0:
+        console.print("[yellow]No high-SoC charges (>=95%) found in the last "
+                      f"{months} months.[/yellow]")
+        console.print("[dim]Tip: charge to 100% occasionally to get degradation data.[/dim]")
+        raise typer.Exit(1)
+
+    t = Table(title=f"Battery Degradation — {data['first_month']} to {data['last_month']}")
+    t.add_column("Month", style="cyan")
+    t.add_column("Max Range (km)", justify="right", style="green")
+    t.add_column("Max SoC", justify="right")
+    t.add_column("Sessions", justify="right", style="dim")
+
+    for m in data["monthly"]:
+        t.add_row(m["month"], f"{m['max_range_km']:.1f}", f"{m['max_soc']}%", str(m["sessions"]))
+
+    console.print(t)
+
+    color = "green" if data["degradation_pct"] < 3 else "yellow" if data["degradation_pct"] < 8 else "red"
+    console.print(
+        f"\n  [{color}]Degradation: {data['degradation_pct']}%[/{color}]"
+        f"  ({data['first_range_km']} km → {data['last_range_km']} km)"
+    )

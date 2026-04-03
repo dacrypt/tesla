@@ -327,3 +327,18 @@ def teslaMate_stack_logs(service: str = "", lines: int = 80) -> dict:
         return {"logs": result.stdout or "", "service": service or "all"}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/battery-degradation")
+def battery_degradation(months: int = 12) -> dict:
+    """Battery degradation trend from high-SoC charges."""
+    cfg = load_config()
+    if not cfg.teslaMate.database_url:
+        raise HTTPException(status_code=404, detail="TeslaMate not configured.")
+    try:
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+        backend = TeslaMateBacked(cfg.teslaMate.database_url, car_id=cfg.teslaMate.car_id)
+        return backend.get_battery_degradation(months=months)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))

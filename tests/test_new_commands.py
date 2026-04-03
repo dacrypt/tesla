@@ -8455,3 +8455,65 @@ class TestChargeLast:
 
         result = _run("charge", "last")
         assert result.exit_code == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Battery Degradation (TeslaMate)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestBatteryDegradation:
+    """Tests for tesla teslaMate battery-degradation."""
+
+    def test_backend_method_exists(self):
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+        assert hasattr(TeslaMateBacked, "get_battery_degradation")
+
+    def test_backend_returns_structure(self):
+        from unittest.mock import MagicMock
+
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        backend._car_id = 1
+        mock_rows = [
+            {"month": "2025-06", "max_range_km": 500.0, "max_soc": 100, "sessions": 2},
+            {"month": "2026-03", "max_range_km": 485.0, "max_soc": 99, "sessions": 1},
+        ]
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = [dict(r) for r in mock_rows]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        backend._cursor = MagicMock(return_value=mock_ctx)
+
+        result = backend.get_battery_degradation(months=12)
+        assert result["data_points"] == 2
+        assert result["first_range_km"] == 500.0
+        assert result["last_range_km"] == 485.0
+        assert result["degradation_pct"] == 3.0  # (1 - 485/500) * 100
+
+    def test_backend_empty_data(self):
+        from unittest.mock import MagicMock
+
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+        backend = TeslaMateBacked.__new__(TeslaMateBacked)
+        backend._car_id = 1
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = []
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        backend._cursor = MagicMock(return_value=mock_ctx)
+
+        result = backend.get_battery_degradation(months=6)
+        assert result["data_points"] == 0
+        assert result["monthly"] == []
+
+    def test_api_route_exists(self):
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/routes/teslaMate.py").read_text()
+        assert "battery-degradation" in src
