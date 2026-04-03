@@ -1676,6 +1676,11 @@ def vehicle_watch(
     notify: str | None = typer.Option(
         None, "--notify", help="Apprise URL for push notifications on change"
     ),
+    on_change_exec: str | None = typer.Option(
+        None,
+        "--on-change-exec",
+        help="Shell command to run on state change. Changes passed as JSON via TESLA_CHANGES env var.",
+    ),
     all_vehicles: bool = typer.Option(
         False, "--all", "-A", help="Watch all configured vehicles simultaneously"
     ),
@@ -1687,6 +1692,7 @@ def vehicle_watch(
     charging state, locks, climate, doors, or shift state.
 
     tesla vehicle watch
+    tesla vehicle watch --on-change-exec "echo 'State changed!' >> /tmp/tesla.log"
     tesla vehicle watch --interval 30
     tesla vehicle watch --notify "tgram://botid/chatid"
     tesla vehicle watch --all
@@ -1768,6 +1774,19 @@ def vehicle_watch(
                         )
                         prefix_title = f"Tesla Watch — {label}" if label else "Tesla Watch"
                         notifier.notify(title=prefix_title, body=body)
+                    if on_change_exec:
+                        import os
+                        import subprocess
+
+                        change_data = [
+                            {"key": c.split(":")[0].strip(), "change": c}
+                            for c in [
+                                c.replace("[bold]", "").replace("[/bold]", "")
+                                for c in changes
+                            ]
+                        ]
+                        env = {**os.environ, "TESLA_CHANGES": _json.dumps(change_data)}
+                        subprocess.Popen(on_change_exec, shell=True, env=env)
                 else:
                     batt = curr.get("charge_state.battery_level", "?")
                     state = curr.get("charge_state.charging_state", "Unknown")

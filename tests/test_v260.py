@@ -289,7 +289,10 @@ class TestGeofencesEndpoint:
             "work": {"lat": 37.3382, "lon": -121.8863, "radius_km": 0.3},
         }
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
+        patches = [
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.geofence.load_config", return_value=cfg),
+        ]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
@@ -307,7 +310,10 @@ class TestGeofencesEndpoint:
         cfg = _make_cfg()
         cfg.geofences.zones = {"home": {"lat": 1.0, "lon": 2.0, "radius_km": 0.5}}
         app = create_app(vin=None)
-        patches = [patch("tesla_cli.api.app.load_config", return_value=cfg)]
+        patches = [
+            patch("tesla_cli.api.app.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.geofence.load_config", return_value=cfg),
+        ]
         for p in patches:
             p.start()
         client = TestClient(app, raise_server_exceptions=False)
