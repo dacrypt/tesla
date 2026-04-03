@@ -1842,3 +1842,64 @@ def teslaMate_battery_degradation(
         f"\n  [{color}]Degradation: {data['degradation_pct']}%[/{color}]"
         f"  ({data['first_range_km']} km → {data['last_range_km']} km)"
     )
+
+
+@teslaMate_app.command("monthly-cost")
+def teslaMate_monthly_cost(
+    months: int = typer.Option(6, "--months", "-m", help="Number of months to show"),
+) -> None:
+    """Monthly charging cost trend — compare this month vs previous months.
+
+    tesla teslaMate monthly-cost
+    tesla teslaMate monthly-cost --months 12
+    tesla -j teslaMate monthly-cost
+    """
+    import json as _json
+
+    from rich.table import Table
+
+    backend = _backend()
+    data = backend.get_cost_report(limit=months)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, default=str))
+        return
+
+    if not data:
+        console.print("[yellow]No charging cost data available.[/yellow]")
+        raise typer.Exit(1)
+
+    t = Table(title=f"Monthly Charging Cost (last {months} months)")
+    t.add_column("Month", style="cyan")
+    t.add_column("kWh", justify="right", style="green")
+    t.add_column("Cost", justify="right")
+    t.add_column("Sessions", justify="right", style="dim")
+    t.add_column("Trend", justify="center")
+
+    prev_cost = None
+    for m in data:
+        kwh = m.get("total_kwh") or m.get("kwh_added") or 0
+        cost = m.get("total_cost") or m.get("cost") or 0
+        sessions = m.get("session_count") or m.get("sessions") or 0
+        month_str = m.get("month", "?")
+
+        trend = ""
+        if prev_cost is not None and prev_cost > 0 and cost > 0:
+            change = ((cost - prev_cost) / prev_cost) * 100
+            if change > 5:
+                trend = f"[red]+{change:.0f}%[/red]"
+            elif change < -5:
+                trend = f"[green]{change:.0f}%[/green]"
+            else:
+                trend = "[dim]~[/dim]"
+
+        t.add_row(
+            str(month_str),
+            f"{float(kwh):.1f}",
+            f"${float(cost):.2f}" if cost else "—",
+            str(sessions),
+            trend,
+        )
+        prev_cost = float(cost) if cost else None
+
+    console.print(t)
