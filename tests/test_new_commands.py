@@ -5697,6 +5697,10 @@ class TestConfigDoctor:
         cfg.order.reservation_number = rn
         cfg.teslaMate.database_url = ""
         cfg.teslaMate.car_id = 1
+        cfg.mqtt.broker = ""
+        cfg.mqtt.port = 1883
+        cfg.notifications.apprise_urls = []
+        cfg.home_assistant.url = ""
         return cfg
 
     def test_doctor_all_ok(self):
@@ -8117,3 +8121,56 @@ class TestOnelineOutput:
         assert "07:00" in output
         assert "precond ON" in output
         assert output.count("\n") == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security + Notify API + Config Doctor
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSecurityApiRoutes:
+    """Verify security API routes exist in source."""
+
+    def test_security_routes_defined(self):
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/routes/security.py").read_text()
+        for route in ["lock", "unlock", "sentry", "trunk/front", "trunk/rear", "horn", "flash"]:
+            assert route in src, f"Missing security route: {route}"
+
+    def test_security_routes_registered(self):
+        from pathlib import Path
+
+        app_src = Path("src/tesla_cli/api/app.py").read_text()
+        assert "security_router" in app_src
+        assert "/api/security" in app_src
+
+
+class TestNotifyApiRoutes:
+    """Verify notify API routes exist in source."""
+
+    def test_notify_routes_defined(self):
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/routes/notify.py").read_text()
+        for route in ["/list", "/test", "/add", "/remove"]:
+            assert route in src, f"Missing notify route: {route}"
+
+    def test_notify_routes_registered(self):
+        from pathlib import Path
+
+        app_src = Path("src/tesla_cli/api/app.py").read_text()
+        assert "notify_router" in app_src
+        assert "/api/notify" in app_src
+
+
+class TestConfigDoctorExtended:
+    """Verify config doctor checks MQTT, notifications, HA."""
+
+    def test_doctor_source_checks_mqtt(self):
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/cli/commands/config_cmd.py").read_text()
+        assert "MQTT broker" in src
+        assert "Notifications" in src
+        assert "Home Assistant" in src
