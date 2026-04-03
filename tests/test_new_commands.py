@@ -8563,3 +8563,30 @@ class TestChargeWeekly:
         mock_fetch.return_value = ([], "")
         result = _run("charge", "weekly")
         assert result.exit_code == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TeslaMate Monthly Cost
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTeslaMateMonthyCost:
+    """Tests for tesla teslaMate monthly-cost."""
+
+    def test_monthly_cost_in_help(self):
+        result = _run("teslaMate", "--help")
+        assert result.exit_code == 0
+        assert "monthly-cost" in result.output
+
+    @patch("tesla_cli.cli.commands.teslaMate._backend")
+    def test_monthly_cost_renders(self, mock_bk):
+        backend = MagicMock()
+        backend.get_cost_report.return_value = [
+            {"month": "2026-02", "total_kwh": 120.0, "total_cost": 26.40, "session_count": 8},
+            {"month": "2026-03", "total_kwh": 95.0, "total_cost": 20.90, "session_count": 6},
+        ]
+        mock_bk.return_value = backend
+
+        result = _run("teslaMate", "monthly-cost")
+        assert result.exit_code == 0
+        assert "120.0" in result.output or "Monthly" in result.output
