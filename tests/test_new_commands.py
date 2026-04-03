@@ -8174,3 +8174,23 @@ class TestConfigDoctorExtended:
         assert "MQTT broker" in src
         assert "Notifications" in src
         assert "Home Assistant" in src
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Serve uninstall-service
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestServeUninstall:
+    """Test serve uninstall-service command."""
+
+    def test_uninstall_in_help(self):
+        result = _run("serve", "--help")
+        assert result.exit_code == 0
+        assert "uninstall-service" in result.output
+
+    def test_uninstall_no_file(self):
+        """Should handle missing service file gracefully."""
+        result = _run("serve", "uninstall-service")
+        assert result.exit_code == 0
+        assert "No" in result.output or "removed" in result.output.lower()

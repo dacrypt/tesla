@@ -83,6 +83,16 @@ tesla vehicle location         # GPS + Google Maps link
 tesla vehicle health-check     # 7-point system check
 tesla vehicle software         # current version + pending update
 tesla vehicle summary          # compact one-screen snapshot
+tesla vehicle summary --oneline  # single line for tmux/cron: 🔋 72% | 🔒 Locked | 🛡 Sentry ON
+tesla vehicle export           # JSON to stdout
+tesla vehicle export -o car.json  # JSON to file
+tesla vehicle export -f csv -o car.csv  # CSV with flattened fields
+tesla vehicle stream           # live telemetry (Rich dashboard, 5s refresh)
+tesla vehicle stream --interval 10 --count 20
+tesla vehicle dashboard        # unified multi-panel status view
+tesla vehicle alerts           # recent fault codes and warnings
+tesla vehicle invite           # create driver invitation
+tesla vehicle invitations      # list driver invitations
 ```
 
 ### Charging
@@ -101,6 +111,10 @@ tesla charge sessions          # unified sessions (TeslaMate + Fleet API)
 tesla charge sessions -n 50    # last 50 sessions
 tesla charge cost-summary      # aggregated cost report
 tesla charge history           # Fleet API raw history
+tesla charge sessions --csv charges.csv  # export to CSV
+tesla charge cost-summary --csv costs.csv
+tesla charge schedule-preview  # show charge + departure schedule
+tesla charge schedule-preview --oneline  # 🔌 Charge @ 23:30 | 🚗 Depart @ 07:00
 ```
 
 ### Climate
@@ -220,18 +234,18 @@ tesla order set-delivery 2026-04-15    # set confirmed delivery date
 Build, compare, and export vehicle data from all sources:
 
 ```bash
-tesla query build                      # query all sources, save snapshot
-tesla query history                    # view snapshot history
-tesla query diff                       # compare last two snapshots
-tesla query diff 1 3                   # compare specific snapshots
-tesla query data-sources               # show all 15 data sources + cache status
-tesla query clean                      # prune old snapshots
-tesla query export-html                # dark theme (default)
-tesla query export-html --theme light
-tesla query export-pdf                 # requires pdf extra
+tesla data build                      # query all sources, save snapshot
+tesla data history                    # view snapshot history
+tesla data diff                       # compare last two snapshots
+tesla data diff 1 3                   # compare specific snapshots
+tesla data data-sources               # show all 15 data sources + cache status
+tesla data clean                      # prune old snapshots
+tesla data export-html                # dark theme (default)
+tesla data export-html --theme light
+tesla data export-pdf                 # requires pdf extra
 ```
 
-> Note: `tesla dossier *` commands still work with a migration hint.
+> The `data` group includes both vehicle data management (build/export) and Colombian public data queries (RUNT, SIMIT, etc.).
 
 ---
 

@@ -431,3 +431,46 @@ def serve(
         reload=reload,
         log_level="warning",
     )
+
+
+
+@serve_app.command("uninstall-service")
+def serve_uninstall_service() -> None:
+    """Remove the tesla-cli systemd/launchd service file.
+
+    \b
+    tesla serve uninstall-service    # auto-detect and remove
+    """
+    import platform as _platform
+
+    system = _platform.system().lower()
+
+    if system == "darwin":
+        dest = Path.home() / "Library" / "LaunchAgents" / "com.tesla-cli.server.plist"
+        if dest.exists():
+            import subprocess
+
+            subprocess.run(["launchctl", "unload", str(dest)], capture_output=True)
+            dest.unlink()
+            console.print(f"[green]\u2713[/green] LaunchAgent removed: [bold]{dest}[/bold]")
+        else:
+            console.print("[yellow]No LaunchAgent found to remove.[/yellow]")
+
+    elif system == "linux":
+        dest = Path.home() / ".config" / "systemd" / "user" / "tesla-cli.service"
+        if dest.exists():
+            import subprocess
+
+            subprocess.run(
+                ["systemctl", "--user", "disable", "--now", "tesla-cli"],
+                capture_output=True,
+            )
+            dest.unlink()
+            subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+            console.print(f"[green]\u2713[/green] Systemd service removed: [bold]{dest}[/bold]")
+        else:
+            console.print("[yellow]No systemd service found to remove.[/yellow]")
+
+    else:
+        console.print(f"[red]Unsupported platform: {system}[/red]")
+        raise typer.Exit(1)
