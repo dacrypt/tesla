@@ -1990,15 +1990,15 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
 
 
 @vehicle_app.command("summary")
-def vehicle_summary(vin: str | None = VinOption) -> None:
-    """Compact one-line-per-item vehicle snapshot.
+def vehicle_summary(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output (tmux/cron friendly)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Compact vehicle snapshot.
 
-    Quick status check: battery, range, charging, climate, location,
-    locks, sentry, software — all in a single compact view.
-
-    tesla vehicle summary
-    tesla vehicle summary --vin modely
-    tesla -j vehicle summary
+    tesla vehicle summary              # Rich panel
+    tesla vehicle summary --oneline    # single line for tmux/cron
+    tesla -j vehicle summary           # JSON
     """
     import json as _json
 
@@ -2016,6 +2016,23 @@ def vehicle_summary(vin: str | None = VinOption) -> None:
     cl = data.get("climate_state", {})
     ds = data.get("drive_state", {})
     vs = data.get("vehicle_state", {})
+
+    if oneline:
+        level = cs.get("battery_level", "?")
+        locked = vs.get("locked", False)
+        sentry = vs.get("sentry_mode", False)
+        inside = cl.get("inside_temp")
+        charging = cs.get("charging_state", "")
+        parts = [f"🔋 {level}%"]
+        parts.append(f"{'🔒 Locked' if locked else '🔓 Unlocked'}")
+        parts.append(f"🛡 {'Sentry ON' if sentry else 'Sentry off'}")
+        if inside is not None:
+            parts.append(f"🌡 {inside}°C")
+        if charging == "Charging":
+            rate = cs.get("charger_power", 0)
+            parts.append(f"⚡ {rate}kW")
+        typer.echo(" | ".join(parts))
+        return
 
     # Battery
     level = cs.get("battery_level", "?")
