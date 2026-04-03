@@ -91,6 +91,8 @@ tesla vehicle stream           # live telemetry (Rich dashboard, 5s refresh)
 tesla vehicle stream --interval 10 --count 20
 tesla vehicle dashboard        # unified multi-panel status view
 tesla vehicle alerts           # recent fault codes and warnings
+tesla vehicle ready            # morning check: am I ready to drive?
+tesla vehicle ready --oneline  # ✅ Ready | 🔋 82% | 🌡 22°C
 tesla vehicle invite           # create driver invitation
 tesla vehicle invitations      # list driver invitations
 ```
@@ -115,6 +117,7 @@ tesla charge sessions --csv charges.csv  # export to CSV
 tesla charge cost-summary --csv costs.csv
 tesla charge schedule-preview  # show charge + departure schedule
 tesla charge schedule-preview --oneline  # 🔌 Charge @ 23:30 | 🚗 Depart @ 07:00
+tesla charge last              # most recent session with cost
 ```
 
 ### Climate

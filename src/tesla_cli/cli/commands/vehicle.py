@@ -2468,3 +2468,122 @@ def vehicle_export(
             console.print(f"[green]Exported to {output}[/green]")
         else:
             console.print_json(json_str)
+
+
+@vehicle_app.command("ready")
+def vehicle_ready(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+    vin: str | None = VinOption,
+) -> None:
+    """Morning check: am I ready to drive?
+
+    Combines battery level, charge schedule, cabin temperature, alerts,
+    and vehicle state into a single "ready to go" assessment.
+
+    tesla vehicle ready
+    tesla vehicle ready --oneline
+    tesla -j vehicle ready
+    """
+    import json as _json
+
+    v = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+
+    cs = data.get("charge_state", {})
+    cl = data.get("climate_state", {})
+    vs = data.get("vehicle_state", {})
+
+    level = cs.get("battery_level", 0)
+    range_mi = cs.get("battery_range", 0)
+    range_km = round(range_mi * 1.60934, 1) if range_mi else 0
+    charging = cs.get("charging_state", "Unknown")
+    limit = cs.get("charge_limit_soc", 0)
+    inside = cl.get("inside_temp")
+    outside = cl.get("outside_temp")
+    locked = vs.get("locked", False)
+    sentry = vs.get("sentry_mode", False)
+    sw_update = vs.get("software_update") or {}
+    update_available = sw_update.get("status", "") not in ("", "available")
+    precond = cl.get("is_preconditioning", False)
+    climate_on = cl.get("is_climate_on", False)
+
+    # Assess readiness
+    issues: list[str] = []
+    good: list[str] = []
+
+    if level >= 20:
+        good.append(f"Battery {level}% ({range_km} km)")
+    else:
+        issues.append(f"Low battery: {level}% ({range_km} km)")
+
+    if charging == "Charging":
+        eta = cs.get("time_to_full_charge", 0)
+        eta_str = f"{int(eta)}h{int((eta % 1) * 60):02d}m" if eta else ""
+        issues.append(f"Still charging — {eta_str} to {limit}%")
+    elif charging == "Complete":
+        good.append(f"Charge complete ({limit}%)")
+    elif level >= limit:
+        good.append(f"At charge limit ({limit}%)")
+
+    if outside is not None and outside < 5:
+        if climate_on or precond:
+            good.append(f"Preconditioning active ({outside}\u00b0C outside)")
+        else:
+            issues.append(f"Cold outside ({outside}\u00b0C) \u2014 consider preconditioning")
+    elif inside is not None:
+        good.append(f"Cabin {inside}\u00b0C")
+
+    if locked:
+        good.append("Locked")
+    else:
+        issues.append("Vehicle unlocked")
+
+    if sentry:
+        good.append("Sentry ON")
+
+    if update_available:
+        issues.append("Software update pending")
+
+    if is_json_mode():
+        console.print_json(
+            _json.dumps(
+                {
+                    "ready": len(issues) == 0,
+                    "battery_level": level,
+                    "range_km": range_km,
+                    "charging_state": charging,
+                    "inside_temp": inside,
+                    "outside_temp": outside,
+                    "locked": locked,
+                    "sentry_mode": sentry,
+                    "preconditioning": precond or climate_on,
+                    "issues": issues,
+                    "good": good,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if oneline:
+        status = "\u2705 Ready" if not issues else f"\u26a0\ufe0f {len(issues)} issue(s)"
+        parts = [status, f"\U0001f50b {level}%"]
+        if inside is not None:
+            parts.append(f"\U0001f321 {inside}\u00b0C")
+        if charging == "Charging":
+            parts.append("\u26a1 Charging")
+        typer.echo(" | ".join(parts))
+        return
+
+    console.print()
+    if not issues:
+        console.print("  [bold green]\u2705 Ready to drive![/bold green]")
+    else:
+        console.print(f"  [bold yellow]\u26a0\ufe0f  {len(issues)} issue(s)[/bold yellow]")
+
+    console.print()
+    for g in good:
+        console.print(f"  [green]\u2713[/green] {g}")
+    for i in issues:
+        console.print(f"  [yellow]\u26a0[/yellow] {i}")
+    console.print()
