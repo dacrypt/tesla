@@ -575,3 +575,33 @@ class TestGeofenceRoutes:
         cfg.geofences.zones = {}
         r = client.delete("/api/geofences/ghost")
         assert r.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Ready + Charge Last API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleReadyApi:
+    def test_ready_returns_assessment(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/vehicle/ready")
+        assert r.status_code == 200
+        data = r.json()
+        assert "ready" in data
+        assert "battery_level" in data
+        assert "issues" in data
+        assert isinstance(data["issues"], list)
+
+    def test_ready_high_battery_is_ready(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/vehicle/ready")
+        data = r.json()
+        # Mock has battery_level=72, locked=True → should be ready
+        assert data["ready"] is True
+        assert data["battery_level"] == 72
+
+    def test_ready_asleep_returns_503(self, srv_asleep):
+        client, _ = srv_asleep
+        r = client.get("/api/vehicle/ready")
+        assert r.status_code == 503

@@ -191,6 +191,19 @@ tesla vehicle rename "My Tesla"
 tesla vehicle map                      # ASCII terminal map
 ```
 
+### Media & Navigation
+
+```bash
+tesla media play / pause       # toggle media playback
+tesla media next / prev        # next/previous track
+tesla media volume 7.5         # set volume (0-11)
+tesla media fav                # next favorite
+tesla media send-destination "123 Main St, Austin TX"  # send nav destination
+tesla media supercharger       # navigate to nearest Supercharger
+tesla media home               # navigate home
+tesla media work               # navigate to work
+```
+
 ### Multi-Vehicle
 
 ```bash

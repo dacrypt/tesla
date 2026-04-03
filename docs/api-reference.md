@@ -58,6 +58,7 @@ GET /api/charge/state?vin=modely           # aliases work too
 |--------|----------|-------------|
 | GET | `/api/vehicle/data` | Full vehicle state snapshot |
 | GET | `/api/vehicle/summary` | Compact vehicle snapshot (battery, climate, location, state) |
+| GET | `/api/vehicle/ready` | Morning check: ready to drive? (battery, climate, issues) |
 | GET | `/api/vehicle/stream` | Server-Sent Events live stream |
 | POST | `/api/vehicle/wake` | Wake vehicle |
 | POST | `/api/vehicle/command/{cmd}` | Send arbitrary vehicle command |
@@ -69,6 +70,7 @@ GET /api/charge/state?vin=modely           # aliases work too
 | GET | `/api/charge/state` | Charge state |
 | GET | `/api/charge/history` | Charging history (Fleet API) — total kWh, per-session data, breakdown |
 | GET | `/api/charge/sessions` | Unified sessions (TeslaMate > Fleet API) with cost tracking |
+| GET | `/api/charge/last` | Most recent charging session with cost |
 | POST | `/api/charge/start` | Start charging |
 | POST | `/api/charge/stop` | Stop charging |
 | POST | `/api/charge/set-limit` | Set charge limit (%) |

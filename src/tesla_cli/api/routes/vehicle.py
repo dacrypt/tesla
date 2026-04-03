@@ -197,3 +197,58 @@ def vehicle_alerts(request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/ready")
+def vehicle_ready(request: Request) -> dict:
+    """Morning check: is the vehicle ready to drive?
+
+    Returns readiness assessment with battery, charge, climate, lock/sentry status,
+    and a list of issues (if any).
+    """
+    backend, v = _backend_and_vin(request)
+    try:
+        data = backend.get_vehicle_data(v)
+    except VehicleAsleepError:
+        raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+
+    cs = data.get("charge_state") or {}
+    cl = data.get("climate_state") or {}
+    vs = data.get("vehicle_state") or {}
+
+    level = cs.get("battery_level", 0)
+    range_mi = cs.get("battery_range", 0)
+    range_km = round(range_mi * 1.60934, 1) if range_mi else 0
+    charging = cs.get("charging_state", "Unknown")
+    locked = vs.get("locked", False)
+    sentry = vs.get("sentry_mode", False)
+    inside = cl.get("inside_temp")
+    outside = cl.get("outside_temp")
+    climate_on = cl.get("is_climate_on", False)
+    precond = cl.get("is_preconditioning", False)
+    sw_update = vs.get("software_update") or {}
+
+    issues = []
+    if level < 20:
+        issues.append(f"Low battery: {level}%")
+    if charging == "Charging":
+        issues.append("Still charging")
+    if not locked:
+        issues.append("Vehicle unlocked")
+    if outside is not None and outside < 5 and not climate_on and not precond:
+        issues.append(f"Cold outside ({outside}°C), consider preconditioning")
+    if sw_update.get("status", "") not in ("", "available"):
+        issues.append("Software update pending")
+
+    return {
+        "ready": len(issues) == 0,
+        "battery_level": level,
+        "range_km": range_km,
+        "charging_state": charging,
+        "inside_temp": inside,
+        "outside_temp": outside,
+        "locked": locked,
+        "sentry_mode": sentry,
+        "preconditioning": precond or climate_on,
+        "issues": issues,
+    }
