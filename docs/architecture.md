@@ -1,6 +1,6 @@
 # Architecture
 
-> tesla-cli v4.0.0 — Clean Architecture + Monorepo + Managed TeslaMate Stack
+> tesla-cli v4.5.2 — Clean Architecture + Monorepo + Managed TeslaMate Stack
 
 ---
 

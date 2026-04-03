@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (v4.0.0)
+## Current State (v4.5.2)
 
-100+ commands across 14 groups, 1132 tests, 7 providers across 4 layers, React dashboard, managed TeslaMate stack, 15 registered data sources.
+110+ commands across 17 groups, 1226 tests, 60+ API endpoints, 27 Prometheus gauges, React dashboard with 6 quick actions, 7 providers, managed TeslaMate stack, 15 data sources.
 
 ---
 
@@ -28,10 +28,10 @@ Real-time WebSocket streaming eliminates polling (no vampire drain from API call
 - Alternative: Teslemetry.com as hosted proxy (no infra needed)
 - Sub-second data for location, energy monitoring
 
-#### Battery Health Source
-- Add Tessie `battery_health_measurements` as a registered data source
-- Track degradation over time (important for EV resale value)
-- TeslaMate also calculates from charge data (already in `dossier battery-health`)
+#### ~~Battery Health Source~~ ✅ (v4.5.2)
+- ~~Track degradation over time~~
+- `tesla teslaMate battery-degradation` — monthly max range trend from real charge data
+- `tesla vehicle battery-health` — degradation from snapshot history
 
 #### ~~Charge History Unification~~ ✅ (v4.0.2)
 - ~~Fleet API `charge_history` + TeslaMate `charging_processes`~~
