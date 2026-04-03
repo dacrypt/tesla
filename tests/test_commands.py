@@ -82,11 +82,10 @@ class TestCommandRegistration:
             "climate",
             "security",
             "media",
-            "nav",
-            "sharing",
-            "dashboard",
             "order",
-            "dossier",
+            "data",
+            "notify",
+            "serve",
         ]:
             assert group in result.output, f"Missing command group: {group}"
 
@@ -142,20 +141,20 @@ class TestCommandRegistration:
         for sub in ["play", "pause", "next", "prev", "volume", "fav"]:
             assert sub in result.output, f"Missing media subcommand: {sub}"
 
-    def test_nav_subcommands(self):
-        result = runner.invoke(app, ["nav", "--help"])
+    def test_media_includes_nav(self):
+        result = runner.invoke(app, ["media", "--help"])
         assert result.exit_code == 0
-        for sub in ["send", "supercharger", "home", "work"]:
-            assert sub in result.output, f"Missing nav subcommand: {sub}"
+        for sub in ["send-destination", "supercharger", "home", "work"]:
+            assert sub in result.output, f"Missing media nav subcommand: {sub}"
 
-    def test_sharing_subcommands(self):
-        result = runner.invoke(app, ["sharing", "--help"])
+    def test_vehicle_includes_dashboard_stream_sharing(self):
+        result = runner.invoke(app, ["vehicle", "--help"])
         assert result.exit_code == 0
-        for sub in ["invite", "list", "revoke"]:
-            assert sub in result.output, f"Missing sharing subcommand: {sub}"
+        for sub in ["vehicle", "dashboard", "stream", "invite", "invitations"]:
+            assert sub in result.output, f"Missing vehicle subcommand: {sub}"
 
-    def test_dashboard_subcommands(self):
-        result = runner.invoke(app, ["dashboard", "--help"])
+    def test_data_group_registered(self):
+        result = runner.invoke(app, ["data", "--help"])
         assert result.exit_code == 0
 
 
@@ -371,46 +370,46 @@ class TestMediaCommands:
 
 @pytest.mark.usefixtures("_patched_env")
 class TestNavCommands:
-    def test_nav_send(self):
-        result = _run(["nav", "send", "Times Square, NYC"])
+    def test_media_send_destination(self):
+        result = _run(["media", "send-destination", "Times Square, NYC"])
         assert result.exit_code == 0
 
-    def test_nav_supercharger(self):
-        result = _run(["nav", "supercharger"])
+    def test_media_supercharger(self):
+        result = _run(["media", "supercharger"])
         assert result.exit_code == 0
 
-    def test_nav_home(self):
-        result = _run(["nav", "home"])
+    def test_media_home(self):
+        result = _run(["media", "home"])
         assert result.exit_code == 0
 
-    def test_nav_work(self):
-        result = _run(["nav", "work"])
+    def test_media_work(self):
+        result = _run(["media", "work"])
         assert result.exit_code == 0
 
 
 @pytest.mark.usefixtures("_patched_env")
 class TestSharingCommands:
-    def test_sharing_invite(self):
-        result = _run(["sharing", "invite"])
+    def test_vehicle_invite(self):
+        result = _run(["vehicle", "invite"])
         assert result.exit_code == 0
 
-    def test_sharing_list(self):
-        result = _run(["sharing", "list"])
+    def test_vehicle_invitations(self):
+        result = _run(["vehicle", "invitations"])
         assert result.exit_code == 0
 
-    def test_sharing_revoke(self):
-        result = _run(["sharing", "revoke", "inv-123"])
+    def test_vehicle_revoke_invite(self):
+        result = _run(["vehicle", "revoke-invite", "inv-123"])
         assert result.exit_code == 0
 
 
 @pytest.mark.usefixtures("_patched_env")
 class TestDashboard:
-    def test_dashboard_show(self):
-        result = _run(["dashboard", "show"])
+    def test_vehicle_dashboard(self):
+        result = _run(["vehicle", "dashboard"])
         assert result.exit_code == 0
 
-    def test_dashboard_json(self):
-        result = _run(["--json", "dashboard", "show"])
+    def test_vehicle_dashboard_json(self):
+        result = _run(["--json", "vehicle", "dashboard"])
         assert result.exit_code == 0
 
 
@@ -792,13 +791,13 @@ class TestNavSendJson:
     """nav send: JSON mode via render_success + address passthrough."""
 
     def test_nav_send_json(self):
-        result = _run(["--json", "nav", "send", "1600 Pennsylvania Ave NW"])
+        result = _run(["--json", "media", "send-destination", "1600 Pennsylvania Ave NW"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["status"] == "ok"
 
     def test_nav_send_passes_address(self, _patched_env):
-        result = _run(["nav", "send", "Times Square"])
+        result = _run(["media", "send-destination", "Times Square"])
         assert result.exit_code == 0
         call_args = _patched_env.command.call_args
         assert call_args[0][1] == "share"

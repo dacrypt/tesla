@@ -25,9 +25,9 @@ from rich.table import Table
 
 from tesla_cli.cli.output import console, is_json_mode
 
-query_app = typer.Typer(
-    name="query",
-    help="Query Colombian public data sources via [bold]openquery[/bold].",
+data_app = typer.Typer(
+    name="data",
+    help="Data sources, exports, and Colombian public data via [bold]openquery[/bold].",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
@@ -227,7 +227,7 @@ def _save_audit(audit_record, source: str, label: str, audit_dir: str | None) ->
 # ─── Commands ─────────────────────────────────────────────────────────────────
 
 
-@query_app.command("sources")
+@data_app.command("sources")
 def query_sources() -> None:
     """List all available openquery data sources."""
     _require_openquery()
@@ -270,7 +270,7 @@ def query_sources() -> None:
     console.print(t)
 
 
-@query_app.command("run")
+@data_app.command("run")
 def query_run(
     source: str = typer.Argument(..., help="Source name, e.g. co.simit, co.runt"),
     cedula: str | None = CedulaOption,
@@ -289,7 +289,7 @@ def query_run(
 # ── Convenience: person / document queries ────────────────────────────────────
 
 
-@query_app.command("simit")
+@data_app.command("simit")
 def query_simit(
     cedula: str | None = CedulaOption,
     placa: str | None = PlacaOption,
@@ -302,7 +302,7 @@ def query_simit(
     _run("co.simit", q, audit_dir)
 
 
-@query_app.command("runt")
+@data_app.command("runt")
 def query_runt(
     cedula: str | None = CedulaOption,
     placa: str | None = PlacaOption,
@@ -316,7 +316,7 @@ def query_runt(
     _run("co.runt", q, audit_dir)
 
 
-@query_app.command("procuraduria")
+@data_app.command("procuraduria")
 def query_procuraduria(
     cedula: str | None = CedulaOption,
     audit: bool = AuditOption,
@@ -328,7 +328,7 @@ def query_procuraduria(
     _run("co.procuraduria", q, audit_dir)
 
 
-@query_app.command("policia")
+@data_app.command("policia")
 def query_policia(
     cedula: str | None = CedulaOption,
     audit: bool = AuditOption,
@@ -340,7 +340,7 @@ def query_policia(
     _run("co.policia", q, audit_dir)
 
 
-@query_app.command("adres")
+@data_app.command("adres")
 def query_adres(
     cedula: str | None = CedulaOption,
     audit: bool = AuditOption,
@@ -352,7 +352,7 @@ def query_adres(
     _run("co.adres", q, audit_dir)
 
 
-@query_app.command("pico-y-placa")
+@data_app.command("pico-y-placa")
 def query_pico_y_placa(
     placa: str | None = PlacaOption,
     ciudad: str | None = typer.Option(None, "--ciudad", help="Ciudad (default: Bogotá)"),
@@ -366,7 +366,7 @@ def query_pico_y_placa(
     _run("co.pico_y_placa", q)
 
 
-@query_app.command("vehiculos")
+@data_app.command("vehiculos")
 def query_vehiculos(
     placa: str | None = PlacaOption,
     audit: bool = AuditOption,
@@ -381,7 +381,7 @@ def query_vehiculos(
 # ── Convenience: API / open-data queries ──────────────────────────────────────
 
 
-@query_app.command("combustible")
+@data_app.command("combustible")
 def query_combustible(
     ciudad: str | None = typer.Option(None, "--ciudad", "-C", help="Ciudad/municipio"),
     extra: str | None = ExtraOption,
@@ -395,7 +395,7 @@ def query_combustible(
     _run("co.combustible", q)
 
 
-@query_app.command("estaciones-ev")
+@data_app.command("estaciones-ev")
 def query_estaciones_ev(
     ciudad: str | None = typer.Option(None, "--ciudad", "-C", help="Ciudad"),
     extra: str | None = ExtraOption,
@@ -409,7 +409,7 @@ def query_estaciones_ev(
     _run("co.estaciones_ev", q)
 
 
-@query_app.command("peajes")
+@data_app.command("peajes")
 def query_peajes(
     peaje: str | None = typer.Option(None, "--peaje", help="Nombre del peaje"),
     extra: str | None = ExtraOption,
@@ -423,7 +423,7 @@ def query_peajes(
     _run("co.peajes", q)
 
 
-@query_app.command("fasecolda")
+@data_app.command("fasecolda")
 def query_fasecolda(
     marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
     modelo: str | None = typer.Option(None, "--modelo", help="Año modelo (ej. 2026)"),
@@ -440,7 +440,7 @@ def query_fasecolda(
     _run("co.fasecolda", q)
 
 
-@query_app.command("recalls")
+@data_app.command("recalls")
 def query_recalls(
     marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
     extra: str | None = ExtraOption,
@@ -454,7 +454,7 @@ def query_recalls(
     _run("co.recalls", q)
 
 
-@query_app.command("siniestralidad")
+@data_app.command("siniestralidad")
 def query_siniestralidad(
     extra: str | None = ExtraOption,
 ) -> None:
@@ -469,7 +469,7 @@ def query_siniestralidad(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@query_app.command("build")
+@data_app.command("build")
 def query_build() -> None:
     """Build/update vehicle data from all sources.
 
@@ -480,7 +480,7 @@ def query_build() -> None:
     dossier_build()
 
 
-@query_app.command("history")
+@data_app.command("history")
 def query_history() -> None:
     """Show data snapshot history.
 
@@ -492,23 +492,23 @@ def query_history() -> None:
     dossier_history()
 
 
-@query_app.command("diff")
+@data_app.command("diff")
 def query_diff(
-    idx_a: int | None = typer.Argument(None, help="First snapshot index (from history)"),
-    idx_b: int | None = typer.Argument(None, help="Second snapshot index"),
+    snap_a: str | None = typer.Argument(None, help="Snapshot A: index (1-based) or filename"),
+    snap_b: str | None = typer.Argument(None, help="Snapshot B: index or filename"),
 ) -> None:
     """Compare two data snapshots side by side.
 
-    tesla query diff          # compare last two
-    tesla query diff 1 3      # compare specific snapshots
-    tesla -j query diff
+    tesla data diff          # compare last two
+    tesla data diff 1 3      # compare specific snapshots
+    tesla -j data diff
     """
     from tesla_cli.cli.commands.dossier import dossier_diff
 
-    dossier_diff(idx_a=idx_a, idx_b=idx_b)
+    dossier_diff(snap_a=snap_a, snap_b=snap_b)
 
 
-@query_app.command("export-html")
+@data_app.command("export-html")
 def query_export_html(
     output: str = typer.Option("dossier.html", "--output", "-o", help="Output HTML file path"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
@@ -524,7 +524,7 @@ def query_export_html(
     dossier_export_html(output=output, vin=vin, theme=theme)
 
 
-@query_app.command("export-pdf")
+@data_app.command("export-pdf")
 def query_export_pdf(
     output: str = typer.Option("dossier.pdf", "--output", "-o", help="Output PDF file path"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
@@ -538,21 +538,23 @@ def query_export_pdf(
     dossier_export_pdf(output=output, vin=vin)
 
 
-@query_app.command("clean")
+@data_app.command("clean")
 def query_clean(
-    keep: int = typer.Option(10, "--keep", "-k", help="Number of recent snapshots to keep"),
+    keep: int = typer.Option(10, "--keep", "-n", help="Number of snapshots to keep (most recent)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without deleting"),
 ) -> None:
     """Prune old data snapshots.
 
-    tesla query clean
-    tesla query clean --keep 5
+    tesla data clean
+    tesla data clean --keep 5
+    tesla data clean --dry-run
     """
     from tesla_cli.cli.commands.dossier import dossier_clean
 
-    dossier_clean(keep=keep)
+    dossier_clean(keep=keep, dry_run=dry_run)
 
 
-@query_app.command("data-sources")
+@data_app.command("data-sources")
 def query_data_sources() -> None:
     """Show all registered Tesla data sources with cache status.
 

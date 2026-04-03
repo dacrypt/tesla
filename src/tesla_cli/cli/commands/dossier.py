@@ -1,13 +1,13 @@
-"""Dossier commands — DEPRECATED: commands are migrating to their natural homes.
+"""Dossier implementation functions.
 
-All commands still work here but will show a migration hint.
-New locations: `tesla order gates`, `tesla vehicle vin`, `tesla query build`, etc.
+These functions contain the core logic for vehicle intelligence features.
+They are called from their canonical CLI homes: order, vehicle, data.
+No CLI commands are registered here — this is an internal module.
 """
 
 from __future__ import annotations
 
 import json
-import sys
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -16,53 +16,9 @@ from rich.table import Table
 from tesla_cli.cli.output import console, is_json_mode
 from tesla_cli.core.backends.dossier import DossierBackend
 
-# Migration hints: maps old command name to new path
-_MOVED = {
-    "build": "query build",
-    "show": "vehicle profile",
-    "history": "query history",
-    "ships": "order ships",
-    "set-delivery": "order set-delivery",
-    "vin": "vehicle vin",
-    "diff": "query diff",
-    "checklist": "order checklist",
-    "gates": "order gates",
-    "estimate": "order estimate",
-    "option-codes": "vehicle option-codes",
-    "clean": "query clean",
-    "battery-health": "vehicle battery-health",
-    "sources": "query sources",
-    "export-pdf": "query export-pdf",
-    "export-html": "query export-html",
-}
 
-
-def _migration_hint() -> None:
-    """Print a migration hint if the user invoked via `tesla dossier <cmd>`."""
-    # Only show hint when invoked via CLI (not when called programmatically from new commands)
-    args = sys.argv
-    if "dossier" not in args:
-        return
-    # Find which subcommand was used
-    try:
-        idx = args.index("dossier")
-        if idx + 1 < len(args):
-            cmd = args[idx + 1]
-            if cmd in _MOVED:
-                console.print(
-                    f"  [dim]Hint: this command is now [bold]tesla {_MOVED[cmd]}[/bold][/dim]\n"
-                )
-    except (ValueError, IndexError):
-        pass
-
-
-dossier_app = typer.Typer(name="dossier", help="Vehicle intelligence (migrating — see `tesla order`, `tesla vehicle`, `tesla query`).")
-
-
-@dossier_app.command("build")
 def dossier_build() -> None:
     """Build/update the full vehicle dossier from all sources."""
-    _migration_hint()
     backend = DossierBackend()
 
     with Progress(
@@ -264,10 +220,8 @@ def dossier_build() -> None:
     console.print()
 
 
-@dossier_app.command("show")
 def dossier_show() -> None:
     """Show the current saved dossier (without fetching new data)."""
-    _migration_hint()
     from pathlib import Path
 
     from rich.panel import Panel
@@ -875,10 +829,8 @@ def _render_meta(con, dossier, mc_data: dict) -> None:
         con.print(f"  [dim]Mission Control: {str(mc_data['generated_at_local'])[:19]}[/dim]")
 
 
-@dossier_app.command("history")
 def dossier_history() -> None:
     """Show all historical snapshots of the dossier."""
-    _migration_hint()
     backend = DossierBackend()
     history = backend.get_history()
 
@@ -902,10 +854,8 @@ def dossier_history() -> None:
     console.print(table)
 
 
-@dossier_app.command("ships")
 def dossier_ships() -> None:
     """Show Tesla car carrier ships currently being tracked."""
-    _migration_hint()
     from tesla_cli.core.backends.dossier import fetch_tesla_ships
 
     with Progress(
@@ -943,12 +893,10 @@ def dossier_ships() -> None:
     console.print("\n[dim]Tip: Open tracking URLs in browser for real-time position.[/dim]")
 
 
-@dossier_app.command("set-delivery")
 def dossier_set_delivery(
     date: str = typer.Argument(..., help="Delivery date (YYYY-MM-DD)"),
 ) -> None:
     """Set the confirmed delivery date."""
-    _migration_hint()
     backend = DossierBackend()
     dossier = backend._load_dossier()
     if not dossier:
@@ -963,12 +911,10 @@ def dossier_set_delivery(
     console.print(f"[bold green]Delivery date set: {date}[/bold green]")
 
 
-@dossier_app.command("vin")
 def dossier_vin(
     vin: str = typer.Argument(None, help="VIN to decode (default: configured VIN)"),
 ) -> None:
     """Decode a Tesla VIN position by position."""
-    _migration_hint()
     from tesla_cli.core.backends.dossier import decode_vin
     from tesla_cli.core.config import load_config
 
@@ -1008,7 +954,6 @@ def dossier_vin(
     )
 
 
-@dossier_app.command("diff")
 def dossier_diff(
     snap_a: str = typer.Argument(
         None, help="Snapshot A: index (1-based) or filename. Default: second-to-last"
@@ -1021,7 +966,6 @@ def dossier_diff(
     tesla dossier diff 1 2          → compare snapshot #1 vs #2
     tesla dossier diff snapshot_... snapshot_...  → by filename
     """
-    _migration_hint()
     import json as _json
 
     from rich.panel import Panel
@@ -1151,7 +1095,6 @@ def _compute_diff(a: dict, b: dict, path: str = "") -> list[dict]:
     return changes
 
 
-@dossier_app.command("checklist")
 def dossier_checklist(
     mark: str = typer.Option(
         None, "--mark", "-m", help="Mark an item by number as done (e.g. --mark 3)"
@@ -1164,7 +1107,6 @@ def dossier_checklist(
     tesla dossier checklist --mark 3    → check off item #3
     tesla dossier checklist --reset     → uncheck everything
     """
-    _migration_hint()
     import json as _json
     from pathlib import Path
 
@@ -1307,13 +1249,11 @@ def dossier_checklist(
         console.print("\n  [dim]Run: tesla dossier checklist --mark <N> to check item N[/dim]")
 
 
-@dossier_app.command("gates")
 def dossier_gates() -> None:
     """Show the 13-gate delivery journey from order to keys.
 
     Maps each gate to the current dossier phase and highlights where you are.
     """
-    _migration_hint()
     import json as _json
 
     from rich.panel import Panel
@@ -1407,14 +1347,12 @@ def dossier_gates() -> None:
         console.print("[yellow]No dossier found. Run: tesla dossier build for real data.[/yellow]")
 
 
-@dossier_app.command("estimate")
 def dossier_estimate() -> None:
     """Estimate delivery date based on current phase and community timing data.
 
     tesla dossier estimate
     tesla -j dossier estimate | jq .estimated_delivery_range
     """
-    _migration_hint()
     import json as _json
     from datetime import UTC, datetime, timedelta
 
@@ -1539,14 +1477,12 @@ def dossier_estimate() -> None:
         )
 
 
-@dossier_app.command("option-codes")
 def dossier_option_codes() -> None:
     """Decode and display all option codes from the current dossier.
 
     tesla dossier option-codes
     tesla -j dossier option-codes | jq '.[] | select(.category == "autopilot")'
     """
-    _migration_hint()
     import json as _json
 
     from rich.table import Table
@@ -1645,7 +1581,6 @@ def _kv_table(rows: list[tuple[str, str]]) -> None:
     console.print(table)
 
 
-@dossier_app.command("clean")
 def dossier_clean(
     keep: int = typer.Option(10, "--keep", "-n", help="Number of snapshots to keep (most recent)"),
     dry_run: bool = typer.Option(
@@ -1658,7 +1593,6 @@ def dossier_clean(
     tesla dossier clean --keep 5    # keep last 5
     tesla dossier clean --dry-run   # preview without deleting
     """
-    _migration_hint()
     import json as _json
 
     from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
@@ -1709,7 +1643,6 @@ def dossier_clean(
             console.print(f"    [dim]- {name}[/dim]")
 
 
-@dossier_app.command("battery-health")
 def dossier_battery_health(
     limit: int = typer.Option(50, "--limit", "-n", help="Max snapshots to analyze"),
 ) -> None:
@@ -1722,7 +1655,6 @@ def dossier_battery_health(
     tesla dossier battery-health --limit 100
     tesla -j dossier battery-health
     """
-    _migration_hint()
     import json as _json
     import statistics
 
@@ -1822,14 +1754,12 @@ def dossier_battery_health(
     )
 
 
-@dossier_app.command("sources")
 def dossier_sources() -> None:
     """Show all registered data sources with cache status.
 
     tesla dossier sources
     tesla -j dossier sources
     """
-    _migration_hint()
     import json as _json
 
     from rich.table import Table
@@ -1881,7 +1811,6 @@ def dossier_sources() -> None:
     )
 
 
-@dossier_app.command("export-pdf")
 def dossier_export_pdf(
     output: str = typer.Option("dossier.pdf", "--output", "-o", help="Output PDF file path"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
@@ -1891,7 +1820,6 @@ def dossier_export_pdf(
     tesla dossier export-pdf
     tesla dossier export-pdf --output ~/Desktop/my-tesla.pdf
     """
-    _migration_hint()
     try:
         from fpdf import FPDF  # type: ignore[import]
     except ImportError:
@@ -2035,7 +1963,6 @@ def dossier_export_pdf(
     console.print(f"  [green]\u2713[/green] PDF report saved to [bold]{out_path}[/bold]")
 
 
-@dossier_app.command("export-html")
 def dossier_export_html(
     output: str = typer.Option("dossier.html", "--output", "-o", help="Output HTML file path"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
@@ -2047,7 +1974,6 @@ def dossier_export_html(
     tesla dossier export-html --theme light
     tesla dossier export-html --output ~/Desktop/my-tesla.html --theme light
     """
-    _migration_hint()
     import html as _html
     import json as _json
     from pathlib import Path
