@@ -8517,3 +8517,49 @@ class TestBatteryDegradation:
 
         src = Path("src/tesla_cli/api/routes/teslaMate.py").read_text()
         assert "battery-degradation" in src
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Charge Weekly
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeWeekly:
+    """Tests for tesla charge weekly."""
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_weekly_groups_by_week(self, mock_fetch):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        sessions = [
+            ChargingSession(date="2026-03-15 08:00", kwh=30.0, cost=6.60, source="tm"),
+            ChargingSession(date="2026-03-16 14:00", kwh=20.0, cost=4.40, source="tm"),
+            ChargingSession(date="2026-03-22 10:00", kwh=25.0, cost=5.50, source="tm"),
+        ]
+        mock_fetch.return_value = (sessions, "TeslaMate")
+
+        result = _run("charge", "weekly")
+        assert result.exit_code == 0
+        assert "kWh" in result.output
+        assert "75.0" in result.output  # total
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_weekly_json(self, mock_fetch):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        sessions = [
+            ChargingSession(date="2026-03-15 08:00", kwh=30.0, cost=6.60, source="tm"),
+        ]
+        mock_fetch.return_value = (sessions, "TeslaMate")
+
+        result = _run("--json", "charge", "weekly")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "weeks" in data
+        assert data["weeks"][0]["kwh"] == 30.0
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_weekly_no_data(self, mock_fetch):
+        mock_fetch.return_value = ([], "")
+        result = _run("charge", "weekly")
+        assert result.exit_code == 1
