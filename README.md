@@ -26,7 +26,7 @@ uv tool install -e .
 tesla setup
 ```
 
-`tesla setup` is an interactive wizard: Tesla OAuth2 authentication, auto-discovery of your VIN and order number, optional vehicle control backend, and first dossier build.
+`tesla setup` is an interactive wizard: Tesla OAuth2 authentication, auto-discovery of your VIN and order number, optional vehicle control backend, and first data build.
 
 Config: `~/.tesla-cli/config.toml` | Tokens: system keyring (never plain text)
 
@@ -47,19 +47,22 @@ uv tool install -e ".[pdf]"         # PDF dossier export
 Track your Tesla order with change detection, push notifications, delivery ETA estimation, and a 13-gate delivery journey tracker.
 
 ### Vehicle Control
-Lock/unlock, charging, climate, sentry mode, windows, trunk/frunk, software updates, speed limit, and 50+ more commands. Three backends: Owner API (free), Tessie, Fleet API.
+Lock/unlock, charging, climate, sentry mode, windows, trunk/frunk, software updates, speed limit, and 50+ more commands. Three backends: Owner API (free), Tessie, Fleet API. Quick status with `--oneline` for tmux/cron. Export state to JSON/CSV.
 
-### Vehicle Dossier
-Complete vehicle file aggregating Tesla API, VIN decode (140+ option codes), NHTSA recalls, ship tracking, and historical snapshots with diff comparison.
+### Charging Intelligence
+Unified charging sessions from TeslaMate + Fleet API with cost tracking. Schedule preview, forecast, cost summary, CSV export. 27 Prometheus gauges for Grafana dashboards.
+
+### Data Sources
+15 registered sources with TTL caching: Tesla APIs, VIN decode (140+ option codes), NHTSA recalls, RUNT (Colombia), SIMIT, ship tracking. Historical snapshots with diff comparison and HTML/PDF export.
 
 ### TeslaMate Analytics
 Trip history, charging sessions, cost reports, drive heatmaps, vampire drain analysis, and more — from your TeslaMate PostgreSQL database. Includes managed Docker stack (one-command install).
 
 ### REST API + Web Dashboard
-FastAPI server with SSE live stream, Prometheus metrics, mobile-friendly React dashboard with real-time battery gauge, VIN switcher, and dark/light theme.
+FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notifications, dossier, TeslaMate. SSE live stream, Prometheus metrics (27 gauges), mobile-friendly React dashboard.
 
 ### Integrations
-MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services).
+MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services). Config doctor validates all connections.
 
 ### Data Sources
 15 registered sources with TTL caching and change detection: Tesla APIs, NHTSA, RUNT (Colombia), SIMIT, Fasecolda, ship tracking, and more via the OpenQuery library.
