@@ -563,9 +563,9 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_fleet_backend),
-            patch("tesla_cli.core.config.load_config", return_value=cfg),
-            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("vehicle", "stream", "--count", "1", "--interval", "0")
             assert result.exit_code == 0
@@ -576,9 +576,9 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch("tesla_cli.core.backends.get_vehicle_backend", return_value=mock_fleet_backend),
-            patch("tesla_cli.core.config.load_config", return_value=cfg),
-            patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("--json", "vehicle", "stream", "--count", "1")
             assert result.exit_code == 0
@@ -2330,9 +2330,9 @@ class TestBackendNotSupported:
         cfg.general.backend = "owner"
         cfg.general.default_vin = MOCK_VIN
         with (
-            patch("tesla_cli.cli.commands.sharing.get_vehicle_backend", return_value=mock_backend),
-            patch("tesla_cli.cli.commands.sharing.load_config", return_value=cfg),
-            patch("tesla_cli.cli.commands.sharing.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
             result = _run("vehicle", "invitations")
         assert result.exit_code == 1
