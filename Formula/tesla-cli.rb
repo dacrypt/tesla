@@ -1,10 +1,10 @@
 class TeslaCli < Formula
   include Language::Python::Virtualenv
 
-  desc "Tesla CLI — order tracking, vehicle control, dossier, and live telemetry"
+  desc "Tesla CLI — order tracking, vehicle control, data intelligence, and live telemetry"
   homepage "https://github.com/dacrypt/tesla"
-  url "https://files.pythonhosted.org/packages/source/t/tesla-cli/tesla_cli-1.0.0.tar.gz"
-  # sha256 will be filled in automatically after PyPI release
+  url "https://files.pythonhosted.org/packages/source/t/tesla-cli/tesla_cli-4.4.1.tar.gz"
+  # sha256: update after PyPI publish with `brew fetch --build-from-source tesla-cli`
   license "MIT"
 
   head "https://github.com/dacrypt/tesla.git", branch: "main"

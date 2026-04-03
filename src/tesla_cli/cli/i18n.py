@@ -4,7 +4,7 @@ Usage:
     from tesla_cli.cli.i18n import t
     console.print(t("order.watching", rn="RN123"))
 
-Supported languages: en (default), es
+Supported languages: en (default), es, pt, fr, de, it
 Set via `tesla --lang es <command>` or TESLA_LANG env var.
 """
 
@@ -147,6 +147,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "stream.starting": "Iniciando transmisión en vivo… presiona Ctrl+C para detener.",
         "stream.stopped": "Transmisión detenida.",
         "stream.asleep": "Vehículo dormido (datos del último estado conocido)",
+        # setup
+        "setup.welcome": "Asistente de Configuración del Tesla CLI",
+        "setup.done": "¡Configuración completa!",
+        "setup.skip": "Ya configurado. Use --force para reconfigurar.",
         # configuración
         "config.saved": "{key} = {value}",
         "config.unknown_key": "Clave desconocida: {key}",
