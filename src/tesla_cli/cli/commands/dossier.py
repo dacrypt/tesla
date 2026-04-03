@@ -1825,7 +1825,7 @@ def dossier_export_pdf(
     pdf.set_text_color(255, 255, 255)
     pdf.rect(0, 0, 210, 40, "F")
     pdf.set_xy(10, 10)
-    pdf.cell(0, 10, "Tesla Vehicle Dossier", ln=True)
+    pdf.cell(0, 10, "Tesla Vehicle Dossier", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 12)
     pdf.set_xy(10, 22)
     pdf.cell(0, 8, f"VIN: {resolved_vin}   |   Generated: {str(generated_at)[:19]}")
@@ -1835,7 +1835,7 @@ def dossier_export_pdf(
     def section(title: str) -> None:
         pdf.set_font("Helvetica", "B", 13)
         pdf.set_fill_color(230, 230, 230)
-        pdf.cell(0, 8, f"  {title}", ln=True, fill=True)
+        pdf.cell(0, 8, f"  {title}", new_x="LMARGIN", new_y="NEXT", fill=True)
         pdf.set_font("Helvetica", "", 11)
         pdf.ln(2)
 
@@ -1843,9 +1843,9 @@ def dossier_export_pdf(
         if not value or value in ("None", "none", ""):
             return
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(60, 6, f"  {label}:", ln=False)
+        pdf.cell(60, 6, f"  {label}:", new_x="RIGHT", new_y="TOP")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 6, str(value)[:80], ln=True)
+        pdf.cell(0, 6, str(value)[:80], new_x="LMARGIN", new_y="NEXT")
 
     # Section 1: Vehicle Identity
     section("Vehicle Identity")
@@ -1882,18 +1882,18 @@ def dossier_export_pdf(
         for r in recalls[:10]:
             pdf.set_font("Helvetica", "B", 10)
             recall_id = r.get("NHTSACampaignNumber") or r.get("id") or ""
-            pdf.cell(0, 6, f"  Recall {recall_id}", ln=True)
+            pdf.cell(0, 6, f"  Recall {recall_id}", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "", 9)
             component = r.get("Component") or r.get("component") or ""
             summary = (r.get("Summary") or r.get("consequence") or "")[:120]
             if component:
-                pdf.cell(0, 5, f"    Component: {component[:80]}", ln=True)
+                pdf.cell(0, 5, f"    Component: {component[:80]}", new_x="LMARGIN", new_y="NEXT")
             if summary:
                 pdf.multi_cell(0, 5, f"    {summary}")
             pdf.ln(1)
     else:
         pdf.set_font("Helvetica", "I", 10)
-        pdf.cell(0, 6, "  No open recalls found.", ln=True)
+        pdf.cell(0, 6, "  No open recalls found.", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     # Section 5: Snapshot summary
@@ -1901,8 +1901,8 @@ def dossier_export_pdf(
         all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
         section(f"Snapshot History ({len(all_snaps)} snapshots)")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 6, f"  First snapshot: {all_snaps[0].stem if all_snaps else 'none'}", ln=True)
-        pdf.cell(0, 6, f"  Latest snapshot: {all_snaps[-1].stem if all_snaps else 'none'}", ln=True)
+        pdf.cell(0, 6, f"  First snapshot: {all_snaps[0].stem if all_snaps else 'none'}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"  Latest snapshot: {all_snaps[-1].stem if all_snaps else 'none'}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
     # Footer

@@ -23,7 +23,7 @@ CONFIG_FILE = CONFIG_DIR / "config.toml"
 class GeneralConfig(BaseModel):
     default_vin: str = ""
     backend: str = "owner"  # "owner" | "tessie" | "fleet"
-    cost_per_kwh: float = 0.0
+    cost_per_kwh: float = Field(0.0, ge=0.0)
     cedula: str = ""  # Owner's cedula (Colombia) — used for SIMIT, Procuraduria, etc.
 
 
@@ -53,13 +53,13 @@ class VehiclesConfig(BaseModel):
 
 class TeslamateConfig(BaseModel):
     database_url: str = ""  # postgresql://user:pass@host:5432/teslaMate
-    car_id: int = 1  # TeslaMate car ID (1-based)
+    car_id: int = Field(1, ge=1)  # TeslaMate car ID (1-based)
     managed: bool = False  # True = stack managed by CLI via Docker Compose
     stack_dir: str = ""  # ~/.tesla-cli/teslamate (set during install)
-    postgres_port: int = 5432
-    grafana_port: int = 3000
-    teslamate_port: int = 4000
-    mqtt_port: int = 1883
+    postgres_port: int = Field(5432, gt=0, le=65535)
+    grafana_port: int = Field(3000, gt=0, le=65535)
+    teslamate_port: int = Field(4000, gt=0, le=65535)
+    mqtt_port: int = Field(1883, gt=0, le=65535)
 
 
 class GeofencesConfig(BaseModel):
@@ -100,11 +100,11 @@ class MqttConfig(BaseModel):
     """MQTT broker telemetry publisher."""
 
     broker: str = ""  # e.g. localhost or mqtt.example.com
-    port: int = 1883
+    port: int = Field(1883, gt=0, le=65535)
     topic_prefix: str = "tesla"  # Base topic; messages go to <prefix>/<vin>/<key>
     username: str = ""
     password: str = ""
-    qos: int = 0  # MQTT QoS level (0, 1, or 2)
+    qos: int = Field(0, ge=0, le=2)  # MQTT QoS level (0, 1, or 2)
     retain: bool = False  # Whether to set the retain flag on published messages
     tls: bool = False  # Use TLS/SSL (port 8883 typical)
 

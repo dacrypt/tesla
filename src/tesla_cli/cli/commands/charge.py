@@ -599,21 +599,11 @@ def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
             console.print(f"  [dim]{label}[/dim]")
 
 
-@charge_app.command("sessions")
-def charge_sessions(
-    limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions"),
-    vin: str | None = VinOption,  # noqa: ARG001
-) -> None:
-    """Unified charging sessions from all available sources.
+def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
+    """Fetch unified charging sessions from best source (TeslaMate > Fleet API).
 
-    Prefers TeslaMate (richer data: per-session costs, battery levels).
-    Falls back to Fleet API. Applies cost_per_kwh estimation when actual cost is missing.
+    Returns (sessions, source_name). Shared by `sessions`, `cost-summary`, and API route.
     """
-    import json
-
-    from rich.table import Table
-
-    from tesla_cli.cli.output import console
     from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
 
     cfg = load_config()
@@ -621,11 +611,11 @@ def charge_sessions(
     sessions: list[ChargingSession] = []
     source_used = ""
 
-    # Try TeslaMate first (richer data)
+    # Try TeslaMate first (richer data: per-session costs, battery levels)
     try:
-        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-
         if cfg.teslaMate.dsn:
+            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
             tm = TeslaMateBacked(cfg.teslaMate.dsn)
             rows = tm.get_charging_sessions(limit=limit)
             sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
@@ -647,6 +637,28 @@ def charge_sessions(
         except Exception:
             pass
 
+    return sessions, source_used
+
+
+@charge_app.command("sessions")
+def charge_sessions(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions"),
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Unified charging sessions from all available sources.
+
+    Prefers TeslaMate (richer data: per-session costs, battery levels).
+    Falls back to Fleet API. Applies cost_per_kwh estimation when actual cost is missing.
+    """
+    import json
+
+    from rich.table import Table
+
+    from tesla_cli.cli.output import console
+
+    sessions, source_used = _fetch_sessions(limit=limit)
+    cfg = load_config()
+
     if not sessions:
         console.print("[yellow]No charging sessions available.[/yellow]")
         console.print(
@@ -659,9 +671,11 @@ def charge_sessions(
         console.print_json(json.dumps([s.model_dump() for s in sessions]))
         return
 
+    cost_per_kwh = cfg.general.cost_per_kwh
     t = Table(
         title=f"Charging Sessions ({source_used})",
-        caption=f"{len(sessions)} sessions" + (f" | cost_per_kwh: ${cost_per_kwh}" if cost_per_kwh else ""),
+        caption=f"{len(sessions)} sessions"
+        + (f" | cost_per_kwh: ${cost_per_kwh}" if cost_per_kwh else ""),
     )
     t.add_column("#", style="dim", justify="right")
     t.add_column("Date", style="cyan")
@@ -690,7 +704,6 @@ def charge_sessions(
 
     console.print(t)
 
-    # Summary line
     summary = f"  [bold]{total_kwh:.1f} kWh[/bold] total"
     if total_cost > 0:
         summary += f" | [bold]${total_cost:.2f}[/bold] total cost"
@@ -713,49 +726,20 @@ def charge_cost_summary(
     from rich.table import Table
 
     from tesla_cli.cli.output import console
-    from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
 
+    sessions, source_used = _fetch_sessions(limit=500)
     cfg = load_config()
     cost_per_kwh = cfg.general.cost_per_kwh
-    sessions: list[ChargingSession] = []
-    source_used = ""
-
-    # Try TeslaMate first
-    try:
-        if cfg.teslaMate.dsn:
-            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-
-            tm = TeslaMateBacked(cfg.teslaMate.dsn)
-            rows = tm.get_charging_sessions(limit=500)
-            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
-            source_used = "TeslaMate"
-    except Exception:
-        pass
-
-    # Fall back to Fleet API
-    if not sessions:
-        try:
-            backend = _backend()
-            raw = backend.get_charge_history()
-            history = ChargingHistory.from_api(raw)
-            sessions = [
-                ChargingSession.from_fleet_point(pt, cost_per_kwh) for pt in history.points
-            ]
-            source_used = "Fleet API"
-        except Exception:
-            pass
 
     if not sessions:
         console.print("[yellow]No charging data available.[/yellow]")
         raise typer.Exit(1)
 
-    # Aggregate
     total_kwh = sum(s.kwh for s in sessions)
     sessions_with_cost = [s for s in sessions if s.cost is not None]
     total_cost = sum(s.cost for s in sessions_with_cost)
     actual_cost_sessions = [s for s in sessions_with_cost if not s.cost_estimated]
     estimated_sessions = [s for s in sessions_with_cost if s.cost_estimated]
-
     avg_cost_per_kwh = total_cost / total_kwh if total_kwh > 0 else 0
 
     if is_json_mode():
@@ -787,7 +771,10 @@ def charge_cost_summary(
     if actual_cost_sessions:
         t.add_row("Actual cost data", f"{len(actual_cost_sessions)} sessions")
     if estimated_sessions:
-        t.add_row("Estimated (via config)", f"{len(estimated_sessions)} sessions @ ${cost_per_kwh}/kWh")
+        t.add_row(
+            "Estimated (via config)",
+            f"{len(estimated_sessions)} sessions @ ${cost_per_kwh}/kWh",
+        )
 
     console.print(t)
 
