@@ -7870,3 +7870,67 @@ class TestDossierMigration:
         assert isinstance(data, list)
 
     # These commands now live in their canonical homes (no dossier fallback)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Export
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleExport:
+    """Tests for `tesla vehicle export`."""
+
+    MOCK_DATA = {
+        "charge_state": {"battery_level": 72, "battery_range": 186.5},
+        "climate_state": {"inside_temp": 22.5},
+        "drive_state": {"latitude": 4.711, "longitude": -74.072},
+        "vehicle_state": {"locked": True, "car_version": "2026.8.7"},
+    }
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_export_json_stdout(self, mock_cfg, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="TEST123")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "export")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["charge_state"]["battery_level"] == 72
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_export_json_file(self, mock_cfg, mock_bk, tmp_path):
+        mock_cfg.return_value = MagicMock(default_vin="TEST123")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        out = str(tmp_path / "state.json")
+        result = _run("vehicle", "export", "-o", out)
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+
+        data = json.loads(open(out).read())
+        assert data["charge_state"]["battery_level"] == 72
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_export_csv_file(self, mock_cfg, mock_bk, tmp_path):
+        mock_cfg.return_value = MagicMock(default_vin="TEST123")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        out = str(tmp_path / "state.csv")
+        result = _run("vehicle", "export", "-f", "csv", "-o", out)
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+
+        import csv
+        with open(out) as f:
+            reader = list(csv.DictReader(f))
+        assert len(reader) == 1
+        assert reader[0]["charge_state.battery_level"] == "72"

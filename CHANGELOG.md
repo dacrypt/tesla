@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-04-03
+
+### Improvements
+
+- **`tesla vehicle export`** — export vehicle state to JSON or CSV file
+  - `tesla vehicle export` → JSON to stdout
+  - `tesla vehicle export -o state.json` → JSON file
+  - `tesla vehicle export -f csv -o state.csv` → CSV with flattened fields
+- **Inline 6 stale delegate files** — stream, dashboard, sharing, nav, runt_cmd, simit_cmd
+  inlined into vehicle.py, media.py, data_cmd.py and deleted (-849 lines net)
+- **Organize data_cmd.py** — clear section headers: Colombian queries vs Vehicle data & export
+- 1165 tests passing
+
 ## [4.2.0] - 2026-04-02
 
 ### Architecture — CLI Restructuring
