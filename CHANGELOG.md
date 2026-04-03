@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.2] - 2026-04-03
+
+### Improvements
+
+- **Prometheus metrics expanded** from 11 → 27 gauges:
+  - Charger: voltage, current, charge rate, time to full
+  - Temperature: inside, outside, driver setting, climate active
+  - TPMS: tire pressure for all 4 tires (fl, fr, rl, rr)
+  - State: heading, charge port open
+- **Charge session merge** — `_fetch_sessions()` now queries BOTH TeslaMate and Fleet API,
+  using TeslaMate as primary source and filling gaps from Fleet API. Source attribution
+  shows "TeslaMate + Fleet API" when both contribute.
+- 1169 tests passing
+
 ## [4.2.1] - 2026-04-03
 
 ### Improvements
