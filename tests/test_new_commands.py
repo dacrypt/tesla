@@ -7934,3 +7934,108 @@ class TestVehicleExport:
             reader = list(csv.DictReader(f))
         assert len(reader) == 1
         assert reader[0]["charge_state.battery_level"] == "72"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prometheus Metrics Expansion
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestPrometheusMetrics:
+    """Verify expanded Prometheus metrics endpoint."""
+
+    def test_metrics_has_temperature_gauges(self):
+        """Check that /api/metrics source code includes temperature gauges."""
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/app.py").read_text()
+        assert "tesla_inside_temp" in src
+        assert "tesla_outside_temp" in src
+        assert "tesla_tpms_fl" in src
+        assert "tesla_tpms_fr" in src
+        assert "tesla_heading" in src
+        assert "tesla_charger_voltage" in src
+        assert "tesla_charge_port_open" in src
+
+    def test_metrics_count_increased(self):
+        """Verify at least 25 metrics are defined."""
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/app.py").read_text()
+        count = src.count('_g("tesla_') + src.count('_bool_g("tesla_')
+        assert count >= 25, f"Expected >= 25 metrics, found {count}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Charge Session Merge
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeSessionMerge:
+    """Test that _fetch_sessions merges TeslaMate + Fleet API."""
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    @patch("tesla_cli.cli.commands.charge.get_vehicle_backend")
+    def test_merge_both_sources(self, mock_bk, mock_cfg):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        cfg = MagicMock()
+        cfg.general.cost_per_kwh = 0.22
+        cfg.teslaMate.database_url = "postgresql://localhost/tm"
+        mock_cfg.return_value = cfg
+
+        # Fleet API returns sessions
+        mock_api = {
+            "total_charged": {"value": "100", "after_adornment": "kWh"},
+            "charging_history_graph": {
+                "data_points": [
+                    {"timestamp": {"display_string": "Mar 15"}, "values": [{"raw_value": 30.0, "sub_title": "SC"}]},
+                    {"timestamp": {"display_string": "Apr 01"}, "values": [{"raw_value": 20.0, "sub_title": "Work"}]},
+                ]
+            },
+            "total_charged_breakdown": {},
+        }
+        backend = MagicMock()
+        backend.get_charge_history.return_value = mock_api
+        mock_bk.return_value = backend
+
+        # TeslaMate returns overlapping + unique sessions
+        mock_tm_rows = [
+            {"start_date": "2026-03-15 08:00", "energy_added_kwh": 30.0, "cost": 6.60,
+             "start_battery_level": 20, "end_battery_level": 80, "location": "Supercharger"},
+        ]
+
+        with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked") as MockTM:
+            MockTM.return_value.get_charging_sessions.return_value = mock_tm_rows
+            from tesla_cli.cli.commands.charge import _fetch_sessions
+
+            sessions, source = _fetch_sessions(limit=20)
+
+        assert "TeslaMate" in source
+        assert "Fleet API" in source
+        # TeslaMate session + Fleet's "Apr 01" which doesn't overlap
+        assert len(sessions) >= 2
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    def test_teslamate_only(self, mock_cfg):
+        cfg = MagicMock()
+        cfg.general.cost_per_kwh = 0.0
+        cfg.teslaMate.database_url = "postgresql://localhost/tm"
+        mock_cfg.return_value = cfg
+
+        mock_rows = [
+            {"start_date": "2026-03-15 08:00", "energy_added_kwh": 30.0, "cost": 6.60,
+             "start_battery_level": 20, "end_battery_level": 80, "location": "Home"},
+        ]
+
+        with (
+            patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked") as MockTM,
+            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", side_effect=Exception("no fleet")),
+        ):
+            MockTM.return_value.get_charging_sessions.return_value = mock_rows
+            from tesla_cli.cli.commands.charge import _fetch_sessions
+
+            sessions, source = _fetch_sessions()
+
+        assert source == "TeslaMate"
+        assert len(sessions) == 1
