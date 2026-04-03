@@ -7602,3 +7602,127 @@ class TestChargeCostSummary:
             assert data["total_kwh"] == 50.0
             assert data["total_cost"] == 11.0  # 50 * 0.22
             assert data["estimated_cost_sessions"] == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MQTT Commands (basic registration tests)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMqttCommands:
+    """Basic tests for mqtt command group."""
+
+    def test_mqtt_app_registered(self):
+        result = _run("mqtt", "--help")
+        assert result.exit_code == 0
+        assert "setup" in result.output
+        assert "status" in result.output
+        assert "test" in result.output
+        assert "publish" in result.output
+        assert "ha-discovery" in result.output
+
+    @patch("tesla_cli.cli.commands.mqtt_cmd.load_config")
+    def test_mqtt_status_no_config(self, mock_cfg):
+        cfg = MagicMock()
+        cfg.mqtt.broker = ""
+        mock_cfg.return_value = cfg
+
+        result = _run("mqtt", "status")
+        # Should show not configured or error gracefully
+        assert result.exit_code in (0, 1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Providers Commands
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestProvidersCommands:
+    """Basic tests for providers command group."""
+
+    def test_providers_app_registered(self):
+        result = _run("providers", "--help")
+        assert result.exit_code == 0
+
+    @patch("tesla_cli.core.providers.get_registry")
+    def test_providers_status(self, mock_reg):
+        mock_reg.return_value = MagicMock(
+            providers=[],
+            for_capability=MagicMock(return_value=None),
+        )
+        result = _run("providers", "status")
+        assert result.exit_code == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Config Validation Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestConfigValidation:
+    """Test Pydantic config field validation."""
+
+    def test_cost_per_kwh_rejects_negative(self):
+        from pydantic import ValidationError
+
+        from tesla_cli.core.config import GeneralConfig
+
+        with pytest.raises(ValidationError, match="greater than or equal to 0"):
+            GeneralConfig(cost_per_kwh=-1.0)
+
+    def test_cost_per_kwh_accepts_zero(self):
+        from tesla_cli.core.config import GeneralConfig
+
+        cfg = GeneralConfig(cost_per_kwh=0.0)
+        assert cfg.cost_per_kwh == 0.0
+
+    def test_cost_per_kwh_accepts_positive(self):
+        from tesla_cli.core.config import GeneralConfig
+
+        cfg = GeneralConfig(cost_per_kwh=0.22)
+        assert cfg.cost_per_kwh == 0.22
+
+    def test_port_rejects_zero(self):
+        from pydantic import ValidationError
+
+        from tesla_cli.core.config import TeslamateConfig
+
+        with pytest.raises(ValidationError):
+            TeslamateConfig(postgres_port=0)
+
+    def test_port_rejects_too_high(self):
+        from pydantic import ValidationError
+
+        from tesla_cli.core.config import TeslamateConfig
+
+        with pytest.raises(ValidationError):
+            TeslamateConfig(postgres_port=99999)
+
+    def test_port_accepts_valid(self):
+        from tesla_cli.core.config import TeslamateConfig
+
+        cfg = TeslamateConfig(postgres_port=5433)
+        assert cfg.postgres_port == 5433
+
+    def test_mqtt_qos_rejects_invalid(self):
+        from pydantic import ValidationError
+
+        from tesla_cli.core.config import MqttConfig
+
+        with pytest.raises(ValidationError):
+            MqttConfig(qos=3)
+
+    def test_mqtt_qos_accepts_valid(self):
+        from tesla_cli.core.config import MqttConfig
+
+        for q in (0, 1, 2):
+            cfg = MqttConfig(qos=q)
+            assert cfg.qos == q
+
+    def test_car_id_rejects_zero(self):
+        from pydantic import ValidationError
+
+        from tesla_cli.core.config import TeslamateConfig
+
+        with pytest.raises(ValidationError):
+            TeslamateConfig(car_id=0)

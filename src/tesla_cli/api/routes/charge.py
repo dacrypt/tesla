@@ -111,35 +111,9 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
     Returns a list of normalized ChargingSession objects with source attribution.
     Applies cost_per_kwh estimation when actual cost is missing.
     """
-    from tesla_cli.core.models.charge import ChargingHistory, ChargingSession
+    from tesla_cli.cli.commands.charge import _fetch_sessions
 
-    cfg = load_config()
-    cost_per_kwh = cfg.general.cost_per_kwh
-    sessions: list[ChargingSession] = []
-
-    # Try TeslaMate first
-    try:
-        if cfg.teslaMate.dsn:
-            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
-
-            tm = TeslaMateBacked(cfg.teslaMate.dsn)
-            rows = tm.get_charging_sessions(limit=limit)
-            sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
-    except Exception:
-        pass
-
-    # Fall back to Fleet API
-    if not sessions:
-        try:
-            backend = get_vehicle_backend(cfg)
-            raw = backend.get_charge_history()
-            history = ChargingHistory.from_api(raw)
-            sessions = [
-                ChargingSession.from_fleet_point(pt, cost_per_kwh)
-                for pt in history.points[:limit]
-            ]
-        except Exception:
-            pass
+    sessions, _source = _fetch_sessions(limit=limit)
 
     if not sessions:
         raise HTTPException(
