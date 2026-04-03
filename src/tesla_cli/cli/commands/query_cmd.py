@@ -462,3 +462,103 @@ def query_siniestralidad(
     _require_openquery()
     q = _build_input(None, None, None, extra_json=extra)
     _run("co.siniestralidad", q)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Data aggregation & export (migrated from dossier)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@query_app.command("build")
+def query_build() -> None:
+    """Build/update vehicle data from all sources.
+
+    tesla query build
+    """
+    from tesla_cli.cli.commands.dossier import dossier_build
+
+    dossier_build()
+
+
+@query_app.command("history")
+def query_history() -> None:
+    """Show data snapshot history.
+
+    tesla query history
+    tesla -j query history
+    """
+    from tesla_cli.cli.commands.dossier import dossier_history
+
+    dossier_history()
+
+
+@query_app.command("diff")
+def query_diff(
+    idx_a: int | None = typer.Argument(None, help="First snapshot index (from history)"),
+    idx_b: int | None = typer.Argument(None, help="Second snapshot index"),
+) -> None:
+    """Compare two data snapshots side by side.
+
+    tesla query diff          # compare last two
+    tesla query diff 1 3      # compare specific snapshots
+    tesla -j query diff
+    """
+    from tesla_cli.cli.commands.dossier import dossier_diff
+
+    dossier_diff(idx_a=idx_a, idx_b=idx_b)
+
+
+@query_app.command("export-html")
+def query_export_html(
+    output: str = typer.Option("dossier.html", "--output", "-o", help="Output HTML file path"),
+    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    theme: str = typer.Option("dark", "--theme", "-t", help="CSS theme: dark or light"),
+) -> None:
+    """Export vehicle data to standalone HTML report.
+
+    tesla query export-html
+    tesla query export-html --theme light
+    """
+    from tesla_cli.cli.commands.dossier import dossier_export_html
+
+    dossier_export_html(output=output, vin=vin, theme=theme)
+
+
+@query_app.command("export-pdf")
+def query_export_pdf(
+    output: str = typer.Option("dossier.pdf", "--output", "-o", help="Output PDF file path"),
+    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+) -> None:
+    """Export vehicle data to PDF report.
+
+    tesla query export-pdf
+    """
+    from tesla_cli.cli.commands.dossier import dossier_export_pdf
+
+    dossier_export_pdf(output=output, vin=vin)
+
+
+@query_app.command("clean")
+def query_clean(
+    keep: int = typer.Option(10, "--keep", "-k", help="Number of recent snapshots to keep"),
+) -> None:
+    """Prune old data snapshots.
+
+    tesla query clean
+    tesla query clean --keep 5
+    """
+    from tesla_cli.cli.commands.dossier import dossier_clean
+
+    dossier_clean(keep=keep)
+
+
+@query_app.command("data-sources")
+def query_data_sources() -> None:
+    """Show all registered Tesla data sources with cache status.
+
+    tesla query data-sources
+    tesla -j query data-sources
+    """
+    from tesla_cli.cli.commands.dossier import dossier_sources
+
+    dossier_sources()

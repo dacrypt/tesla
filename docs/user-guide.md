@@ -186,32 +186,52 @@ tesla vehicle watch --all
 
 ---
 
-## 4. Vehicle Dossier
+## 4. Vehicle Identity & Specs
 
-Aggregates data from all available sources: Tesla API, VIN decode (built-in), NHTSA recalls, ship tracking, historical archive.
+VIN decoding, option codes, battery health, and complete vehicle profile:
 
 ```bash
-tesla dossier build                    # query all sources, save snapshot
-tesla dossier show                     # view saved dossier (no API calls)
-tesla dossier vin                      # decode configured VIN
-tesla dossier vin 5YJ3E1EA8PF123456   # decode any Tesla VIN
-tesla dossier ships                    # Tesla ship tracking
-tesla dossier history                  # view snapshot history
-tesla dossier diff                     # compare last two snapshots
-tesla dossier diff 1 3                 # compare specific snapshots
-tesla dossier checklist                # 34-item delivery inspection
-tesla dossier checklist --mark 5,12    # check items off
-tesla dossier checklist --reset        # start over
-tesla dossier gates                    # 13-gate delivery journey tracker
-tesla dossier estimate                 # community delivery date estimation
-tesla dossier battery-health           # degradation from snapshot history
-tesla dossier clean                    # prune old snapshots
-
-tesla dossier sources                  # show all 15 data sources + cache status
-tesla dossier export-html              # dark theme (default)
-tesla dossier export-html --theme light
-tesla dossier export-pdf               # requires pdf extra
+tesla vehicle vin                      # decode your configured VIN
+tesla vehicle vin 7SAYGDEF1TF123456    # decode any Tesla VIN
+tesla vehicle option-codes             # decode Tesla option codes
+tesla vehicle battery-health           # degradation from snapshot history
+tesla vehicle profile                  # complete multi-source profile (Tesla + RUNT + NHTSA)
 ```
+
+---
+
+## 4b. Order Lifecycle (Delivery Pipeline)
+
+Delivery tracking: gates, inspection checklist, ship tracking, delivery estimates.
+
+```bash
+tesla order gates                      # 13-gate delivery journey tracker
+tesla order estimate                   # community delivery date estimation
+tesla order checklist                  # 34-item delivery inspection
+tesla order checklist --mark 5,12      # check items off
+tesla order ships                      # Tesla car carrier ship tracking
+tesla order set-delivery 2026-04-15    # set confirmed delivery date
+```
+
+---
+
+## 4c. Data Aggregation & Export
+
+Build, compare, and export vehicle data from all sources:
+
+```bash
+tesla query build                      # query all sources, save snapshot
+tesla query history                    # view snapshot history
+tesla query diff                       # compare last two snapshots
+tesla query diff 1 3                   # compare specific snapshots
+tesla query data-sources               # show all 15 data sources + cache status
+tesla query clean                      # prune old snapshots
+tesla query export-html                # dark theme (default)
+tesla query export-html --theme light
+tesla query export-pdf                 # requires pdf extra
+```
+
+> Note: `tesla dossier *` commands still work with a migration hint.
 
 ---
 

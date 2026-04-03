@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-04-02
+
+### Architecture — Dossier Redistribution
+
+All 16 dossier commands redistributed to their natural homes while preserving full backward compatibility:
+
+- **`tesla order`** +5 commands: `gates`, `estimate`, `checklist`, `ships`, `set-delivery`
+- **`tesla vehicle`** +4 commands: `vin`, `option-codes`, `battery-health`, `profile`
+- **`tesla query`** +7 commands: `build`, `history`, `diff`, `export-html`, `export-pdf`, `clean`, `data-sources`
+- **`tesla dossier *`** still works with migration hints pointing to new locations
+- Backend layer unchanged: `core/backends/dossier.py`, `core/models/dossier.py`, API routes
+- 13 new migration tests, 1164 total
+
 ## [4.0.4] - 2026-04-02
 
 ### Bug Fixes

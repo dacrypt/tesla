@@ -1,8 +1,13 @@
-"""Dossier commands: tesla dossier build/show/history/ships."""
+"""Dossier commands — DEPRECATED: commands are migrating to their natural homes.
+
+All commands still work here but will show a migration hint.
+New locations: `tesla order gates`, `tesla vehicle vin`, `tesla query build`, etc.
+"""
 
 from __future__ import annotations
 
 import json
+import sys
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -11,12 +16,53 @@ from rich.table import Table
 from tesla_cli.cli.output import console, is_json_mode
 from tesla_cli.core.backends.dossier import DossierBackend
 
-dossier_app = typer.Typer(name="dossier", help="Complete vehicle intelligence dossier.")
+# Migration hints: maps old command name to new path
+_MOVED = {
+    "build": "query build",
+    "show": "vehicle profile",
+    "history": "query history",
+    "ships": "order ships",
+    "set-delivery": "order set-delivery",
+    "vin": "vehicle vin",
+    "diff": "query diff",
+    "checklist": "order checklist",
+    "gates": "order gates",
+    "estimate": "order estimate",
+    "option-codes": "vehicle option-codes",
+    "clean": "query clean",
+    "battery-health": "vehicle battery-health",
+    "sources": "query sources",
+    "export-pdf": "query export-pdf",
+    "export-html": "query export-html",
+}
+
+
+def _migration_hint() -> None:
+    """Print a migration hint if the user invoked via `tesla dossier <cmd>`."""
+    # Only show hint when invoked via CLI (not when called programmatically from new commands)
+    args = sys.argv
+    if "dossier" not in args:
+        return
+    # Find which subcommand was used
+    try:
+        idx = args.index("dossier")
+        if idx + 1 < len(args):
+            cmd = args[idx + 1]
+            if cmd in _MOVED:
+                console.print(
+                    f"  [dim]Hint: this command is now [bold]tesla {_MOVED[cmd]}[/bold][/dim]\n"
+                )
+    except (ValueError, IndexError):
+        pass
+
+
+dossier_app = typer.Typer(name="dossier", help="Vehicle intelligence (migrating — see `tesla order`, `tesla vehicle`, `tesla query`).")
 
 
 @dossier_app.command("build")
 def dossier_build() -> None:
     """Build/update the full vehicle dossier from all sources."""
+    _migration_hint()
     backend = DossierBackend()
 
     with Progress(
@@ -221,6 +267,7 @@ def dossier_build() -> None:
 @dossier_app.command("show")
 def dossier_show() -> None:
     """Show the current saved dossier (without fetching new data)."""
+    _migration_hint()
     from pathlib import Path
 
     from rich.panel import Panel
@@ -831,6 +878,7 @@ def _render_meta(con, dossier, mc_data: dict) -> None:
 @dossier_app.command("history")
 def dossier_history() -> None:
     """Show all historical snapshots of the dossier."""
+    _migration_hint()
     backend = DossierBackend()
     history = backend.get_history()
 
@@ -857,6 +905,7 @@ def dossier_history() -> None:
 @dossier_app.command("ships")
 def dossier_ships() -> None:
     """Show Tesla car carrier ships currently being tracked."""
+    _migration_hint()
     from tesla_cli.core.backends.dossier import fetch_tesla_ships
 
     with Progress(
@@ -899,6 +948,7 @@ def dossier_set_delivery(
     date: str = typer.Argument(..., help="Delivery date (YYYY-MM-DD)"),
 ) -> None:
     """Set the confirmed delivery date."""
+    _migration_hint()
     backend = DossierBackend()
     dossier = backend._load_dossier()
     if not dossier:
@@ -918,6 +968,7 @@ def dossier_vin(
     vin: str = typer.Argument(None, help="VIN to decode (default: configured VIN)"),
 ) -> None:
     """Decode a Tesla VIN position by position."""
+    _migration_hint()
     from tesla_cli.core.backends.dossier import decode_vin
     from tesla_cli.core.config import load_config
 
@@ -970,6 +1021,7 @@ def dossier_diff(
     tesla dossier diff 1 2          → compare snapshot #1 vs #2
     tesla dossier diff snapshot_... snapshot_...  → by filename
     """
+    _migration_hint()
     import json as _json
 
     from rich.panel import Panel
@@ -1112,6 +1164,7 @@ def dossier_checklist(
     tesla dossier checklist --mark 3    → check off item #3
     tesla dossier checklist --reset     → uncheck everything
     """
+    _migration_hint()
     import json as _json
     from pathlib import Path
 
@@ -1260,6 +1313,7 @@ def dossier_gates() -> None:
 
     Maps each gate to the current dossier phase and highlights where you are.
     """
+    _migration_hint()
     import json as _json
 
     from rich.panel import Panel
@@ -1360,6 +1414,7 @@ def dossier_estimate() -> None:
     tesla dossier estimate
     tesla -j dossier estimate | jq .estimated_delivery_range
     """
+    _migration_hint()
     import json as _json
     from datetime import UTC, datetime, timedelta
 
@@ -1491,6 +1546,7 @@ def dossier_option_codes() -> None:
     tesla dossier option-codes
     tesla -j dossier option-codes | jq '.[] | select(.category == "autopilot")'
     """
+    _migration_hint()
     import json as _json
 
     from rich.table import Table
@@ -1602,6 +1658,7 @@ def dossier_clean(
     tesla dossier clean --keep 5    # keep last 5
     tesla dossier clean --dry-run   # preview without deleting
     """
+    _migration_hint()
     import json as _json
 
     from tesla_cli.core.backends.dossier import SNAPSHOTS_DIR
@@ -1665,6 +1722,7 @@ def dossier_battery_health(
     tesla dossier battery-health --limit 100
     tesla -j dossier battery-health
     """
+    _migration_hint()
     import json as _json
     import statistics
 
@@ -1771,6 +1829,7 @@ def dossier_sources() -> None:
     tesla dossier sources
     tesla -j dossier sources
     """
+    _migration_hint()
     import json as _json
 
     from rich.table import Table
@@ -1832,6 +1891,7 @@ def dossier_export_pdf(
     tesla dossier export-pdf
     tesla dossier export-pdf --output ~/Desktop/my-tesla.pdf
     """
+    _migration_hint()
     try:
         from fpdf import FPDF  # type: ignore[import]
     except ImportError:
@@ -1987,6 +2047,7 @@ def dossier_export_html(
     tesla dossier export-html --theme light
     tesla dossier export-html --output ~/Desktop/my-tesla.html --theme light
     """
+    _migration_hint()
     import html as _html
     import json as _json
     from pathlib import Path
