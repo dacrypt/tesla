@@ -277,12 +277,15 @@ def setup_wizard(
     console.print(
         Panel.fit(
             "[bold green]✓ Setup complete![/bold green]\n\n"
-            "Useful commands:\n"
-            "  [bold]tesla order status[/bold]       — check your order\n"
-            "  [bold]tesla order watch -i 5[/bold]   — monitor for changes every 5 min\n"
-            "  [bold]tesla vehicle profile[/bold]        — view your full dossier\n"
-            "  [bold]tesla data build[/bold]       — refresh all data sources\n"
-            "  [bold]tesla config show[/bold]         — see current configuration",
+            "Next steps:\n"
+            "  [bold]tesla config doctor[/bold]        — validate all connections\n"
+            "  [bold]tesla vehicle ready[/bold]        — check if your car is ready to drive\n"
+            "  [bold]tesla vehicle summary[/bold]      — compact vehicle status\n\n"
+            "Daily commands:\n"
+            "  [bold]tesla charge status[/bold]        — current charge state\n"
+            "  [bold]tesla charge last[/bold]          — most recent charging session\n"
+            "  [bold]tesla order status[/bold]         — check your order\n"
+            "  [bold]tesla order watch -i 5[/bold]     — monitor for changes every 5 min",
             border_style="green",
         )
     )

@@ -7,11 +7,12 @@
 Control your Tesla and track your order from the terminal — with a live web dashboard, REST API, MQTT integration, and analytics.
 
 ```
-tesla order status           → check your order status
-tesla vehicle health-check   → quick 7-point system health check
-tesla charge forecast        → charging ETA + kWh estimate
-tesla teslaMate trip-stats   → trip analytics from TeslaMate
-tesla serve                  → start local REST API + web dashboard
+tesla vehicle ready              → am I ready to drive?
+tesla charge status --oneline    → 🔋 72% | ⚡ 11kW | 1h30m to 80%
+tesla charge last                → most recent charge session + cost
+tesla charge weekly              → weekly kWh + cost summary
+tesla teslaMate battery-degradation → battery health trend
+tesla serve                      → start REST API + web dashboard
 ```
 
 ---
