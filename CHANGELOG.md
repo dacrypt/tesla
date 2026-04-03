@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.2] - 2026-04-03
+
+### React Dashboard
+
+- **Sentry Mode toggle** added to Dashboard quick actions (green when active)
+- **Trunk button** added to quick actions (6 total: Lock, AC, Flash, Sentry, Trunk, Horn)
+- **API client methods** added for security (lock/unlock/sentry/trunk/horn/flash),
+  notifications (list/test/add/remove), and vehicle alerts
+- **6 unused pages deleted** (Home, Charge, Climate, Controls, Order, Schedule) — -1550 lines
+  Superseded by the Vehicle tab structure.
+
+### Tests
+
+- 1181 tests, UI build clean (TypeScript strict mode)
+
 ## [4.3.1] - 2026-04-03
 
 ### New Features
