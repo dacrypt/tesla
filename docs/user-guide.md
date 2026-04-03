@@ -118,6 +118,8 @@ tesla charge cost-summary --csv costs.csv
 tesla charge schedule-preview  # show charge + departure schedule
 tesla charge schedule-preview --oneline  # 🔌 Charge @ 23:30 | 🚗 Depart @ 07:00
 tesla charge last              # most recent session with cost
+tesla charge weekly            # weekly kWh, cost, sessions
+tesla charge weekly --weeks 8  # last 8 weeks
 ```
 
 ### Climate
