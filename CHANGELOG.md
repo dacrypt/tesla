@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-04-03
+
+### New API Routes
+
+- **`/api/security/*`** — lock, unlock, sentry on/off, trunk front/rear, horn, flash
+- **`/api/notify/*`** — list channels, send test, add channel, remove channel
+- **`/api/vehicle/alerts`** — recent vehicle alerts and fault codes
+- All security + notification features now accessible from web UI and external integrations
+
+### Extended Config Doctor
+
+- **MQTT broker check** — socket connect test for broker reachability
+- **Notifications check** — validates channels are configured
+- **Home Assistant check** — HTTP connectivity test for HA URL
+
+### New CLI Features
+
+- **`--oneline` flag** on `vehicle summary` and `charge schedule-preview`
+  - `tesla vehicle summary --oneline` → `🔋 72% | 🔒 Locked | 🛡 Sentry ON | 🌡 22°C`
+  - `tesla charge schedule-preview --oneline` → `🔌 Charge @ 23:30 | 🚗 Depart @ 07:00`
+- **`tesla vehicle export`** — dump vehicle state to JSON or CSV file
+
+### Improvements
+
+- Prometheus metrics expanded from 11 → 27 gauges (TPMS, temperatures, charger details)
+- Charge session merge: TeslaMate + Fleet API data combined when both available
+- 6 stale delegate files inlined and deleted (-849 lines)
+- data_cmd.py organized with clear section headers
+
+### Tests
+
+- 1177 tests passing
+
 ## [4.2.3] - 2026-04-03
 
 ### New Features
