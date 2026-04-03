@@ -30,7 +30,7 @@ def _version_callback(value: bool) -> None:
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     anon: bool = typer.Option(False, "--anon", help="Anonymize PII (VIN, email, name) in output"),
-    lang: str = typer.Option("", "--lang", help="Language: en (default) or es"),
+    lang: str = typer.Option("", "--lang", help="Language: en (default), es, pt, fr, de, it"),
     version: bool | None = typer.Option(
         None, "--version", "-V", callback=_version_callback, is_eager=True
     ),

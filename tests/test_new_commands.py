@@ -8295,3 +8295,39 @@ class TestGeofenceApi:
         app_src = Path("src/tesla_cli/api/app.py").read_text()
         assert "geofence_router" in app_src
         assert "/api/geofences" in app_src
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# i18n Completeness
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestI18nCompleteness:
+    """Verify all languages have the same set of translation keys."""
+
+    def test_all_languages_have_english_keys(self):
+        from tesla_cli.cli.i18n import _STRINGS
+
+        en_keys = set(_STRINGS["en"].keys())
+        for lang, strings in _STRINGS.items():
+            if lang == "en":
+                continue
+            lang_keys = set(strings.keys())
+            missing = en_keys - lang_keys
+            assert not missing, (
+                f"Language '{lang}' is missing {len(missing)} English keys: {sorted(missing)[:5]}"
+            )
+
+    def test_six_languages_supported(self):
+        from tesla_cli.cli.i18n import _STRINGS
+
+        expected = {"en", "es", "pt", "fr", "de", "it"}
+        assert set(_STRINGS.keys()) == expected
+
+    def test_spanish_has_setup_strings(self):
+        from tesla_cli.cli.i18n import _STRINGS
+
+        es = _STRINGS["es"]
+        assert "setup.welcome" in es
+        assert "setup.done" in es
+        assert "setup.skip" in es
