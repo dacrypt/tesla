@@ -82,6 +82,29 @@ GET /api/charge/state?vin=modely           # aliases work too
 | POST | `/api/climate/on` | Turn on climate |
 | POST | `/api/climate/off` | Turn off climate |
 
+### Security
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/security/lock` | Lock doors |
+| POST | `/api/security/unlock` | Unlock doors |
+| GET | `/api/security/sentry` | Sentry mode status |
+| POST | `/api/security/sentry/on` | Enable sentry mode |
+| POST | `/api/security/sentry/off` | Disable sentry mode |
+| POST | `/api/security/trunk/front` | Open frunk |
+| POST | `/api/security/trunk/rear` | Toggle trunk |
+| POST | `/api/security/horn` | Honk horn |
+| POST | `/api/security/flash` | Flash lights |
+
+### Notifications
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notify/list` | List configured channels |
+| POST | `/api/notify/test` | Send test notification |
+| POST | `/api/notify/add` | Add channel (`{"url": "tgram://..."}`) |
+| POST | `/api/notify/remove` | Remove channel by index (`{"index": 0}`) |
+
 ### Order
 
 | Method | Endpoint | Description |
