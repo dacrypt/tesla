@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.1] - 2026-04-03
+
+### New Commands
+
+- **`tesla teslaMate monthly-cost`** — month-over-month charging cost trend with arrows
+- **`tesla vehicle last-seen`** — when was the vehicle last online? (online/asleep + time ago)
+
+### Polish
+
+- Setup wizard: completion message now shows config doctor + daily commands
+- README hero examples: updated with daily-use commands (ready, oneline, weekly)
+- App help text: more descriptive tagline
+
+### Tests
+
+- 1233 tests passing (+4 new)
+
 ## [4.6.0] - 2026-04-03
 
 ### Charging Intelligence

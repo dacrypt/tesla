@@ -8590,3 +8590,45 @@ class TestTeslaMateMonthyCost:
         result = _run("teslaMate", "monthly-cost")
         assert result.exit_code == 0
         assert "120.0" in result.output or "Monthly" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Last Seen
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleLastSeen:
+    """Tests for tesla vehicle last-seen."""
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_last_seen_online(self, mock_cfg, mock_rv, mock_bk):
+        import time
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = {
+            "drive_state": {"gps_as_of": int(time.time()), "timestamp": int(time.time() * 1000)},
+        }
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "last-seen")
+        assert result.exit_code == 0
+        assert "Online" in result.output
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_last_seen_oneline(self, mock_cfg, mock_rv, mock_bk):
+        import time
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = {
+            "drive_state": {"gps_as_of": int(time.time())},
+        }
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "last-seen", "--oneline")
+        assert result.exit_code == 0
+        assert "Online" in result.output
+        assert result.output.strip().count("\n") == 0

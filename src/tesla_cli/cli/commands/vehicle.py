@@ -2587,3 +2587,72 @@ def vehicle_ready(
     for i in issues:
         console.print(f"  [yellow]\u26a0[/yellow] {i}")
     console.print()
+
+
+@vehicle_app.command("last-seen")
+def vehicle_last_seen(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show when the vehicle was last online and its current state.
+
+    tesla vehicle last-seen
+    tesla vehicle last-seen --oneline
+    tesla -j vehicle last-seen
+    """
+    import json as _json
+    from datetime import UTC, datetime
+
+    v = _vin(vin)
+    backend = _backend()
+
+    try:
+        data = backend.get_vehicle_data(v)
+        online = True
+    except VehicleAsleepError:
+        data = {}
+        online = False
+
+    ds = data.get("drive_state", {})
+    gps_ts = ds.get("gps_as_of") or ds.get("timestamp")
+
+    last_seen_str = "unknown"
+    ago_str = ""
+    if gps_ts:
+        try:
+            if isinstance(gps_ts, (int, float)):
+                last_dt = datetime.fromtimestamp(gps_ts / 1000 if gps_ts > 1e12 else gps_ts, tz=UTC)
+            else:
+                last_dt = datetime.fromisoformat(str(gps_ts))
+            last_seen_str = last_dt.strftime("%Y-%m-%d %H:%M UTC")
+            delta = datetime.now(tz=UTC) - last_dt
+            hours = delta.total_seconds() / 3600
+            if hours < 1:
+                ago_str = f"{int(delta.total_seconds() / 60)}m ago"
+            elif hours < 24:
+                ago_str = f"{int(hours)}h ago"
+            else:
+                ago_str = f"{int(hours / 24)}d ago"
+        except (ValueError, TypeError, OSError):
+            pass
+
+    state_str = "online" if online else "asleep"
+
+    if is_json_mode():
+        console.print_json(
+            _json.dumps({"state": state_str, "last_seen": last_seen_str, "ago": ago_str})
+        )
+        return
+
+    if oneline:
+        parts = [f"{'🟢' if online else '🔴'} {state_str.title()}"]
+        if ago_str:
+            parts.append(ago_str)
+        typer.echo(" | ".join(parts))
+        return
+
+    icon = "[green]🟢 Online[/green]" if online else "[dim]🔴 Asleep[/dim]"
+    console.print(f"\n  {icon}")
+    if last_seen_str != "unknown":
+        console.print(f"  [dim]Last seen: {last_seen_str} ({ago_str})[/dim]")
+    console.print()
