@@ -2376,3 +2376,59 @@ def vehicle_revoke_invite(
         console.print(f"[yellow]{exc}[/yellow]")
         raise typer.Exit(1)
     render_success(f"Invitation {invitation_id} revoked")
+
+
+
+@vehicle_app.command("export")
+def vehicle_export(
+    output: str = typer.Option(None, "--output", "-o", help="Output file path (default: stdout)"),
+    fmt: str = typer.Option("json", "--format", "-f", help="Format: json or csv"),
+    vin: str | None = VinOption,
+) -> None:
+    """Export current vehicle state to JSON or CSV file.
+
+    tesla vehicle export                          # JSON to stdout
+    tesla vehicle export -o state.json            # JSON to file
+    tesla vehicle export -f csv -o state.csv      # CSV to file
+    tesla vehicle export -o snapshot-$(date +%Y%m%d).json
+    """
+    import json as _json
+
+    v = _vin(vin)
+    data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
+
+    if fmt == "csv":
+        import csv as _csv
+        import io
+
+        # Flatten nested dicts for CSV
+        flat: dict[str, str] = {}
+        for section, values in data.items():
+            if isinstance(values, dict):
+                for k, val in values.items():
+                    flat[f"{section}.{k}"] = str(val) if val is not None else ""
+            else:
+                flat[section] = str(values) if values is not None else ""
+
+        if output:
+            with open(output, "w", newline="", encoding="utf-8") as fh:
+                writer = _csv.DictWriter(fh, fieldnames=sorted(flat.keys()))
+                writer.writeheader()
+                writer.writerow(flat)
+            console.print(f"[green]Exported to {output}[/green] ({len(flat)} fields)")
+        else:
+            buf = io.StringIO()
+            writer = _csv.DictWriter(buf, fieldnames=sorted(flat.keys()))
+            writer.writeheader()
+            writer.writerow(flat)
+            console.print(buf.getvalue())
+    else:
+        # JSON
+        json_str = _json.dumps(data, indent=2, default=str)
+        if output:
+            from pathlib import Path
+
+            Path(output).write_text(json_str, encoding="utf-8")
+            console.print(f"[green]Exported to {output}[/green]")
+        else:
+            console.print_json(json_str)
