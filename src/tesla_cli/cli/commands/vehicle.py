@@ -2118,7 +2118,7 @@ def vehicle_option_codes() -> None:
 
 @vehicle_app.command("battery-health")
 def vehicle_battery_health(
-    vin: str | None = VinOption,
+    limit: int = typer.Option(50, "--limit", "-n", help="Max snapshots to analyze"),
 ) -> None:
     """Estimate battery degradation from snapshot history.
 
@@ -2127,7 +2127,7 @@ def vehicle_battery_health(
     """
     from tesla_cli.cli.commands.dossier import dossier_battery_health
 
-    dossier_battery_health(vin=vin)
+    dossier_battery_health(limit=limit)
 
 
 @vehicle_app.command("profile")
@@ -2140,3 +2140,74 @@ def vehicle_profile() -> None:
     from tesla_cli.cli.commands.dossier import dossier_show
 
     dossier_show()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Absorbed from stream.py, dashboard.py, sharing.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@vehicle_app.command("stream")
+def vehicle_stream(
+    interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds"),
+    count: int = typer.Option(0, "--count", "-n", help="Stop after N refreshes (0=forever)"),
+    mqtt_url: str | None = typer.Option(None, "--mqtt", help="MQTT broker URL"),
+    vin: str | None = VinOption,
+) -> None:
+    """Real-time vehicle telemetry stream.
+
+    tesla vehicle stream
+    tesla vehicle stream --interval 10
+    tesla vehicle stream --count 20
+    """
+    from tesla_cli.cli.commands.stream import stream_live
+
+    stream_live(interval=interval, count=count, mqtt_url=mqtt_url, vin=vin)
+
+
+@vehicle_app.command("dashboard")
+def vehicle_dashboard(vin: str | None = VinOption) -> None:
+    """Unified multi-panel vehicle status dashboard.
+
+    tesla vehicle dashboard
+    tesla -j vehicle dashboard
+    """
+    from tesla_cli.cli.commands.dashboard import dashboard_show
+
+    dashboard_show(vin=vin)
+
+
+@vehicle_app.command("invite")
+def vehicle_invite(vin: str | None = VinOption) -> None:
+    """Create a new driver invitation link.
+
+    tesla vehicle invite
+    """
+    from tesla_cli.cli.commands.sharing import sharing_invite
+
+    sharing_invite(vin=vin)
+
+
+@vehicle_app.command("invitations")
+def vehicle_invitations(vin: str | None = VinOption) -> None:
+    """List current driver invitations.
+
+    tesla vehicle invitations
+    """
+    from tesla_cli.cli.commands.sharing import sharing_list
+
+    sharing_list(vin=vin)
+
+
+@vehicle_app.command("revoke-invite")
+def vehicle_revoke_invite(
+    invitation_id: str = typer.Argument(..., help="Invitation ID to revoke"),
+    vin: str | None = VinOption,
+) -> None:
+    """Revoke a driver invitation.
+
+    tesla vehicle revoke-invite INV_ID
+    """
+    from tesla_cli.cli.commands.sharing import sharing_revoke
+
+    sharing_revoke(invitation_id=invitation_id, vin=vin)

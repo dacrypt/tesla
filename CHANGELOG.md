@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-04-02
+
+### Architecture — CLI Restructuring
+
+Cleaned up the CLI from 25 command groups to 17. Every command now has exactly one home — no fallbacks, no deprecation wrappers, no duplicate paths.
+
+**Removed command groups** (absorbed into natural homes):
+- `dossier` → commands live in `order`, `vehicle`, `data`
+- `query` → renamed to `data`
+- `runt`, `simit` → use `data runt`, `data simit`
+- `stream` → `vehicle stream`
+- `dashboard` → `vehicle dashboard`
+- `sharing` → `vehicle invite/invitations/revoke-invite`
+- `nav` → `media send-destination/supercharger/home/work`
+
+**New structure:**
+```
+tesla order gates/estimate/checklist/ships     (delivery lifecycle)
+tesla vehicle vin/profile/stream/dashboard     (vehicle identity + monitoring)
+tesla data build/history/diff/runt/simit/...   (data sources + exports)
+tesla media play/volume/send-destination/...   (media + navigation)
+```
+
+Backend layer (`core/backends/dossier.py`, `core/models/dossier.py`) unchanged — only CLI routing changed.
+
+1162 tests passing. Lint clean.
+
 ## [4.1.0] - 2026-04-02
 
 ### Architecture — Dossier Redistribution

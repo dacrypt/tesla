@@ -56,12 +56,12 @@ class TestVinDecoder:
     def test_vin_command_no_config(self):
         with patch("tesla_cli.core.config.load_config") as mock_cfg:
             mock_cfg.return_value.general.default_vin = ""
-            result = _run("dossier", "vin", "5YJ3E1EA1PF000001")
+            result = _run("vehicle", "vin", "5YJ3E1EA1PF000001")
             assert result.exit_code == 0
             assert "5YJ" in result.output
 
     def test_vin_command_json(self):
-        result = _run("--json", "dossier", "vin", "5YJ3E1EA1PF000001")
+        result = _run("--json", "vehicle", "vin", "5YJ3E1EA1PF000001")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["vin"] == "5YJ3E1EA1PF000001"
@@ -256,18 +256,18 @@ class TestI18n:
 
 class TestDossierChecklist:
     def test_checklist_shows(self):
-        result = _run("dossier", "checklist")
+        result = _run("order", "checklist")
         # Just verify it runs without crashing
         assert result.exit_code == 0
 
     def test_checklist_help(self):
-        result = _run("dossier", "checklist", "--help")
+        result = _run("order", "checklist", "--help")
         assert result.exit_code == 0
         assert "--mark" in result.output
         assert "--reset" in result.output
 
     def test_checklist_json(self):
-        result = _run("--json", "dossier", "checklist")
+        result = _run("--json", "order", "checklist")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
@@ -280,12 +280,12 @@ class TestDossierChecklist:
         assert "done" in item
 
     def test_checklist_has_34_items(self):
-        result = _run("--json", "dossier", "checklist")
+        result = _run("--json", "order", "checklist")
         data = json.loads(result.output)
         assert len(data) == 34, f"Expected 34 items, got {len(data)}"
 
     def test_checklist_sections_present(self):
-        result = _run("--json", "dossier", "checklist")
+        result = _run("--json", "order", "checklist")
         data = json.loads(result.output)
         sections = {item["section"] for item in data}
         assert "Exterior" in sections
@@ -302,14 +302,14 @@ class TestDossierGates:
     def test_gates_no_dossier(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("dossier", "gates")
+            result = _run("order", "gates")
             assert result.exit_code == 0
             assert "Gate" in result.output
 
     def test_gates_json_no_dossier(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("--json", "dossier", "gates")
+            result = _run("--json", "order", "gates")
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert isinstance(data, list)
@@ -318,7 +318,7 @@ class TestDossierGates:
     def test_gates_structure(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("--json", "dossier", "gates")
+            result = _run("--json", "order", "gates")
             data = json.loads(result.output)
             for gate in data:
                 assert "gate" in gate
@@ -332,7 +332,7 @@ class TestDossierGates:
             mock_dossier.vin = MOCK_VIN
             mock_dossier.real_status.phase = "ordered"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("--json", "dossier", "gates")
+            result = _run("--json", "order", "gates")
             data = json.loads(result.output)
             # First gate should be current
             assert data[0]["status"] == "current"
@@ -345,7 +345,7 @@ class TestDossierGates:
             mock_dossier.vin = MOCK_VIN
             mock_dossier.real_status.phase = "shipped"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("--json", "dossier", "gates")
+            result = _run("--json", "order", "gates")
             data = json.loads(result.output)
             complete = [g for g in data if g["status"] == "complete"]
             assert len(complete) > 0
@@ -369,7 +369,7 @@ class TestDossierDiff:
                     "order_status": "BOOKED",
                 }
             ]
-            result = _run("dossier", "diff")
+            result = _run("data", "diff")
             assert result.exit_code == 1
             assert "2 snapshot" in result.output.lower() or "Need" in result.output
 
@@ -392,7 +392,7 @@ class TestDossierDiff:
             ]
             with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
                 mock_cls.return_value.get_history.return_value = history
-                result = _run("dossier", "diff")
+                result = _run("data", "diff")
                 assert result.exit_code == 0
                 assert "No differences" in result.output
 
@@ -412,7 +412,7 @@ class TestDossierDiff:
             ]
             with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
                 mock_cls.return_value.get_history.return_value = history
-                result = _run("--json", "dossier", "diff")
+                result = _run("--json", "data", "diff")
                 assert result.exit_code == 0
                 data = json.loads(result.output)
                 assert isinstance(data, list)
@@ -552,7 +552,7 @@ class TestVehicleTrips:
 
 class TestStreamLive:
     def test_stream_help(self):
-        result = _run("stream", "live", "--help")
+        result = _run("vehicle", "stream", "--help")
         assert result.exit_code == 0
         assert "--interval" in result.output
         assert "--count" in result.output
@@ -567,7 +567,7 @@ class TestStreamLive:
             patch("tesla_cli.core.config.load_config", return_value=cfg),
             patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
-            result = _run("stream", "live", "--count", "1", "--interval", "0")
+            result = _run("vehicle", "stream", "--count", "1", "--interval", "0")
             assert result.exit_code == 0
 
     def test_stream_json_exits(self, mock_fleet_backend):
@@ -580,7 +580,7 @@ class TestStreamLive:
             patch("tesla_cli.core.config.load_config", return_value=cfg),
             patch("tesla_cli.core.config.resolve_vin", return_value=MOCK_VIN),
         ):
-            result = _run("--json", "stream", "live", "--count", "1")
+            result = _run("--json", "vehicle", "stream", "--count", "1")
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert "charge_state" in data or "state" in data
@@ -713,20 +713,20 @@ class TestOwnerApiAutoWake:
 
 class TestDossierEstimate:
     def test_estimate_help(self):
-        result = _run("dossier", "estimate", "--help")
+        result = _run("order", "estimate", "--help")
         assert result.exit_code == 0
         assert "estimate" in result.output.lower() or "delivery" in result.output.lower()
 
     def test_estimate_no_dossier(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("dossier", "estimate")
+            result = _run("order", "estimate")
             assert result.exit_code == 0
 
     def test_estimate_json_no_dossier(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("--json", "dossier", "estimate")
+            result = _run("--json", "order", "estimate")
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert "current_phase" in data
@@ -743,7 +743,7 @@ class TestDossierEstimate:
             mock_dossier.real_status.phase = "shipped"
             mock_dossier.real_status.delivery_date = None
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("--json", "dossier", "estimate")
+            result = _run("--json", "order", "estimate")
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert data["current_phase"] == "shipped"
@@ -756,7 +756,7 @@ class TestDossierEstimate:
             mock_dossier.real_status.phase = "delivered"
             mock_dossier.real_status.delivery_date = None
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("dossier", "estimate")
+            result = _run("order", "estimate")
             assert result.exit_code == 0
             assert "Delivered" in result.output or "delivered" in result.output.lower()
 
@@ -766,7 +766,7 @@ class TestDossierEstimate:
             mock_dossier.real_status.phase = "delivery_scheduled"
             mock_dossier.real_status.delivery_date = "2026-04-15"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("dossier", "estimate")
+            result = _run("order", "estimate")
             assert result.exit_code == 0
             assert "2026-04-15" in result.output
 
@@ -1093,13 +1093,13 @@ class TestConfigExportImport:
 
 class TestDossierOptionCodes:
     def test_option_codes_help(self):
-        result = _run("dossier", "option-codes", "--help")
+        result = _run("vehicle", "option-codes", "--help")
         assert result.exit_code == 0
 
     def test_option_codes_no_dossier(self):
         with patch("tesla_cli.cli.commands.dossier.DossierBackend") as mock_cls:
             mock_cls.return_value._load_dossier.return_value = None
-            result = _run("dossier", "option-codes")
+            result = _run("vehicle", "option-codes")
             assert result.exit_code == 1
 
     def test_option_codes_with_dossier(self):
@@ -1107,7 +1107,7 @@ class TestDossierOptionCodes:
             mock_dossier = MagicMock()
             mock_dossier.option_codes.raw_string = "PPSW,APF2,MDL3"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("dossier", "option-codes")
+            result = _run("vehicle", "option-codes")
             assert result.exit_code == 0
             assert "PPSW" in result.output or "Pearl White" in result.output
 
@@ -1116,7 +1116,7 @@ class TestDossierOptionCodes:
             mock_dossier = MagicMock()
             mock_dossier.option_codes.raw_string = "PPSW,APF2"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("--json", "dossier", "option-codes")
+            result = _run("--json", "vehicle", "option-codes")
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert isinstance(data, list)
@@ -1129,7 +1129,7 @@ class TestDossierOptionCodes:
             mock_dossier = MagicMock()
             mock_dossier.option_codes.raw_string = "PPSW"
             mock_cls.return_value._load_dossier.return_value = mock_dossier
-            result = _run("--json", "dossier", "option-codes")
+            result = _run("--json", "vehicle", "option-codes")
             data = json.loads(result.output)
             assert all(
                 "code" in item and "category" in item and "description" in item for item in data
@@ -1907,7 +1907,7 @@ class TestVehicleScheduleCharge:
 
 class TestDossierClean:
     def test_clean_help(self):
-        result = _run("dossier", "clean", "--help")
+        result = _run("data", "clean", "--help")
         assert result.exit_code == 0
         assert "--keep" in result.output
         assert "--dry-run" in result.output
@@ -1918,7 +1918,7 @@ class TestDossierClean:
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_dir = Path(tmpdir) / "nonexistent"
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", fake_dir):
-                result = _run("dossier", "clean")
+                result = _run("data", "clean")
         assert result.exit_code == 0
         assert "No snapshots" in result.output
 
@@ -1931,7 +1931,7 @@ class TestDossierClean:
             for i in range(3):
                 (snap_dir / f"snapshot_2026010{i}_120000.json").write_text("{}")
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("dossier", "clean", "--keep", "10")
+                result = _run("data", "clean", "--keep", "10")
         assert result.exit_code == 0
         assert "Nothing to clean" in result.output
 
@@ -1944,7 +1944,7 @@ class TestDossierClean:
             for i in range(1, 8):
                 (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("dossier", "clean", "--keep", "3")
+                result = _run("data", "clean", "--keep", "3")
             remaining = list(snap_dir.glob("snapshot_*.json"))
         assert result.exit_code == 0
         assert len(remaining) == 3
@@ -1959,7 +1959,7 @@ class TestDossierClean:
             for i in range(1, 6):
                 (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("dossier", "clean", "--keep", "2", "--dry-run")
+                result = _run("data", "clean", "--keep", "2", "--dry-run")
             remaining = list(snap_dir.glob("snapshot_*.json"))
         assert result.exit_code == 0
         assert len(remaining) == 5  # nothing actually deleted
@@ -1974,7 +1974,7 @@ class TestDossierClean:
             for i in range(1, 6):
                 (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("--json", "dossier", "clean", "--keep", "3")
+                result = _run("--json", "data", "clean", "--keep", "3")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] == 2
@@ -1990,7 +1990,7 @@ class TestDossierClean:
             for i in range(1, 4):
                 (snap_dir / f"snapshot_202601{i:02d}_120000.json").write_text("{}")
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("--json", "dossier", "clean", "--keep", "1", "--dry-run")
+                result = _run("--json", "data", "clean", "--keep", "1", "--dry-run")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["dry_run"] is True
@@ -2334,7 +2334,7 @@ class TestBackendNotSupported:
             patch("tesla_cli.cli.commands.sharing.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.sharing.resolve_vin", return_value=MOCK_VIN),
         ):
-            result = _run("sharing", "list")
+            result = _run("vehicle", "invitations")
         assert result.exit_code == 1
         assert "fleet" in result.output.lower() or "not available" in result.output.lower()
 
@@ -2704,7 +2704,7 @@ class TestDossierBatteryHealth:
     def test_no_snapshots_dir_exits(self):
         fake_dir = Path("/nonexistent_snapshots_xyz_123")
         with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", fake_dir):
-            result = _run("dossier", "battery-health")
+            result = _run("vehicle", "battery-health")
         assert result.exit_code != 0
 
     def test_single_snapshot_exits_with_message(self):
@@ -2713,7 +2713,7 @@ class TestDossierBatteryHealth:
             snap1 = snap_dir / "snapshot_2024-01-01.json"
             snap1.write_text(json.dumps(self._make_snapshot(80.0, 200.0, "2024-01-01")))
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("dossier", "battery-health")
+                result = _run("vehicle", "battery-health")
         assert result.exit_code != 0
 
     def test_battery_health_json_output(self):
@@ -2725,7 +2725,7 @@ class TestDossierBatteryHealth:
             ]:
                 (snap_dir / fname).write_text(json.dumps(self._make_snapshot(level, rng, ts)))
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("-j", "dossier", "battery-health")
+                result = _run("-j", "vehicle", "battery-health")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "snapshots_analyzed" in data
@@ -2734,7 +2734,7 @@ class TestDossierBatteryHealth:
         assert "peak_estimated_range_mi" in data
 
     def test_battery_health_in_help(self):
-        result = _run("dossier", "--help")
+        result = _run("vehicle", "--help")
         assert "battery-health" in result.output
 
     def test_battery_health_skips_low_battery(self):
@@ -2752,7 +2752,7 @@ class TestDossierBatteryHealth:
                 json.dumps(self._make_snapshot(90.0, 270.0, "2024-03-01"))
             )
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("-j", "dossier", "battery-health")
+                result = _run("-j", "vehicle", "battery-health")
         data = json.loads(result.output)
         assert data["snapshots_analyzed"] == 2  # 5% battery excluded
 
@@ -2768,7 +2768,7 @@ class TestDossierBatteryHealth:
                 json.dumps(self._make_snapshot(80.0, 280.0, "2024-06-01"))  # 280/0.8=350
             )
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("-j", "dossier", "battery-health")
+                result = _run("-j", "vehicle", "battery-health")
         data = json.loads(result.output)
         assert data["estimated_degradation_pct"] == 0.0
 
@@ -3112,7 +3112,7 @@ class TestStreamMqtt:
     """Tests for --mqtt option on `tesla stream live`."""
 
     def test_stream_live_subcommand_help_has_mqtt(self):
-        result = _run("stream", "live", "--help")
+        result = _run("vehicle", "stream", "--help")
         assert "--mqtt" in result.output
 
     def test_mqtt_url_parsing(self):
@@ -3129,7 +3129,7 @@ class TestStreamMqtt:
         """If paho-mqtt not installed, stream should not crash immediately."""
         # The warning is shown lazily after first MQTT attempt, so this just
         # tests that the help renders correctly and the option is registered.
-        result = _run("stream", "live", "--help")
+        result = _run("vehicle", "stream", "--help")
         assert result.exit_code == 0
 
 
@@ -3915,7 +3915,7 @@ class TestDossierExportPdf:
         import sys
 
         with patch.dict(sys.modules, {"fpdf": None}):
-            result = _run("dossier", "export-pdf")
+            result = _run("data", "export-pdf")
         # Should either succeed (fpdf2 is installed) or exit with helpful message
         if result.exit_code != 0:
             assert "fpdf2" in result.output.lower() or "install" in result.output.lower()
@@ -3928,13 +3928,13 @@ class TestDossierExportPdf:
             (snap_dir / "snapshot_2024-06-01.json").write_text(json.dumps(self._make_snapshot()))
             out_path = Path(td) / "test-dossier.pdf"
             with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", snap_dir):
-                result = _run("dossier", "export-pdf", "--output", str(out_path))
+                result = _run("data", "export-pdf", "--output", str(out_path))
         if result.exit_code == 0:
             assert out_path.exists()
             assert out_path.stat().st_size > 1000  # PDF should be at least 1KB
 
     def test_export_pdf_in_help(self):
-        result = _run("dossier", "--help")
+        result = _run("data", "--help")
         assert "export-pdf" in result.output
 
     def test_export_pdf_no_snapshot_still_works(self):
@@ -3947,7 +3947,7 @@ class TestDossierExportPdf:
                 cfg = MagicMock()
                 cfg.general.default_vin = MOCK_VIN
                 with patch("tesla_cli.cli.commands.dossier.load_config", return_value=cfg):
-                    result = _run("dossier", "export-pdf", "--output", str(out_path))
+                    result = _run("data", "export-pdf", "--output", str(out_path))
         if result.exit_code == 0:
             assert out_path.exists()
 
@@ -4385,7 +4385,7 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            result = _run("dossier", "export-html", "--output", str(out))
+            result = _run("data", "export-html", "--output", str(out))
         assert result.exit_code == 0
         assert out.exists()
         content = out.read_text(encoding="utf-8")
@@ -4400,7 +4400,7 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", str(out))
+            _run("data", "export-html", "--output", str(out))
         content = out.read_text()
         assert MOCK_VIN in content
         assert "Tesla Vehicle Dossier" in content
@@ -4413,7 +4413,7 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", str(out))
+            _run("data", "export-html", "--output", str(out))
         content = out.read_text()
         assert "75" in content  # battery_level
 
@@ -4427,7 +4427,7 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = ""
-            result = _run("dossier", "export-html", "--output", str(out))
+            result = _run("data", "export-html", "--output", str(out))
         assert result.exit_code == 0
         assert out.exists()
         content = out.read_text()
@@ -4453,13 +4453,13 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", str(out))
+            _run("data", "export-html", "--output", str(out))
         content = out.read_text()
         assert "23V-999" in content
         assert "STEERING" in content
 
     def test_export_html_in_help(self):
-        result = _run("dossier", "--help")
+        result = _run("data", "--help")
         assert "export-html" in result.output
 
     def test_export_html_self_contained(self, tmp_path):
@@ -4471,7 +4471,7 @@ class TestDossierExportHtml:
             patch("tesla_cli.core.config.load_config") as mock_lc,
         ):
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", str(out))
+            _run("data", "export-html", "--output", str(out))
         content = out.read_text()
         # No external stylesheet or script src references
         assert "<link" not in content or "http" not in content.split("<link")[1].split(">")[0]
@@ -4490,7 +4490,7 @@ class TestDossierExportHtml:
                 patch("tesla_cli.core.config.load_config") as mock_lc,
             ):
                 mock_lc.return_value.general.default_vin = MOCK_VIN
-                result = _run("dossier", "export-html")
+                result = _run("data", "export-html")
             assert result.exit_code == 0
             assert (tmp_path / "dossier.html").exists()
         finally:
@@ -5317,7 +5317,7 @@ class TestDossierExportHtmlTheme:
         out = str(tmp_path / "dark.html")
         with patch("tesla_cli.core.config.load_config") as mock_lc:
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            result = _run("dossier", "export-html", "--output", out, "--theme", "dark")
+            result = _run("data", "export-html", "--output", out, "--theme", "dark")
         assert result.exit_code == 0
         html = Path(out).read_text()
         assert "--bg: #0d0d0d" in html
@@ -5326,7 +5326,7 @@ class TestDossierExportHtmlTheme:
         out = str(tmp_path / "light.html")
         with patch("tesla_cli.core.config.load_config") as mock_lc:
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            result = _run("dossier", "export-html", "--output", out, "--theme", "light")
+            result = _run("data", "export-html", "--output", out, "--theme", "light")
         assert result.exit_code == 0
         html = Path(out).read_text()
         assert "--bg: #f5f5f5" in html
@@ -5335,7 +5335,7 @@ class TestDossierExportHtmlTheme:
         out = str(tmp_path / "light2.html")
         with patch("tesla_cli.core.config.load_config") as mock_lc:
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", out, "--theme", "light")
+            _run("data", "export-html", "--output", out, "--theme", "light")
         html = Path(out).read_text()
         assert "--card: #ffffff" in html
 
@@ -5343,7 +5343,7 @@ class TestDossierExportHtmlTheme:
         out = str(tmp_path / "light3.html")
         with patch("tesla_cli.core.config.load_config") as mock_lc:
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            _run("dossier", "export-html", "--output", out, "--theme", "light")
+            _run("data", "export-html", "--output", out, "--theme", "light")
         html = Path(out).read_text()
         assert "#c0001a" in html  # deep red light accent
 
@@ -5352,7 +5352,7 @@ class TestDossierExportHtmlTheme:
         out = str(tmp_path / "unknown.html")
         with patch("tesla_cli.core.config.load_config") as mock_lc:
             mock_lc.return_value.general.default_vin = MOCK_VIN
-            result = _run("dossier", "export-html", "--output", out, "--theme", "blurple")
+            result = _run("data", "export-html", "--output", out, "--theme", "blurple")
         assert result.exit_code == 0
         html = Path(out).read_text()
         assert "--bg: #0d0d0d" in html
@@ -5362,7 +5362,7 @@ class TestDossierExportHtmlTheme:
             out = str(tmp_path / f"{t}.html")
             with patch("tesla_cli.core.config.load_config") as mock_lc:
                 mock_lc.return_value.general.default_vin = MOCK_VIN
-                result = _run("dossier", "export-html", "--output", out, "--theme", t)
+                result = _run("data", "export-html", "--output", out, "--theme", t)
             assert result.exit_code == 0
             html = Path(out).read_text()
             assert "<!DOCTYPE html>" in html
@@ -6775,13 +6775,13 @@ class TestQueryCommand:
     def test_query_sources_lists_table(self):
         mock_src = self._mock_source(self._mock_simit_result())
         with patch("openquery.sources.list_sources", return_value=[mock_src]):
-            result = _run("query", "sources")
+            result = _run("data", "sources")
         assert result.exit_code == 0
 
     def test_query_sources_json(self):
         mock_src = self._mock_source(self._mock_simit_result())
         with patch("openquery.sources.list_sources", return_value=[mock_src]):
-            result = _run("--json", "query", "sources")
+            result = _run("--json", "data", "sources")
         assert result.exit_code == 0
         import json
 
@@ -6794,7 +6794,7 @@ class TestQueryCommand:
         simit_result = self._mock_simit_result()
         mock_src = self._mock_source(simit_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "run", "co.simit", "--cedula", "12345678")
+            result = _run("data", "run", "co.simit", "--cedula", "12345678")
         assert result.exit_code == 0
 
     def test_query_run_unknown_source_exits_1(self):
@@ -6802,15 +6802,15 @@ class TestQueryCommand:
             patch("openquery.sources.get_source", side_effect=KeyError("co.unknown")),
             patch("openquery.sources.list_sources", return_value=[]),
         ):
-            result = _run("query", "run", "co.unknown", "--cedula", "111")
+            result = _run("data", "run", "co.unknown", "--cedula", "111")
         assert result.exit_code == 1
 
     def test_query_run_no_input_exits_1(self):
-        result = _run("query", "run", "co.simit")
+        result = _run("data", "run", "co.simit")
         assert result.exit_code == 1
 
     def test_query_run_invalid_extra_json_exits_1(self):
-        result = _run("query", "run", "co.combustible", "--extra", "not-json")
+        result = _run("data", "run", "co.combustible", "--extra", "not-json")
         assert result.exit_code == 1
 
     # ── convenience commands ──────────────────────────────────────────────────
@@ -6819,28 +6819,28 @@ class TestQueryCommand:
         simit_result = self._mock_simit_result()
         mock_src = self._mock_source(simit_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "simit", "--cedula", "12345678")
+            result = _run("data", "simit", "--cedula", "12345678")
         assert result.exit_code == 0
 
     def test_query_simit_placa(self):
         simit_result = self._mock_simit_result()
         mock_src = self._mock_source(simit_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "simit", "--placa", "ABC123")
+            result = _run("data", "simit", "--placa", "ABC123")
         assert result.exit_code == 0
 
     def test_query_runt_placa(self):
         runt_result = self._mock_runt_result()
         mock_src = self._mock_source(runt_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "runt", "--placa", "ABC123")
+            result = _run("data", "runt", "--placa", "ABC123")
         assert result.exit_code == 0
 
     def test_query_runt_vin(self):
         runt_result = self._mock_runt_result()
         mock_src = self._mock_source(runt_result)
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "runt", "--vin", "LRWYGCEK3TC512197")
+            result = _run("data", "runt", "--vin", "LRWYGCEK3TC512197")
         assert result.exit_code == 0
 
     def test_query_procuraduria(self):
@@ -6852,7 +6852,7 @@ class TestQueryCommand:
 
         mock_src = self._mock_source(ProcResult())
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "procuraduria", "--cedula", "12345678")
+            result = _run("data", "procuraduria", "--cedula", "12345678")
         assert result.exit_code == 0
 
     def test_query_pico_y_placa(self):
@@ -6864,7 +6864,7 @@ class TestQueryCommand:
 
         mock_src = self._mock_source(PypResult())
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "pico-y-placa", "--placa", "ABC123")
+            result = _run("data", "pico-y-placa", "--placa", "ABC123")
         assert result.exit_code == 0
 
     def test_query_combustible_with_ciudad(self):
@@ -6876,7 +6876,7 @@ class TestQueryCommand:
 
         mock_src = self._mock_source(CombResult())
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "combustible", "--ciudad", "BOGOTA")
+            result = _run("data", "combustible", "--ciudad", "BOGOTA")
         assert result.exit_code == 0
 
     def test_query_fasecolda_marca_modelo(self):
@@ -6888,7 +6888,7 @@ class TestQueryCommand:
 
         mock_src = self._mock_source(FasecResult())
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "fasecolda", "--marca", "TESLA", "--modelo", "2026")
+            result = _run("data", "fasecolda", "--marca", "TESLA", "--modelo", "2026")
         assert result.exit_code == 0
 
     def test_query_recalls_marca(self):
@@ -6900,7 +6900,7 @@ class TestQueryCommand:
 
         mock_src = self._mock_source(RecallResult())
         with patch("openquery.sources.get_source", return_value=mock_src):
-            result = _run("query", "recalls", "--marca", "TESLA")
+            result = _run("data", "recalls", "--marca", "TESLA")
         assert result.exit_code == 0
 
     # ── openquery not installed ───────────────────────────────────────────────
@@ -6916,7 +6916,7 @@ class TestQueryCommand:
             return real_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            result = _run("query", "simit", "--cedula", "12345678")
+            result = _run("data", "simit", "--cedula", "12345678")
         assert result.exit_code == 1
 
     # ── backend delegation ────────────────────────────────────────────────────
@@ -7786,18 +7786,18 @@ class TestDossierSources:
     """Tests for `tesla dossier sources`."""
 
     def test_sources_command_registered(self):
-        result = _run("dossier", "sources")
+        result = _run("data", "data-sources")
         assert result.exit_code == 0
         assert "registered" in result.output.lower() or "Data Sources" in result.output
 
     def test_sources_shows_known_ids(self):
-        result = _run("dossier", "sources")
+        result = _run("data", "data-sources")
         assert result.exit_code == 0
         # At least some built-in sources should appear
         assert "tesla.order" in result.output or "vin.decode" in result.output
 
     def test_sources_json_mode(self):
-        result = _run("--json", "dossier", "sources")
+        result = _run("--json", "data", "data-sources")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
@@ -7855,26 +7855,18 @@ class TestDossierMigration:
     # ── Query/data ──
 
     def test_query_history(self):
-        result = _run("query", "history")
+        result = _run("data", "history")
         assert result.exit_code in (0, 1)  # 1 if no snapshots exist
 
     def test_query_data_sources(self):
-        result = _run("query", "data-sources")
+        result = _run("data", "data-sources")
         assert result.exit_code == 0
         assert "registered" in result.output.lower() or "Data Sources" in result.output
 
     def test_query_data_sources_json(self):
-        result = _run("--json", "query", "data-sources")
+        result = _run("--json", "data", "data-sources")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
 
-    # ── Old paths still work (backward compat) ──
-
-    def test_dossier_gates_still_works(self):
-        result = _run("dossier", "gates")
-        assert result.exit_code in (0, 1)
-
-    def test_dossier_vin_still_works(self):
-        result = _run("dossier", "vin", "7SAYGDEF1TF123456")
-        assert result.exit_code == 0
+    # These commands now live in their canonical homes (no dossier fallback)

@@ -80,3 +80,55 @@ def media_fav(
     cmd = "media_next_fav" if direction == "next" else "media_prev_fav"
     _with_wake(lambda b, v: b.command(v, cmd), v)
     render_success(f"Favorite {direction} ⭐")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Navigation commands (absorbed from nav.py)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@media_app.command("send-destination")
+def media_send_destination(
+    destination: str = typer.Argument(..., help="Address or place name"),
+    vin: str | None = VinOption,
+) -> None:
+    """Send a destination to the vehicle navigation.
+
+    tesla media send-destination "123 Main St, Austin TX"
+    """
+    from tesla_cli.cli.commands.nav import nav_send
+
+    nav_send(destination=destination, vin=vin)
+
+
+@media_app.command("supercharger")
+def media_supercharger(vin: str | None = VinOption) -> None:
+    """Navigate to nearest Supercharger.
+
+    tesla media supercharger
+    """
+    from tesla_cli.cli.commands.nav import nav_supercharger
+
+    nav_supercharger(vin=vin)
+
+
+@media_app.command("home")
+def media_home(vin: str | None = VinOption) -> None:
+    """Navigate home.
+
+    tesla media home
+    """
+    from tesla_cli.cli.commands.nav import nav_home
+
+    nav_home(vin=vin)
+
+
+@media_app.command("work")
+def media_work(vin: str | None = VinOption) -> None:
+    """Navigate to work.
+
+    tesla media work
+    """
+    from tesla_cli.cli.commands.nav import nav_work
+
+    nav_work(vin=vin)

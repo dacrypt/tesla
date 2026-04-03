@@ -1,10 +1,10 @@
 """tesla setup — Interactive onboarding wizard.
 
-Guides the user from zero to a fully configured CLI with their first dossier built:
+Guides the user from zero to a fully configured CLI with their first data built:
   1. Tesla account auth (OAuth2 + PKCE)
   2. Auto-discover VIN and reservation number from the API
   3. Optionally configure a vehicle control backend (Tessie / Fleet API)
-  4. Build the first dossier (cross all data sources)
+  4. Build the first data build (cross all data sources)
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ def setup_wizard(
     force: bool = typer.Option(
         False, "--force", "-f", help="Re-run all steps even if already configured"
     ),
-    skip_dossier: bool = typer.Option(False, "--skip-dossier", help="Skip the final dossier build"),
+    skip_build: bool = typer.Option(False, "--skip-build", help="Skip the final data build"),
 ) -> None:
-    """Interactive onboarding wizard. Connects your Tesla account and builds your first dossier."""
+    """Interactive onboarding wizard. Connects your Tesla account and builds your first data build."""
     # ── Welcome ────────────────────────────────────────────────────────────────
     console.print()
     console.print(
@@ -36,7 +36,7 @@ def setup_wizard(
             "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
             "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
             "  [dim]3.[/dim] Optionally configure live vehicle control\n"
-            "  [dim]4.[/dim] Build your first dossier from all sources\n\n"
+            "  [dim]4.[/dim] Build your first data build from all sources\n\n"
             "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
             border_style="cyan",
         )
@@ -57,7 +57,7 @@ def setup_wizard(
         answer = Prompt.ask("Re-run setup?", choices=["y", "n"], default="n")
         if answer == "n":
             console.print(
-                "[dim]Nothing changed. Run [bold]tesla dossier show[/bold] to see your dossier.[/dim]"
+                "[dim]Nothing changed. Run [bold]tesla vehicle profile[/bold] to see your dossier.[/dim]"
             )
             raise typer.Exit()
         console.print()
@@ -129,7 +129,7 @@ def setup_wizard(
         )
         if not selected_vin:
             console.print(
-                "  [yellow]VIN not yet assigned by Tesla — will be auto-updated on next dossier build.[/yellow]"
+                "  [yellow]VIN not yet assigned by Tesla — will be auto-updated on next data build.[/yellow]"
             )
     else:
         # Multiple orders — let user pick
@@ -234,11 +234,11 @@ def setup_wizard(
     console.print()
 
     # ── Step 4: Build dossier ───────────────────────────────────────────────────
-    if skip_dossier:
-        console.print("[dim]Skipping dossier build (--skip-dossier).[/dim]")
+    if skip_build:
+        console.print("[dim]Skipping data build (--skip-build).[/dim]")
     else:
         console.print(
-            Panel.fit("[bold]Step 4 / 4[/bold] — Building your dossier", border_style="blue")
+            Panel.fit("[bold]Step 4 / 4[/bold] — Building your vehicle data", border_style="blue")
         )
         console.print("[dim]Pulling from Tesla API, NHTSA, RUNT, ship tracking...[/dim]\n")
 
@@ -261,16 +261,16 @@ def setup_wizard(
             dossier_show()
 
         except AuthenticationError as e:
-            console.print(f"[red]Auth error during dossier build:[/red] {e}")
-            console.print("[dim]Run [bold]tesla dossier build[/bold] after fixing auth.[/dim]")
+            console.print(f"[red]Auth error during data build:[/red] {e}")
+            console.print("[dim]Run [bold]tesla data build[/bold] after fixing auth.[/dim]")
         except TeslaCliError as e:
             console.print(f"[yellow]Dossier partially built:[/yellow] {e}")
             console.print(
-                "[dim]Run [bold]tesla dossier show[/bold] to see what was collected.[/dim]"
+                "[dim]Run [bold]tesla vehicle profile[/bold] to see what was collected.[/dim]"
             )
         except Exception as e:
             console.print(f"[yellow]Dossier build encountered an error:[/yellow] {e}")
-            console.print("[dim]Run [bold]tesla dossier build[/bold] to retry.[/dim]")
+            console.print("[dim]Run [bold]tesla data build[/bold] to retry.[/dim]")
 
     # ── Done ────────────────────────────────────────────────────────────────────
     console.print()
@@ -280,8 +280,8 @@ def setup_wizard(
             "Useful commands:\n"
             "  [bold]tesla order status[/bold]       — check your order\n"
             "  [bold]tesla order watch -i 5[/bold]   — monitor for changes every 5 min\n"
-            "  [bold]tesla dossier show[/bold]        — view your full dossier\n"
-            "  [bold]tesla dossier build[/bold]       — refresh all data sources\n"
+            "  [bold]tesla vehicle profile[/bold]        — view your full dossier\n"
+            "  [bold]tesla data build[/bold]       — refresh all data sources\n"
             "  [bold]tesla config show[/bold]         — see current configuration",
             border_style="green",
         )

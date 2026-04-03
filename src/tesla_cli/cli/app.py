@@ -62,40 +62,31 @@ def main() -> None:
         raise typer.Exit(1)
 
 
-# Lazy-register order and vehicle commands to avoid import cost at startup
+# Lazy-register command groups to avoid import cost at startup
 def _register_commands() -> None:
+    # Core vehicle commands
     from tesla_cli.cli.commands.charge import charge_app
     from tesla_cli.cli.commands.climate import climate_app
-    from tesla_cli.cli.commands.dashboard import dashboard_app
-    from tesla_cli.cli.commands.dossier import dossier_app
     from tesla_cli.cli.commands.media import media_app
-    from tesla_cli.cli.commands.nav import nav_app
     from tesla_cli.cli.commands.notify import notify_app
     from tesla_cli.cli.commands.order import order_app
-    from tesla_cli.cli.commands.query_cmd import query_app
-    from tesla_cli.cli.commands.runt_cmd import runt_app
     from tesla_cli.cli.commands.security import security_app
-    from tesla_cli.cli.commands.sharing import sharing_app
-    from tesla_cli.cli.commands.simit_cmd import simit_app
-    from tesla_cli.cli.commands.stream import stream_app
     from tesla_cli.cli.commands.vehicle import vehicle_app
 
     app.add_typer(order_app, name="order")
     app.add_typer(vehicle_app, name="vehicle")
-    app.add_typer(stream_app, name="stream")
-    app.add_typer(dossier_app, name="dossier")
     app.add_typer(charge_app, name="charge")
     app.add_typer(climate_app, name="climate")
     app.add_typer(security_app, name="security")
     app.add_typer(media_app, name="media")
-    app.add_typer(nav_app, name="nav")
-    app.add_typer(sharing_app, name="sharing")
-    app.add_typer(dashboard_app, name="dashboard")
     app.add_typer(notify_app, name="notify")
-    app.add_typer(runt_app, name="runt")
-    app.add_typer(simit_app, name="simit")
-    app.add_typer(query_app, name="query")
 
+    # Data sources & exports
+    from tesla_cli.cli.commands.data_cmd import data_app
+
+    app.add_typer(data_app, name="data")
+
+    # Integrations
     from tesla_cli.cli.commands.abrp import abrp_app
     from tesla_cli.cli.commands.ble import ble_app
     from tesla_cli.cli.commands.geofence import geofence_app
