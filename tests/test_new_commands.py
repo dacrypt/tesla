@@ -7917,7 +7917,8 @@ class TestVehicleExport:
         assert result.exit_code == 0
         assert "Exported" in result.output
 
-        data = json.loads(open(out).read())
+        with open(out) as _fh:
+            data = json.loads(_fh.read())
         assert data["charge_state"]["battery_level"] == 72
 
     @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
@@ -7981,7 +7982,6 @@ class TestChargeSessionMerge:
     @patch("tesla_cli.cli.commands.charge.load_config")
     @patch("tesla_cli.cli.commands.charge.get_vehicle_backend")
     def test_merge_both_sources(self, mock_bk, mock_cfg):
-        from tesla_cli.core.models.charge import ChargingSession
 
         cfg = MagicMock()
         cfg.general.cost_per_kwh = 0.22
@@ -8257,3 +8257,37 @@ class TestChargeStatusOneline:
             result = _run("charge", "status", "--oneline")
         assert result.exit_code == 0
         assert "Stopped" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Watch --on-change-exec + Geofence API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleWatchExec:
+    """Test --on-change-exec flag exists on vehicle watch."""
+
+    def test_watch_has_on_change_exec_flag(self):
+        result = _run("vehicle", "watch", "--help")
+        assert result.exit_code == 0
+        assert "--on-change-exec" in result.output
+
+
+class TestGeofenceApi:
+    """Verify geofence API routes exist."""
+
+    def test_geofence_routes_defined(self):
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/routes/geofence.py").read_text()
+        assert "geofence_list" in src
+        assert "geofence_status" in src
+        assert "geofence_add" in src
+        assert "geofence_remove" in src
+
+    def test_geofence_routes_registered(self):
+        from pathlib import Path
+
+        app_src = Path("src/tesla_cli/api/app.py").read_text()
+        assert "geofence_router" in app_src
+        assert "/api/geofences" in app_src

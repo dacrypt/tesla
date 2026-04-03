@@ -170,6 +170,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dossier import router as dossier_router
+    from tesla_cli.api.routes.geofence import router as geofence_router
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.security import router as security_router
@@ -187,6 +188,7 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     app.include_router(order_router, prefix="/api/order", tags=["Order"])
     app.include_router(dossier_router, prefix="/api/dossier", tags=["Dossier"])
     app.include_router(notify_router, prefix="/api/notify", tags=["Notify"])
+    app.include_router(geofence_router, prefix="/api/geofences", tags=["Geofences"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
 
     # ── System endpoints ──────────────────────────────────────────────────────
@@ -254,14 +256,6 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             all_p = [p.name for p in registry.for_capability(cap, available_only=False)]
             out[cap] = {"available": available, "all": all_p}
         return out
-
-    # ── Geofences endpoint ────────────────────────────────────────────────────
-
-    @app.get("/api/geofences", tags=["Geofences"])
-    def api_geofences() -> list:
-        """Return all configured geofence zones."""
-        cfg = load_config()
-        return [{"name": name, **zone} for name, zone in cfg.geofences.zones.items()]
 
     # ── Prometheus metrics endpoint ──────────────────────────────────────────
 
