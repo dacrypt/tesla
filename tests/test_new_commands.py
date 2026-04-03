@@ -7726,3 +7726,52 @@ class TestConfigValidation:
 
         with pytest.raises(ValidationError):
             TeslamateConfig(car_id=0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CSV Export
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeCsvExport:
+    """Tests for --csv flag on charge commands."""
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_sessions_csv_export(self, mock_fetch, mock_cfg, tmp_path):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        mock_cfg.return_value = MagicMock(general=MagicMock(cost_per_kwh=0.22))
+        sessions = [
+            ChargingSession(date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"),
+            ChargingSession(date="2026-03-20", location="SC", kwh=20.0, cost=8.00, source="teslamate"),
+        ]
+        mock_fetch.return_value = (sessions, "TeslaMate")
+
+        csv_path = str(tmp_path / "charges.csv")
+        result = _run("charge", "sessions", "--csv", csv_path)
+        assert result.exit_code == 0
+        assert "Exported 2 sessions" in result.output
+
+        import csv
+        with open(csv_path) as f:
+            reader = list(csv.DictReader(f))
+        assert len(reader) == 2
+        assert reader[0]["kwh"] == "30.0"
+        assert reader[0]["location"] == "Home"
+
+    @patch("tesla_cli.cli.commands.charge.load_config")
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_cost_summary_csv_export(self, mock_fetch, mock_cfg, tmp_path):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        mock_cfg.return_value = MagicMock(general=MagicMock(cost_per_kwh=0.22))
+        sessions = [
+            ChargingSession(date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"),
+        ]
+        mock_fetch.return_value = (sessions, "TeslaMate")
+
+        csv_path = str(tmp_path / "costs.csv")
+        result = _run("charge", "cost-summary", "--csv", csv_path)
+        assert result.exit_code == 0
+        assert "Exported" in result.output
