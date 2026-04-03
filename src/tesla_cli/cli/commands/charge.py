@@ -643,6 +643,7 @@ def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
 @charge_app.command("sessions")
 def charge_sessions(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions"),
+    csv_out: str | None = typer.Option(None, "--csv", help="Export to CSV file"),
     vin: str | None = VinOption,  # noqa: ARG001
 ) -> None:
     """Unified charging sessions from all available sources.
@@ -666,6 +667,17 @@ def charge_sessions(
             "or use Fleet API backend for charging data.[/dim]"
         )
         raise typer.Exit(1)
+
+    if csv_out:
+        import csv as _csv
+
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            rows = [s.model_dump() for s in sessions]
+            writer = _csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        console.print(f"[green]Exported {len(sessions)} sessions to {csv_out}[/green]")
+        return
 
     if is_json_mode():
         console.print_json(json.dumps([s.model_dump() for s in sessions]))
@@ -714,6 +726,7 @@ def charge_sessions(
 
 @charge_app.command("cost-summary")
 def charge_cost_summary(
+    csv_out: str | None = typer.Option(None, "--csv", help="Export to CSV file"),
     vin: str | None = VinOption,  # noqa: ARG001
 ) -> None:
     """Show charging cost summary across all sources.
@@ -741,6 +754,17 @@ def charge_cost_summary(
     actual_cost_sessions = [s for s in sessions_with_cost if not s.cost_estimated]
     estimated_sessions = [s for s in sessions_with_cost if s.cost_estimated]
     avg_cost_per_kwh = total_cost / total_kwh if total_kwh > 0 else 0
+
+    if csv_out:
+        import csv as _csv
+
+        with open(csv_out, "w", newline="", encoding="utf-8") as fh:
+            rows = [s.model_dump() for s in sessions]
+            writer = _csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        console.print(f"[green]Exported {len(sessions)} sessions to {csv_out}[/green]")
+        return
 
     if is_json_mode():
         console.print_json(

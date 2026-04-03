@@ -78,6 +78,17 @@ export interface VehicleState {
   software_update?: { status: string; version: string };
 }
 
+export interface ChargingSession {
+  date: string;
+  location: string;
+  kwh: number;
+  cost: number | null;
+  cost_estimated: boolean;
+  battery_start: number | null;
+  battery_end: number | null;
+  source: string;
+}
+
 export interface ChargeState {
   battery_level?: number;
   battery_range?: number;
@@ -494,6 +505,10 @@ export const api = {
   // Charge
   getChargeState: () => client().get<ChargeState>('/api/charge/status').then(r => r.data),
   getChargeVehicle: () => client().get<ChargeState>('/api/vehicle/charge').then(r => r.data),
+  getChargeSessions: (limit = 10) =>
+    client().get<ChargingSession[]>(`/api/charge/sessions?limit=${limit}`).then(r => r.data),
+  getVehicleSummary: () =>
+    client().get<any>('/api/vehicle/summary').then(r => r.data),
   setChargeLimit: (percent: number) => client().post<CommandResult>('/api/charge/limit', { percent }).then(r => r.data),
   setChargingAmps: (amps: number) => client().post<CommandResult>('/api/charge/amps', { amps }).then(r => r.data),
   startCharge: () => client().post<CommandResult>('/api/charge/start').then(r => r.data),

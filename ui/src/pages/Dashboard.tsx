@@ -11,6 +11,7 @@ import {
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
+import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
@@ -605,6 +606,9 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* ---- Recent Charges ---- */}
+            <RecentCharges />
 
             {/* ---- Last updated ---- */}
             {lastUpdated && (
