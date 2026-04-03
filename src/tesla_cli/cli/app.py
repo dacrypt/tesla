@@ -11,7 +11,7 @@ from tesla_cli.core.exceptions import TeslaCliError
 
 app = typer.Typer(
     name="tesla",
-    help="Tesla CLI - Order tracking and vehicle control.",
+    help="Tesla CLI — track orders, control your vehicle, and analyze charging from the terminal.",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
