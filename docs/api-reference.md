@@ -88,6 +88,16 @@ GET /api/charge/state?vin=modely           # aliases work too
 |--------|----------|-------------|
 | GET | `/api/order/status` | Order status |
 
+### Dossier
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dossier` | Cached dossier (fast, from disk) |
+| GET | `/api/dossier/refresh` | Rebuild dossier from all sources (slow, 30-60s) |
+| GET | `/api/dossier/sources` | List all 15 data sources with cache status |
+| GET | `/api/dossier/runt` | Live RUNT query (Colombia vehicle registry) |
+| GET | `/api/dossier/simit` | Live SIMIT query (Colombia traffic fines) |
+
 ### TeslaMate
 
 | Method | Endpoint | Description |
