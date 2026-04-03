@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.2] - 2026-04-03
+
+### Polish
+
+- **i18n**: add 3 missing Spanish setup translations, update `--lang` help to show all 6 languages
+- **Homebrew formula**: update from v1.0.0 → v4.4.2
+- **CI pipeline**: install all extras in test job (was only installing `dev`, silently skipping ~400 tests)
+- **i18n completeness test**: verify all 6 languages have the same translation keys
+- 1212 tests passing
+
 ## [4.4.1] - 2026-04-03
 
 ### Test Quality
