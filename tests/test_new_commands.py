@@ -3938,18 +3938,22 @@ class TestDossierExportPdf:
         assert "export-pdf" in result.output
 
     def test_export_pdf_no_snapshot_still_works(self):
-        """Even without snapshots, PDF is created (empty sections)."""
+        """Even without snapshots, export-pdf should exit 0 or 1 gracefully."""
         pytest.importorskip("fpdf")
         fake_dir = Path("/nonexistent_snap_dir_xyz")
         with tempfile.TemporaryDirectory() as td:
             out_path = Path(td) / "empty.pdf"
-            with patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", fake_dir):
-                cfg = MagicMock()
-                cfg.general.default_vin = MOCK_VIN
-                with patch("tesla_cli.cli.commands.dossier.load_config", return_value=cfg):
-                    result = _run("data", "export-pdf", "--output", str(out_path))
+            cfg = MagicMock()
+            cfg.general.default_vin = MOCK_VIN
+            with (
+                patch("tesla_cli.core.backends.dossier.SNAPSHOTS_DIR", fake_dir),
+                patch("tesla_cli.core.config.load_config", return_value=cfg),
+            ):
+                result = _run("data", "export-pdf", "--output", str(out_path))
+        # Accept either success (PDF created) or graceful failure (no data)
+        assert result.exit_code in (0, 1), f"Unexpected exit code: {result.exit_code}\n{result.output}"
         if result.exit_code == 0:
-            assert out_path.exists()
+            assert out_path.exists(), "PDF not created despite exit code 0"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

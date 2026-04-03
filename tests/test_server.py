@@ -95,6 +95,14 @@ def srv():
         ("tesla_cli.api.routes.climate.load_config", cfg),
         ("tesla_cli.api.routes.climate.get_vehicle_backend", backend),
         ("tesla_cli.api.routes.climate.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.security.load_config", cfg),
+        ("tesla_cli.api.routes.security.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.security.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.notify.load_config", cfg),
+        ("tesla_cli.api.routes.notify.save_config", MagicMock()),
+        ("tesla_cli.api.routes.geofence.load_config", cfg),
+        ("tesla_cli.api.routes.geofence.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.geofence.resolve_vin", MOCK_VIN),
         ("tesla_cli.api.app.load_config", cfg),
         ("tesla_cli.api.app.resolve_vin", MOCK_VIN),
     ]
@@ -129,6 +137,7 @@ def srv_asleep():
     backend.get_charge_state.side_effect = VehicleAsleepError("asleep")
     backend.get_climate_state.side_effect = VehicleAsleepError("asleep")
     backend.get_drive_state.side_effect = VehicleAsleepError("asleep")
+    backend.command.side_effect = VehicleAsleepError("asleep")
     app = create_app(vin=None)
 
     targets = [
@@ -138,6 +147,9 @@ def srv_asleep():
         ("tesla_cli.api.routes.charge.load_config", cfg),
         ("tesla_cli.api.routes.charge.get_vehicle_backend", backend),
         ("tesla_cli.api.routes.charge.resolve_vin", MOCK_VIN),
+        ("tesla_cli.api.routes.security.load_config", cfg),
+        ("tesla_cli.api.routes.security.get_vehicle_backend", backend),
+        ("tesla_cli.api.routes.security.resolve_vin", MOCK_VIN),
         ("tesla_cli.api.app.load_config", cfg),
     ]
     patches = [patch(t, return_value=rv) for t, rv in targets]
@@ -378,3 +390,188 @@ class TestClimateRoutes:
         client, _, _ = srv
         r = client.post("/api/climate/temp", json={"driver_temp": 35.0})
         assert r.status_code == 422
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security API Routes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSecurityRoutes:
+    def test_lock(self, srv):
+        client, backend, _ = srv
+        r = client.post("/api/security/lock")
+        assert r.status_code == 200
+        assert r.json()["action"] == "locked"
+        backend.command.assert_called_with(MOCK_VIN, "door_lock")
+
+    def test_unlock(self, srv):
+        client, backend, _ = srv
+        r = client.post("/api/security/unlock")
+        assert r.status_code == 200
+        assert r.json()["action"] == "unlocked"
+
+    def test_sentry_status(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/security/sentry")
+        assert r.status_code == 200
+        data = r.json()
+        assert "sentry_mode" in data
+
+    def test_sentry_on(self, srv):
+        client, backend, _ = srv
+        r = client.post("/api/security/sentry/on")
+        assert r.status_code == 200
+        assert r.json()["sentry_mode"] is True
+
+    def test_sentry_off(self, srv):
+        client, _, _ = srv
+        r = client.post("/api/security/sentry/off")
+        assert r.status_code == 200
+        assert r.json()["sentry_mode"] is False
+
+    def test_frunk(self, srv):
+        client, backend, _ = srv
+        r = client.post("/api/security/trunk/front")
+        assert r.status_code == 200
+        backend.command.assert_called_with(MOCK_VIN, "actuate_trunk", which_trunk="front")
+
+    def test_trunk(self, srv):
+        client, _, _ = srv
+        r = client.post("/api/security/trunk/rear")
+        assert r.status_code == 200
+
+    def test_horn(self, srv):
+        client, backend, _ = srv
+        r = client.post("/api/security/horn")
+        assert r.status_code == 200
+        backend.command.assert_called_with(MOCK_VIN, "honk_horn")
+
+    def test_flash(self, srv):
+        client, _, _ = srv
+        r = client.post("/api/security/flash")
+        assert r.status_code == 200
+
+    def test_lock_asleep_returns_503(self, srv_asleep):
+        client, _ = srv_asleep
+        r = client.post("/api/security/lock")
+        assert r.status_code == 503
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Notify API Routes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestNotifyRoutes:
+    def test_notify_list_empty(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = []
+        cfg.notifications.enabled = False
+        cfg.notifications.message_template = "{event}"
+        r = client.get("/api/notify/list")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["channels"] == []
+
+    def test_notify_list_with_channels(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = ["tgram://tok/chat"]
+        cfg.notifications.enabled = True
+        cfg.notifications.message_template = "{event}"
+        r = client.get("/api/notify/list")
+        assert r.status_code == 200
+        assert len(r.json()["channels"]) == 1
+
+    def test_notify_test_no_urls_returns_404(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = []
+        r = client.post("/api/notify/test")
+        assert r.status_code == 404
+
+    def test_notify_add(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = []
+        r = client.post("/api/notify/add", json={"url": "ntfy://test"})
+        assert r.status_code == 200
+        assert r.json()["channels"] == 1
+
+    def test_notify_add_duplicate_returns_409(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = ["ntfy://test"]
+        r = client.post("/api/notify/add", json={"url": "ntfy://test"})
+        assert r.status_code == 409
+
+    def test_notify_remove(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = ["ntfy://a", "ntfy://b"]
+        r = client.post("/api/notify/remove", json={"index": 0})
+        assert r.status_code == 200
+        assert r.json()["removed"] == "ntfy://a"
+
+    def test_notify_remove_invalid_index(self, srv):
+        client, _, cfg = srv
+        cfg.notifications.apprise_urls = []
+        r = client.post("/api/notify/remove", json={"index": 5})
+        assert r.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Geofence API Routes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGeofenceRoutes:
+    def test_geofence_list_empty(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {}
+        r = client.get("/api/geofences")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_geofence_list_with_zones(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {"home": {"lat": 4.7, "lon": -74.0, "radius_km": 0.2}}
+        r = client.get("/api/geofences")
+        assert r.status_code == 200
+        zones = r.json()
+        assert len(zones) == 1
+        assert zones[0]["name"] == "home"
+        assert "distance_km" in zones[0]  # vehicle location resolved
+        assert "inside" in zones[0]
+
+    def test_geofence_status_known_zone(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {"office": {"lat": 37.4, "lon": -122.0, "radius_km": 1.0}}
+        r = client.get("/api/geofences/office")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["zone"] == "office"
+        assert "distance_km" in data
+        assert "inside" in data
+
+    def test_geofence_status_unknown_zone(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {}
+        r = client.get("/api/geofences/nowhere")
+        assert r.status_code == 404
+
+    def test_geofence_add(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {}
+        r = client.post("/api/geofences/park", json={"lat": 40.7, "lon": -74.0, "radius_km": 0.5})
+        assert r.status_code == 200
+        assert r.json()["zone"] == "park"
+
+    def test_geofence_remove(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {"old": {"lat": 0, "lon": 0, "radius_km": 1}}
+        r = client.delete("/api/geofences/old")
+        assert r.status_code == 200
+        assert r.json()["removed"] == "old"
+
+    def test_geofence_remove_not_found(self, srv):
+        client, _, cfg = srv
+        cfg.geofences.zones = {}
+        r = client.delete("/api/geofences/ghost")
+        assert r.status_code == 404
