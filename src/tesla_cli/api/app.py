@@ -170,7 +170,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dossier import router as dossier_router
+    from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
+    from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
@@ -181,8 +183,10 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     app.include_router(vehicle_router, prefix="/api/vehicle", tags=["Vehicle"])
     app.include_router(charge_router, prefix="/api/charge", tags=["Charge"])
     app.include_router(climate_router, prefix="/api/climate", tags=["Climate"])
+    app.include_router(security_router, prefix="/api/security", tags=["Security"])
     app.include_router(order_router, prefix="/api/order", tags=["Order"])
     app.include_router(dossier_router, prefix="/api/dossier", tags=["Dossier"])
+    app.include_router(notify_router, prefix="/api/notify", tags=["Notify"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
 
     # ── System endpoints ──────────────────────────────────────────────────────

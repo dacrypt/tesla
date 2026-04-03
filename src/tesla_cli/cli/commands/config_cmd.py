@@ -525,6 +525,48 @@ def config_doctor() -> None:
     except Exception:
         _check("Config file", "ok", "Config loaded successfully")
 
+    # ── 8. MQTT broker ───────────────────────────────────────────────────────
+    mqtt_broker = cfg.mqtt.broker or ""
+    if not mqtt_broker:
+        _check("MQTT broker", "warn", "Not configured (optional)", "Run: tesla mqtt setup")
+    else:
+        try:
+            import socket
+
+            sock = socket.create_connection((mqtt_broker, cfg.mqtt.port), timeout=5)
+            sock.close()
+            _check("MQTT broker", "ok", f"Reachable: {mqtt_broker}:{cfg.mqtt.port}")
+        except Exception as exc:
+            _check(
+                "MQTT broker",
+                "fail",
+                f"Unreachable: {mqtt_broker}:{cfg.mqtt.port} — {str(exc)[:40]}",
+                "Check broker address and port",
+            )
+
+    # ── 9. Notifications ────────────────────────────────────────────────────
+    notify_urls = cfg.notifications.apprise_urls
+    if not notify_urls:
+        _check("Notifications", "warn", "No channels configured (optional)", "Run: tesla notify add <url>")
+    else:
+        _check("Notifications", "ok", f"{len(notify_urls)} channel(s) configured")
+
+    # ── 10. Home Assistant ──────────────────────────────────────────────────
+    ha_url = cfg.home_assistant.url or ""
+    if not ha_url:
+        _check("Home Assistant", "warn", "Not configured (optional)", "Run: tesla ha setup")
+    else:
+        try:
+            import httpx
+
+            r = httpx.get(f"{ha_url}/api/", timeout=5)
+            if r.status_code < 500:
+                _check("Home Assistant", "ok", f"Reachable: {ha_url}")
+            else:
+                _check("Home Assistant", "fail", f"Error {r.status_code}", "Check HA URL")
+        except Exception as exc:
+            _check("Home Assistant", "fail", f"Unreachable: {str(exc)[:40]}", "Check HA URL")
+
     # ── Output ───────────────────────────────────────────────────────────────
     if is_json_mode():
         console.print_json(
