@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-04-03
+
+### Daily Companion Commands
+
+- **`tesla vehicle ready`** — morning check-in: "Am I ready to drive?"
+  - Assesses battery level, charge status, cabin temperature, lock/sentry state, pending updates
+  - Outputs ✅ Ready / ⚠️ Issues with checklist of good/bad items
+  - `--oneline`: `✅ Ready | 🔋 82% | 🌡 22°C`
+  - `--json`: structured readiness assessment with `ready: true/false`
+- **`tesla charge last`** — show the most recent charging session with cost
+  - Date, location, kWh, cost (actual or estimated), battery range
+  - JSON mode for scripting
+
+### Tests
+
+- 1219 tests passing (+7 new)
+
 ## [4.4.2] - 2026-04-03
 
 ### Polish

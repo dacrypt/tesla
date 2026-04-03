@@ -903,3 +903,42 @@ def charge_cost_summary(
             "\n  [dim]Tip: Set cost_per_kwh for estimates:[/dim] "
             "`tesla config set cost-per-kwh 0.22`"
         )
+
+
+@charge_app.command("last")
+def charge_last(
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Show the most recent charging session with cost details.
+
+    tesla charge last
+    tesla -j charge last
+    """
+    import json as _json
+
+    sessions, source = _fetch_sessions(limit=1)
+
+    if not sessions:
+        console.print("[yellow]No charging sessions found.[/yellow]")
+        raise typer.Exit(1)
+
+    s = sessions[0]
+
+    if is_json_mode():
+        console.print_json(_json.dumps(s.model_dump()))
+        return
+
+    console.print()
+    console.print(f"  [bold]Last Charge[/bold] [dim]({source})[/dim]")
+    console.print()
+    console.print(f"  [cyan]Date[/cyan]      {s.date}")
+    console.print(f"  [cyan]Location[/cyan]  {s.location or '—'}")
+    console.print(f"  [cyan]Energy[/cyan]    [bold green]{s.kwh:.1f} kWh[/bold green]")
+
+    if s.cost is not None:
+        est = " [dim](estimated)[/dim]" if s.cost_estimated else ""
+        console.print(f"  [cyan]Cost[/cyan]      [bold]${s.cost:.2f}[/bold]{est}")
+
+    if s.battery_start is not None and s.battery_end is not None:
+        console.print(f"  [cyan]Battery[/cyan]   {s.battery_start}% → {s.battery_end}%")
+    console.print()

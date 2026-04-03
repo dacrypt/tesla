@@ -8331,3 +8331,127 @@ class TestI18nCompleteness:
         assert "setup.welcome" in es
         assert "setup.done" in es
         assert "setup.skip" in es
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Ready + Charge Last
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleReady:
+    """Tests for tesla vehicle ready."""
+
+    MOCK_DATA = {
+        "charge_state": {
+            "battery_level": 82, "battery_range": 200.0, "charging_state": "Complete",
+            "charge_limit_soc": 80, "time_to_full_charge": 0,
+        },
+        "climate_state": {
+            "inside_temp": 22.0, "outside_temp": 18.0,
+            "is_climate_on": False, "is_preconditioning": False,
+        },
+        "vehicle_state": {
+            "locked": True, "sentry_mode": True, "car_version": "2026.8.7",
+            "software_update": {"status": ""},
+        },
+    }
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_ready_all_good(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "ready")
+        assert result.exit_code == 0
+        assert "Ready to drive" in result.output or "Ready" in result.output
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_ready_low_battery(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        data = dict(self.MOCK_DATA)
+        data["charge_state"] = {**data["charge_state"], "battery_level": 10, "battery_range": 25.0}
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = data
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "ready")
+        assert result.exit_code == 0
+        assert "Low battery" in result.output or "issue" in result.output
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_ready_json(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("--json", "vehicle", "ready")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["ready"] is True
+        assert data["battery_level"] == 82
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_ready_oneline(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "ready", "--oneline")
+        assert result.exit_code == 0
+        assert "82%" in result.output
+        assert result.output.strip().count("\n") == 0
+
+
+class TestChargeLast:
+    """Tests for tesla charge last."""
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_last_shows_session(self, mock_fetch):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        session = ChargingSession(
+            date="2026-04-02 14:30", location="Home", kwh=25.5,
+            cost=5.61, cost_estimated=False, battery_start=40, battery_end=80,
+            source="teslamate",
+        )
+        mock_fetch.return_value = ([session], "TeslaMate")
+
+        result = _run("charge", "last")
+        assert result.exit_code == 0
+        assert "25.5 kWh" in result.output
+        assert "$5.61" in result.output
+        assert "Home" in result.output
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_last_json(self, mock_fetch):
+        from tesla_cli.core.models.charge import ChargingSession
+
+        session = ChargingSession(
+            date="2026-04-02", location="SC", kwh=30.0,
+            cost=12.00, source="fleet",
+        )
+        mock_fetch.return_value = ([session], "Fleet API")
+
+        result = _run("--json", "charge", "last")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["kwh"] == 30.0
+
+    @patch("tesla_cli.cli.commands.charge._fetch_sessions")
+    def test_last_no_sessions(self, mock_fetch):
+        mock_fetch.return_value = ([], "")
+
+        result = _run("charge", "last")
+        assert result.exit_code == 1
