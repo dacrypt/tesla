@@ -207,6 +207,7 @@ tesla dossier estimate                 # community delivery date estimation
 tesla dossier battery-health           # degradation from snapshot history
 tesla dossier clean                    # prune old snapshots
 
+tesla dossier sources                  # show all 15 data sources + cache status
 tesla dossier export-html              # dark theme (default)
 tesla dossier export-html --theme light
 tesla dossier export-pdf               # requires pdf extra

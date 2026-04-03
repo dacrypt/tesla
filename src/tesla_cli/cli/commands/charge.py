@@ -613,10 +613,10 @@ def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
 
     # Try TeslaMate first (richer data: per-session costs, battery levels)
     try:
-        if cfg.teslaMate.dsn:
+        if cfg.teslaMate.database_url:
             from tesla_cli.core.backends.teslaMate import TeslaMateBacked
 
-            tm = TeslaMateBacked(cfg.teslaMate.dsn)
+            tm = TeslaMateBacked(cfg.teslaMate.database_url)
             rows = tm.get_charging_sessions(limit=limit)
             sessions = [ChargingSession.from_teslamate(r, cost_per_kwh) for r in rows]
             source_used = "TeslaMate"
