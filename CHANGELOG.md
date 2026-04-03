@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.4] - 2026-04-02
+
+### Bug Fixes
+
+- **Fix `_fetch_sessions()` TeslaMate lookup** — `cfg.teslaMate.dsn` → `cfg.teslaMate.database_url` (property didn't exist, silently skipped TeslaMate data)
+
+### New Commands
+
+- **`tesla dossier sources`** — show all 15 registered data sources with cache status (fresh/stale/empty/error), TTL, category, last refresh. JSON mode support.
+
+### New API Endpoints
+
+- **`GET /api/dossier/sources`** — list data sources with cache freshness (also documented existing dossier endpoints)
+
+### Tests
+
+- 1151 tests passing (+3 new for dossier sources)
+
 ## [4.0.3] - 2026-04-02
 
 ### Improvements

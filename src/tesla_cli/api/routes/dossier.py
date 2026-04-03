@@ -127,3 +127,14 @@ def dossier_simit() -> dict:
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/sources")
+def dossier_sources() -> list[dict]:
+    """List all registered data sources with cache status.
+
+    Returns source ID, name, category, TTL, freshness, and last refresh timestamp.
+    """
+    from tesla_cli.core.sources import list_sources
+
+    return list_sources()
