@@ -19,10 +19,38 @@ def _vin(vin: str | None) -> str:
 
 
 @climate_app.command("status")
-def climate_status(vin: str | None = VinOption) -> None:
-    """Show climate state."""
+def climate_status(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show climate state.
+
+    tesla climate status
+    tesla climate status --oneline    # 🌡 22°C in / 18°C out | HVAC off
+    tesla -j climate status
+    """
+    import json as _json
+
     v = _vin(vin)
     data = _with_wake(lambda b, v: b.get_climate_state(v), v)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, default=str))
+        return
+
+    if oneline:
+        inside = data.get("inside_temp")
+        outside = data.get("outside_temp")
+        hvac = data.get("is_climate_on", False)
+        parts = []
+        if inside is not None:
+            parts.append(f"\U0001f321 {inside}\u00b0C in")
+        if outside is not None:
+            parts.append(f"{outside}\u00b0C out")
+        parts.append("HVAC on" if hvac else "HVAC off")
+        typer.echo(" | ".join(parts))
+        return
+
     state = ClimateState.model_validate(data)
     render_model(state, title="Climate State")
 
