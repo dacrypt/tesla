@@ -66,15 +66,18 @@ tesla vehicle alerts             # recent fault codes
 
 ## Pre-delivery Fallback
 
-If vehicle commands fail with `EndpointDeprecatedError` (HTTP 412), `ConfigurationError`, or `AuthenticationError`, the car may not be delivered yet. Fall back to order data:
+If vehicle commands fail with `EndpointDeprecatedError` (HTTP 412), `ConfigurationError`, or `AuthenticationError`, the car may not be delivered yet. Fall back to order + RUNT data:
 
 ```bash
 tesla order status --oneline    # quick order status
 tesla order status              # full order details
 tesla order delivery            # delivery appointment
+tesla data runt --vin           # RUNT registry: placa, estado, gravámenes, SOAT
 ```
 
-Do NOT attempt to fix the error by changing config or backends. Instead explain that live vehicle data is not available until after delivery and show the order status.
+Always run `tesla data runt --vin` as part of the pre-delivery status — it shows plate assignment, registration state, liens (prendas), and SOAT status. This uses openquery which handles CAPTCHA automatically.
+
+Do NOT attempt to fix the error by changing config or backends. Instead explain that live vehicle data is not available until after delivery and show the order + RUNT status.
 
 ## Response Guidelines
 
