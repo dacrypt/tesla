@@ -335,13 +335,15 @@ def vehicle_trunk(
 @vehicle_app.command("sentry")
 def vehicle_sentry(
     enable: bool | None = typer.Option(None, "--on/--off", help="Turn Sentry Mode on or off"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
     vin: str | None = VinOption,
 ) -> None:
     """Show or toggle Sentry Mode.
 
-    tesla vehicle sentry          → show current sentry mode status
-    tesla vehicle sentry --on     → enable Sentry Mode
-    tesla vehicle sentry --off    → disable Sentry Mode
+    tesla vehicle sentry              → show status
+    tesla vehicle sentry --oneline    → 🛡 Sentry ON
+    tesla vehicle sentry --on         → enable
+    tesla vehicle sentry --off        → disable
     """
     v = _vin(vin)
 
@@ -352,6 +354,11 @@ def vehicle_sentry(
         available = data.get("sentry_mode_available", True)
         status = "ON" if sentry_on else "OFF"
         status_color = "green" if sentry_on else "dim"
+
+        if oneline:
+            icon = "\U0001f6e1"
+            typer.echo(f"{icon} Sentry {status}")
+            return
 
         if is_json_mode():
             import json

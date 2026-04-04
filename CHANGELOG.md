@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.2] - 2026-04-03
+
+### Output Consistency
+
+- **`tesla climate status --oneline`** — `🌡 22°C in | 18°C out | HVAC off`
+- **`tesla climate status --json`** — raw JSON (was missing)
+- **`tesla vehicle sentry --oneline`** — `🛡 Sentry ON`
+- **`GET /api/vehicle/last-seen`** — vehicle online/asleep + last contact time
+- Security error messages: consistent `[red]...[/red]` across all commands
+- React: `getVehicleLastSeen()` client method
+- 1237 tests passing
+
 ## [4.6.1] - 2026-04-03
 
 ### New Commands
