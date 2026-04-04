@@ -37,6 +37,7 @@ teslaMate = ["psycopg2-binary>=2.9"]
 pdf = ["fpdf2>=2.7"]
 serve = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 query = ["openquery"]
+ocr = ["paddlepaddle>=3.0", "paddleocr>=3.0", "easyocr>=1.7"]
 dev = ["pytest>=8", "pytest-httpx>=0.35", "ruff>=0.9"]
 
 [project.scripts]
