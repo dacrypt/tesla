@@ -1007,3 +1007,50 @@ def _auth_fleet() -> None:
                 console.print("  [green]Tokens synced to TeslaMate automatically.[/green]")
         except Exception:
             pass  # Non-critical
+
+
+@config_app.command("export-env")
+def config_export_env(
+    output: str | None = typer.Option(None, "--output", "-o", help="Write to file (default: stdout)"),
+    docker: bool = typer.Option(False, "--docker", help="Docker Compose format (with quotes)"),
+) -> None:
+    """Export configuration as environment variables.
+
+    Useful for Docker, systemd, or shell scripts.
+
+    tesla config export-env                    # stdout
+    tesla config export-env -o .env            # write to file
+    tesla config export-env --docker -o .env   # Docker format
+    """
+    cfg = load_config()
+
+    lines = [
+        f"TESLA_VIN={cfg.general.default_vin}",
+        f"TESLA_BACKEND={cfg.general.backend}",
+        f"TESLA_RN={cfg.order.reservation_number}",
+        f"TESLA_COST_PER_KWH={cfg.general.cost_per_kwh}",
+    ]
+
+    if cfg.teslaMate.database_url:
+        lines.append(f"TESLA_TESLAMATE_URL={cfg.teslaMate.database_url}")
+    if cfg.mqtt.broker:
+        lines.append(f"TESLA_MQTT_BROKER={cfg.mqtt.broker}")
+        lines.append(f"TESLA_MQTT_PORT={cfg.mqtt.port}")
+    if cfg.server.api_key:
+        lines.append(f"TESLA_API_KEY={cfg.server.api_key}")
+    if cfg.home_assistant.url:
+        lines.append(f"TESLA_HA_URL={cfg.home_assistant.url}")
+
+    if docker:
+        lines = [f'      {line.split("=", 1)[0]}: "{line.split("=", 1)[1]}"' for line in lines]
+        text = "    environment:\n" + "\n".join(lines)
+    else:
+        text = "\n".join(lines)
+
+    if output:
+        from pathlib import Path
+
+        Path(output).write_text(text + "\n", encoding="utf-8")
+        console.print(f"[green]Exported to {output}[/green]")
+    else:
+        console.print(text)
