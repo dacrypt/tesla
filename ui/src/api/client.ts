@@ -76,6 +76,8 @@ export interface VehicleState {
   climate_keeper_mode?: string;
   media_state?: { remote_control_enabled: boolean };
   software_update?: { status: string; version: string };
+  car_version?: string;
+  odometer?: number;
 }
 
 export interface ChargingSession {
