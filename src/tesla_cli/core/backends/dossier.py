@@ -701,16 +701,19 @@ class DossierBackend:
         if not dossier:
             dossier = VehicleDossier(vin=vin, reservation_number=rn)
 
-        console.print("[dim]Decoding VIN...[/dim]")
-        dossier.vin_decode = decode_vin(vin)
-
-        # Order data
+        # Order data (fetch FIRST to extract VIN from Tesla account)
         console.print("[dim]Fetching order data from Tesla...[/dim]")
         try:
             order_backend = OrderBackend()
             orders = order_backend.get_orders()
             for order in orders if isinstance(orders, list) else [orders]:
                 if order.get("referenceNumber") == rn:
+                    # Extract VIN from Tesla API (authoritative source)
+                    api_vin = order.get("vin", "")
+                    if api_vin:
+                        vin = api_vin
+                        dossier.vin = vin
+
                     # Decode option codes
                     mkt = order.get("mktOptions", "")
                     if mkt:
@@ -720,7 +723,7 @@ class DossierBackend:
                     snapshot = OrderSnapshot(
                         order_status=order.get("orderStatus", ""),
                         order_substatus=order.get("orderSubstatus", ""),
-                        vin=order.get("vin", ""),
+                        vin=vin,
                         raw=order,
                     )
                     dossier.order = OrderTimeline(
@@ -740,6 +743,10 @@ class DossierBackend:
         except Exception as e:
             logger.warning("Order fetch failed: %s", e, exc_info=True)
             console.print(f"[yellow]Order fetch failed: {e}[/yellow]")
+
+        # VIN decode (after order fetch so we use the API-provided VIN)
+        console.print("[dim]Decoding VIN...[/dim]")
+        dossier.vin_decode = decode_vin(vin)
 
         # Tesla account
         console.print("[dim]Fetching account data...[/dim]")
@@ -1054,7 +1061,7 @@ class DossierBackend:
                 data = json.loads(f.read_text())
                 snapshots.append(
                     {
-                        "file": f.name,
+                        "file": str(f),
                         "timestamp": data.get("last_updated", ""),
                         "order_status": data.get("order", {})
                         .get("current", {})
