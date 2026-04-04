@@ -5,9 +5,24 @@
 
 ---
 
-## Current State (v4.5.2)
+## Current State (v4.7.1)
 
-110+ commands across 17 groups, 1226 tests, 60+ API endpoints, 27 Prometheus gauges, React dashboard with 6 quick actions, 7 providers, managed TeslaMate stack, 15 data sources.
+130+ commands across 17 groups, 1243 tests, 70 documented API endpoints, 27 Prometheus gauges, React dashboard with 6 quick actions, 7 providers, managed TeslaMate stack, 15 data sources, 6 i18n languages, 8 --oneline commands for tmux/polybar.
+
+---
+
+## Shipped (v4.0 → v4.7)
+
+- ✅ **Charge History Unification** — `charge sessions` merges TeslaMate + Fleet API
+- ✅ **Battery Health** — `teslaMate battery-degradation` + `vehicle battery-health`
+- ✅ **Vehicle Automations** — `vehicle watch --on-change-exec`
+- ✅ **Daily Companion** — `vehicle ready`, `charge last`, `charge weekly`, `vehicle status-line`
+- ✅ **REST API Surface** — 70 endpoints (security, notify, geofence, alerts, health probe)
+- ✅ **Dashboard Polish** — Sentry/Trunk quick actions, dead pages removed
+- ✅ **CLI Restructuring** — 25 → 17 groups, dossier redistributed
+- ✅ **Output Consistency** — 8 --oneline commands, JSON mode on all data commands
+- ✅ **Infrastructure** — config export-env, health probe, uninstall-service
+- ✅ **Charge Notifications** — `charge watch-complete` with Apprise integration
 
 ---
 
@@ -28,15 +43,6 @@ Real-time WebSocket streaming eliminates polling (no vampire drain from API call
 - Alternative: Teslemetry.com as hosted proxy (no infra needed)
 - Sub-second data for location, energy monitoring
 
-#### ~~Battery Health Source~~ ✅ (v4.5.2)
-- ~~Track degradation over time~~
-- `tesla teslaMate battery-degradation` — monthly max range trend from real charge data
-- `tesla vehicle battery-health` — degradation from snapshot history
-
-#### ~~Charge History Unification~~ ✅ (v4.0.2)
-- ~~Fleet API `charge_history` + TeslaMate `charging_processes`~~
-- `tesla charge sessions` + `tesla charge cost-summary` shipped
-
 ### P2 — Medium Priority
 
 #### Portal Document Download
@@ -52,26 +58,21 @@ Real-time WebSocket streaming eliminates polling (no vampire drain from API call
 - Tessie `driving_path` gives GPS traces
 - Heatmaps, route analysis
 
-#### Automation Engine
-- Generalize `order watch --on-change-exec` to vehicle state change automations
-- Triggers + conditions + actions (inspired by Tessie)
+#### Advanced Automation Engine
+- Build on `--on-change-exec` with config-based rules
+- Triggers: battery_below, sentry_armed, location_changed, charging_complete
+- Actions: notify, exec, climate-on, lock
 
 ### P3 — Lower Priority
 
 #### Powerwall / Solar Integration
 Fleet API energy endpoints exist but require energy product ownership.
-- Energy site status, solar generation, grid flow
-- Operating mode (self-powered, backup, time-of-use)
-- Storm watch
 
 #### Additional Tessie Data
 - `firmware_alerts`, `tire_pressure` history, `weather`, `consumption`
-- `historical_states`, `idles`, `map` image generation
 
 #### TeslaMate/TeslaFi Data Import
 - `tesla teslaMate import` from CSV/JSON
-
-#### Alexa / Siri Integration
 
 ---
 
@@ -82,13 +83,19 @@ Full 20-tool competitive analysis: [research/competitive-analysis.md](research/c
 | Capability | tesla-cli | Best Alternative |
 |------------|:---------:|:----------------:|
 | Order tracking + change detection | Yes | TOST |
-| Vehicle control (CLI) | Yes (62 cmds) | tesla-control (Go) |
+| Vehicle control (CLI) | Yes (130+ cmds) | tesla-control (Go) |
+| Daily companion (ready, last-seen, status-line) | Yes | -- |
+| Charging intelligence (sessions, weekly, cost) | Yes | TeslaFi |
+| Battery degradation tracking | Yes | Tessie |
 | VIN decode + NHTSA recalls | Yes | -- |
-| Dossier (aggregated vehicle file) | Yes | -- |
+| REST API (70 endpoints) | Yes | Tessie (SaaS) |
+| Prometheus metrics (27 gauges) | Yes | TeslaMate native |
 | TeslaMate integration | Yes | TeslaMate native |
 | MQTT + HA auto-discovery | Yes | TeslaMate native |
-| REST API + Web dashboard | Yes | Tessie (SaaS) |
+| Web dashboard (React) | Yes | Tessie (SaaS) |
+| tmux/polybar integration | Yes | -- |
 | Colombia-specific (RUNT, SIMIT) | Yes | -- |
+| Claude Code plugin | Yes | -- |
 | BLE signed commands | Partial (wrapper) | tesla-control (native) |
 | Fleet Telemetry streaming | Not yet | Teslemetry |
 | Powerwall / Solar | Not yet | TeslaMate, TeslaFi |
