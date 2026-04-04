@@ -511,6 +511,8 @@ export const api = {
     client().get<any>('/api/vehicle/summary').then(r => r.data),
   getVehicleReady: () =>
     client().get<{ ready: boolean; battery_level: number; range_km: number; issues: string[] }>('/api/vehicle/ready').then(r => r.data),
+  getVehicleLastSeen: () =>
+    client().get<{ state: string; last_seen: string | null; ago_seconds: number | null }>('/api/vehicle/last-seen').then(r => r.data),
   getChargeLast: () =>
     client().get<ChargingSession & { source_name: string }>('/api/charge/last').then(r => r.data),
   setChargeLimit: (percent: number) => client().post<CommandResult>('/api/charge/limit', { percent }).then(r => r.data),

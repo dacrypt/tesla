@@ -605,3 +605,19 @@ class TestVehicleReadyApi:
         client, _ = srv_asleep
         r = client.get("/api/vehicle/ready")
         assert r.status_code == 503
+
+
+class TestVehicleLastSeenApi:
+    def test_last_seen_online(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/vehicle/last-seen")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["state"] == "online"
+
+    def test_last_seen_asleep(self, srv_asleep):
+        client, _ = srv_asleep
+        r = client.get("/api/vehicle/last-seen")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["state"] == "asleep"
