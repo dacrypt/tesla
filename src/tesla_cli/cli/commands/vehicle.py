@@ -2663,3 +2663,51 @@ def vehicle_last_seen(
     if last_seen_str != "unknown":
         console.print(f"  [dim]Last seen: {last_seen_str} ({ago_str})[/dim]")
     console.print()
+
+
+@vehicle_app.command("status-line")
+def vehicle_status_line(vin: str | None = VinOption) -> None:
+    """Ultra-compact status for tmux, polybar, waybar, or shell prompts.
+
+    Output: plain text, no Rich formatting, no colors — just icons + data.
+    Designed to be called from shell scripts, tmux status-right, etc.
+
+    tesla vehicle status-line
+    # Output: 🔋 72% 🔒 🛡 🌡22°C
+
+    tmux usage:
+      set -g status-right '#(tesla vehicle status-line 2>/dev/null)'
+    """
+    v = _vin(vin)
+    backend = _backend()
+
+    try:
+        data = backend.get_vehicle_data(v)
+    except VehicleAsleepError:
+        typer.echo("\U0001f4a4 asleep")
+        return
+    except Exception:
+        typer.echo("\u274c offline")
+        return
+
+    cs = data.get("charge_state") or {}
+    cl = data.get("climate_state") or {}
+    vs = data.get("vehicle_state") or {}
+
+    level = cs.get("battery_level", "?")
+    locked = vs.get("locked", False)
+    sentry = vs.get("sentry_mode", False)
+    inside = cl.get("inside_temp")
+    charging = cs.get("charging_state", "")
+
+    parts = [f"\U0001f50b{level}%"]
+    parts.append("\U0001f512" if locked else "\U0001f513")
+    if sentry:
+        parts.append("\U0001f6e1")
+    if inside is not None:
+        parts.append(f"\U0001f321{inside}\u00b0")
+    if charging == "Charging":
+        power = cs.get("charger_power", 0)
+        parts.append(f"\u26a1{power}kW")
+
+    typer.echo(" ".join(parts))
