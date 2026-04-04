@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.0] - 2026-04-03
+
+### Infrastructure Integration
+
+- **`tesla config export-env`** — export config as environment variables for Docker/systemd
+  - `tesla config export-env -o .env` — write .env file
+  - `tesla config export-env --docker` — Docker Compose YAML format
+- **`GET /api/health`** — liveness probe for Docker HEALTHCHECK / Kubernetes
+- **`tesla vehicle status-line`** — tmux/polybar/waybar status bar integration
+- **`GET /api/vehicle/status-line`** — minimal JSON for dashboard widgets
+
+### Output Consistency
+
+- `tesla climate status --oneline/--json` — was missing, now consistent
+- `tesla vehicle sentry --oneline` — quick sentry check
+- Security error messages: consistent `[red]` formatting
+
+### Tests
+
+- 1242 tests passing
+- TypeScript strict mode: 0 errors
+- React build: clean
+
 ## [4.6.3] - 2026-04-03
 
 ### Status Bar Integration

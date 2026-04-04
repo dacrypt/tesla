@@ -193,6 +193,15 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
     # ── System endpoints ──────────────────────────────────────────────────────
 
+    @app.get("/api/health", tags=["System"])
+    def api_health() -> dict:
+        """Health check for Docker/Kubernetes liveness probes.
+
+        Returns 200 with {"status": "ok"} — always succeeds if server is running.
+        Use as: GET /api/health for Docker HEALTHCHECK or k8s livenessProbe.
+        """
+        return {"status": "ok", "version": __version__}
+
     @app.get("/api/status", tags=["System"])
     def api_status(request: Request) -> dict:
         cfg = load_config()
