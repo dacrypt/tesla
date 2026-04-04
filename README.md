@@ -65,6 +65,9 @@ FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notificat
 ### Integrations
 MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services). Config doctor validates all connections.
 
+### Claude Code Plugin
+Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). Install the [tesla-claude-plugin](https://github.com/dacrypt/tesla-claude-plugin) and ask Claude *"how's my battery?"* or *"lock my car"*. Nine skills covering status, control, charging, order tracking, dossier, analytics, and the web dashboard.
+
 ### Data Sources
 15 registered sources with TTL caching and change detection: Tesla APIs, NHTSA, RUNT (Colombia), SIMIT, Fasecolda, ship tracking, and more via the OpenQuery library.
 
