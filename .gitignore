@@ -60,3 +60,5 @@ fix-live-sources.py
 superchargers-co.json
 .env.local
 .omx/
+.codex/
+AGENTS.md
