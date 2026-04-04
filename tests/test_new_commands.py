@@ -8723,3 +8723,50 @@ class TestVehicleStatusLine:
         result = _run("vehicle", "status-line")
         assert result.exit_code == 0
         assert "asleep" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Config Export Env
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestConfigExportEnv:
+    """Tests for tesla config export-env."""
+
+    @patch("tesla_cli.cli.commands.config_cmd.load_config")
+    def test_export_env_stdout(self, mock_cfg):
+        cfg = MagicMock()
+        cfg.general.default_vin = "7SAYTEST123456"
+        cfg.general.backend = "fleet"
+        cfg.general.cost_per_kwh = 0.22
+        cfg.order.reservation_number = "RN123"
+        cfg.teslaMate.database_url = ""
+        cfg.mqtt.broker = ""
+        cfg.server.api_key = ""
+        cfg.home_assistant.url = ""
+        mock_cfg.return_value = cfg
+
+        result = _run("config", "export-env")
+        assert result.exit_code == 0
+        assert "TESLA_VIN=7SAYTEST123456" in result.output
+        assert "TESLA_BACKEND=fleet" in result.output
+
+    @patch("tesla_cli.cli.commands.config_cmd.load_config")
+    def test_export_env_file(self, mock_cfg, tmp_path):
+        cfg = MagicMock()
+        cfg.general.default_vin = "TEST"
+        cfg.general.backend = "owner"
+        cfg.general.cost_per_kwh = 0.0
+        cfg.order.reservation_number = ""
+        cfg.teslaMate.database_url = ""
+        cfg.mqtt.broker = ""
+        cfg.server.api_key = ""
+        cfg.home_assistant.url = ""
+        mock_cfg.return_value = cfg
+
+        out = str(tmp_path / ".env")
+        result = _run("config", "export-env", "-o", out)
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+        content = open(out).read()
+        assert "TESLA_VIN=TEST" in content
