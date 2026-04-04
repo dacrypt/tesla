@@ -252,3 +252,43 @@ def vehicle_ready(request: Request) -> dict:
         "preconditioning": precond or climate_on,
         "issues": issues,
     }
+
+
+@router.get("/last-seen")
+def vehicle_last_seen(request: Request) -> dict:
+    """When was the vehicle last online?"""
+    from datetime import UTC, datetime
+
+    backend, v = _backend_and_vin(request)
+
+    try:
+        data = backend.get_vehicle_data(v)
+        online = True
+    except VehicleAsleepError:
+        data = {}
+        online = False
+
+    ds = data.get("drive_state") or {}
+    gps_ts = ds.get("gps_as_of") or ds.get("timestamp")
+
+    last_seen = None
+    ago = None
+    if gps_ts:
+        try:
+            if isinstance(gps_ts, (int, float)):
+                last_dt = datetime.fromtimestamp(
+                    gps_ts / 1000 if gps_ts > 1e12 else gps_ts, tz=UTC
+                )
+            else:
+                last_dt = datetime.fromisoformat(str(gps_ts))
+            last_seen = last_dt.isoformat()
+            delta = datetime.now(tz=UTC) - last_dt
+            ago = int(delta.total_seconds())
+        except (ValueError, TypeError, OSError):
+            pass
+
+    return {
+        "state": "online" if online else "asleep",
+        "last_seen": last_seen,
+        "ago_seconds": ago,
+    }
