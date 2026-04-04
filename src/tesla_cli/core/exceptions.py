@@ -25,6 +25,21 @@ class ApiError(TeslaCliError):
         super().__init__(f"HTTP {status_code}: {message}")
 
 
+class EndpointDeprecatedError(ApiError):
+    """412 — Owner API endpoint unavailable for this VIN.
+
+    Modern VINs (LRW/7SA/XP7) require Fleet API or Tessie.
+    """
+
+    def __init__(self, message: str = "") -> None:
+        detail = message or (
+            "This endpoint is not available on the Owner API for your vehicle.\n"
+            "Switch to Fleet API:  tesla config set backend fleet && tesla config auth fleet\n"
+            "Or use Tessie:        tesla config set backend tessie && tesla config auth tessie"
+        )
+        super().__init__(412, detail)
+
+
 class RateLimitError(ApiError):
     """429 Too Many Requests."""
 

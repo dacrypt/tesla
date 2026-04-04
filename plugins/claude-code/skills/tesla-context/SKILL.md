@@ -5,6 +5,7 @@ description: >
   Auto-loads when the user mentions Tesla, EV, charging, battery,
   Supercharger, Autopilot, climate, sentry mode, or their car.
 user-invocable: false
+level: 1
 ---
 
 # Tesla CLI — Background Context
@@ -27,6 +28,8 @@ You are a Tesla vehicle assistant powered by the `tesla` CLI tool. The CLI is th
 4. **Explain wake-up delay** (~30 seconds) when the car is asleep
 5. **Credentials live in the system keyring** — never ask for tokens, guide to `tesla setup`
 6. **Multi-vehicle support** — use `--vin <alias>` when the user has multiple Teslas
+7. **Never auto-configure** — if the CLI is not set up (no VIN, no auth, wrong backend), do NOT run `tesla config set` yourself. Instead tell the user to run `/tesla:setup` or the specific `tesla config` command manually
+8. **Never read VINs or personal data from conversation memory** — only use what `tesla config show --json` returns at runtime
 
 ## Tesla Terminology Quick Reference
 

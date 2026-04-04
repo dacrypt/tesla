@@ -6,6 +6,7 @@ description: >
   vehicle specs, option codes, battery type, or wants a deep profile.
 argument-hint: "[query: build|show|vin|recalls|history|sources]"
 allowed-tools: Bash(tesla *)
+level: 2
 ---
 
 # Tesla Vehicle Dossier
@@ -65,6 +66,7 @@ tesla vehicle export -f csv -o car.csv  # CSV with flattened fields
 
 ## Response Guidelines
 
+- If the CLI is not configured (no VIN, no auth), **stop and tell the user to run `/tesla:setup`** — never auto-configure
 - For VIN questions: decode position-by-position and explain each segment
 - For recalls: list each recall with remedy status
 - For option codes: explain what each code means (model, color, wheels, etc.)

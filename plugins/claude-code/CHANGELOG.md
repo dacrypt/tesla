@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.0 (2026-04-04)
+
+### Marketplace Readiness
+
+- **marketplace.json**: Added Anthropic marketplace manifest with schema, owner, category (`iot`), and tags
+- **Plugin discovery**: Added `"skills": "./skills/"` to plugin.json for automatic skill loading
+- **Skill levels**: Added `level` metadata to all 9 skills (1=read-only, 2=side-effects)
+- **Simplified install**: One-command setup via `extraKnownMarketplaces` (same pattern as OMC)
+
 ## v1.0.0 (2026-04-03)
 
 Initial release.

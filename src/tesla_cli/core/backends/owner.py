@@ -25,7 +25,12 @@ import jwt
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.auth.oauth import refresh_access_token
 from tesla_cli.core.backends.base import VehicleBackend
-from tesla_cli.core.exceptions import ApiError, AuthenticationError, VehicleAsleepError
+from tesla_cli.core.exceptions import (
+    ApiError,
+    AuthenticationError,
+    EndpointDeprecatedError,
+    VehicleAsleepError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +117,8 @@ class OwnerApiVehicleBackend(VehicleBackend):
             raise AuthenticationError("Token expired. Run: tesla config auth order")
         if resp.status_code == 408:
             raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
+        if resp.status_code == 412:
+            raise EndpointDeprecatedError()
         if resp.status_code != 200:
             raise ApiError(resp.status_code, resp.text)
         data = resp.json()
@@ -123,6 +130,8 @@ class OwnerApiVehicleBackend(VehicleBackend):
             raise AuthenticationError("Token expired. Run: tesla config auth order")
         if resp.status_code == 408:
             raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
+        if resp.status_code == 412:
+            raise EndpointDeprecatedError()
         if resp.status_code != 200:
             raise ApiError(resp.status_code, resp.text)
         data = resp.json()

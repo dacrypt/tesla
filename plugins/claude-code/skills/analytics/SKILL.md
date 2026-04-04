@@ -5,6 +5,7 @@ description: >
   degradation, vampire drain, efficiency, heatmaps. Requires TeslaMate.
 argument-hint: "[query: trips|charging|costs|battery|vampire|efficiency|heatmap]"
 allowed-tools: Bash(tesla *)
+level: 2
 ---
 
 # Tesla Analytics (TeslaMate)
@@ -84,6 +85,7 @@ tesla teslaMate grafana          # open Grafana in browser
 
 ## Response Guidelines
 
+- If the CLI is not configured (no VIN, no auth), **stop and tell the user to run `/tesla:setup`** — never auto-configure
 - If TeslaMate is not connected, explain what it is and guide through setup
 - For cost queries: break down by AC vs DC charging, show cost per kWh
 - For battery health: show the trend and explain what's normal (1-3% loss/year)
