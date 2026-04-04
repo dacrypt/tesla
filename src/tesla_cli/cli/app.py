@@ -108,4 +108,43 @@ def _register_commands() -> None:
     app.add_typer(providers_app, name="providers")
 
 
+@app.command("quickstart")
+def quickstart() -> None:
+    """Show a quick-start guide with the most useful daily commands."""
+    from tesla_cli.cli.output import console
+
+    console.print("""
+[bold cyan]Tesla CLI — Quick Start Guide[/bold cyan]
+
+[bold]Morning routine:[/bold]
+  [green]tesla vehicle ready[/green]              Am I ready to drive?
+  [green]tesla vehicle ready --oneline[/green]    ✅ Ready | 🔋 82% | 🌡 22°C
+  [green]tesla vehicle status-line[/green]        🔋72% 🔒 🛡 🌡22° (for tmux)
+
+[bold]Charging:[/bold]
+  [green]tesla charge status --oneline[/green]    🔋 65% | ⚡ 11kW | 1h30m to 80%
+  [green]tesla charge last[/green]                Most recent session + cost
+  [green]tesla charge weekly[/green]              Weekly kWh + cost summary
+  [green]tesla charge watch-complete[/green]      Notify when charge finishes
+
+[bold]Vehicle control:[/bold]
+  [green]tesla security lock[/green]              Lock doors
+  [green]tesla security unlock[/green]            Unlock doors
+  [green]tesla vehicle sentry --on[/green]        Enable Sentry Mode
+  [green]tesla climate on[/green]                 Start climate/AC
+  [green]tesla media send-destination "..."[/green]  Navigate somewhere
+
+[bold]Analytics:[/bold]
+  [green]tesla teslaMate battery-degradation[/green]  Battery health trend
+  [green]tesla teslaMate monthly-cost[/green]     Cost trend by month
+  [green]tesla teslaMate trips[/green]            Recent trip history
+
+[bold]Server & API:[/bold]
+  [green]tesla serve[/green]                      Start REST API + web dashboard
+  [green]tesla config doctor[/green]              Validate all connections
+
+[dim]Run [bold]tesla <group> --help[/bold] for full command list in any group.[/dim]
+""")
+
+
 _register_commands()
