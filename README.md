@@ -66,10 +66,29 @@ FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notificat
 MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services). Config doctor validates all connections.
 
 ### Claude Code Plugin
-Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). Install the [tesla-claude-plugin](https://github.com/dacrypt/tesla-claude-plugin) and ask Claude *"how's my battery?"* or *"lock my car"*. Nine skills covering status, control, charging, order tracking, dossier, analytics, and the web dashboard.
+Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). The plugin lives in [`plugins/claude-code/`](plugins/claude-code/) — nine skills covering status, control, charging, order tracking, dossier, analytics, and the web dashboard. See the [plugin README](plugins/claude-code/README.md) for setup.
 
 ### Data Sources
 15 registered sources with TTL caching and change detection: Tesla APIs, NHTSA, RUNT (Colombia), SIMIT, Fasecolda, ship tracking, and more via the OpenQuery library.
+
+---
+
+## Project Structure
+
+```
+tesla/
+├── src/tesla_cli/         # Python CLI + FastAPI backend
+│   ├── core/              # Business logic (backends, models, providers)
+│   ├── cli/               # Typer CLI (14 command groups, 100+ commands)
+│   ├── api/               # FastAPI REST API (45+ endpoints, SSE, Prometheus)
+│   └── infra/             # Docker Compose lifecycle
+├── ui/                    # React 19 + Ionic web dashboard
+├── plugins/
+│   └── claude-code/       # Claude Code plugin (9 skills)
+├── tests/                 # pytest suite (1243 tests)
+├── docs/                  # Architecture, API ref, user guide, roadmap
+└── docker/                # TeslaMate stack configs
+```
 
 ---
 
