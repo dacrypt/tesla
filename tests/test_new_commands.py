@@ -8768,5 +8768,6 @@ class TestConfigExportEnv:
         result = _run("config", "export-env", "-o", out)
         assert result.exit_code == 0
         assert "Exported" in result.output
-        content = open(out).read()
+        with open(out) as _fh:
+            content = _fh.read()
         assert "TESLA_VIN=TEST" in content
