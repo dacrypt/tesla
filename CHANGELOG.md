@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.2] - 2026-04-03
+
+### Discoverability
+
+- **`tesla quickstart`** — built-in quick-start guide showing daily workflows
+- Roadmap comprehensively updated with all shipped features
+- API reference: all 70 endpoints documented
+
+### Tests
+
+- 1243 tests passing
+
 ## [4.7.1] - 2026-04-03
 
 ### New Commands
