@@ -292,3 +292,32 @@ def vehicle_last_seen(request: Request) -> dict:
         "last_seen": last_seen,
         "ago_seconds": ago,
     }
+
+
+@router.get("/status-line")
+def vehicle_status_line(request: Request) -> dict:
+    """Ultra-compact status for dashboards and widgets.
+
+    Returns minimal data optimized for status bars: battery, lock, sentry, temp, charging.
+    """
+    backend, v = _backend_and_vin(request)
+    try:
+        data = backend.get_vehicle_data(v)
+    except VehicleAsleepError:
+        return {"status": "asleep", "text": "💤 asleep"}
+    except Exception:
+        return {"status": "offline", "text": "❌ offline"}
+
+    cs = data.get("charge_state") or {}
+    cl = data.get("climate_state") or {}
+    vs = data.get("vehicle_state") or {}
+
+    return {
+        "status": "online",
+        "battery_level": cs.get("battery_level"),
+        "locked": vs.get("locked", False),
+        "sentry_mode": vs.get("sentry_mode", False),
+        "inside_temp": cl.get("inside_temp"),
+        "charging_state": cs.get("charging_state"),
+        "charger_power": cs.get("charger_power"),
+    }

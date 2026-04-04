@@ -8678,3 +8678,48 @@ class TestClimateStatusOneline:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["inside_temp"] == 22.5
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Vehicle Status Line
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestVehicleStatusLine:
+    """Tests for tesla vehicle status-line."""
+
+    MOCK_DATA = {
+        "charge_state": {"battery_level": 72, "charging_state": "Stopped", "charger_power": 0},
+        "climate_state": {"inside_temp": 22.0},
+        "vehicle_state": {"locked": True, "sentry_mode": True},
+    }
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_status_line_output(self, mock_cfg, mock_rv, mock_bk):
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.return_value = self.MOCK_DATA
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "status-line")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "72%" in output
+        assert output.count("\n") == 0  # single line
+
+    @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
+    @patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456")
+    @patch("tesla_cli.cli.commands.vehicle.load_config")
+    def test_status_line_asleep(self, mock_cfg, mock_rv, mock_bk):
+        from tesla_cli.core.exceptions import VehicleAsleepError
+
+        mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
+        backend = MagicMock()
+        backend.get_vehicle_data.side_effect = VehicleAsleepError("asleep")
+        mock_bk.return_value = backend
+
+        result = _run("vehicle", "status-line")
+        assert result.exit_code == 0
+        assert "asleep" in result.output

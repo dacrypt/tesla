@@ -93,6 +93,8 @@ tesla vehicle dashboard        # unified multi-panel status view
 tesla vehicle alerts           # recent fault codes and warnings
 tesla vehicle ready            # morning check: am I ready to drive?
 tesla vehicle ready --oneline  # ✅ Ready | 🔋 82% | 🌡 22°C
+tesla vehicle status-line      # ultra-compact: 🔋72% 🔒 🛡 🌡22° (for tmux/polybar)
+tesla vehicle last-seen        # online/asleep + last contact time
 tesla vehicle invite           # create driver invitation
 tesla vehicle invitations      # list driver invitations
 ```

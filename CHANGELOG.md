@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.3] - 2026-04-03
+
+### Status Bar Integration
+
+- **`tesla vehicle status-line`** — ultra-compact output for tmux, polybar, waybar, i3status:
+  `🔋72% 🔒 🛡 🌡22°` (no Rich formatting, pure text + icons)
+- **`GET /api/vehicle/status-line`** — minimal JSON for dashboard widgets
+- tmux usage: `set -g status-right '#(tesla vehicle status-line 2>/dev/null)'`
+- 1239 tests passing
+
 ## [4.6.2] - 2026-04-03
 
 ### Output Consistency
