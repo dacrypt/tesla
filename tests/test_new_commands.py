@@ -8632,3 +8632,49 @@ class TestVehicleLastSeen:
         assert result.exit_code == 0
         assert "Online" in result.output
         assert result.output.strip().count("\n") == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Climate Status Oneline + Security Error Consistency
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestClimateStatusOneline:
+    """Tests for climate status --oneline and --json."""
+
+    def test_climate_oneline(self):
+        backend = MagicMock()
+        backend.get_climate_state.return_value = {
+            "inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": False,
+        }
+        cfg = MagicMock(default_vin="7SAYTEST123456")
+        with (
+            patch("tesla_cli.cli.commands.climate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.climate.resolve_vin", return_value="7SAYTEST123456"),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456"),
+        ):
+            result = _run("climate", "status", "--oneline")
+        assert result.exit_code == 0
+        assert "22.5" in result.output
+        assert "HVAC off" in result.output
+        assert result.output.strip().count("\n") == 0
+
+    def test_climate_json(self):
+        backend = MagicMock()
+        backend.get_climate_state.return_value = {
+            "inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": True,
+        }
+        cfg = MagicMock(default_vin="7SAYTEST123456")
+        with (
+            patch("tesla_cli.cli.commands.climate.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.climate.resolve_vin", return_value="7SAYTEST123456"),
+            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=backend),
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value="7SAYTEST123456"),
+        ):
+            result = _run("--json", "climate", "status")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["inside_temp"] == 22.5

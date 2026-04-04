@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import render_success
+from tesla_cli.cli.output import console, render_success
 from tesla_cli.core.config import load_config, resolve_vin
 
 security_app = typer.Typer(name="security", help="Security, sentry, and access controls.")
@@ -72,24 +72,24 @@ def speed_limit(
     v = _vin(vin)
     if action == "activate":
         if not pin:
-            typer.echo("PIN required for speed limit activation", err=True)
+            console.print("[red]PIN required for speed limit activation[/red]")
             raise typer.Exit(1)
         _with_wake(lambda b, v: b.command(v, "speed_limit_activate", pin=pin), v)
         render_success("Speed limit activated")
     elif action == "deactivate":
         if not pin:
-            typer.echo("PIN required for speed limit deactivation", err=True)
+            console.print("[red]PIN required for speed limit deactivation[/red]")
             raise typer.Exit(1)
         _with_wake(lambda b, v: b.command(v, "speed_limit_deactivate", pin=pin), v)
         render_success("Speed limit deactivated")
     elif action == "set":
         if not limit:
-            typer.echo("--limit required for speed limit set", err=True)
+            console.print("[red]--limit required for speed limit set[/red]")
             raise typer.Exit(1)
         _with_wake(lambda b, v: b.command(v, "speed_limit_set_limit", limit_mph=limit), v)
         render_success(f"Speed limit set to {limit} mph")
     else:
-        typer.echo(f"Unknown action: {action}. Use activate|deactivate|set", err=True)
+        console.print(f"[red]Unknown action: {action}. Use activate|deactivate|set[/red]")
         raise typer.Exit(1)
 
 
