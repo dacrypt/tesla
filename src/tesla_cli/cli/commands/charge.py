@@ -1018,3 +1018,73 @@ def charge_weekly(
         f" | [bold]{avg_kwh:.1f} kWh/week[/bold] avg"
         + (f" | [bold]${total_cost:.2f}[/bold] total cost" if total_cost > 0 else "")
     )
+
+
+@charge_app.command("watch-complete")
+def charge_watch_complete(
+    interval: int = typer.Option(60, "--interval", "-i", help="Poll interval in seconds"),
+    vin: str | None = VinOption,
+) -> None:
+    """Watch for charging to complete and notify when done.
+
+    Polls every INTERVAL seconds. Exits with notification when charging
+    reaches the limit or stops.
+
+    tesla charge watch-complete              # poll every 60s
+    tesla charge watch-complete -i 30        # poll every 30s
+    """
+    import time as _time
+
+    v = _vin(vin)
+    cfg = load_config()
+    backend = get_vehicle_backend(cfg)
+
+    # Setup notifier
+    notifier = None
+    if cfg.notifications.enabled and cfg.notifications.apprise_urls:
+        try:
+            import apprise
+
+            notifier = apprise.Apprise()
+            for url in cfg.notifications.apprise_urls:
+                notifier.add(url)
+        except ImportError:
+            pass
+
+    console.print(f"  [dim]Watching for charge completion (every {interval}s, Ctrl+C to stop)...[/dim]")
+
+    try:
+        while True:
+            try:
+                data = backend.get_charge_state(v)
+            except Exception:
+                _time.sleep(interval)
+                continue
+
+            state = data.get("charging_state", "Unknown")
+            level = data.get("battery_level", 0)
+            limit = data.get("charge_limit_soc", 80)
+
+            if state == "Complete" or (state != "Charging" and level >= limit):
+                msg = f"Charging complete! Battery at {level}% (limit: {limit}%)"
+                console.print(f"\n  [bold green]\u2713 {msg}[/bold green]")
+
+                if notifier:
+                    notifier.notify(
+                        title="Tesla — Charge Complete",
+                        body=msg,
+                    )
+                    console.print("  [dim]Notification sent.[/dim]")
+                return
+
+            eta = data.get("time_to_full_charge", 0)
+            eta_str = f"{int(eta)}h{int((eta % 1) * 60):02d}m" if eta else "?"
+            console.print(
+                f"  [dim]{_time.strftime('%H:%M')}[/dim]  "
+                f"\U0001f50b {level}% → {limit}%  |  "
+                f"\u26a1 {data.get('charger_power', 0)} kW  |  "
+                f"ETA: {eta_str}"
+            )
+            _time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopped watching.[/dim]")

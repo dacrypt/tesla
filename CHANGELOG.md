@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.1] - 2026-04-03
+
+### New Commands
+
+- **`tesla charge watch-complete`** — watch for charging to finish and send notification
+  Polls charge state, shows progress, notifies via Apprise when battery reaches limit.
+
+### Documentation
+
+- **API reference completed** — all 70 endpoints now documented including:
+  /api/health, /vehicle/status-line, /vehicle/last-seen, /charge/weekly,
+  /teslaMate/battery-degradation, geofence CRUD, Colombia public data
+- README: Claude Code Plugin section added
+
+### Tests
+
+- 1243 tests passing
+
 ## [4.7.0] - 2026-04-03
 
 ### Infrastructure Integration

@@ -8771,3 +8771,17 @@ class TestConfigExportEnv:
         with open(out) as _fh:
             content = _fh.read()
         assert "TESLA_VIN=TEST" in content
+
+
+# ═════════════════════════════════════════════��═════════════════════════════════
+# Charge Watch Complete
+# ═════════════════��════════════════════════════════════════════════════��════════
+
+
+class TestChargeWatchComplete:
+    """Tests for tesla charge watch-complete."""
+
+    def test_watch_complete_in_help(self):
+        result = _run("charge", "--help")
+        assert result.exit_code == 0
+        assert "watch-complete" in result.output
