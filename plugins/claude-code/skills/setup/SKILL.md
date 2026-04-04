@@ -5,6 +5,7 @@ description: >
   and configure your backend. Use for first-time setup or reconfiguration.
 disable-model-invocation: true
 allowed-tools: Bash(uv *) Bash(tesla *) Bash(which *) Bash(pip *)
+level: 2
 ---
 
 # Tesla CLI Setup

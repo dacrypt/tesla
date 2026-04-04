@@ -1,6 +1,6 @@
 {
   "name": "tesla",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Control your Tesla from Claude Code — vehicle status, charging, climate, order tracking, analytics, and a self-hosted web dashboard. Privacy-first, 100% local.",
   "homepage": "https://github.com/dacrypt/tesla-claude-plugin",
   "repository": "https://github.com/dacrypt/tesla-claude-plugin",
@@ -9,5 +9,6 @@
     "name": "David Velasquez",
     "url": "https://github.com/dacrypt"
   },
-  "keywords": ["tesla", "ev", "vehicle", "charging", "automotive", "iot", "self-hosted"]
+  "keywords": ["tesla", "ev", "vehicle", "charging", "automotive", "iot", "self-hosted"],
+  "skills": "./skills/"
 }

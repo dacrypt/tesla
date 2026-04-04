@@ -35,7 +35,9 @@ def _get_rn() -> str:
 
 
 @order_app.command("status")
-def order_status() -> None:
+def order_status(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+) -> None:
     """Check current order status."""
     rn = _get_rn()
     backend = OrderBackend()
@@ -44,10 +46,21 @@ def order_status() -> None:
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
-        disable=is_json_mode(),
+        disable=is_json_mode() or oneline,
     ) as progress:
         progress.add_task(f"Fetching order {rn}...", total=None)
         status = backend.get_order_status(rn)
+
+    if oneline:
+        parts = [f"\U0001f4cb {status.order_status or 'UNKNOWN'}"]
+        if status.model:
+            parts.append(f"\U0001f697 {status.model}")
+        if status.vin:
+            parts.append(f"\U0001f511 {status.vin[-6:]}")
+        if status.estimated_delivery:
+            parts.append(f"\U0001f4c5 {status.estimated_delivery}")
+        console.print(" | ".join(parts))
+        return
 
     render_model(status, title=f"Order {rn}")
 

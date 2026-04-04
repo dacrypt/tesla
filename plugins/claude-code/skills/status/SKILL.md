@@ -6,6 +6,7 @@ description: >
   "where's my car?", "is my car ready?", or similar status queries.
 argument-hint: "[detail: battery|location|climate|full]"
 allowed-tools: Bash(tesla *)
+level: 1
 ---
 
 # Tesla Vehicle Status
@@ -63,8 +64,22 @@ tesla vehicle tires              # TPMS pressure readings
 tesla vehicle alerts             # recent fault codes
 ```
 
+## Pre-delivery Fallback
+
+If vehicle commands fail with `EndpointDeprecatedError` (HTTP 412), `ConfigurationError`, or `AuthenticationError`, the car may not be delivered yet. Fall back to order data:
+
+```bash
+tesla order status --oneline    # quick order status
+tesla order status              # full order details
+tesla order delivery            # delivery appointment
+```
+
+Do NOT attempt to fix the error by changing config or backends. Instead explain that live vehicle data is not available until after delivery and show the order status.
+
 ## Response Guidelines
 
+- If the CLI is not configured (no VIN, no auth), **stop and tell the user to run `/tesla:setup`** — never auto-configure
+- If vehicle commands fail, **fall back to order status** instead of retrying with different backends
 - Lead with the most relevant info (usually battery %)
 - Include location only if asked or if the car is away from home
 - Mention charging state if plugged in

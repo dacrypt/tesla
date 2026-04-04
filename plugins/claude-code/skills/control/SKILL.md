@@ -7,6 +7,7 @@ description: >
 argument-hint: "<action: lock|unlock|climate-on|climate-off|trunk|frunk|horn|flash|...>"
 disable-model-invocation: true
 allowed-tools: Bash(tesla *)
+level: 2
 ---
 
 # Tesla Vehicle Control

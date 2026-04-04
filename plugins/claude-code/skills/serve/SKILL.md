@@ -6,6 +6,7 @@ description: >
   Use when someone says "start the dashboard", "open the web UI", or "run the server".
 disable-model-invocation: true
 allowed-tools: Bash(tesla *) Bash(uv *)
+level: 2
 ---
 
 # Tesla Web Dashboard & API
