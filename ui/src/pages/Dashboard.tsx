@@ -640,6 +640,26 @@ const Dashboard: React.FC = () => {
             {/* ---- Recent Charges ---- */}
             <RecentCharges />
 
+            {/* ---- Vehicle info footer ---- */}
+            {state && !isAsleep && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 16,
+                padding: '8px 0',
+                fontSize: 11,
+                color: '#86888f',
+              }}>
+                {state.car_version && (
+                  <span>🚗 {state.car_version}</span>
+                )}
+                <span>{sentryOn ? '🛡 Sentry' : ''}</span>
+                {state.odometer && (
+                  <span>📏 {Math.round((state.odometer as number) * 1.60934).toLocaleString()} km</span>
+                )}
+              </div>
+            )}
+
             {/* ---- Last updated ---- */}
             {lastUpdated && (
               <div style={{ textAlign: 'center', paddingTop: 8 }}>
