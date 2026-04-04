@@ -337,6 +337,14 @@ const Dashboard: React.FC = () => {
   const outsideTemp = state?.outside_temp ?? climate?.outside_temp;
   const isAsleep = vehicleState === 'asleep' || vehicleState === 'sleeping';
 
+  // Ready-to-drive assessment (mirrors tesla vehicle ready logic)
+  const readyIssues: string[] = [];
+  if (batteryPct != null && batteryPct < 20) readyIssues.push('Low battery');
+  if (isCharging) readyIssues.push('Still charging');
+  if (!isLocked) readyIssues.push('Unlocked');
+  if (outsideTemp != null && outsideTemp < 5 && !climateOn) readyIssues.push('Cold outside');
+  const isReady = !isAsleep && readyIssues.length === 0 && batteryPct != null;
+
   const batteryColor =
     batteryPct == null ? '#86888f'
     : batteryPct > 50 ? '#0BE881'
@@ -390,7 +398,19 @@ const Dashboard: React.FC = () => {
           <IonTitle style={{ fontWeight: 700, letterSpacing: '-0.3px' }}>
             {displayName}
           </IonTitle>
-          <div slot="end" style={{ paddingRight: 4 }}>
+          <div slot="end" style={{ paddingRight: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {!loading && state && !isAsleep && (
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 10,
+                background: isReady ? 'rgba(11,232,129,0.15)' : 'rgba(249,151,22,0.15)',
+                color: isReady ? '#0BE881' : '#F99716',
+              }}>
+                {isReady ? '✓ Ready' : `⚠ ${readyIssues.length}`}
+              </span>
+            )}
             {loading && !state ? (
               <IonSpinner name="dots" style={{ '--color': '#86888f', width: 20, height: 20 } as React.CSSProperties} />
             ) : (
