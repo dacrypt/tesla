@@ -77,3 +77,8 @@ ignore = [
 
 [tool.uv.sources]
 openquery = { path = "../openquery", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]
