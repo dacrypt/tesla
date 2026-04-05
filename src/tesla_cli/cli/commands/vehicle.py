@@ -2711,3 +2711,116 @@ def vehicle_status_line(vin: str | None = VinOption) -> None:
         parts.append(f"\u26a1{power}kW")
 
     typer.echo(" ".join(parts))
+
+
+@vehicle_app.command("stream-live")
+def vehicle_stream_live(
+    interval: int = typer.Option(0, "--interval", "-i", help="Min seconds between updates (0=realtime)"),
+    fields: str = typer.Option("", "--fields", "-f", help="Comma-separated fields to display"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line compact output"),
+    vin: str | None = VinOption,
+) -> None:
+    """Stream real-time telemetry from Teslemetry (zero polling, zero vampire drain).
+
+    Connects via Server-Sent Events to the Teslemetry hosted proxy.
+    Requires: tesla config auth teslemetry
+
+    tesla vehicle stream-live
+    tesla vehicle stream-live --fields battery_level,speed,charging_state
+    tesla vehicle stream-live --oneline
+    tesla vehicle stream-live --interval 2
+    """
+    import time as _time
+
+    from rich.live import Live
+    from rich.table import Table as _Table
+
+    from tesla_cli.core.auth import tokens
+    from tesla_cli.core.backends.teslemetry import TeslemetryBackend
+    from tesla_cli.core.config import load_config, resolve_vin
+
+    cfg = load_config()
+    api_key = tokens.get_token(tokens.TESLEMETRY_TOKEN)
+    if not api_key:
+        console.print(
+            "[red]Teslemetry API key not configured.[/red]\n"
+            "Run: [bold]tesla config auth teslemetry[/bold]"
+        )
+        raise typer.Exit(1)
+
+    v = resolve_vin(cfg, vin)
+    backend = TeslemetryBackend(api_key)
+
+    field_filter: list[str] = [f.strip() for f in fields.split(",") if f.strip()] if fields else []
+
+    KEY_LABELS: dict[str, str] = {
+        "battery_level": "Battery",
+        "charging_state": "Charging",
+        "charger_power": "Charge Power",
+        "speed": "Speed",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "inside_temp": "Inside Temp",
+        "outside_temp": "Outside Temp",
+        "odometer": "Odometer",
+        "locked": "Locked",
+        "sentry_mode": "Sentry",
+    }
+    DEFAULT_FIELDS = list(KEY_LABELS.keys())
+    display_fields = field_filter if field_filter else DEFAULT_FIELDS
+
+    last_values: dict[str, str] = {}
+    last_update: float = 0.0
+
+    def _fmt(key: str, val: object) -> str:
+        if key == "battery_level":
+            return f"{val}%"
+        if key in ("inside_temp", "outside_temp"):
+            return f"{val}°C"
+        if key == "odometer":
+            return f"{val:,.1f} mi" if isinstance(val, float | int) else str(val)
+        if key == "charger_power":
+            return f"{val} kW"
+        if key == "speed":
+            return f"{val} mph"
+        if key in ("locked", "sentry_mode"):
+            return "Yes" if val else "No"
+        return str(val)
+
+    def _build_table() -> _Table:
+        t = _Table(title=f"Teslemetry Live — {v[-6:]}", show_lines=True)
+        t.add_column("Field", style="cyan", width=20)
+        t.add_column("Value", width=30)
+        for key in display_fields:
+            label = KEY_LABELS.get(key, key)
+            t.add_row(label, last_values.get(key, "[dim]—[/dim]"))
+        return t
+
+    console.print(f"[bold]Connecting to Teslemetry stream for {v}...[/bold] [dim](Ctrl+C to stop)[/dim]")
+
+    try:
+        if oneline:
+            for event in backend.stream(v):
+                now = _time.monotonic()
+                for key, val in event.items():
+                    if not display_fields or key in display_fields:
+                        last_values[key] = _fmt(key, val)
+                if interval and (now - last_update) < interval:
+                    continue
+                last_update = now
+                parts = [f"{KEY_LABELS.get(k, k)}={last_values[k]}" for k in display_fields if k in last_values]
+                console.print("  ".join(parts))
+        else:
+            with Live(console=console, refresh_per_second=4, transient=False) as live:
+                live.update(_build_table())
+                for event in backend.stream(v):
+                    now = _time.monotonic()
+                    for key, val in event.items():
+                        if not display_fields or key in display_fields:
+                            last_values[key] = _fmt(key, val)
+                    if interval and (now - last_update) < interval:
+                        continue
+                    last_update = now
+                    live.update(_build_table())
+    except KeyboardInterrupt:
+        console.print("\n[dim]Live stream stopped.[/dim]")

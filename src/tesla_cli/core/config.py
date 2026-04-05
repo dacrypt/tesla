@@ -116,6 +116,16 @@ class ServerConfig(BaseModel):
     pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
 
 
+class TeslemetryConfig(BaseModel):
+    """Teslemetry hosted Fleet Telemetry proxy.
+
+    Sign up at https://teslemetry.com for an API key.
+    Provides real-time vehicle streaming without self-hosted infrastructure.
+    """
+
+    configured: bool = False
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -131,6 +141,7 @@ class Config(BaseModel):
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
+    teslemetry: TeslemetryConfig = Field(default_factory=TeslemetryConfig)
 
 
 def load_config() -> Config:
