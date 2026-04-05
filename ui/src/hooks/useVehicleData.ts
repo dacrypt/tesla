@@ -9,6 +9,7 @@ export interface VehicleData {
   error: string | null;
   refresh: () => void;
   lastUpdated: Date | null;
+  connected: boolean;
 }
 
 export function useVehicleData(): VehicleData {
@@ -18,6 +19,7 @@ export function useVehicleData(): VehicleData {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [connected, setConnected] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -48,35 +50,61 @@ export function useVehicleData(): VehicleData {
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  // SSE stream
+  // SSE stream with exponential backoff reconnection
   useEffect(() => {
     let es: EventSource | null = null;
-    try {
-      es = new EventSource(api.getStreamUrl());
-      es.onmessage = (evt) => {
-        try {
-          const data = JSON.parse(evt.data);
-          if (data.battery_level !== undefined) {
-            setState(prev => prev ? { ...prev, ...data } : data);
-            if (data.charge_limit_soc !== undefined) {
-              setCharge(prev => prev ? { ...prev, ...data } : data);
+    let retryCount = 0;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) return;
+      try {
+        es = new EventSource(api.getStreamUrl());
+        es.onopen = () => {
+          setConnected(true);
+          retryCount = 0;
+        };
+        es.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (data.battery_level !== undefined) {
+              setState(prev => prev ? { ...prev, ...data } : data);
+              if (data.charge_limit_soc !== undefined) {
+                setCharge(prev => prev ? { ...prev, ...data } : data);
+              }
             }
+            setLastUpdated(new Date());
+          } catch {
+            // ignore parse errors
           }
-          setLastUpdated(new Date());
-        } catch {
-          // ignore parse errors
-        }
-      };
-      es.onerror = () => {
-        // SSE errors are expected when vehicle is offline
-      };
-    } catch {
-      // SSE not available
-    }
+        };
+        es.onerror = () => {
+          setConnected(false);
+          es?.close();
+          es = null;
+          if (!cancelled) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+            retryTimeout = setTimeout(() => {
+              retryCount++;
+              connect();
+            }, delay);
+          }
+        };
+      } catch {
+        // SSE not available
+      }
+    };
+
+    connect();
+
     return () => {
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
       if (es) es.close();
+      setConnected(false);
     };
   }, []);
 
-  return { state, charge, climate, loading, error, refresh: fetchAll, lastUpdated };
+  return { state, charge, climate, loading, error, refresh: fetchAll, lastUpdated, connected };
 }
