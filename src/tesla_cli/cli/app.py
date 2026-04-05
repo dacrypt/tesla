@@ -100,10 +100,12 @@ def _register_commands() -> None:
     from tesla_cli.cli.commands.providers_cmd import providers_app
     from tesla_cli.cli.commands.serve import serve_app
     from tesla_cli.cli.commands.setup import setup_wizard
+    from tesla_cli.cli.commands.telemetry import telemetry_app
     from tesla_cli.cli.commands.teslaMate import teslaMate_app
 
     app.command("setup")(setup_wizard)
     app.add_typer(teslaMate_app, name="teslaMate")
+    app.add_typer(telemetry_app, name="telemetry")
     app.add_typer(abrp_app, name="abrp")
     app.add_typer(ble_app, name="ble")
     app.add_typer(geofence_app, name="geofence")
