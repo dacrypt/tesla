@@ -527,6 +527,26 @@ class TeslaMateBacked:
             ],
         }
 
+    def get_drive_path(self, drive_id: int) -> list[dict[str, Any]]:
+        """Get GPS positions for a specific drive from TeslaMate.
+
+        Returns list of {latitude, longitude, elevation, speed, timestamp} dicts.
+        """
+        sql = """
+            SELECT
+                latitude,
+                longitude,
+                elevation,
+                speed,
+                date AS timestamp
+            FROM positions
+            WHERE drive_id = %s
+            ORDER BY date ASC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (drive_id,))
+            return [dict(r) for r in cur.fetchall()]
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

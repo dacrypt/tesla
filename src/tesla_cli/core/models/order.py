@@ -75,3 +75,14 @@ class DeliveryAppointment(BaseModel):
     disclaimer: str = ""
     duration_minutes: int = 0
     raw: dict = Field(default_factory=dict)
+
+
+class PortalDocument(BaseModel):
+    """A document available in the Tesla ownership portal."""
+
+    document_id: str = ""
+    name: str = ""
+    category: str = ""  # e.g. "purchase", "registration", "insurance"
+    url: str = ""
+    downloaded: bool = False
+    download_path: str = ""

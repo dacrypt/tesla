@@ -251,7 +251,7 @@ def teslaMate_trips(
         show_header=True,
         header_style="bold cyan",
     )
-    table.add_column("#", style="dim", width=4)
+    table.add_column("ID", style="dim", width=6)
     table.add_column("Date", width=17)
     table.add_column("From", width=22)
     table.add_column("To", width=22)
@@ -260,7 +260,8 @@ def teslaMate_trips(
     table.add_column("kWh", justify="right", width=7)
     table.add_column("🔋 start→end", width=12)
 
-    for i, t in enumerate(trips, 1):
+    for t in trips:
+        drive_id = str(t.get("id") or "-")
         date = str(t.get("start_date") or "")[:16]
         frm = (t.get("start_address") or "")[:21]
         to = (t.get("end_address") or "")[:21]
@@ -270,7 +271,7 @@ def teslaMate_trips(
         s_batt = t.get("start_battery_level")
         e_batt = t.get("end_battery_level")
         batt = f"{s_batt}% → {e_batt}%" if s_batt is not None else "-"
-        table.add_row(str(i), date, frm, to, km, mins, kwh, batt)
+        table.add_row(drive_id, date, frm, to, km, mins, kwh, batt)
 
     console.print(table)
 
@@ -280,6 +281,111 @@ def teslaMate_trips(
     console.print(
         f"\n  [dim]Showing {len(trips)} trips │ {total_km:.0f} km │ {total_kwh:.1f} kWh[/dim]"
     )
+
+
+@teslaMate_app.command("drive-path")
+def teslaMate_drive_path(
+    drive_id: int = typer.Argument(..., help="Drive ID from TeslaMate (see: tesla teslaMate trips)"),
+    fmt: str = typer.Option("gpx", "--format", "-f", help="Export format: gpx or geojson"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
+) -> None:
+    """Export GPS trace of a drive as GPX or GeoJSON.
+
+    tesla teslaMate drive-path 42
+    tesla teslaMate drive-path 42 --format geojson
+    tesla teslaMate drive-path 42 --output drive_42.gpx
+    tesla -j teslaMate drive-path 42
+    """
+    backend = _backend()
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
+        p.add_task(f"Fetching GPS positions for drive {drive_id}...", total=None)
+        positions = backend.get_drive_path(drive_id)
+
+    if not positions:
+        console.print(f"[yellow]No GPS positions found for drive {drive_id}.[/yellow]")
+        raise typer.Exit(1)
+
+    # --json mode: raw position data
+    if is_json_mode():
+        console.print_json(json.dumps(positions, indent=2, default=str))
+        return
+
+    fmt = fmt.lower()
+    if fmt not in ("gpx", "geojson"):
+        console.print(f"[red]Unknown format '{fmt}'. Use 'gpx' or 'geojson'.[/red]")
+        raise typer.Exit(1)
+
+    if fmt == "gpx":
+        content = _build_gpx(drive_id, positions)
+    else:
+        content = _build_geojson(drive_id, positions)
+
+    if output:
+        import pathlib
+
+        pathlib.Path(output).write_text(content, encoding="utf-8")
+        console.print(
+            f"  [green]\u2713[/green] Saved {len(positions)} points to [bold]{output}[/bold]"
+        )
+    else:
+        console.print(content)
+
+
+def _build_gpx(drive_id: int, positions: list[dict]) -> str:
+    """Build GPX XML string from a list of position dicts."""
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<gpx version="1.1" creator="tesla-cli"'
+        ' xmlns="http://www.topografix.com/GPX/1/1">',
+        "  <trk>",
+        f"    <name>Drive {drive_id}</name>",
+        "    <trkseg>",
+    ]
+    for pt in positions:
+        lat = pt.get("latitude", 0)
+        lon = pt.get("longitude", 0)
+        ele = pt.get("elevation")
+        speed = pt.get("speed")
+        ts = pt.get("timestamp")
+        ts_str = str(ts).replace(" ", "T") if ts else ""
+        if not ts_str.endswith("Z") and ts_str:
+            ts_str += "Z"
+        lines.append(f'      <trkpt lat="{lat}" lon="{lon}">')
+        if ele is not None:
+            lines.append(f"        <ele>{ele}</ele>")
+        if ts_str:
+            lines.append(f"        <time>{ts_str}</time>")
+        if speed is not None:
+            lines.append(f"        <speed>{speed}</speed>")
+        lines.append("      </trkpt>")
+    lines += ["    </trkseg>", "  </trk>", "</gpx>"]
+    return "\n".join(lines)
+
+
+def _build_geojson(drive_id: int, positions: list[dict]) -> str:
+    """Build GeoJSON Feature string from a list of position dicts."""
+    coordinates = []
+    for pt in positions:
+        lat = pt.get("latitude", 0)
+        lon = pt.get("longitude", 0)
+        ele = pt.get("elevation")
+        if ele is not None:
+            coordinates.append([lon, lat, ele])
+        else:
+            coordinates.append([lon, lat])
+
+    feature = {
+        "type": "Feature",
+        "properties": {"drive_id": drive_id, "points": len(positions)},
+        "geometry": {
+            "type": "LineString",
+            "coordinates": coordinates,
+        },
+    }
+    return json.dumps(feature, indent=2)
 
 
 @teslaMate_app.command("charging")

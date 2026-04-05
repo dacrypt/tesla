@@ -1244,3 +1244,105 @@ def order_set_delivery(
     from tesla_cli.cli.commands.dossier import dossier_set_delivery
 
     dossier_set_delivery(date=date)
+
+
+@order_app.command("documents")
+def order_documents(
+    download: bool = typer.Option(False, "--download", "-d", help="Download all documents"),
+    output_dir: str = typer.Option(
+        "~/.tesla-cli/documents", "--output", "-o", help="Download directory"
+    ),
+) -> None:
+    """List or download documents from the Tesla ownership portal.
+
+    Documents are extracted from the cached portal scrape data.
+    Run the portal scrape first via the dashboard or API if no data is found.
+
+    tesla order documents
+    tesla order documents --download
+    tesla order documents --download --output ~/Downloads/tesla-docs
+    """
+    import json as _json
+    from pathlib import Path
+
+    from tesla_cli.core.backends.order import OrderBackend
+
+    # Load portal data from sources cache
+    cache_path = Path.home() / ".tesla-cli" / "sources" / "tesla.portal.json"
+    if not cache_path.exists():
+        console.print(
+            "[yellow]No portal data cached.[/yellow]\n\n"
+            "To fetch portal data, run the portal scrape:\n"
+            "  [bold]tesla order delivery --import[/bold] (for delivery details)\n"
+            "  or trigger a full portal scrape via the dashboard.\n\n"
+            f"[dim]Expected cache file: {cache_path}[/dim]"
+        )
+        raise typer.Exit(1)
+
+    try:
+        raw = _json.loads(cache_path.read_text())
+        portal_data: dict = raw.get("data", raw)
+    except Exception as e:
+        console.print(f"[red]Failed to read portal cache:[/red] {e}")
+        raise typer.Exit(1)
+
+    backend = OrderBackend()
+    docs = backend.get_portal_documents(portal_data)
+
+    if not docs:
+        console.print(
+            "[yellow]No documents found in portal data.[/yellow]\n"
+            "[dim]Tesla may not expose document URLs in the scraped page data "
+            "for your account or order stage.[/dim]"
+        )
+        raise typer.Exit(0)
+
+    if is_json_mode():
+        console.print_json(_json.dumps([d.model_dump() for d in docs], indent=2))
+        return
+
+    # Display document list
+    doc_rows = [
+        {
+            "name": d.name,
+            "category": d.category or "(unknown)",
+            "url": d.url[:60] + "..." if len(d.url) > 60 else d.url,
+        }
+        for d in docs
+    ]
+    render_table(doc_rows, columns=["name", "category", "url"], title=f"Portal Documents ({len(docs)})")
+
+    if not download:
+        console.print(
+            f"\n[dim]Use [bold]--download[/bold] to save all {len(docs)} document(s) locally.[/dim]"
+        )
+        return
+
+    # Download all documents
+    out = Path(output_dir).expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+    console.print(f"\n[bold]Downloading {len(docs)} document(s) to {out}...[/bold]")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as progress:
+        downloaded: list[dict] = []
+        failed: list[dict] = []
+        for doc in docs:
+            task = progress.add_task(f"Downloading {doc.name}...", total=None)
+            try:
+                path = backend.download_document(doc, out)
+                downloaded.append({"name": doc.name, "path": str(path)})
+                progress.remove_task(task)
+                console.print(f"  [green]✓[/green] {doc.name} → [dim]{path}[/dim]")
+            except Exception as e:
+                progress.remove_task(task)
+                failed.append({"name": doc.name, "error": str(e)})
+                render_warning(f"Failed to download {doc.name}: {e}")
+
+    console.print(f"\n[bold]{len(downloaded)}/{len(docs)} document(s) downloaded to {out}[/bold]")
+    if failed:
+        console.print(f"[red]{len(failed)} failed.[/red]")

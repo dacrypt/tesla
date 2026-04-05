@@ -30,6 +30,7 @@ from tesla_cli.core.models.order import (
     OrderDetails,
     OrderStatus,
     OrderTask,
+    PortalDocument,
 )
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,97 @@ class OrderBackend:
         )
         return appointment, changes
 
+    # ── Portal documents ───────────────────────────────────────
+
+    def get_portal_documents(self, portal_data: dict) -> list[PortalDocument]:
+        """Extract document metadata from portal scrape data.
+
+        Scans all window.Tesla.App.* keys for document-like objects:
+        - Objects with url/name/type fields
+        - Lists of objects with .pdf URLs
+        - Known keys: Documents, DocumentList, OrderDocuments
+        """
+        docs: list[PortalDocument] = []
+        seen_urls: set[str] = set()
+
+        def _extract_from_value(value: object, category: str = "") -> None:
+            if isinstance(value, list):
+                for item in value:
+                    _extract_from_value(item, category)
+            elif isinstance(value, dict):
+                url = value.get("url", value.get("URL", value.get("downloadUrl", "")))
+                name = value.get(
+                    "name",
+                    value.get("title", value.get("documentName", value.get("fileName", ""))),
+                )
+                doc_type = value.get(
+                    "type", value.get("documentType", value.get("category", category))
+                )
+                doc_id = value.get(
+                    "id", value.get("documentId", value.get("document_id", ""))
+                )
+                if url and isinstance(url, str) and url not in seen_urls:
+                    seen_urls.add(url)
+                    docs.append(
+                        PortalDocument(
+                            document_id=str(doc_id),
+                            name=str(name or url.split("/")[-1].split("?")[0]),
+                            category=str(doc_type or category),
+                            url=url,
+                        )
+                    )
+                    return
+                # Recurse into sub-keys looking for nested documents
+                for sub_key, sub_val in value.items():
+                    if isinstance(sub_val, (dict, list)):
+                        _extract_from_value(sub_val, category or sub_key.lower())
+
+        # Check well-known keys first
+        known_keys = [
+            "Documents",
+            "DocumentList",
+            "OrderDocuments",
+            "PurchaseDocuments",
+            "RegistrationDocuments",
+            "InsuranceDocuments",
+        ]
+        for key in known_keys:
+            if key in portal_data:
+                _extract_from_value(portal_data[key], category=key.replace("Documents", "").lower())
+
+        # Scan remaining keys for anything containing PDF URLs
+        for key, value in portal_data.items():
+            if key in known_keys or key.startswith("__"):
+                continue
+            _scan_for_pdf_urls(value, key.lower(), seen_urls, docs)
+
+        return docs
+
+    def download_document(self, doc: PortalDocument, output_dir: Path) -> Path:
+        """Download a document from the portal URL to local storage.
+
+        Returns path to the downloaded file.
+        """
+        import re
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Derive filename: prefer doc.name, fallback to URL basename
+        raw_name = doc.name or doc.url.split("/")[-1].split("?")[0] or f"document-{doc.document_id}"
+        # Sanitize filename
+        safe_name = re.sub(r'[^\w\s.\-]', "_", raw_name).strip()
+        if not safe_name.lower().endswith(".pdf") and ".pdf" in doc.url.lower():
+            safe_name += ".pdf"
+
+        out_path = output_dir / safe_name
+
+        resp = self._client.get(doc.url, follow_redirects=True)
+        if resp.status_code != 200:
+            raise ApiError(resp.status_code, f"Failed to download {doc.name}: {resp.text[:200]}")
+
+        out_path.write_bytes(resp.content)
+        return out_path
+
     # ── Order status parsing ───────────────────────────────────
 
     def _parse_order_status(self, data: dict) -> OrderStatus:
@@ -361,3 +453,37 @@ class OrderBackend:
     def _save_delivery_cache(self, data: dict) -> None:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         DELIVERY_CACHE_FILE.write_text(json.dumps(data, default=str, indent=2))
+
+
+def _scan_for_pdf_urls(
+    value: object,
+    category: str,
+    seen_urls: set[str],
+    docs: list[PortalDocument],
+) -> None:
+    """Recursively scan a portal data value for PDF-bearing document objects."""
+    if isinstance(value, list):
+        for item in value:
+            _scan_for_pdf_urls(item, category, seen_urls, docs)
+    elif isinstance(value, dict):
+        url = value.get("url", value.get("URL", value.get("downloadUrl", "")))
+        if url and isinstance(url, str) and ".pdf" in url.lower() and url not in seen_urls:
+            seen_urls.add(url)
+            name = value.get(
+                "name",
+                value.get("title", value.get("documentName", value.get("fileName", ""))),
+            )
+            doc_type = value.get("type", value.get("documentType", value.get("category", category)))
+            doc_id = value.get("id", value.get("documentId", value.get("document_id", "")))
+            docs.append(
+                PortalDocument(
+                    document_id=str(doc_id),
+                    name=str(name or url.split("/")[-1].split("?")[0]),
+                    category=str(doc_type or category),
+                    url=url,
+                )
+            )
+        else:
+            for sub_val in value.values():
+                if isinstance(sub_val, (dict, list)):
+                    _scan_for_pdf_urls(sub_val, category, seen_urls, docs)
