@@ -57,8 +57,9 @@ build-backend = "hatchling.build"
 packages = ["src/tesla_cli"]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not integration'"
 markers = [
-    "integration: tests that hit real external APIs (deselect with '-m \"not integration\"')",
+    "integration: tests that hit real external APIs (run explicitly with: pytest -m integration)",
 ]
 
 [tool.ruff]
