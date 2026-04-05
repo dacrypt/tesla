@@ -6,9 +6,15 @@ import {
   IonToolbar,
   IonTitle,
   IonToast,
+  IonRange,
 } from '@ionic/react';
 import { api, ProviderStatus, TeslaConfig, ServerStatus, StackStatus } from '../api/client';
 import { getBaseUrl, setBaseUrl } from '../api/client';
+
+// ---- Notification Icons ----
+const BellIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>;
+const TrashIcon = () => <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>;
+const SendIcon = () => <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>;
 
 // ---- Icons ----
 const ServerIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V3zm-2 9H6V5h12v7zM4 19c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-2H4v2zm6-1h4v1h-4v-1z"/></svg>;
@@ -53,6 +59,17 @@ const Settings: React.FC = () => {
   const [showAuthInput, setShowAuthInput] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState('');
 
+  // Notifications
+  const [notifyChannels, setNotifyChannels] = useState<string[]>([]);
+  const [newChannel, setNewChannel] = useState('');
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [testingChannel, setTestingChannel] = useState<number | null>(null);
+  // Event toggles (persisted locally — map to automation engine rules)
+  const [evtChargeComplete, setEvtChargeComplete] = useState(() => localStorage.getItem('evt_charge_complete') === 'true');
+  const [evtLowBattery, setEvtLowBattery] = useState(() => localStorage.getItem('evt_low_battery') === 'true');
+  const [evtLowBatteryThreshold, setEvtLowBatteryThreshold] = useState(() => Number(localStorage.getItem('evt_low_battery_threshold') || '20'));
+  const [evtSentry, setEvtSentry] = useState(() => localStorage.getItem('evt_sentry') === 'true');
+
   // TeslaMate stack
   const [stack, setStack] = useState<StackStatus | null>(null);
   const [stackCmd, setStackCmd] = useState<string | null>(null);
@@ -63,17 +80,63 @@ const Settings: React.FC = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s, c, p, st, au] = await Promise.allSettled([
+      const [s, c, p, st, au, nc] = await Promise.allSettled([
         api.getStatus(), api.getConfig(), api.getProviders(), api.getStackStatus(), api.getAuthStatus(),
+        api.getNotifyChannels(),
       ]);
       if (s.status === 'fulfilled') setStatus(s.value);
       if (c.status === 'fulfilled') setConfig(c.value);
       if (p.status === 'fulfilled') setProviders(Array.isArray(p.value) ? p.value : []);
       if (st.status === 'fulfilled') setStack(st.value);
       if (au.status === 'fulfilled') setAuthStatus(au.value);
+      if (nc.status === 'fulfilled') setNotifyChannels(nc.value.channels || []);
     } finally {
       setLoading(false);
     }
+  };
+
+  const addNotifyChannel = async () => {
+    if (!newChannel.trim()) return;
+    setNotifyLoading(true);
+    try {
+      await api.addNotifyChannel(newChannel.trim());
+      setNewChannel('');
+      const data = await api.getNotifyChannels();
+      setNotifyChannels(data.channels || []);
+      setToast({ message: 'Channel added', color: 'success' });
+    } catch (e: any) {
+      setToast({ message: 'Failed to add channel: ' + (e.message || e), color: 'danger' });
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
+
+  const removeNotifyChannel = async (index: number) => {
+    try {
+      await api.removeNotifyChannel(index);
+      const data = await api.getNotifyChannels();
+      setNotifyChannels(data.channels || []);
+      setToast({ message: 'Channel removed', color: 'success' });
+    } catch (e: any) {
+      setToast({ message: 'Failed to remove channel: ' + (e.message || e), color: 'danger' });
+    }
+  };
+
+  const testNotifyChannel = async (index: number) => {
+    setTestingChannel(index);
+    try {
+      await api.sendNotifyTest();
+      setToast({ message: 'Test notification sent', color: 'success' });
+    } catch (e: any) {
+      setToast({ message: 'Test failed: ' + (e.message || e), color: 'danger' });
+    } finally {
+      setTestingChannel(null);
+    }
+  };
+
+  const setEvtToggle = (key: string, value: boolean, setter: (v: boolean) => void) => {
+    setter(value);
+    localStorage.setItem(key, String(value));
   };
 
   const startTeslaLogin = async () => {
@@ -498,6 +561,169 @@ const Settings: React.FC = () => {
                   })}
                 </div>
               )}
+
+              {/* ---- Notifications ---- */}
+              <div className="tesla-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                    <BellIcon />
+                  </div>
+                  <div>
+                    <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Notifications</div>
+                    <div style={{ color: '#86888f', fontSize: 12 }}>Apprise notification channels</div>
+                  </div>
+                </div>
+
+                {/* Channel list */}
+                {notifyChannels.length > 0 ? (
+                  <div style={{ marginBottom: 14 }}>
+                    {notifyChannels.map((ch, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 8, padding: '8px 10px', marginBottom: 6,
+                      }}>
+                        <span style={{ flex: 1, color: '#ffffff', fontSize: 12, fontFamily: 'SF Mono, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ch}
+                        </span>
+                        <button
+                          onClick={() => testNotifyChannel(i)}
+                          disabled={testingChannel === i}
+                          className="tesla-btn blue"
+                          style={{ fontSize: 11, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          {testingChannel === i ? <Spin /> : <SendIcon />}
+                          Test
+                        </button>
+                        <button
+                          onClick={() => removeNotifyChannel(i)}
+                          className="tesla-btn secondary"
+                          style={{ fontSize: 11, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, color: '#FF6B6B' }}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: '#86888f', fontSize: 13, marginBottom: 14, textAlign: 'center', padding: '8px 0' }}>
+                    No channels configured
+                  </div>
+                )}
+
+                {/* Add channel form */}
+                <div style={{ marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={newChannel}
+                    onChange={(e) => setNewChannel(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addNotifyChannel()}
+                    placeholder="tgram://BOT_TOKEN/CHAT_ID"
+                    className="tesla-input mono"
+                    style={{ marginBottom: 6, fontSize: 12 }}
+                  />
+                  <div style={{ color: '#86888f', fontSize: 11, marginBottom: 8, lineHeight: 1.6 }}>
+                    Formats: <code style={{ color: '#10b981' }}>tgram://BOT/CHAT</code> · <code style={{ color: '#10b981' }}>discord://id/token</code> · <code style={{ color: '#10b981' }}>slack://a/b/c</code> · <code style={{ color: '#10b981' }}>mailto://user:pass@gmail.com</code>
+                  </div>
+                  <button
+                    onClick={addNotifyChannel}
+                    disabled={notifyLoading || !newChannel.trim()}
+                    className="tesla-btn"
+                    style={{ width: '100%', fontSize: 13 }}
+                  >
+                    {notifyLoading ? <Spin /> : '+ Add Channel'}
+                  </button>
+                </div>
+
+                {/* Event toggles */}
+                <div style={{ marginTop: 18, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 14 }}>
+                  <div style={{ color: '#86888f', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Event Triggers</div>
+
+                  {/* Charge complete toggle */}
+                  <div className="stat-row" style={{ marginBottom: 12 }}>
+                    <div>
+                      <div style={{ color: '#ffffff', fontSize: 13 }}>Charge complete</div>
+                      <div style={{ color: '#86888f', fontSize: 11 }}>Notify when charging finishes</div>
+                    </div>
+                    <button
+                      onClick={() => setEvtToggle('evt_charge_complete', !evtChargeComplete, setEvtChargeComplete)}
+                      style={{
+                        width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                        background: evtChargeComplete ? '#10b981' : 'rgba(255,255,255,0.12)',
+                        transition: 'background 0.2s', position: 'relative', flexShrink: 0,
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute', top: 2, left: evtChargeComplete ? 22 : 2,
+                        width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                      }} />
+                    </button>
+                  </div>
+
+                  {/* Low battery toggle */}
+                  <div style={{ marginBottom: 6 }}>
+                    <div className="stat-row" style={{ marginBottom: evtLowBattery ? 8 : 0 }}>
+                      <div>
+                        <div style={{ color: '#ffffff', fontSize: 13 }}>Low battery</div>
+                        <div style={{ color: '#86888f', fontSize: 11 }}>Notify below threshold</div>
+                      </div>
+                      <button
+                        onClick={() => setEvtToggle('evt_low_battery', !evtLowBattery, setEvtLowBattery)}
+                        style={{
+                          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                          background: evtLowBattery ? '#10b981' : 'rgba(255,255,255,0.12)',
+                          transition: 'background 0.2s', position: 'relative', flexShrink: 0,
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute', top: 2, left: evtLowBattery ? 22 : 2,
+                          width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                          transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                        }} />
+                      </button>
+                    </div>
+                    {evtLowBattery && (
+                      <div style={{ paddingLeft: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <span style={{ color: '#86888f', fontSize: 11 }}>Threshold</span>
+                          <span style={{ color: '#10b981', fontWeight: 600, fontSize: 13 }}>{evtLowBatteryThreshold}%</span>
+                        </div>
+                        <IonRange
+                          min={5} max={50} step={5} value={evtLowBatteryThreshold}
+                          onIonChange={(e) => {
+                            const v = e.detail.value as number;
+                            setEvtLowBatteryThreshold(v);
+                            localStorage.setItem('evt_low_battery_threshold', String(v));
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sentry event toggle */}
+                  <div className="stat-row">
+                    <div>
+                      <div style={{ color: '#ffffff', fontSize: 13 }}>Sentry event</div>
+                      <div style={{ color: '#86888f', fontSize: 11 }}>Notify on sentry alerts</div>
+                    </div>
+                    <button
+                      onClick={() => setEvtToggle('evt_sentry', !evtSentry, setEvtSentry)}
+                      style={{
+                        width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                        background: evtSentry ? '#10b981' : 'rgba(255,255,255,0.12)',
+                        transition: 'background 0.2s', position: 'relative', flexShrink: 0,
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute', top: 2, left: evtSentry ? 22 : 2,
+                        width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                      }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* ---- About ---- */}
               <div className="tesla-card" style={{ textAlign: 'center', padding: '24px 16px' }}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -14,11 +14,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+export interface GeofenceOverlay {
+  name: string;
+  lat: number;
+  lon: number;
+  radius_km: number;
+}
+
 interface VehicleMapProps {
   latitude: number;
   longitude: number;
   label?: string;
   height?: string;
+  geofences?: GeofenceOverlay[];
 }
 
 function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
@@ -33,7 +41,7 @@ function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
-export default function VehicleMap({ latitude, longitude, label, height = '400px' }: VehicleMapProps) {
+export default function VehicleMap({ latitude, longitude, label, height = '400px', geofences }: VehicleMapProps) {
   return (
     <div style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
       <MapContainer
@@ -47,6 +55,16 @@ export default function VehicleMap({ latitude, longitude, label, height = '400px
         <Marker position={[latitude, longitude]}>
           {label && <Popup>{label}</Popup>}
         </Marker>
+        {geofences?.map((g) => (
+          <Circle
+            key={g.name}
+            center={[g.lat, g.lon]}
+            radius={g.radius_km * 1000}
+            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.15 }}
+          >
+            <Popup>{g.name} ({g.radius_km} km)</Popup>
+          </Circle>
+        ))}
         <RecenterMap lat={latitude} lng={longitude} />
       </MapContainer>
     </div>

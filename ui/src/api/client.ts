@@ -478,6 +478,22 @@ export interface VehicleDossier {
   account?: TeslaAccount;
 }
 
+export interface GeofenceZone {
+  name: string;
+  lat: number;
+  lon: number;
+  radius_km: number;
+  distance_km?: number;
+  inside?: boolean;
+}
+
+export interface AutomationRule {
+  name: string;
+  enabled: boolean;
+  trigger?: string;
+  description?: string;
+}
+
 export interface CommandPayload {
   command: string;
   params?: Record<string, unknown>;
@@ -637,6 +653,20 @@ export const api = {
     client().get<any>('/api/co/recalls-sic').then(r => r.data),
   getPeajes: (ruta?: string) =>
     client().get<any>('/api/co/peajes', { params: { ruta: ruta || '' } }).then(r => r.data),
+
+  // Geofences
+  getGeofences: () =>
+    client().get<GeofenceZone[]>('/api/geofences').then(r => r.data),
+  addGeofence: (name: string, lat: number, lon: number, radius_km: number) =>
+    client().post<{ status: string; zone: string }>(`/api/geofences/${encodeURIComponent(name)}`, { lat, lon, radius_km }).then(r => r.data),
+  removeGeofence: (name: string) =>
+    client().delete<{ status: string; removed: string }>(`/api/geofences/${encodeURIComponent(name)}`).then(r => r.data),
+
+  // Automations
+  getAutomations: () =>
+    client().get<AutomationRule[]>('/api/automations').then(r => r.data),
+  toggleAutomation: (name: string, enabled: boolean) =>
+    client().post<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}/toggle`, { enabled }).then(r => r.data),
 
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
