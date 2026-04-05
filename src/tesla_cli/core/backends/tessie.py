@@ -79,6 +79,24 @@ class TessieBackend(VehicleBackend):
             return data
         return data.get("invoices", data.get("results", []))
 
+    def get_firmware_alerts(self, vin: str) -> list[dict[str, Any]]:
+        data = self._get(f"/{vin}/firmware_alerts")
+        if isinstance(data, list):
+            return data
+        return data.get("alerts", data.get("results", []))
+
+    def get_tire_pressure_history(self, vin: str) -> list[dict[str, Any]]:
+        data = self._get(f"/{vin}/tire_pressure")
+        if isinstance(data, list):
+            return data
+        return data.get("results", data.get("data", []))
+
+    def get_weather(self, vin: str) -> dict[str, Any]:
+        return self._get(f"/{vin}/weather")
+
+    def get_consumption(self, vin: str) -> dict[str, Any]:
+        return self._get(f"/{vin}/consumption")
+
     def get_nearby_charging_sites(self, vin: str) -> dict[str, Any]:
         return self._get(f"/{vin}/nearby_charging_sites")
 

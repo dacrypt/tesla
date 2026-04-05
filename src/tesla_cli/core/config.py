@@ -133,6 +133,12 @@ class FleetTelemetryConfig(BaseModel):
     stack_dir: str = ""  # ~/.tesla-cli/fleet-telemetry
 
 
+class EnergyConfig(BaseModel):
+    """Tesla Energy (Powerwall/Solar) site configuration."""
+
+    site_id: int = 0  # Auto-discovered or set manually via tesla energy sites
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -149,6 +155,7 @@ class Config(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     telemetry: FleetTelemetryConfig = Field(default_factory=FleetTelemetryConfig)
+    energy: EnergyConfig = Field(default_factory=EnergyConfig)
 
 
 def load_config() -> Config:

@@ -2124,3 +2124,280 @@ def teslaMate_monthly_cost(
         prev_cost = float(cost) if cost else None
 
     console.print(t)
+
+
+# ---------------------------------------------------------------------------
+# Data import
+# ---------------------------------------------------------------------------
+
+_TESLAFI_REQUIRED_COLS = {"Date", "Odometer"}
+_TESLAFI_COL_MAP: dict[str, str] = {
+    "Date": "date",
+    "Battery Level": "battery_level",
+    "Charge Rate": "charge_rate",
+    "Inside Temp": "inside_temp",
+    "Outside Temp": "outside_temp",
+    "Odometer": "odometer",
+    "Speed": "speed",
+    "Latitude": "latitude",
+    "Longitude": "longitude",
+    "Elevation": "elevation",
+    "Heading": "heading",
+    "Power": "power",
+    "Ideal Battery Range": "ideal_battery_range",
+    "Rated Battery Range": "rated_battery_range",
+    "State": "state",
+    "Charging State": "charging_state",
+}
+
+
+def _detect_format(file: str, fmt: str) -> str:
+    """Auto-detect import format from extension and/or headers."""
+    if fmt != "auto":
+        return fmt
+
+    import pathlib
+
+    path = pathlib.Path(file)
+    ext = path.suffix.lower()
+
+    if ext == ".json":
+        return "teslamate-json"
+
+    if ext == ".csv":
+        import csv as _csv
+
+        with open(file, newline="", encoding="utf-8-sig") as fh:
+            reader = _csv.DictReader(fh)
+            headers = set(reader.fieldnames or [])
+        if _TESLAFI_REQUIRED_COLS.issubset(headers):
+            return "teslafi-csv"
+        return "csv"
+
+    return "csv"
+
+
+def _parse_teslafi_csv(file: str) -> list[dict]:
+    """Parse a TeslaFi CSV export into normalized row dicts."""
+    import csv as _csv
+
+    rows: list[dict] = []
+    with open(file, newline="", encoding="utf-8-sig") as fh:
+        reader = _csv.DictReader(fh)
+        for raw in reader:
+            row: dict = {}
+            for src_col, dst_col in _TESLAFI_COL_MAP.items():
+                val = raw.get(src_col, "").strip()
+                row[dst_col] = val if val not in ("", "None", "null") else None
+            rows.append(row)
+    return rows
+
+
+def _parse_teslamate_json(file: str) -> dict:
+    """Load a TeslaMate JSON backup."""
+    import pathlib
+
+    data = json.loads(pathlib.Path(file).read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {"rows": data}
+
+
+def _parse_generic_csv(file: str) -> list[dict]:
+    """Parse a generic CSV file, returning rows as-is."""
+    import csv as _csv
+
+    rows: list[dict] = []
+    with open(file, newline="", encoding="utf-8-sig") as fh:
+        reader = _csv.DictReader(fh)
+        for raw in reader:
+            rows.append(dict(raw))
+    return rows
+
+
+def _preview_rows(rows: list[dict], n: int = 5) -> None:
+    """Print first n rows as a Rich table."""
+    from rich.table import Table
+
+    if not rows:
+        console.print("[yellow]No rows to preview.[/yellow]")
+        return
+
+    cols = list(rows[0].keys())
+    t = Table(title=f"Preview (first {min(n, len(rows))} rows)", header_style="bold cyan")
+    for col in cols:
+        t.add_column(str(col), no_wrap=True, max_width=20)
+    for row in rows[:n]:
+        t.add_row(*[str(row.get(k) or "") for k in cols])
+    console.print(t)
+
+
+def _insert_teslafi_rows(database_url: str, car_id: int, rows: list[dict]) -> int:
+    """Insert TeslaFi rows into TeslaMate positions table via psycopg2."""
+    try:
+        import psycopg2  # type: ignore[import]
+    except ImportError:
+        console.print("[red]psycopg2 not installed.[/red] Run: pip install psycopg2-binary")
+        raise typer.Exit(1)
+
+    sql = """
+        INSERT INTO positions
+            (car_id, date, latitude, longitude, speed, heading, elevation,
+             odometer, battery_level, outside_temp, inside_temp, power,
+             ideal_battery_range_km, rated_battery_range_km)
+        VALUES
+            (%(car_id)s, %(date)s, %(latitude)s, %(longitude)s, %(speed)s,
+             %(heading)s, %(elevation)s, %(odometer)s, %(battery_level)s,
+             %(outside_temp)s, %(inside_temp)s, %(power)s,
+             %(ideal_battery_range)s, %(rated_battery_range)s)
+        ON CONFLICT DO NOTHING
+    """
+
+    def _safe_float(val) -> float | None:
+        try:
+            return float(val) if val is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _safe_int(val) -> int | None:
+        try:
+            return int(float(val)) if val is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    conn = psycopg2.connect(database_url)
+    inserted = 0
+    try:
+        with conn.cursor() as cur:
+            for row in rows:
+                cur.execute(
+                    sql,
+                    {
+                        "car_id": car_id,
+                        "date": row.get("date"),
+                        "latitude": _safe_float(row.get("latitude")),
+                        "longitude": _safe_float(row.get("longitude")),
+                        "speed": _safe_float(row.get("speed")),
+                        "heading": _safe_int(row.get("heading")),
+                        "elevation": _safe_float(row.get("elevation")),
+                        "odometer": _safe_float(row.get("odometer")),
+                        "battery_level": _safe_int(row.get("battery_level")),
+                        "outside_temp": _safe_float(row.get("outside_temp")),
+                        "inside_temp": _safe_float(row.get("inside_temp")),
+                        "power": _safe_float(row.get("power")),
+                        "ideal_battery_range": _safe_float(row.get("ideal_battery_range")),
+                        "rated_battery_range": _safe_float(row.get("rated_battery_range")),
+                    },
+                )
+                inserted += cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return inserted
+
+
+@teslaMate_app.command("import")
+def teslamate_import(
+    file: str = typer.Argument(help="Path to CSV or JSON file"),
+    fmt: str = typer.Option("auto", "--format", "-f", help="Format: auto, teslafi-csv, teslamate-json, csv"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be imported without writing"),
+) -> None:
+    """Import historical data from TeslaFi CSV or TeslaMate JSON backup.
+
+    \b
+    tesla teslaMate import teslafi_export.csv
+    tesla teslaMate import backup.json --format teslamate-json
+    tesla teslaMate import data.csv --dry-run
+    """
+    import pathlib
+
+    path = pathlib.Path(file)
+    if not path.exists():
+        console.print(f"[red]File not found:[/red] {file}")
+        raise typer.Exit(1)
+
+    detected = _detect_format(file, fmt)
+    console.print(f"  [dim]Format detected:[/dim] [bold]{detected}[/bold]")
+
+    # Parse
+    rows: list[dict] = []
+    json_data: dict | None = None
+
+    if detected == "teslafi-csv":
+        with Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+        ) as p:
+            p.add_task("Parsing TeslaFi CSV...", total=None)
+            rows = _parse_teslafi_csv(file)
+    elif detected == "teslamate-json":
+        with Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+        ) as p:
+            p.add_task("Parsing TeslaMate JSON...", total=None)
+            json_data = _parse_teslamate_json(file)
+        # For JSON, summarise tables rather than flat rows
+        if isinstance(json_data, dict):
+            for _table, table_rows in json_data.items():
+                if isinstance(table_rows, list):
+                    rows.extend(table_rows[:5])  # preview only first 5 per table
+    else:
+        # generic CSV
+        with Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+        ) as p:
+            p.add_task("Parsing CSV...", total=None)
+            rows = _parse_generic_csv(file)
+
+    total_rows = len(rows)
+
+    # Preview
+    _preview_rows(rows[:5] if detected != "teslamate-json" else rows, n=5)
+
+    # Date range
+    dates = [r.get("date") or r.get("Date") or r.get("started_at") or r.get("timestamp") for r in rows]
+    dates = [d for d in dates if d]
+    date_range = f"{min(dates)[:10]} → {max(dates)[:10]}" if dates else "unknown"
+
+    console.print()
+    console.print("  [bold]Summary[/bold]")
+    console.print(f"  File:        {path.name}")
+    console.print(f"  Format:      {detected}")
+    console.print(f"  Rows found:  {total_rows:,}")
+    console.print(f"  Date range:  {date_range}")
+
+    if dry_run:
+        console.print("\n  [yellow]--dry-run: no data written.[/yellow]")
+        return
+
+    if detected == "teslamate-json":
+        console.print(
+            "\n  [yellow]TeslaMate JSON restore is not yet implemented.[/yellow]\n"
+            "  [dim]Use the TeslaMate web UI or psql to restore from a JSON backup.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # Require DB connection for actual insert
+    cfg = load_config()
+    database_url = cfg.teslaMate.database_url
+    car_id = cfg.teslaMate.car_id
+
+    if not database_url:
+        console.print(
+            "[red]TeslaMate not configured.[/red]\n"
+            "Run: [bold]tesla teslaMate connect postgresql://...[/bold]"
+        )
+        raise typer.Exit(1)
+
+    console.print(f"\n  Inserting {total_rows:,} rows into TeslaMate DB (car_id={car_id})...")
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
+        p.add_task("Importing...", total=None)
+        if detected in ("teslafi-csv", "csv"):
+            # Re-parse full file for actual insert
+            if detected == "teslafi-csv":
+                all_rows = _parse_teslafi_csv(file)
+            else:
+                all_rows = _parse_generic_csv(file)
+            inserted = _insert_teslafi_rows(database_url, car_id, all_rows)
+        else:
+            inserted = 0
+
+    console.print(f"  [green]Done.[/green] {inserted:,} rows imported.")
