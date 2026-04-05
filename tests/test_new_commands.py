@@ -8785,3 +8785,102 @@ class TestChargeWatchComplete:
         result = _run("charge", "--help")
         assert result.exit_code == 0
         assert "watch-complete" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Order Status Oneline
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestOrderStatusOneline:
+    """Tests for tesla order status --oneline."""
+
+    @patch("tesla_cli.cli.commands.order.OrderBackend")
+    def test_oneline_output(self, mock_backend_cls):
+        from tesla_cli.core.models.order import OrderStatus
+
+        with patch("tesla_cli.cli.commands.order.load_config") as mock_cfg:
+            mock_cfg.return_value.order.reservation_number = "RN999999999"
+            mock_backend = MagicMock()
+            mock_backend.get_order_status.return_value = OrderStatus(
+                order_status="BOOKED",
+                model="MY",
+                vin="LRWYGCEK3TC512197",
+                estimated_delivery="Apr 10, 2026",
+            )
+            mock_backend_cls.return_value = mock_backend
+            result = _run("order", "status", "--oneline")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "BOOKED" in output
+        assert "MY" in output
+        assert "512197" in output  # VIN masked to last 6
+        assert "LRWYGCEK3TC512197" not in output  # full VIN NOT shown
+        assert "Apr 10, 2026" in output
+        assert output.count("\n") == 0
+
+    @patch("tesla_cli.cli.commands.order.OrderBackend")
+    def test_oneline_minimal(self, mock_backend_cls):
+        """Oneline with only status (no model, vin, delivery)."""
+        from tesla_cli.core.models.order import OrderStatus
+
+        with patch("tesla_cli.cli.commands.order.load_config") as mock_cfg:
+            mock_cfg.return_value.order.reservation_number = "RN999999999"
+            mock_backend = MagicMock()
+            mock_backend.get_order_status.return_value = OrderStatus(
+                order_status="PENDING",
+            )
+            mock_backend_cls.return_value = mock_backend
+            result = _run("order", "status", "--oneline")
+        assert result.exit_code == 0
+        output = result.output.strip()
+        assert "PENDING" in output
+        assert output.count("|") == 0  # no extra segments
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RUNT Default VIN Fallback
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestRuntDefaultVin:
+    """Tests for tesla data runt defaulting to config VIN."""
+
+    def test_no_args_uses_config_vin(self):
+        """When no --vin/--placa/--cedula given, uses default_vin from config."""
+        with (
+            patch("tesla_cli.cli.commands.data_cmd._require_openquery"),
+            patch("tesla_cli.cli.commands.data_cmd._build_input") as mock_build,
+            patch("tesla_cli.cli.commands.data_cmd._run"),
+            patch("tesla_cli.core.config.load_config") as mock_cfg,
+        ):
+            mock_cfg.return_value.general.default_vin = "5YJ3E1EA1PF000001"
+            result = _run("data", "runt")
+        assert result.exit_code == 0
+        mock_build.assert_called_once()
+        # Third arg to _build_input should be the config VIN
+        call_args = mock_build.call_args
+        assert call_args[0][2] == "5YJ3E1EA1PF000001"
+
+    def test_no_args_no_vin_exits(self):
+        """When no args and no default_vin configured, exits with error."""
+        with (
+            patch("tesla_cli.cli.commands.data_cmd._require_openquery"),
+            patch("tesla_cli.core.config.load_config") as mock_cfg,
+        ):
+            mock_cfg.return_value.general.default_vin = ""
+            result = _run("data", "runt")
+        assert result.exit_code == 1
+        assert "No VIN configured" in result.output
+
+    def test_explicit_vin_overrides(self):
+        """Explicit --vin takes precedence over config."""
+        with (
+            patch("tesla_cli.cli.commands.data_cmd._require_openquery"),
+            patch("tesla_cli.cli.commands.data_cmd._build_input") as mock_build,
+            patch("tesla_cli.cli.commands.data_cmd._run"),
+        ):
+            result = _run("data", "runt", "--vin", "7SAYTEST999999")
+        assert result.exit_code == 0
+        call_args = mock_build.call_args
+        assert call_args[0][2] == "7SAYTEST999999"

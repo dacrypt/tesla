@@ -92,6 +92,8 @@ class OwnerApiVehicleBackend(VehicleBackend):
         resp = self._client.get("/api/1/vehicles", headers=self._headers())
         if resp.status_code == 401:
             raise AuthenticationError("Token expired. Run: tesla config auth order")
+        if resp.status_code == 412:
+            raise EndpointDeprecatedError()
         if resp.status_code != 200:
             raise ApiError(resp.status_code, f"Failed to list vehicles: {resp.text}")
 
