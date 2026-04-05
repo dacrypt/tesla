@@ -3,7 +3,6 @@ anonymize mode, VIN decoder, option code decoder, i18n, and TeslaMate config."""
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import tempfile
 from pathlib import Path
@@ -7075,10 +7074,6 @@ class TestTeslaMateEnergyReport:
 # ── REST: GET /api/teslaMate/charging-locations ───────────────────────────────
 
 
-_has_fastapi = bool(importlib.util.find_spec("fastapi"))
-
-
-@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestTeslaMatChargingLocationsApi:
     """Tests for GET /api/teslaMate/charging-locations."""
 
@@ -7142,7 +7137,6 @@ class TestTeslaMatChargingLocationsApi:
 # ── REST: GET /api/vehicle/odometer ──────────────────────────────────────────
 
 
-@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestVehicleOdometerApi:
     """Tests for GET /api/vehicle/odometer."""
 
@@ -8284,7 +8278,6 @@ class TestVehicleWatchExec:
         assert "--on-change-exec" in result.output
 
 
-@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestGeofenceApi:
     """Verify geofence API routes exist."""
 
