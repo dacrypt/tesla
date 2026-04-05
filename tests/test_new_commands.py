@@ -9171,3 +9171,75 @@ class TestTelemetryCli:
         result = _run("telemetry", "configure", "--help")
         assert result.exit_code == 0
         assert "configure" in result.output.lower() or "hostname" in result.output.lower()
+
+
+class TestTelemetryCommands:
+    """Tests for tesla telemetry subcommands."""
+
+    def test_install_help(self):
+        result = _run("telemetry", "install", "--help")
+        assert result.exit_code == 0
+        assert "hostname" in result.output.lower()
+
+    def test_start_help(self):
+        result = _run("telemetry", "start", "--help")
+        assert result.exit_code == 0
+
+    def test_stop_help(self):
+        result = _run("telemetry", "stop", "--help")
+        assert result.exit_code == 0
+
+    def test_configure_help(self):
+        result = _run("telemetry", "configure", "--help")
+        assert result.exit_code == 0
+
+    def test_status_no_docker(self):
+        """Status should handle missing Docker gracefully."""
+        with patch("tesla_cli.cli.commands.telemetry.load_config") as mock_cfg:
+            mock_cfg.return_value.telemetry.enabled = False
+            result = _run("telemetry", "status")
+        # Should not crash, just report not configured
+        assert result.exit_code == 0 or "not" in result.output.lower()
+
+    def test_logs_help(self):
+        result = _run("telemetry", "logs", "--help")
+        assert result.exit_code == 0
+
+
+class TestExceptions:
+    """Test custom exception classes."""
+
+    def test_endpoint_deprecated_error(self):
+        from tesla_cli.core.exceptions import EndpointDeprecatedError
+
+        err = EndpointDeprecatedError()
+        assert err.status_code == 412
+        assert "Fleet API" in str(err)
+        assert "Tessie" in str(err)
+
+    def test_endpoint_deprecated_custom_message(self):
+        from tesla_cli.core.exceptions import EndpointDeprecatedError
+
+        err = EndpointDeprecatedError("Custom message")
+        assert err.status_code == 412
+        assert "Custom message" in str(err)
+
+    def test_rate_limit_error(self):
+        from tesla_cli.core.exceptions import RateLimitError
+
+        err = RateLimitError()
+        assert err.status_code == 429
+
+    def test_backend_not_supported_error(self):
+        from tesla_cli.core.exceptions import BackendNotSupportedError
+
+        err = BackendNotSupportedError("feature_x")
+        assert "feature_x" in str(err)
+        assert "fleet" in str(err)
+
+    def test_external_tool_not_found(self):
+        from tesla_cli.core.exceptions import ExternalToolNotFoundError
+
+        err = ExternalToolNotFoundError("tesla-control", "brew install tesla")
+        assert "tesla-control" in str(err)
+        assert "brew install" in str(err)

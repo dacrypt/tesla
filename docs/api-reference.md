@@ -111,6 +111,20 @@ GET /api/charge/state?vin=modely           # aliases work too
 | POST | `/api/notify/add` | Add channel (`{"url": "tgram://..."}`) |
 | POST | `/api/notify/remove` | Remove channel by index (`{"index": 0}`) |
 
+### Vehicle (Sub-State)
+
+These endpoints return individual state objects without waking the vehicle when already awake:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/vehicle/state` | Full vehicle data (all states combined) |
+| GET | `/api/vehicle/location` | Drive state including GPS coordinates |
+| GET | `/api/vehicle/charge` | Charge state sub-object |
+| GET | `/api/vehicle/climate` | Climate state sub-object |
+| GET | `/api/vehicle/vehicle-state` | Vehicle state (locks, doors, software, etc.) |
+| GET | `/api/vehicle/list` | List all vehicles on the account |
+| GET | `/api/vehicle/odometer` | Current odometer + software version (`{vin, odometer_miles, car_version, queried_at}`) |
+
 ### Order
 
 | Method | Endpoint | Description |
@@ -165,6 +179,36 @@ GET /api/charge/state?vin=modely           # aliases work too
 | GET | `/api/geofences/{name}` | Check if vehicle is inside a specific zone |
 | POST | `/api/geofences/{name}` | Add/update a zone (`{"lat", "lon", "radius_km"}`) |
 | DELETE | `/api/geofences/{name}` | Remove a zone |
+
+### Sources
+
+Data source cache management — mirrors `tesla data data-sources` and related commands:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sources` | List all 15 data sources with cache status |
+| GET | `/api/sources/missing-auth` | List sources that lack required credentials |
+| GET | `/api/sources/config` | Current source configuration |
+| POST | `/api/sources/config` | Update source configuration |
+| POST | `/api/sources/refresh-stale` | Refresh all stale cached sources |
+| GET | `/api/sources/{source_id}` | Single source detail + cached value |
+| POST | `/api/sources/{source_id}/refresh` | Force refresh a specific source |
+| GET | `/api/sources/{source_id}/history` | Cache history for a source |
+| GET | `/api/sources/{source_id}/audits` | Audit log entries for a source |
+| GET | `/api/sources/{source_id}/audit/{filename}` | Single audit file content |
+
+### Auth
+
+OAuth2 / Fleet API authentication flow (used by the PWA dashboard):
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/login` | Generate Tesla OAuth URL (`{auth_url, state}`) — open in popup |
+| POST | `/api/auth/callback` | Exchange authorization code for tokens (`{code, state}`) |
+| POST | `/api/auth/tessie` | Configure Tessie API token (`{token}`) |
+| POST | `/api/auth/browser-login` | Initiate browser-based login flow |
+| POST | `/api/auth/portal-scrape` | Scrape Tesla portal session cookies |
+| GET | `/api/auth/status` | Auth status for all configured backends |
 
 ### Colombia (Public Data)
 

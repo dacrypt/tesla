@@ -117,11 +117,14 @@ Full 20-tool competitive analysis: [research/competitive-analysis.md](research/c
 | TeslaMate integration | ✅ | TeslaMate native |
 | MQTT + HA auto-discovery | ✅ | TeslaMate native |
 | Web dashboard (React PWA) | ✅ | Tessie (SaaS) |
-| tmux/polybar integration (9 --oneline) | ✅ | -- |
+| tmux/polybar integration (10 --oneline) | ✅ | -- |
 | Colombia-specific (RUNT, SIMIT, openquery) | ✅ | -- |
-| Claude Code plugin (9 skills, marketplace) | ✅ | -- |
+| Claude Code plugin (11 skills, marketplace) | ✅ | -- |
 | Apprise notifications (100+ channels) | ✅ | -- |
-| BLE signed commands | ⏳ Partial (wrapper) | tesla-control (native) |
-| Fleet Telemetry streaming | ⏳ Not yet | Teslemetry |
-| Automation engine (triggers + actions) | ⏳ Not yet | Tessie |
+| Signed commands (fleet-signed backend) | ✅ | tesla-control (native) |
+| Fleet Telemetry streaming (self-hosted) | ✅ | -- |
+| Automation engine (9 triggers + actions) | ✅ | Tessie |
+| Supercharging invoices | ✅ | Tessie |
+| Portal document download | ✅ | TOST |
+| Drive path GPX/GeoJSON export | ✅ | TeslaMate |
 | Powerwall / Solar | ⏳ Not yet | TeslaMate, TeslaFi |
