@@ -89,6 +89,19 @@ class ChargingHistory(BaseModel):
         )
 
 
+class ChargingInvoice(BaseModel):
+    """A Supercharging invoice from Tesla."""
+
+    invoice_id: str = ""
+    date: str = ""
+    location: str = ""
+    kwh: float = 0.0
+    amount: float = 0.0
+    currency: str = "USD"
+    duration_minutes: int = 0
+    vin: str = ""
+
+
 class ChargingSession(BaseModel):
     """Unified charging session from any source (TeslaMate, Fleet API, Tessie)."""
 

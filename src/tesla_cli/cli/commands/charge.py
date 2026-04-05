@@ -1088,3 +1088,93 @@ def charge_watch_complete(
             _time.sleep(interval)
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped watching.[/dim]")
+
+
+@charge_app.command("invoices")
+def charge_invoices(
+    n: int = typer.Option(20, "-n", help="Number of invoices to show"),
+    csv_file: str | None = typer.Option(None, "--csv", help="Export to CSV file"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show Supercharging invoices (requires Tessie backend).
+
+    \b
+    tesla charge invoices
+    tesla charge invoices -n 50
+    tesla charge invoices --csv invoices.csv
+    tesla -j charge invoices
+    """
+    import csv as _csv
+    import json as _json
+
+    from rich.table import Table
+
+    from tesla_cli.core.backends.tessie import TessieBackend
+    from tesla_cli.core.models.charge import ChargingInvoice
+
+    cfg = load_config()
+    v = _vin(vin)
+    backend = get_vehicle_backend(cfg)
+
+    if not isinstance(backend, TessieBackend):
+        console.print("[yellow]charge invoices requires the Tessie backend.[/yellow]")
+        console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
+        raise typer.Exit(1)
+
+    raw = backend.get_charging_invoices(v)
+    invoices: list[ChargingInvoice] = []
+    for item in raw[:n]:
+        invoices.append(
+            ChargingInvoice(
+                invoice_id=str(item.get("invoice_id") or item.get("id") or ""),
+                date=str(item.get("date") or item.get("billing_date") or ""),
+                location=str(item.get("location") or item.get("charger_name") or ""),
+                kwh=float(item.get("kwh") or item.get("energy_kwh") or 0.0),
+                amount=float(item.get("amount") or item.get("total") or 0.0),
+                currency=str(item.get("currency") or "USD"),
+                duration_minutes=int(item.get("duration_minutes") or item.get("duration") or 0),
+                vin=str(item.get("vin") or v),
+            )
+        )
+
+    if not invoices:
+        console.print("[yellow]No invoices found.[/yellow]")
+        return
+
+    if is_json_mode():
+        console.print(_json.dumps([inv.model_dump() for inv in invoices], indent=2))
+        return
+
+    if csv_file:
+        with open(csv_file, "w", newline="", encoding="utf-8") as fh:
+            writer = _csv.DictWriter(fh, fieldnames=list(ChargingInvoice.model_fields.keys()))
+            writer.writeheader()
+            writer.writerows([inv.model_dump() for inv in invoices])
+        console.print(f"[green]Exported {len(invoices)} invoices to {csv_file}[/green]")
+        return
+
+    t = Table(title=f"Supercharging Invoices ({len(invoices)})")
+    t.add_column("Date", style="cyan")
+    t.add_column("Location", max_width=35)
+    t.add_column("kWh", justify="right", style="green")
+    t.add_column("Amount", justify="right")
+    t.add_column("Duration", justify="right", style="dim")
+
+    total_kwh = 0.0
+    total_amount = 0.0
+    for inv in invoices:
+        dur_str = f"{inv.duration_minutes}m" if inv.duration_minutes else "—"
+        amount_str = f"{inv.amount:.2f} {inv.currency}" if inv.amount else "—"
+        t.add_row(inv.date, inv.location, f"{inv.kwh:.2f}", amount_str, dur_str)
+        total_kwh += inv.kwh
+        total_amount += inv.amount
+
+    console.print(t)
+    console.print(
+        f"\n  [bold]{total_kwh:.2f} kWh[/bold] total"
+        + (
+            f" | [bold]{invoices[0].currency} {total_amount:.2f}[/bold] total"
+            if total_amount
+            else ""
+        )
+    )

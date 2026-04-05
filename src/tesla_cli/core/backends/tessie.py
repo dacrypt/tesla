@@ -72,6 +72,13 @@ class TessieBackend(VehicleBackend):
         data = self.get_vehicle_data(vin)
         return data.get("service_data", {})
 
+    def get_charging_invoices(self, vin: str) -> list[dict[str, Any]]:
+        data = self._get(f"/{vin}/charging_invoices")
+        # Tessie returns either a list directly or {"invoices": [...]}
+        if isinstance(data, list):
+            return data
+        return data.get("invoices", data.get("results", []))
+
     def get_nearby_charging_sites(self, vin: str) -> dict[str, Any]:
         return self._get(f"/{vin}/nearby_charging_sites")
 

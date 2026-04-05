@@ -86,6 +86,11 @@ def _register_commands() -> None:
 
     app.add_typer(data_app, name="data")
 
+    # Automations
+    from tesla_cli.cli.commands.automations import automations_app
+
+    app.add_typer(automations_app, name="automations")
+
     # Integrations
     from tesla_cli.cli.commands.abrp import abrp_app
     from tesla_cli.cli.commands.ble import ble_app
