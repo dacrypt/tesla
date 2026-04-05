@@ -2715,112 +2715,66 @@ def vehicle_status_line(vin: str | None = VinOption) -> None:
 
 @vehicle_app.command("stream-live")
 def vehicle_stream_live(
-    interval: int = typer.Option(0, "--interval", "-i", help="Min seconds between updates (0=realtime)"),
-    fields: str = typer.Option("", "--fields", "-f", help="Comma-separated fields to display"),
-    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line compact output"),
+    lines: int = typer.Option(50, "--lines", "-n", help="Number of recent log lines to show before following"),
+    raw: bool = typer.Option(False, "--raw", help="Print raw log lines without formatting"),
     vin: str | None = VinOption,
 ) -> None:
-    """Stream real-time telemetry from Teslemetry (zero polling, zero vampire drain).
+    """Stream real-time telemetry from the self-hosted fleet-telemetry server.
 
-    Connects via Server-Sent Events to the Teslemetry hosted proxy.
-    Requires: tesla config auth teslemetry
+    Tails the fleet-telemetry Docker container logs, which receive data
+    streamed directly from your vehicle.
+
+    Requires: tesla telemetry install + tesla telemetry configure
 
     tesla vehicle stream-live
-    tesla vehicle stream-live --fields battery_level,speed,charging_state
-    tesla vehicle stream-live --oneline
-    tesla vehicle stream-live --interval 2
+    tesla vehicle stream-live --lines 100
+    tesla vehicle stream-live --raw
     """
-    import time as _time
 
-    from rich.live import Live
-    from rich.table import Table as _Table
-
-    from tesla_cli.core.auth import tokens
-    from tesla_cli.core.backends.teslemetry import TeslemetryBackend
-    from tesla_cli.core.config import load_config, resolve_vin
+    from tesla_cli.core.config import load_config
 
     cfg = load_config()
-    api_key = tokens.get_token(tokens.TESLEMETRY_TOKEN)
-    if not api_key:
+
+    if not cfg.telemetry.enabled or not cfg.telemetry.managed:
         console.print(
-            "[red]Teslemetry API key not configured.[/red]\n"
-            "Run: [bold]tesla config auth teslemetry[/bold]"
+            "[red]Self-hosted fleet-telemetry not configured.[/red]\n"
+            "Run: [bold]tesla telemetry install <hostname>[/bold]\n"
+            "Then: [bold]tesla telemetry configure[/bold]"
         )
         raise typer.Exit(1)
 
-    v = resolve_vin(cfg, vin)
-    backend = TeslemetryBackend(api_key)
+    from pathlib import Path
 
-    field_filter: list[str] = [f.strip() for f in fields.split(",") if f.strip()] if fields else []
+    from tesla_cli.infra.fleet_telemetry_stack import FleetTelemetryStack
 
-    KEY_LABELS: dict[str, str] = {
-        "battery_level": "Battery",
-        "charging_state": "Charging",
-        "charger_power": "Charge Power",
-        "speed": "Speed",
-        "latitude": "Latitude",
-        "longitude": "Longitude",
-        "inside_temp": "Inside Temp",
-        "outside_temp": "Outside Temp",
-        "odometer": "Odometer",
-        "locked": "Locked",
-        "sentry_mode": "Sentry",
-    }
-    DEFAULT_FIELDS = list(KEY_LABELS.keys())
-    display_fields = field_filter if field_filter else DEFAULT_FIELDS
+    stack_dir = Path(cfg.telemetry.stack_dir) if cfg.telemetry.stack_dir else None
+    stack = FleetTelemetryStack(stack_dir)
 
-    last_values: dict[str, str] = {}
-    last_update: float = 0.0
+    if not stack.is_installed():
+        console.print(
+            "[red]Fleet-telemetry stack is not installed.[/red]\n"
+            "Run: [bold]tesla telemetry install <hostname>[/bold]"
+        )
+        raise typer.Exit(1)
 
-    def _fmt(key: str, val: object) -> str:
-        if key == "battery_level":
-            return f"{val}%"
-        if key in ("inside_temp", "outside_temp"):
-            return f"{val}°C"
-        if key == "odometer":
-            return f"{val:,.1f} mi" if isinstance(val, float | int) else str(val)
-        if key == "charger_power":
-            return f"{val} kW"
-        if key == "speed":
-            return f"{val} mph"
-        if key in ("locked", "sentry_mode"):
-            return "Yes" if val else "No"
-        return str(val)
+    if not stack.is_running():
+        console.print(
+            "[yellow]Fleet-telemetry container is not running.[/yellow]\n"
+            "Start it with: [bold]tesla telemetry start[/bold]"
+        )
+        raise typer.Exit(1)
 
-    def _build_table() -> _Table:
-        t = _Table(title=f"Teslemetry Live — {v[-6:]}", show_lines=True)
-        t.add_column("Field", style="cyan", width=20)
-        t.add_column("Value", width=30)
-        for key in display_fields:
-            label = KEY_LABELS.get(key, key)
-            t.add_row(label, last_values.get(key, "[dim]—[/dim]"))
-        return t
+    console.print(
+        "[bold]Streaming from fleet-telemetry server...[/bold] [dim](Ctrl+C to stop)[/dim]"
+    )
 
-    console.print(f"[bold]Connecting to Teslemetry stream for {v}...[/bold] [dim](Ctrl+C to stop)[/dim]")
-
+    proc = stack.logs(lines=lines, follow=True)
     try:
-        if oneline:
-            for event in backend.stream(v):
-                now = _time.monotonic()
-                for key, val in event.items():
-                    if not display_fields or key in display_fields:
-                        last_values[key] = _fmt(key, val)
-                if interval and (now - last_update) < interval:
-                    continue
-                last_update = now
-                parts = [f"{KEY_LABELS.get(k, k)}={last_values[k]}" for k in display_fields if k in last_values]
-                console.print("  ".join(parts))
-        else:
-            with Live(console=console, refresh_per_second=4, transient=False) as live:
-                live.update(_build_table())
-                for event in backend.stream(v):
-                    now = _time.monotonic()
-                    for key, val in event.items():
-                        if not display_fields or key in display_fields:
-                            last_values[key] = _fmt(key, val)
-                    if interval and (now - last_update) < interval:
-                        continue
-                    last_update = now
-                    live.update(_build_table())
+        for line in proc.stdout or []:
+            if raw:
+                console.print(line, end="")
+            else:
+                console.print(line, end="")
     except KeyboardInterrupt:
+        proc.terminate()
         console.print("\n[dim]Live stream stopped.[/dim]")

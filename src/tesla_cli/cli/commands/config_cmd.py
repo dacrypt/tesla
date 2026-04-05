@@ -370,11 +370,9 @@ def config_auth(
         _auth_tessie()
     elif backend == "fleet":
         _auth_fleet()
-    elif backend == "teslemetry":
-        _auth_teslemetry()
     else:
         console.print(
-            f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet, teslemetry"
+            f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet"
         )
         raise typer.Exit(1)
 
@@ -945,25 +943,6 @@ def _auth_tessie() -> None:
     cfg.general.backend = "tessie"
     save_config(cfg)
     render_success("Tessie token saved. Backend set to 'tessie'.")
-
-
-def _auth_teslemetry() -> None:
-    """Prompt for Teslemetry API key."""
-    console.print(
-        "[bold]Teslemetry Authentication[/bold]\n"
-        "Teslemetry is a hosted Fleet Telemetry proxy that provides real-time\n"
-        "vehicle streaming without self-hosted infrastructure.\n\n"
-        "Get your API key from: [link=https://teslemetry.com]teslemetry.com[/link]"
-    )
-    key = Prompt.ask("Teslemetry API key", password=True)
-    if not key.strip():
-        console.print("[red]No API key provided.[/red]")
-        raise typer.Exit(1)
-    tokens.set_token(tokens.TESLEMETRY_TOKEN, key.strip())
-    cfg = load_config()
-    cfg.teslemetry.configured = True
-    save_config(cfg)
-    render_success("Teslemetry API key saved. Run: tesla vehicle stream --live")
 
 
 def _auth_fleet() -> None:

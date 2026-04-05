@@ -116,14 +116,21 @@ class ServerConfig(BaseModel):
     pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
 
 
-class TeslemetryConfig(BaseModel):
-    """Teslemetry hosted Fleet Telemetry proxy.
+class FleetTelemetryConfig(BaseModel):
+    """Self-hosted Fleet Telemetry server configuration.
 
-    Sign up at https://teslemetry.com for an API key.
-    Provides real-time vehicle streaming without self-hosted infrastructure.
+    Run Tesla's open-source fleet-telemetry Go server yourself.
+    Vehicles stream directly to your server — zero third-party dependencies.
     """
 
-    configured: bool = False
+    enabled: bool = False
+    hostname: str = ""  # FQDN of your fleet-telemetry server
+    port: int = 4443
+    ca_cert_path: str = ""  # Path to CA certificate PEM
+    server_cert_path: str = ""  # Path to server certificate
+    server_key_path: str = ""  # Path to server private key
+    managed: bool = False  # True = Docker stack managed by CLI
+    stack_dir: str = ""  # ~/.tesla-cli/fleet-telemetry
 
 
 class Config(BaseModel):
@@ -141,7 +148,7 @@ class Config(BaseModel):
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
-    teslemetry: TeslemetryConfig = Field(default_factory=TeslemetryConfig)
+    telemetry: FleetTelemetryConfig = Field(default_factory=FleetTelemetryConfig)
 
 
 def load_config() -> Config:

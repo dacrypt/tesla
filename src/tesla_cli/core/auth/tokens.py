@@ -11,7 +11,6 @@ TESSIE_TOKEN = "tessie-token"
 FLEET_ACCESS_TOKEN = "fleet-access-token"
 FLEET_REFRESH_TOKEN = "fleet-refresh-token"
 FLEET_CLIENT_SECRET = "fleet-client-secret"
-TESLEMETRY_TOKEN = "teslemetry-token"
 
 # TeslaMate managed stack credentials
 TESLAMATE_DB_PASSWORD = "teslamate-db-password"
