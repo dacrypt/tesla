@@ -68,3 +68,4 @@ superchargers-co.json
 .env.local
 .codex/
 AGENTS.md
+audit/
