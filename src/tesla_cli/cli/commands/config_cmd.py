@@ -370,8 +370,12 @@ def config_auth(
         _auth_tessie()
     elif backend == "fleet":
         _auth_fleet()
+    elif backend == "teslemetry":
+        _auth_teslemetry()
     else:
-        console.print(f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet")
+        console.print(
+            f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet, teslemetry"
+        )
         raise typer.Exit(1)
 
 
@@ -439,14 +443,14 @@ def config_doctor() -> None:
 
     # ── 4. Vehicle backend ───────────────────────────────────────────────────
     backend_name = cfg.general.backend or "owner"
-    if backend_name in ("fleet", "tessie", "owner"):
+    if backend_name in ("fleet", "fleet-signed", "tessie", "owner"):
         _check("Vehicle backend", "ok", f"Backend: {backend_name}")
     else:
         _check(
             "Vehicle backend",
             "warn",
             f"Unrecognised backend: '{backend_name}'",
-            "Run: tesla config set backend fleet|tessie|owner",
+            "Run: tesla config set backend fleet|fleet-signed|tessie|owner",
         )
 
     # ── 5. Backend-specific token ────────────────────────────────────────────
@@ -722,7 +726,7 @@ def config_validate() -> None:
     else:
         _warn("general.default_vin", "No default VIN set — run: tesla config set default-vin <VIN>")
 
-    valid_backends = {"owner", "tessie", "fleet"}
+    valid_backends = {"owner", "tessie", "fleet", "fleet-signed"}
     if cfg.general.backend in valid_backends:
         _ok("general.backend", f"Backend: {cfg.general.backend}")
     else:
@@ -844,7 +848,7 @@ def _run_config_checks(cfg) -> list[dict]:
     def _err(field: str, msg: str) -> None:
         checks.append({"field": field, "status": "error", "message": msg})
 
-    valid_backends = {"fleet", "tessie", "owner"}
+    valid_backends = {"fleet", "fleet-signed", "tessie", "owner"}
     if cfg.general.default_vin:
         _ok("general.default_vin", f"Set: {cfg.general.default_vin}")
     else:
@@ -941,6 +945,25 @@ def _auth_tessie() -> None:
     cfg.general.backend = "tessie"
     save_config(cfg)
     render_success("Tessie token saved. Backend set to 'tessie'.")
+
+
+def _auth_teslemetry() -> None:
+    """Prompt for Teslemetry API key."""
+    console.print(
+        "[bold]Teslemetry Authentication[/bold]\n"
+        "Teslemetry is a hosted Fleet Telemetry proxy that provides real-time\n"
+        "vehicle streaming without self-hosted infrastructure.\n\n"
+        "Get your API key from: [link=https://teslemetry.com]teslemetry.com[/link]"
+    )
+    key = Prompt.ask("Teslemetry API key", password=True)
+    if not key.strip():
+        console.print("[red]No API key provided.[/red]")
+        raise typer.Exit(1)
+    tokens.set_token(tokens.TESLEMETRY_TOKEN, key.strip())
+    cfg = load_config()
+    cfg.teslemetry.configured = True
+    save_config(cfg)
+    render_success("Teslemetry API key saved. Run: tesla vehicle stream --live")
 
 
 def _auth_fleet() -> None:
