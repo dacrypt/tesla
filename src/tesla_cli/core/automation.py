@@ -220,6 +220,60 @@ class AutomationEngine:
             if cmd:
                 subprocess.run(cmd, shell=True, check=False)  # noqa: S602
 
+    # ── MQTT subscription loop ─────────────────────────────────────────────────
+
+    def run_mqtt(
+        self,
+        broker: str,
+        port: int,
+        topic: str,
+        vin: str,
+        dry_run: bool = False,
+        on_fired: object = None,
+    ) -> None:
+        """Subscribe to an MQTT topic and evaluate rules on each message.
+
+        Each message payload must be a JSON object compatible with the vehicle
+        data shape expected by :meth:`evaluate`.
+
+        ``on_fired`` is an optional callable with signature
+        ``(rule, msg) -> None`` called whenever a rule fires.
+
+        Raises ``ImportError`` if paho-mqtt is not installed — callers should
+        catch this and fall back to polling.
+        """
+        try:
+            import paho.mqtt.client as _mqtt  # type: ignore[import-untyped]
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError(
+                "paho-mqtt is required for MQTT mode. "
+                "Install with: pip install 'tesla-cli[mqtt]'"
+            ) from exc
+
+        resolved_topic = topic.format(vin=vin)
+
+        def _on_connect(client, userdata, flags, rc):  # noqa: ANN001
+            if rc == 0:
+                client.subscribe(resolved_topic)
+
+        def _on_message(client, userdata, msg):  # noqa: ANN001
+            try:
+                payload = json.loads(msg.payload.decode())
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return
+            if not isinstance(payload, dict):
+                return
+            fired = self.evaluate(payload, dry_run=dry_run)
+            if on_fired is not None and callable(on_fired):
+                for rule, message in fired:
+                    on_fired(rule, message)
+
+        client = _mqtt.Client(client_id="tesla-automations", protocol=_mqtt.MQTTv311)
+        client.on_connect = _on_connect
+        client.on_message = _on_message
+        client.connect(broker, port, keepalive=60)
+        client.loop_forever()
+
     def _send_notification(self, action: AutomationAction, data: dict) -> None:
         try:
             import apprise  # type: ignore[import-untyped]

@@ -569,6 +569,78 @@ def config_doctor() -> None:
         except Exception as exc:
             _check("Home Assistant", "fail", f"Unreachable: {str(exc)[:40]}", "Check HA URL")
 
+    # ── 11. Fleet Telemetry ─────────────────────────────────────────────────
+    if cfg.telemetry.enabled:
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "--filter", "name=fleet-telemetry", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                _check(
+                    "Fleet Telemetry",
+                    "warn",
+                    "Docker not available — cannot verify container status",
+                    "Ensure Docker is running",
+                )
+            elif result.stdout.strip():
+                _check(
+                    "Fleet Telemetry",
+                    "ok",
+                    f"Container running — host: {cfg.telemetry.hostname}:{cfg.telemetry.port}",
+                )
+            else:
+                _check(
+                    "Fleet Telemetry",
+                    "fail",
+                    "Enabled in config but container not running",
+                    "Run: tesla telemetry start",
+                )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            _check(
+                "Fleet Telemetry",
+                "warn",
+                "Docker not found — cannot verify container status",
+                "Install Docker or run: tesla telemetry status",
+            )
+    else:
+        _check("Fleet Telemetry", "warn", "Not enabled (optional)", "Run: tesla telemetry install")
+
+    # ── 12. Automations ─────────────────────────────────────────────────────
+    from pathlib import Path as _Path
+
+    automations_path = _Path.home() / ".tesla-cli" / "automations.json"
+    if automations_path.exists():
+        try:
+            import json as _json
+
+            raw = _json.loads(automations_path.read_text())
+            rules = raw.get("rules", [])
+            enabled_count = sum(1 for r in rules if r.get("enabled", True))
+            _check(
+                "Automations",
+                "ok",
+                f"{len(rules)} rule(s) configured, {enabled_count} enabled",
+            )
+        except Exception as exc:
+            _check(
+                "Automations",
+                "warn",
+                f"Could not parse automations.json: {str(exc)[:60]}",
+                "Run: tesla automations list",
+            )
+    else:
+        _check(
+            "Automations",
+            "warn",
+            "No automation rules configured (optional)",
+            "Run: tesla setup or tesla automations add",
+        )
+
     # ── Output ───────────────────────────────────────────────────────────────
     if is_json_mode():
         console.print_json(

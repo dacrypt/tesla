@@ -5705,6 +5705,7 @@ class TestConfigDoctor:
         cfg.mqtt.port = 1883
         cfg.notifications.apprise_urls = []
         cfg.home_assistant.url = ""
+        cfg.telemetry.enabled = False
         return cfg
 
     def test_doctor_all_ok(self):
