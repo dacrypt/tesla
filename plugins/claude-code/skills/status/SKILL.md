@@ -76,7 +76,7 @@ tesla order delivery
 
 **Step 2** — RUNT registry (MANDATORY — do not skip):
 ```bash
-tesla data runt --vin
+tesla data runt
 ```
 This shows plate assignment, registration state, liens/prendas, and SOAT. Uses openquery with automatic CAPTCHA solving. This is critical pre-delivery info.
 
