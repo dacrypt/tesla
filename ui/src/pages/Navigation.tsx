@@ -10,28 +10,19 @@ import {
 } from '@ionic/react';
 import { api } from '../api/client';
 import { useVehicleData } from '../hooks/useVehicleData';
-
-// ---- SVG Icons ----
-const NavIcon = () => <svg width={20} height={20} viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/></svg>;
-const LocationIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>;
-const PrevIcon = () => <svg width={22} height={22} viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>;
-const PlayIcon = () => <svg width={26} height={26} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
-const PauseIcon = () => <svg width={26} height={26} viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>;
-const NextIcon = () => <svg width={22} height={22} viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg>;
-const VolumeIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>;
-const MapPinIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>;
-const SpeedIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/></svg>;
-
-function Spin() {
-  return (
-    <svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
-      <path d="M12 3a9 9 0 019 9" stroke="#fff" strokeWidth={3} strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-}
+import Spinner from '../components/icons/Spinner';
+import {
+  NavIcon,
+  LocationIcon,
+  PrevIcon,
+  PlayIcon,
+  PauseIcon,
+  NextIcon,
+  VolumeIcon,
+  MapPinIcon,
+  SpeedIcon,
+} from '../components/icons/Icons';
+import VehicleMap from '../components/VehicleMap';
 
 const Navigation: React.FC = () => {
   const { state, error } = useVehicleData();
@@ -105,7 +96,7 @@ const Navigation: React.FC = () => {
               className="tesla-btn"
               style={{ opacity: !address.trim() ? 0.4 : 1 }}
             >
-              {cmdLoading === 'nav' ? <Spin /> : <NavIcon />}
+              {cmdLoading === 'nav' ? <Spinner color="#fff" /> : <NavIcon />}
               Send to Car
             </button>
           </div>
@@ -114,7 +105,13 @@ const Navigation: React.FC = () => {
           {state?.latitude && (
             <div className="tesla-card">
               <p className="section-title" style={{ paddingTop: 0 }}>Current Location</p>
-              <div className="stat-row">
+              <VehicleMap
+                latitude={state.latitude}
+                longitude={state.longitude ?? 0}
+                label={state.speed != null ? `${state.speed} mph` : undefined}
+                height="280px"
+              />
+              <div className="stat-row" style={{ marginTop: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <MapPinIcon />
                   <span className="label-sm">Coordinates</span>
@@ -169,7 +166,7 @@ const Navigation: React.FC = () => {
                 onClick={() => mediaCmd('media_prev_track', 'prev', 'Previous')}
                 disabled={cmdLoading === 'prev'}
               >
-                {cmdLoading === 'prev' ? <Spin /> : <PrevIcon />}
+                {cmdLoading === 'prev' ? <Spinner /> : <PrevIcon />}
               </button>
 
               <button
@@ -178,7 +175,7 @@ const Navigation: React.FC = () => {
                 onClick={() => { mediaCmd('media_toggle_playback', 'play', isPlaying ? 'Paused' : 'Playing'); setIsPlaying(!isPlaying); }}
                 disabled={cmdLoading === 'play'}
               >
-                {cmdLoading === 'play' ? <Spin /> : (isPlaying ? <PauseIcon /> : <PlayIcon />)}
+                {cmdLoading === 'play' ? <Spinner /> : (isPlaying ? <PauseIcon /> : <PlayIcon />)}
               </button>
 
               <button
@@ -187,7 +184,7 @@ const Navigation: React.FC = () => {
                 onClick={() => mediaCmd('media_next_track', 'next', 'Next')}
                 disabled={cmdLoading === 'next'}
               >
-                {cmdLoading === 'next' ? <Spin /> : <NextIcon />}
+                {cmdLoading === 'next' ? <Spinner /> : <NextIcon />}
               </button>
             </div>
 

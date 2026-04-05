@@ -17,6 +17,7 @@ import Navigation from './pages/Navigation';
 import Dossier from './pages/Dossier';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Action from './pages/Action';
 
 /* Core CSS required for Ionic components */
 import '@ionic/react/css/core.css';
@@ -84,6 +85,7 @@ const App: React.FC = () => (
           <Route exact path="/info"><Dossier /></Route>
           <Route exact path="/analytics"><Analytics /></Route>
           <Route exact path="/settings"><Settings /></Route>
+          <Route exact path="/action"><Action /></Route>
           <Route exact path="/"><Redirect to="/dashboard" /></Route>
         </IonRouterOutlet>
 

@@ -6,23 +6,8 @@ import {
 import BatteryGauge from '../../components/BatteryGauge';
 import { api } from '../../api/client';
 import { useVehicleData } from '../../hooks/useVehicleData';
-
-// ---- SVG Icons ----
-const BoltIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>;
-const StopIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><rect x={6} y={6} width={12} height={12} rx={2}/></svg>;
-const PortOpenIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>;
-const PortCloseIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm4 13.59L14.59 17 12 14.41 9.41 17 8 15.59 10.59 13 8 10.41 9.41 9 12 11.59 14.59 9 16 10.41 13.41 13 16 15.59z"/></svg>;
-
-function Spin({ color = '#fff' }: { color?: string }) {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
-      <path d="M12 3a9 9 0 019 9" stroke={color} strokeWidth={3} strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-}
+import Spinner from '../../components/icons/Spinner';
+import { BoltIcon, StopIcon, PortOpenIcon, PortCloseIcon } from '../../components/icons/Icons';
 
 function chargingColor(state: string): string {
   if (state === 'Charging') return '#0BE881';
@@ -97,12 +82,7 @@ export default function ChargeContent() {
         <div className="page-pad">
           {loading && !state ? (
             <div className="loading-center">
-              <svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.1)" strokeWidth={3} />
-                <path d="M12 3a9 9 0 019 9" stroke="#05C46B" strokeWidth={3} strokeLinecap="round">
-                  <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-                </path>
-              </svg>
+              <Spinner size={32} trackOpacity={0.1} />
             </div>
           ) : (
             <>
@@ -161,7 +141,7 @@ export default function ChargeContent() {
                   disabled={cmdLoading === 'set_limit'}
                   className="tesla-btn"
                 >
-                  {cmdLoading === 'set_limit' ? <Spin /> : null}
+                  {cmdLoading === 'set_limit' ? <Spinner size={16} /> : null}
                   Set Charge Limit
                 </button>
               </div>
@@ -186,7 +166,7 @@ export default function ChargeContent() {
                   disabled={cmdLoading === 'set_amps'}
                   className="tesla-btn blue"
                 >
-                  {cmdLoading === 'set_amps' ? <Spin /> : null}
+                  {cmdLoading === 'set_amps' ? <Spinner size={16} /> : null}
                   Set Charging Amps
                 </button>
               </div>
@@ -215,7 +195,7 @@ export default function ChargeContent() {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {cmdLoading === 'start' ? <Spin color="#0BE881" /> : <BoltIcon />}
+                  {cmdLoading === 'start' ? <Spinner size={16} color="#0BE881" /> : <BoltIcon />}
                   <span>Start</span>
                 </button>
 
@@ -241,7 +221,7 @@ export default function ChargeContent() {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {cmdLoading === 'stop' ? <Spin color="#05C46B" /> : <StopIcon />}
+                  {cmdLoading === 'stop' ? <Spinner size={16} color="#05C46B" /> : <StopIcon />}
                   <span>Stop</span>
                 </button>
 
@@ -270,7 +250,7 @@ export default function ChargeContent() {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {cmdLoading === 'port' ? <Spin color="#0FBCF9" /> : (portOpen ? <PortCloseIcon /> : <PortOpenIcon />)}
+                  {cmdLoading === 'port' ? <Spinner size={16} color="#0FBCF9" /> : (portOpen ? <PortCloseIcon /> : <PortOpenIcon />)}
                   <span>{portOpen ? 'Close Port' : 'Open Port'}</span>
                 </button>
               </div>

@@ -6,6 +6,19 @@ import {
   IonToolbar,
   IonTitle,
 } from '@ionic/react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { api, TripStat, ChargeStat, Stats } from '../api/client';
 
 // ---- Icons ----
@@ -18,6 +31,25 @@ const EnergyIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="c
 const CostIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>;
 const BatDrainIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.34C7 21.4 7.6 22 8.33 22h7.34c.74 0 1.33-.6 1.33-1.33V5.33C17 4.6 16.4 4 15.67 4zM13 18h-2v-2h2v2zm0-4h-2V9h2v5z"/></svg>;
 const ConnectIcon = () => <svg width={32} height={32} viewBox="0 0 24 24" fill="rgba(255,255,255,0.25)"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>;
+
+// ---- Recharts shared theme ----
+const CHART_COLORS = {
+  green: '#10b981',
+  blue: '#0FBCF9',
+  orange: '#F99716',
+  red: '#FF6B6B',
+  text: '#e5e5e5',
+  subtext: '#999',
+  grid: '#333',
+  tooltipBg: '#1a1a1a',
+  tooltipBorder: '#333',
+};
+
+const tooltipStyle = {
+  contentStyle: { background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12 },
+  labelStyle: { color: CHART_COLORS.text },
+  itemStyle: { color: CHART_COLORS.green },
+};
 
 type Tab = 'overview' | 'trips' | 'charges' | 'efficiency' | 'timeline' | 'energy' | 'cost' | 'vampire';
 
@@ -59,6 +91,14 @@ function formatDateTime(dateStr?: string): string {
   } catch { return dateStr; }
 }
 
+function shortDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  } catch { return dateStr.slice(-5); }
+}
+
 function NotConfigured() {
   return (
     <div className="empty-state">
@@ -87,32 +127,12 @@ function StatCard({ label, value, color, icon }: { label: string; value: string;
   );
 }
 
-/* ---- Bar chart ---- */
-function BarChart({ items, labelKey, valueKey, color = '#0FBCF9', unit = '' }: {
-  items: Record<string, any>[];
-  labelKey: string;
-  valueKey: string;
-  color?: string;
-  unit?: string;
-}) {
-  if (!items.length) return <div style={{ color: '#86888f', fontSize: 13 }}>No data</div>;
-  const max = Math.max(...items.map(i => Number(i[valueKey]) || 0), 0.1);
+/* ---- Chart card wrapper ---- */
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {items.map((item, i) => {
-        const val = Number(item[valueKey]) || 0;
-        const pct = (val / max) * 100;
-        const lbl = String(item[labelKey] || '').slice(-5); // MM-DD or similar
-        return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 40, fontSize: 10, color: '#86888f', textAlign: 'right', flexShrink: 0 }}>{lbl}</span>
-            <div style={{ flex: 1, height: 14, background: 'rgba(255,255,255,0.04)', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width .3s' }} />
-            </div>
-            <span style={{ width: 50, fontSize: 10, color: '#86888f', flexShrink: 0 }}>{val.toFixed(1)}{unit}</span>
-          </div>
-        );
-      })}
+    <div className="tesla-card" style={{ padding: 16, marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>{title}</div>
+      {children}
     </div>
   );
 }
@@ -184,6 +204,50 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     { key: 'cost', label: 'Cost', icon: <CostIcon /> },
     { key: 'vampire', label: 'Vampire', icon: <BatDrainIcon /> },
   ];
+
+  // ---- Derived chart data ----
+
+  // Charging cost trend from costReport.months
+  const costTrendData = React.useMemo(() => {
+    if (!costReport?.months) return [];
+    return Object.entries(costReport.months as Record<string, any>)
+      .map(([month, d]: [string, any]) => ({ month, cost: Number(d.cost ?? 0) }))
+      .slice(-12);
+  }, [costReport]);
+
+  // Daily energy bar chart data
+  const energyBarData = React.useMemo(() => {
+    return dailyEnergy.slice(-30).map((d: any) => ({
+      date: shortDate(d.date),
+      kwh: Number(d.kwh ?? 0),
+    }));
+  }, [dailyEnergy]);
+
+  // Efficiency per trip line chart
+  const efficiencyLineData = React.useMemo(() => {
+    return efficiency.slice(-30).map((e: any, i: number) => ({
+      trip: i + 1,
+      whKm: Number(e.wh_per_km ?? e.efficiency ?? 0),
+    }));
+  }, [efficiency]);
+
+  // Battery level history from charges (start/end battery level)
+  const batteryAreaData = React.useMemo(() => {
+    return charges.slice(-30).map((c: any) => ({
+      date: shortDate(c.start_date),
+      start: Number(c.battery_level_start ?? c.start_battery_level ?? 0),
+      end: Number(c.battery_level_end ?? c.end_battery_level ?? 0),
+    })).filter(d => d.start > 0 || d.end > 0);
+  }, [charges]);
+
+  // Vampire drain daily
+  const vampireDrainData = React.useMemo(() => {
+    if (!Array.isArray(vampire?.days)) return [];
+    return vampire.days.slice(-30).map((d: any) => ({
+      date: shortDate(d.date),
+      pct: Number(d.loss_pct ?? d.drain_pct ?? 0),
+    }));
+  }, [vampire]);
 
   const content = (
     <>
@@ -280,6 +344,21 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
               {activeTab === 'charges' && (
                 charges.length === 0 ? <NotConfigured /> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Battery Level History — AreaChart */}
+                    {batteryAreaData.length > 0 && (
+                      <ChartCard title="Battery Level During Charges (%)">
+                        <ResponsiveContainer width="100%" height={200}>
+                          <AreaChart data={batteryAreaData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                            <XAxis dataKey="date" stroke={CHART_COLORS.subtext} fontSize={11} />
+                            <YAxis stroke={CHART_COLORS.subtext} fontSize={11} domain={[0, 100]} unit="%" />
+                            <Tooltip {...tooltipStyle} />
+                            <Area type="monotone" dataKey="end" name="End %" stroke={CHART_COLORS.green} fill={`${CHART_COLORS.green}22`} strokeWidth={2} dot={false} />
+                            <Area type="monotone" dataKey="start" name="Start %" stroke={CHART_COLORS.blue} fill={`${CHART_COLORS.blue}11`} strokeWidth={2} dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+                    )}
                     {charges.slice(0, 50).map((c, i) => (
                       <div key={c.id || i} className="tesla-card" style={{ padding: '14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -305,6 +384,20 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
               {activeTab === 'efficiency' && (
                 efficiency.length === 0 ? <NotConfigured /> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Efficiency per Trip — LineChart */}
+                    {efficiencyLineData.length > 1 && (
+                      <ChartCard title="Efficiency per Trip (Wh/km) — Last 30">
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={efficiencyLineData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                            <XAxis dataKey="trip" stroke={CHART_COLORS.subtext} fontSize={11} label={{ value: 'Trip #', position: 'insideBottomRight', offset: -5, fill: CHART_COLORS.subtext, fontSize: 10 }} />
+                            <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit=" Wh/km" width={65} />
+                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(0)} Wh/km` : '--', 'Efficiency']} />
+                            <Line type="monotone" dataKey="whKm" stroke={CHART_COLORS.green} strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+                    )}
                     {efficiency.slice(0, 50).map((e: any, i: number) => (
                       <div key={i} className="tesla-card" style={{ padding: '14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -369,12 +462,19 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
               {activeTab === 'energy' && (
                 dailyEnergy.length === 0 ? <NotConfigured /> : (
                   <div>
-                    <div className="tesla-card" style={{ padding: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>
-                        Daily Energy Added (kWh) — Last 30 Days
-                      </div>
-                      <BarChart items={dailyEnergy.slice(-30)} labelKey="date" valueKey="kwh" color="#0FBCF9" unit=" kWh" />
-                    </div>
+                    {/* Energy Consumption — BarChart */}
+                    <ChartCard title="Daily Energy Added (kWh) — Last 30 Days">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={energyBarData} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                          <XAxis dataKey="date" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit=" kWh" width={52} />
+                          <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(1)} kWh` : '--', 'Energy']} />
+                          <Bar dataKey="kwh" fill={CHART_COLORS.blue} radius={[2, 2, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
                       <StatCard
                         label="Total kWh"
@@ -437,6 +537,22 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                         <span style={{ color: '#0BE881', fontWeight: 700, fontSize: 16 }}>${costReport.cost_per_kwh}/kWh</span>
                       </div>
                     )}
+
+                    {/* Charging Cost Trend — LineChart */}
+                    {costTrendData.length > 1 && (
+                      <ChartCard title="Charging Cost Trend">
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={costTrendData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                            <XAxis dataKey="month" stroke={CHART_COLORS.subtext} fontSize={11} />
+                            <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="$" />
+                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
+                            <Line type="monotone" dataKey="cost" stroke={CHART_COLORS.green} strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+                    )}
+
                     {costReport.months && Object.keys(costReport.months).length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {Object.entries(costReport.months as Record<string, any>).map(([month, data]: [string, any]) => (
@@ -476,13 +592,23 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                         icon={<EnergyIcon />}
                       />
                     </div>
-                    {/* Daily breakdown */}
-                    {Array.isArray(vampire.days) && vampire.days.length > 0 && (
-                      <div className="tesla-card" style={{ padding: 16 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Daily Drain</div>
-                        <BarChart items={vampire.days.slice(-30)} labelKey="date" valueKey="loss_pct" color="#FF6B6B" unit="%" />
-                      </div>
+
+                    {/* Daily Drain — BarChart */}
+                    {vampireDrainData.length > 0 && (
+                      <ChartCard title="Daily Vampire Drain (%) — Last 30 Days">
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={vampireDrainData} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                            <XAxis dataKey="date" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
+                            <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="%" width={36} />
+                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(2)}%` : '--', 'Drain']} />
+                            <Bar dataKey="pct" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
                     )}
+
+                    {/* Fallback: entries list */}
                     {Array.isArray(vampire.entries) && vampire.entries.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
                         {vampire.entries.slice(0, 30).map((e: any, i: number) => (
