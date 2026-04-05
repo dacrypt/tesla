@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import difflib
+import sys
+
 import typer
 
 from tesla_cli import __version__
@@ -53,6 +56,18 @@ def global_options(
         )
 
 
+def _all_command_names() -> list[str]:
+    """Return all top-level command and group names registered on the app."""
+    names: list[str] = []
+    for cmd in app.registered_commands:
+        if cmd.name:
+            names.append(cmd.name)
+    for grp in app.registered_groups:
+        if grp.name:
+            names.append(grp.name)
+    return names
+
+
 def main() -> None:
     """Entry point for the CLI."""
     try:
@@ -60,6 +75,21 @@ def main() -> None:
     except TeslaCliError as e:
         render_error(str(e), error_type=type(e).__name__)
         raise typer.Exit(1)
+    except SystemExit as e:
+        # Typer/Click exits with code 2 on UsageError (unknown command).
+        # Intercept to offer "Did you mean?" suggestions.
+        if e.code == 2 and len(sys.argv) > 1:
+            typed = sys.argv[1]
+            known = _all_command_names()
+            matches = difflib.get_close_matches(typed, known, n=3, cutoff=0.6)
+            if matches:
+                from tesla_cli.cli.output import error_console
+
+                suggestions = "  ".join(f"[bold cyan]{m}[/bold cyan]" for m in matches)
+                error_console.print(
+                    f"\n[yellow]Did you mean?[/yellow]  {suggestions}\n"
+                )
+        raise
 
 
 # Lazy-register command groups to avoid import cost at startup
@@ -118,6 +148,11 @@ def _register_commands() -> None:
     app.add_typer(mqtt_app, name="mqtt")
     app.add_typer(serve_app, name="serve")
     app.add_typer(providers_app, name="providers")
+
+    # Smart scene commands
+    from tesla_cli.cli.commands.scenes import scenes_app
+
+    app.add_typer(scenes_app, name="scene")
 
 
 @app.command("quickstart")

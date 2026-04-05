@@ -144,7 +144,13 @@ def _format_value(value: Any) -> str:
     if isinstance(value, bool):
         return "[green]Yes[/green]" if value else "[red]No[/red]"
     if isinstance(value, dict):
-        return json.dumps(value, default=str)
+        if not value:
+            return "[dim]--[/dim]"
+        if len(value) <= 5:
+            parts = [f"{k}={_format_value(v)}" for k, v in value.items()]
+            return ", ".join(parts)
+        lines = [f"  {k}: {_format_value(v)}" for k, v in value.items()]
+        return "\n" + "\n".join(lines)
     if isinstance(value, list):
         return ", ".join(str(v) for v in value) if value else "[dim]--[/dim]"
     return str(value)

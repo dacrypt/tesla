@@ -66,16 +66,17 @@ function Spin({ color = '#05C46B' }: { color?: string }) {
   );
 }
 
-const DELIVERY_DATE = new Date('2026-04-10T10:00:00');
+const FALLBACK_DELIVERY_DATE = new Date('2026-04-10T10:00:00');
 
-function DeliveryCountdown() {
+function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
   const [, setTick] = React.useState(0);
   React.useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(id);
   }, []);
+  const target = deliveryDate ?? FALLBACK_DELIVERY_DATE;
   const now = new Date();
-  const diff = DELIVERY_DATE.getTime() - now.getTime();
+  const diff = target.getTime() - now.getTime();
   const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   const hours = Math.max(0, Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
   const isPast = diff <= 0;
@@ -145,7 +146,7 @@ function PreDeliveryDashboard() {
         <div style={{ maxWidth: 240, margin: '0 auto', filter: 'drop-shadow(0 0 30px rgba(5,196,107,0.1))' }}>
           <ModelYSilhouette locked={true} />
         </div>
-        <DeliveryCountdown />
+        <DeliveryCountdown deliveryDate={status?.delivery_date ? new Date(status.delivery_date) : null} />
         <div style={{ color: '#86888f', fontSize: 11, marginTop: 6 }}>
           {order?.reservation_number ? `RN ${order.reservation_number}` : ''}
           {specs?.exterior_color ? ` · ${specs.exterior_color}` : ''}
@@ -247,7 +248,9 @@ const TeslaIcon = () => (
 );
 
 const Dashboard: React.FC = () => {
-  const { state, charge, climate, loading, error, refresh, lastUpdated } = useVehicleData();
+  const { state, charge, climate, loading, error, refresh, lastUpdated, connected } = useVehicleData();
+  // Post-delivery: vehicle data is available (charge_state present)
+  const isPostDelivery = charge !== null || state !== null;
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(true); // Assume true initially
@@ -399,6 +402,17 @@ const Dashboard: React.FC = () => {
             {displayName}
           </IonTitle>
           <div slot="end" style={{ paddingRight: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              title={connected ? 'SSE connected' : 'SSE disconnected'}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: connected ? '#0BE881' : '#86888f',
+                display: 'inline-block',
+                flexShrink: 0,
+              }}
+            />
             {!loading && state && !isAsleep && (
               <span style={{
                 fontSize: 10,
@@ -486,7 +500,7 @@ const Dashboard: React.FC = () => {
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
-        ) : error && !state ? (
+        ) : !isPostDelivery && error ? (
           /* ---- PRE-DELIVERY DASHBOARD ---- */
           <PreDeliveryDashboard />
         ) : (
