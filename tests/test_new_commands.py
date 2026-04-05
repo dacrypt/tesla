@@ -3,6 +3,7 @@ anonymize mode, VIN decoder, option code decoder, i18n, and TeslaMate config."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import tempfile
 from pathlib import Path
@@ -7074,6 +7075,10 @@ class TestTeslaMateEnergyReport:
 # ── REST: GET /api/teslaMate/charging-locations ───────────────────────────────
 
 
+_has_fastapi = bool(importlib.util.find_spec("fastapi"))
+
+
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestTeslaMatChargingLocationsApi:
     """Tests for GET /api/teslaMate/charging-locations."""
 
@@ -7137,6 +7142,7 @@ class TestTeslaMatChargingLocationsApi:
 # ── REST: GET /api/vehicle/odometer ──────────────────────────────────────────
 
 
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestVehicleOdometerApi:
     """Tests for GET /api/vehicle/odometer."""
 
@@ -8278,6 +8284,7 @@ class TestVehicleWatchExec:
         assert "--on-change-exec" in result.output
 
 
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestGeofenceApi:
     """Verify geofence API routes exist."""
 
@@ -8885,3 +8892,289 @@ class TestRuntDefaultVin:
         assert result.exit_code == 0
         call_args = mock_build.call_args
         assert call_args[0][2] == "7SAYTEST999999"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AutomationEngine
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAutomationEngine:
+    """Unit tests for the AutomationEngine.evaluate() method."""
+
+    def _make_engine(self, tmp_path: str):
+        from pathlib import Path
+
+        from tesla_cli.core.automation import AutomationEngine
+
+        return AutomationEngine(config_path=Path(tmp_path))
+
+    def _battery_rule(self):
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        return AutomationRule(
+            name="low-battery",
+            trigger=AutomationTrigger(type="battery_below", threshold=20.0),
+            action=AutomationAction(type="notify", message="Battery low: {battery_level}%"),
+        )
+
+    def _charging_complete_rule(self):
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        return AutomationRule(
+            name="charge-done",
+            trigger=AutomationTrigger(type="charging_complete"),
+            action=AutomationAction(type="notify", message="Charging complete"),
+        )
+
+    def _state_change_rule(self):
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        return AutomationRule(
+            name="gear-change",
+            trigger=AutomationTrigger(type="state_change", field="shift_state", to_value="D"),
+            action=AutomationAction(type="notify", message="Now driving"),
+        )
+
+    def test_battery_below_triggers(self):
+        """Rule fires when battery level is below threshold."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        engine._config.rules.append(self._battery_rule())
+
+        data = {"charge_state": {"battery_level": 15, "charging_state": "Disconnected"}}
+        fired = engine.evaluate(data, dry_run=True)
+
+        assert len(fired) == 1
+        assert fired[0][0].name == "low-battery"
+
+    def test_battery_below_not_triggered(self):
+        """Rule does not fire when battery level is above threshold."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        engine._config.rules.append(self._battery_rule())
+
+        data = {"charge_state": {"battery_level": 80, "charging_state": "Disconnected"}}
+        fired = engine.evaluate(data, dry_run=True)
+
+        assert fired == []
+
+    def test_charging_complete_triggers(self):
+        """charging_complete fires when state transitions Charging -> Complete."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        engine._config.rules.append(self._charging_complete_rule())
+
+        # Prime prev_state with Charging
+        prev_data = {"charge_state": {"battery_level": 80, "charging_state": "Charging"}}
+        engine.evaluate(prev_data, dry_run=True)
+
+        # Now transition to Complete
+        curr_data = {"charge_state": {"battery_level": 100, "charging_state": "Complete"}}
+        fired = engine.evaluate(curr_data, dry_run=True)
+
+        assert len(fired) == 1
+        assert fired[0][0].name == "charge-done"
+
+    def test_state_change_triggers(self):
+        """state_change rule fires when field transitions to the configured value."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        engine._config.rules.append(self._state_change_rule())
+
+        # Prime with P
+        engine.evaluate({"shift_state": "P"}, dry_run=True)
+
+        # Transition to D
+        fired = engine.evaluate({"shift_state": "D"}, dry_run=True)
+
+        assert len(fired) == 1
+        assert fired[0][0].name == "gear-change"
+
+    def test_cooldown_prevents_refire(self):
+        """Rule does not fire again while still within cooldown window."""
+        from datetime import UTC, datetime, timedelta
+
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        rule = AutomationRule(
+            name="low-bat-cd",
+            trigger=AutomationTrigger(type="battery_below", threshold=20.0),
+            action=AutomationAction(type="notify", message="Battery low"),
+            cooldown_minutes=60,
+            last_fired=datetime.now(tz=UTC) - timedelta(minutes=5),  # fired 5 min ago
+        )
+        engine._config.rules.append(rule)
+
+        data = {"charge_state": {"battery_level": 10}}
+        fired = engine.evaluate(data, dry_run=True)
+
+        assert fired == []
+
+    def test_disabled_rule_skipped(self):
+        """Disabled rules are never evaluated."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        engine = self._make_engine(tmp)
+        rule = self._battery_rule()
+        rule.enabled = False
+        engine._config.rules.append(rule)
+
+        data = {"charge_state": {"battery_level": 5}}
+        fired = engine.evaluate(data, dry_run=True)
+
+        assert fired == []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Order Documents CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestOrderDocuments:
+    """Tests for tesla order documents command."""
+
+    def test_documents_no_portal_data(self):
+        """Exits with error when portal cache file does not exist."""
+        with patch("pathlib.Path.exists", return_value=False):
+            result = _run("order", "documents")
+        assert result.exit_code == 1
+
+    def test_documents_help(self):
+        """--help exits 0 and mentions documents."""
+        result = _run("order", "documents", "--help")
+        assert result.exit_code == 0
+        assert "document" in result.output.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Charge Invoices CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChargeInvoices:
+    """Tests for tesla charge invoices command."""
+
+    def test_invoices_requires_tessie(self):
+        """Exits with error message when backend is not Tessie."""
+        mock_backend = MagicMock()
+        # Not a TessieBackend instance — isinstance check will fail
+        with (
+            patch(
+                "tesla_cli.cli.commands.charge.get_vehicle_backend",
+                return_value=mock_backend,
+            ),
+            patch(
+                "tesla_cli.cli.commands.charge.load_config",
+            ) as mock_cfg,
+        ):
+            mock_cfg.return_value.general.default_vin = MOCK_VIN
+            mock_cfg.return_value.general.cost_per_kwh = 0.0
+            result = _run("charge", "invoices")
+        assert result.exit_code == 1
+        assert "tessie" in result.output.lower() or "Tessie" in result.output
+
+    def test_invoices_help(self):
+        """--help exits 0 and mentions invoices."""
+        result = _run("charge", "invoices", "--help")
+        assert result.exit_code == 0
+        assert "invoice" in result.output.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TeslaMate Drive Path CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDrivePath:
+    """Tests for tesla teslaMate drive-path command."""
+
+    def test_drive_path_help(self):
+        """--help exits 0 and describes the drive path command."""
+        result = _run("teslaMate", "drive-path", "--help")
+        assert result.exit_code == 0
+        assert "drive" in result.output.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Automations CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAutomationsCli:
+    """Tests for tesla automations CLI commands."""
+
+    def test_list_empty(self):
+        """automations list prints a helpful message when no rules are configured."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp = f.name
+
+        with patch(
+            "tesla_cli.cli.commands.automations.AUTOMATIONS_FILE",
+            new=Path(tmp),
+        ):
+            result = _run("automations", "list")
+
+        assert result.exit_code == 0
+        assert "no automation" in result.output.lower() or "add" in result.output.lower()
+
+    def test_list_help(self):
+        """automations list --help exits 0."""
+        result = _run("automations", "list", "--help")
+        assert result.exit_code == 0
+
+    def test_run_help(self):
+        """automations run --help exits 0 and describes polling."""
+        result = _run("automations", "run", "--help")
+        assert result.exit_code == 0
+        assert "interval" in result.output.lower() or "poll" in result.output.lower() or "daemon" in result.output.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Telemetry CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestTelemetryCli:
+    """Tests for tesla telemetry CLI commands."""
+
+    def test_status_help(self):
+        """telemetry status --help exits 0 and mentions status."""
+        result = _run("telemetry", "status", "--help")
+        assert result.exit_code == 0
+        assert "status" in result.output.lower() or "telemetry" in result.output.lower()
+
+    def test_configure_help(self):
+        """telemetry configure --help exits 0 and mentions configure."""
+        result = _run("telemetry", "configure", "--help")
+        assert result.exit_code == 0
+        assert "configure" in result.output.lower() or "hostname" in result.output.lower()

@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-04-05
+
+### New Features
+
+- **Signed Vehicle Commands** — `fleet-signed` backend using tesla-fleet-api for end-to-end encrypted commands (required for 2024.26+ firmware)
+- **Self-hosted Fleet Telemetry** — Docker-managed fleet-telemetry Go server with auto-generated TLS certs, zero third-party dependencies
+  - `tesla telemetry install/start/stop/restart/status/configure/logs`
+  - `tesla vehicle stream-live` — real-time Rich table from fleet-telemetry
+  - MQTT dispatcher bridges to TeslaMate Mosquitto
+- **Automation Engine** — config-driven rules with 9 trigger types and notify/command actions
+  - `tesla automations add/list/remove/enable/disable/run/test`
+  - `tesla automations install` — daemon management (launchd on macOS, systemd on Linux)
+  - MQTT subscription mode (`--source auto/poll/mqtt`)
+  - Default rules: low battery, charge complete, sentry event
+- **Portal Document Download** — `tesla order documents [--download]` extracts and downloads MVPA, invoices, registration docs from Tesla portal
+- **Supercharging Invoice Tracking** — `tesla charge invoices [--csv]` via Tessie API with cost totals
+- **Drive Path Export** — `tesla teslaMate drive-path <ID> [--format gpx|geojson]` for GPS trace export
+- **Order Status --oneline** — `tesla order status --oneline` compact emoji output
+
+### Infrastructure
+
+- **Setup Wizard expanded to 7 steps** — `tesla setup` now auto-installs fleet telemetry, TeslaMate, notifications, default automations, and builds data in one command
+- **Config doctor** checks fleet-telemetry container health and automation rule count
+- **RUNT default VIN** — `tesla data runt` uses configured VIN automatically
+- **Actionable 412 error** — `EndpointDeprecatedError` with Fleet/Tessie migration guidance
+
+### Claude Code Plugin
+
+- **v1.1.0** published to `dacrypt/tesla-claude-plugin`
+- Marketplace-ready: `marketplace.json`, skill discovery, level metadata
+- Guardrails: no auto-configure, no PII from memory, mask VINs
+- RUNT query mandatory in pre-delivery fallback
+- New skills: automations, telemetry
+- Simplified install via `extraKnownMarketplaces`
+
+### Tests
+
+- FastAPI API tests now skip gracefully when fastapi not installed
+- Added tests for order --oneline, RUNT default VIN, config doctor
+
 ## [4.7.3] - 2026-04-03
 
 ### Dashboard

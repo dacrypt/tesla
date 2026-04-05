@@ -61,6 +61,16 @@ tesla charge limit               # show current limit
 tesla charge amps                # show current amperage
 ```
 
+## Supercharging Invoices
+
+```bash
+tesla charge invoices            # show recent Supercharging invoices
+tesla charge invoices -n 50      # last 50 invoices
+tesla charge invoices --csv invoices.csv  # export to CSV
+```
+
+Requires Tessie backend. Shows date, location, kWh, cost, duration.
+
 ## Response Guidelines
 
 - If the CLI is not configured (no VIN, no auth), **stop and tell the user to run `/tesla:setup`** — never auto-configure

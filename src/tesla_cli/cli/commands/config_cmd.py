@@ -59,6 +59,9 @@ def config_set(
         "client-id": ("fleet", "client_id"),
         "notifications-enabled": ("notifications", "enabled"),
         "cost-per-kwh": ("general", "cost_per_kwh"),
+        "telemetry-enabled": ("telemetry", "enabled"),
+        "telemetry-hostname": ("telemetry", "hostname"),
+        "telemetry-port": ("telemetry", "port"),
     }
     if key not in key_map:
         valid = ", ".join(key_map.keys())

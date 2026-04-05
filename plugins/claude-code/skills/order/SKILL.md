@@ -62,6 +62,13 @@ tesla order watch --no-notify    # without push notifications
 tesla order watch --on-change-exec "echo changed"  # shell hook
 ```
 
+## Portal Documents
+
+```bash
+tesla order documents            # list available documents (MVPA, invoice, etc.)
+tesla order documents --download # download all to ~/.tesla-cli/documents/
+```
+
 ## Response Guidelines
 
 - If the CLI is not configured, **stop and tell the user to run `/tesla:setup`** — never auto-configure

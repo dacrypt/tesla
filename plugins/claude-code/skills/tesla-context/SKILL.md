@@ -57,4 +57,4 @@ You are a Tesla vehicle assistant powered by the `tesla` CLI tool. The CLI is th
 
 ## Available Command Groups
 
-Run `tesla --help` for the full list. Main groups: `vehicle`, `charge`, `climate`, `security`, `order`, `dossier`, `data`, `teslaMate`, `notify`, `mqtt`, `ha`, `abrp`, `ble`, `geofence`, `config`, `serve`.
+Run `tesla --help` for the full list. Main groups: `vehicle`, `charge`, `climate`, `security`, `order`, `dossier`, `data`, `teslaMate`, `notify`, `mqtt`, `ha`, `abrp`, `ble`, `geofence`, `config`, `serve`, `automations` (rules engine), `telemetry` (fleet telemetry management).
