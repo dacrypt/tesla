@@ -34,7 +34,7 @@ tesla order stores --near 4.6,-74.1  # stores near coordinates
 ## RUNT (Colombia Vehicle Registry)
 
 ```bash
-tesla data runt --vin            # placa, estado, gravámenes, SOAT, matrícula
+tesla data runt            # placa, estado, gravámenes, SOAT, matrícula
 ```
 
 Automatically query RUNT alongside order status to show plate assignment, registration state, and lien (prenda) status. Uses openquery with automatic CAPTCHA solving.

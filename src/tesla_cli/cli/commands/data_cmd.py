@@ -313,8 +313,21 @@ def query_runt(
     audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
-    """RUNT — registro nacional de tránsito (vehículo por cédula, placa o VIN)."""
+    """RUNT — registro nacional de tránsito (vehículo por cédula, placa o VIN).
+
+    If no option is given, uses the default VIN from config.
+    """
     _require_openquery()
+    if not cedula and not placa and not vin:
+        from tesla_cli.core.config import load_config
+
+        cfg = load_config()
+        vin = cfg.general.default_vin
+        if not vin:
+            console.print(
+                "[red]No VIN configured.[/red] Pass --vin or run: tesla config set default-vin <VIN>"
+            )
+            raise typer.Exit(1)
     q = _build_input(cedula, placa, vin, audit=audit)
     _run("co.runt", q, audit_dir)
 
