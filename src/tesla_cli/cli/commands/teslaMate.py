@@ -91,12 +91,17 @@ def teslaMate_connect(
 
 
 @teslaMate_app.command("status")
-def teslaMate_status() -> None:
+def teslaMate_status(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+) -> None:
     """Show TeslaMate connection status and lifetime stats."""
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task("Fetching stats...", total=None)
         ok = backend.ping()
@@ -140,6 +145,14 @@ def teslaMate_status() -> None:
 
     if is_json_mode():
         console.print_json(json.dumps(status_data, indent=2, default=str))
+        return
+
+    if oneline:
+        connected = "✅ Connected" if ok else "❌ Disconnected"
+        total_km = drive_stats.get("total_km", 0)
+        charges = charge_stats.get("total_sessions", 0)
+        parts = [connected, f"🚗 {total_km:,} km", f"⚡ {charges} charges"]
+        console.print(" | ".join(parts))
         return
 
     from rich.panel import Panel
@@ -209,6 +222,7 @@ def teslaMate_status() -> None:
 def teslaMate_trips(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of trips to show"),
     csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Show recent trip history from TeslaMate.
 
@@ -219,7 +233,10 @@ def teslaMate_trips(
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task(f"Fetching last {limit} trips...", total=None)
         trips = backend.get_trips(limit=limit)
@@ -240,6 +257,21 @@ def teslaMate_trips(
 
     if is_json_mode():
         console.print_json(json.dumps(trips, indent=2, default=str))
+        return
+
+    if oneline:
+        total_km = sum(float(t.get("distance_km") or 0) for t in trips)
+        total_kwh = sum(float(t.get("energy_kwh") or 0) for t in trips)
+        total_min = sum(int(t.get("duration_min") or 0) for t in trips)
+        wh_km = round(total_kwh * 1000 / total_km, 0) if total_km else 0
+        h, m = divmod(total_min, 60)
+        parts = [
+            f"🚗 {len(trips)} trips",
+            f"📏 {total_km:.0f} km",
+            f"⏱ {h}h {m}m",
+            f"⚡ {wh_km:.0f} Wh/km",
+        ]
+        console.print(" | ".join(parts))
         return
 
     if not trips:
@@ -392,6 +424,7 @@ def _build_geojson(drive_id: int, positions: list[dict]) -> str:
 def teslaMate_charging(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of sessions to show"),
     csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Show recent charging session history from TeslaMate.
 
@@ -402,7 +435,10 @@ def teslaMate_charging(
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task(f"Fetching last {limit} charging sessions...", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
@@ -425,6 +461,17 @@ def teslaMate_charging(
 
     if is_json_mode():
         console.print_json(json.dumps(sessions, indent=2, default=str))
+        return
+
+    if oneline:
+        total_kwh = sum(float(s.get("energy_added_kwh") or 0) for s in sessions)
+        total_cost = sum(float(s.get("cost") or 0) for s in sessions)
+        parts = [
+            f"⚡ {len(sessions)} sessions",
+            f"🔋 {total_kwh:.1f} kWh",
+            f"💰 ${total_cost:.2f}",
+        ]
+        console.print(" | ".join(parts))
         return
 
     if not sessions:
@@ -521,6 +568,7 @@ def teslaMate_updates() -> None:
 def teslaMate_efficiency(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of trips to analyze"),
     csv_out: str | None = typer.Option(None, "--csv", help="Save output to CSV file"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Show per-trip energy efficiency from TeslaMate.
 
@@ -531,7 +579,10 @@ def teslaMate_efficiency(
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task(f"Calculating efficiency for last {limit} trips...", total=None)
         trips = backend.get_efficiency(limit=limit)
@@ -552,6 +603,19 @@ def teslaMate_efficiency(
 
     if is_json_mode():
         console.print_json(json.dumps(trips, indent=2, default=str))
+        return
+
+    if oneline:
+        wh_vals = [float(t.get("wh_per_km") or 0) for t in trips if t.get("wh_per_km")]
+        avg_wh = round(sum(wh_vals) / len(wh_vals), 0) if wh_vals else 0
+        best_wh = round(min(wh_vals), 0) if wh_vals else 0
+        worst_wh = round(max(wh_vals), 0) if wh_vals else 0
+        parts = [
+            f"⚡ {avg_wh:.0f} Wh/km avg",
+            f"🏆 best {best_wh:.0f}",
+            f"📉 worst {worst_wh:.0f}",
+        ]
+        console.print(" | ".join(parts))
         return
 
     if not trips:
@@ -600,6 +664,7 @@ def teslaMate_efficiency(
 @teslaMate_app.command("vampire")
 def teslaMate_vampire(
     days: int = typer.Option(30, "--days", "-d", help="Number of days to analyze"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Show vampire drain (battery loss while parked) from TeslaMate.
 
@@ -610,7 +675,10 @@ def teslaMate_vampire(
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task(f"Analyzing vampire drain over {days} days...", total=None)
         result = backend.get_vampire_drain(days=days)
@@ -621,6 +689,16 @@ def teslaMate_vampire(
 
     daily = result.get("daily", [])
     avg_per_hour = result.get("avg_pct_per_hour")
+
+    if oneline:
+        daily_equiv = round(float(avg_per_hour) * 24, 1) if avg_per_hour is not None else 0
+        sample_count = sum(int(r.get("periods") or 0) for r in daily)
+        parts = [
+            f"🧛 {daily_equiv}%/day avg",
+            f"📊 {sample_count} samples",
+        ]
+        console.print(" | ".join(parts))
+        return
 
     if not daily:
         console.print("[yellow]No vampire drain data found for the selected period.[/yellow]")
@@ -1207,6 +1285,7 @@ def teslaMate_cost_report(
         None, "--month", "-m", help="Filter to YYYY-MM (default: all available)"
     ),
     limit: int = typer.Option(100, "--limit", "-n", help="Max sessions to analyse"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Charging cost report grouped by month, using TeslaMate sessions + cost_per_kwh config.
 
@@ -1222,7 +1301,10 @@ def teslaMate_cost_report(
     backend = _backend()
 
     with Progress(
-        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
     ) as p:
         p.add_task("Loading charging sessions…", total=None)
         sessions = backend.get_charging_sessions(limit=limit)
@@ -1257,6 +1339,18 @@ def teslaMate_cost_report(
                 default=str,
             )
         )
+        return
+
+    if oneline:
+        total_kwh = sum(float(s.get("energy_added_kwh") or 0) for s in sessions)
+        total_cost = total_kwh * cost_per_kwh
+        rate_per_kwh = cost_per_kwh * 100  # convert $/kWh → ¢/kWh
+        parts = [
+            f"💰 ${total_cost:.2f} total",
+            f"⚡ {total_kwh:.1f} kWh",
+            f"📊 {rate_per_kwh:.1f} ¢/kWh",
+        ]
+        console.print(" | ".join(parts))
         return
 
     if not sessions:
@@ -1905,6 +1999,7 @@ def _kv(rows: list[tuple[str, str]]) -> None:
 @teslaMate_app.command("battery-degradation")
 def teslaMate_battery_degradation(
     months: int = typer.Option(12, "--months", "-m", help="Months of data to analyze"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
 ) -> None:
     """Battery degradation trend from TeslaMate charging data.
 
@@ -1920,7 +2015,15 @@ def teslaMate_battery_degradation(
     from rich.table import Table
 
     backend = _backend()
-    data = backend.get_battery_degradation(months=months)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
+    ) as p:
+        p.add_task(f"Analyzing battery degradation over {months} months...", total=None)
+        data = backend.get_battery_degradation(months=months)
 
     if is_json_mode():
         console.print_json(_json.dumps(data))
@@ -1931,6 +2034,18 @@ def teslaMate_battery_degradation(
                       f"{months} months.[/yellow]")
         console.print("[dim]Tip: charge to 100% occasionally to get degradation data.[/dim]")
         raise typer.Exit(1)
+
+    if oneline:
+        health_pct = round(100 - data["degradation_pct"], 1)
+        deg_per_year = round(data["degradation_pct"] / max(months / 12, 1), 1)
+        last_range = data.get("last_range_km", 0)
+        parts = [
+            f"🔋 {health_pct}% health",
+            f"📉 {deg_per_year}%/year",
+            f"📏 {last_range} km range",
+        ]
+        console.print(" | ".join(parts))
+        return
 
     t = Table(title=f"Battery Degradation — {data['first_month']} to {data['last_month']}")
     t.add_column("Month", style="cyan")

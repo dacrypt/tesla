@@ -248,7 +248,12 @@ class TeslaMateStack:
             from tesla_cli.core.config import load_config as _lc
 
             _fleet_client_id = _lc().fleet.client_id
-        except Exception:
+        except (FileNotFoundError, json.JSONDecodeError, KeyError) as exc:
+            import logging
+
+            logging.getLogger("tesla-cli.teslamate").warning(
+                "Could not load fleet client_id from config: %s", exc
+            )
             _fleet_client_id = ""
 
         env_lines = [
@@ -398,7 +403,12 @@ class TeslaMateStack:
                 result.stderr[:200] if result.stderr else "",
             )
             return False
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as exc:
+            import logging
+
+            logging.getLogger("tesla-cli.teslamate").warning(
+                "Token injection RPC failed: %s", exc
+            )
             return False
 
     def sync_tokens_from_keyring(self) -> bool:

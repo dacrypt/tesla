@@ -122,6 +122,8 @@ tesla charge schedule-preview --oneline  # 🔌 Charge @ 23:30 | 🚗 Depart @ 0
 tesla charge last              # most recent session with cost
 tesla charge weekly            # weekly kWh, cost, sessions
 tesla charge weekly --weeks 8  # last 8 weeks
+tesla charge invoices           # Supercharging invoices (Tessie backend)
+tesla charge invoices --csv invoices.csv  # export
 ```
 
 ### Climate
@@ -245,6 +247,9 @@ tesla order checklist                  # 34-item delivery inspection
 tesla order checklist --mark 5,12      # check items off
 tesla order ships                      # Tesla car carrier ship tracking
 tesla order set-delivery 2026-04-15    # set confirmed delivery date
+tesla order documents            # list portal documents
+tesla order documents --download # download all
+tesla order status --oneline     # compact status
 ```
 
 ---
@@ -269,7 +274,80 @@ tesla data export-pdf                 # requires pdf extra
 
 ---
 
-## 5. TeslaMate Integration
+## 5. Fleet Telemetry
+
+Self-hosted real-time vehicle streaming — zero polling, zero vampire drain.
+
+### Setup
+
+```bash
+tesla telemetry install          # Docker stack + TLS certificates
+tesla telemetry start            # start the server
+tesla telemetry configure        # configure which fields to stream
+tesla telemetry status           # check health
+```
+
+### Streaming
+
+```bash
+tesla vehicle stream-live                    # real-time dashboard
+tesla vehicle stream-live --fields battery_level,speed  # specific fields
+tesla vehicle stream-live --oneline          # compact output
+```
+
+### Management
+
+```bash
+tesla telemetry stop             # stop the server
+tesla telemetry restart          # restart
+tesla telemetry logs             # view server logs
+tesla telemetry stop-streaming   # remove streaming config from vehicle
+```
+
+---
+
+## 6. Automations
+
+Config-driven rule engine — triggers fire notifications or commands automatically.
+
+### Quick Start
+
+```bash
+tesla automations list           # show all rules
+tesla automations add            # interactive rule builder
+tesla automations run            # start watching (foreground)
+tesla automations install        # install as background service
+```
+
+### Default Rules
+
+`tesla setup` creates three default rules:
+- **Low battery** — notify when battery drops below 20%
+- **Charge complete** — notify when charging finishes
+- **Sentry event** — notify on sentry mode events
+
+### Custom Rules
+
+```bash
+tesla automations add            # interactive
+tesla automations remove <name>  # delete a rule
+tesla automations enable <name>  # enable
+tesla automations disable <name> # disable
+tesla automations test <name>    # dry-run against live data
+```
+
+### Daemon
+
+```bash
+tesla automations install        # install as launchd (macOS) or systemd (Linux) service
+tesla automations uninstall      # remove background service
+tesla automations status         # service health + rule summary
+tesla automations run --source mqtt  # use MQTT instead of polling
+```
+
+---
+
+## 7. TeslaMate Integration
 
 Connect to your [TeslaMate](https://github.com/adriankumpf/teslamate) PostgreSQL database.
 
@@ -293,6 +371,8 @@ tesla teslaMate report               # monthly summary (DC vs AC, Wh/km)
 tesla teslaMate stats                # lifetime stats
 tesla teslaMate geo                  # most-visited locations
 tesla teslaMate grafana              # open Grafana dashboards
+tesla teslaMate drive-path <ID>           # export drive as GPX
+tesla teslaMate drive-path <ID> -f geojson  # export as GeoJSON
 ```
 
 Requires: `uv tool install -e ".[teslaMate]"`
@@ -309,7 +389,7 @@ tesla teslaMate uninstall
 
 ---
 
-## 6. MQTT Integration
+## 8. MQTT Integration
 
 ```bash
 tesla mqtt setup           # interactive broker configuration
@@ -324,7 +404,7 @@ Sensors: battery level, range, charge limit, charging state, charger power, ener
 
 ---
 
-## 7. Home Assistant
+## 9. Home Assistant
 
 ```bash
 tesla ha setup             # configure HA URL + token
@@ -335,7 +415,7 @@ tesla ha sync              # continuous sync
 
 ---
 
-## 8. ABRP (A Better Route Planner)
+## 10. ABRP (A Better Route Planner)
 
 ```bash
 tesla abrp setup           # configure ABRP token
@@ -346,7 +426,7 @@ tesla abrp stream          # continuous telemetry push
 
 ---
 
-## 9. BLE Control
+## 11. BLE Control
 
 Local Bluetooth commands (proximity required, wraps `tesla-control`):
 
@@ -361,7 +441,7 @@ tesla ble flash / honk
 
 ---
 
-## 10. Geofencing
+## 12. Geofencing
 
 ```bash
 tesla geofence add "Home" 4.711 -74.072 200    # name lat lon radius_m
@@ -372,7 +452,7 @@ tesla geofence watch       # monitor enter/exit with Apprise alerts
 
 ---
 
-## 11. Live Telemetry Stream
+## 13. Live Telemetry Stream
 
 ```bash
 tesla stream live                    # refresh every 5s
@@ -385,7 +465,7 @@ Real-time Rich dashboard: battery, charge rate, temperature, GPS, locks, sentry,
 
 ---
 
-## 12. REST API Server
+## 14. REST API Server
 
 ```bash
 tesla serve                 # http://localhost:8000
@@ -401,7 +481,7 @@ See [api-reference.md](api-reference.md) for full endpoint documentation.
 
 ---
 
-## 13. Config Management
+## 15. Config Management
 
 ```bash
 tesla config show / set / alias / auth
@@ -416,7 +496,7 @@ See [configuration.md](configuration.md) for full reference.
 
 ---
 
-## 14. Provider Registry
+## 16. Provider Registry
 
 ```bash
 tesla providers                    # show all providers + availability
@@ -426,7 +506,7 @@ tesla providers capabilities       # capability map
 
 ---
 
-## 15. Privacy & JSON
+## 17. Privacy & JSON
 
 ```bash
 tesla --anon order status          # VIN and RN masked
