@@ -81,6 +81,11 @@ def _register_commands() -> None:
     app.add_typer(media_app, name="media")
     app.add_typer(notify_app, name="notify")
 
+    # Energy (Powerwall/Solar)
+    from tesla_cli.cli.commands.energy import energy_app
+
+    app.add_typer(energy_app, name="energy")
+
     # Data sources & exports
     from tesla_cli.cli.commands.data_cmd import data_app
 

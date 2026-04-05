@@ -929,16 +929,49 @@ def vehicle_schedule_charge(
 
 @vehicle_app.command("tires")
 def vehicle_tires(
+    history: bool = typer.Option(False, "--history", "-H", help="Show historical data (Tessie only)"),
     vin: str | None = VinOption,
 ) -> None:
     """Show TPMS tire pressure readings.
 
     tesla vehicle tires
+    tesla vehicle tires --history    # historical data via Tessie
     tesla -j vehicle tires | jq '{fl:.front_left_psi, fr:.front_right_psi}'
     """
     import json as _json
 
+    from rich.table import Table as _Table
+
     v = _vin(vin)
+
+    if history:
+        from tesla_cli.core.backends.tessie import TessieBackend
+
+        backend = _backend()
+        if not isinstance(backend, TessieBackend):
+            console.print("[yellow]Tire pressure history requires the Tessie backend.[/yellow]")
+            console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
+            raise typer.Exit(1)
+        with Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+        ) as p:
+            p.add_task("Fetching tire pressure history...", total=None)
+            records = backend.get_tire_pressure_history(v)
+        if is_json_mode():
+            console.print(_json.dumps(records, indent=2, default=str))
+            return
+        if not records:
+            console.print("[yellow]No tire pressure history found.[/yellow]")
+            return
+        t = _Table(title="Tire Pressure History (Tessie)", header_style="bold cyan")
+        first = records[0]
+        for col in first:
+            t.add_column(str(col))
+        for row in records[:50]:
+            t.add_row(*[str(row.get(k, "")) for k in first])
+        console.print(t)
+        return
+
     state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
 
     POSITIONS = [
@@ -2777,4 +2810,169 @@ def vehicle_stream_live(
                 console.print(line, end="")
     except KeyboardInterrupt:
         proc.terminate()
+
+
+@vehicle_app.command("firmware-alerts")
+def vehicle_firmware_alerts(
+    vin: str | None = VinOption,
+) -> None:
+    """Show firmware alerts from Tessie.
+
+    tesla vehicle firmware-alerts
+    tesla -j vehicle firmware-alerts
+    """
+    import json as _json
+
+    from rich.table import Table as _Table
+
+    from tesla_cli.core.backends.tessie import TessieBackend
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    backend = get_vehicle_backend(cfg)
+
+    if not isinstance(backend, TessieBackend):
+        console.print("[yellow]firmware-alerts requires the Tessie backend.[/yellow]")
+        console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
+        raise typer.Exit(1)
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
+        p.add_task("Fetching firmware alerts...", total=None)
+        alerts = backend.get_firmware_alerts(v)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(alerts, indent=2, default=str))
+        return
+
+    if not alerts:
+        console.print("[green]No firmware alerts.[/green]")
+        return
+
+    t = _Table(title="Firmware Alerts (Tessie)", header_style="bold yellow")
+    first = alerts[0] if alerts else {}
+    cols = list(first.keys()) if first else ["alert"]
+    for col in cols:
+        t.add_column(str(col))
+    for row in alerts:
+        if isinstance(row, dict):
+            t.add_row(*[str(row.get(k, "")) for k in cols])
+        else:
+            t.add_row(str(row))
+    console.print(t)
+
+
+@vehicle_app.command("weather")
+def vehicle_weather(
+    vin: str | None = VinOption,
+) -> None:
+    """Show current weather at vehicle location (Tessie).
+
+    tesla vehicle weather
+    tesla -j vehicle weather
+    """
+    import json as _json
+
+    from tesla_cli.core.backends.tessie import TessieBackend
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    backend = get_vehicle_backend(cfg)
+
+    if not isinstance(backend, TessieBackend):
+        console.print("[yellow]weather requires the Tessie backend.[/yellow]")
+        console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
+        raise typer.Exit(1)
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
+        p.add_task("Fetching weather data...", total=None)
+        data = backend.get_weather(v)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, indent=2, default=str))
+        return
+
+    # Render key weather fields nicely
+    current = data.get("current", data)
+    pairs = [
+        ("Condition", current.get("condition") or current.get("description") or ""),
+        ("Temperature", _fmt_temp(current.get("temp") or current.get("temperature"))),
+        ("Feels like", _fmt_temp(current.get("feels_like") or current.get("apparent_temperature"))),
+        ("Humidity", f"{current.get('humidity', '')}%" if current.get("humidity") is not None else ""),
+        ("Wind speed", f"{current.get('wind_speed', '')} m/s" if current.get("wind_speed") is not None else ""),
+        ("Visibility", f"{current.get('visibility', '')} m" if current.get("visibility") is not None else ""),
+        ("UV index", str(current.get("uvi") or current.get("uv_index") or "")),
+    ]
+    console.print()
+    console.print(f"  [bold]Weather at vehicle location[/bold]  [dim](VIN: {v})[/dim]")
+    for label, value in pairs:
+        if value:
+            console.print(f"  [dim]{label}:[/dim] {value}")
+
+
+def _fmt_temp(val: float | int | None) -> str:
+    """Format a temperature value (Celsius assumed from Tessie)."""
+    if val is None:
+        return ""
+    return f"{val}°C"
+
+
+@vehicle_app.command("consumption")
+def vehicle_consumption(
+    vin: str | None = VinOption,
+) -> None:
+    """Show energy consumption data (Tessie).
+
+    tesla vehicle consumption
+    tesla -j vehicle consumption
+    """
+    import json as _json
+
+    from tesla_cli.core.backends.tessie import TessieBackend
+
+    cfg = load_config()
+    v = resolve_vin(cfg, vin)
+    backend = get_vehicle_backend(cfg)
+
+    if not isinstance(backend, TessieBackend):
+        console.print("[yellow]consumption requires the Tessie backend.[/yellow]")
+        console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
+        raise typer.Exit(1)
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+    ) as p:
+        p.add_task("Fetching consumption data...", total=None)
+        data = backend.get_consumption(v)
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, indent=2, default=str))
+        return
+
+    # Render top-level key/value pairs
+    console.print()
+    console.print(f"  [bold]Energy Consumption[/bold]  [dim](VIN: {v})[/dim]")
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if value is not None:
+                label = key.replace("_", " ").title()
+                console.print(f"  [dim]{label}:[/dim] {value}")
+    elif isinstance(data, list):
+        from rich.table import Table as _Table
+
+        if data:
+            t = _Table(title="Energy Consumption (Tessie)", header_style="bold cyan")
+            first = data[0]
+            cols = list(first.keys()) if isinstance(first, dict) else ["value"]
+            for col in cols:
+                t.add_column(str(col))
+            for row in data:
+                if isinstance(row, dict):
+                    t.add_row(*[str(row.get(k, "")) for k in cols])
+                else:
+                    t.add_row(str(row))
+            console.print(t)
         console.print("\n[dim]Live stream stopped.[/dim]")
