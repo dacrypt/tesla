@@ -394,6 +394,20 @@ def setup_wizard(
 
     console.print()
 
+    # ── Step 6.5: Automations ───────────────────────────────────────────────────
+    setup_automations = Confirm.ask(
+        "Set up smart automation rules? These fire automatically when conditions are met.",
+        default=False,
+    )
+    if setup_automations:
+        _run_automations_setup()
+    else:
+        console.print(
+            "[dim]Skipped — configure later with: tesla automations add[/dim]"
+        )
+
+    console.print()
+
     # ── Step 7: Build dossier ───────────────────────────────────────────────────
     if skip_build:
         console.print("[dim]Skipping data build (--skip-build).[/dim]")
@@ -510,6 +524,54 @@ def _run_fleet_telemetry_install(ft_stack: object) -> None:
                 "[yellow]Fleet-telemetry installed but may not be healthy yet.[/yellow]\n"
                 "[dim]Check: tesla telemetry status[/dim]"
             )
+        # ── Persist config ──────────────────────────────────────────────────
+        cfg = load_config()
+        cfg.telemetry.enabled = True
+        cfg.telemetry.hostname = hostname
+        cfg.telemetry.managed = True
+        save_config(cfg)
+        console.print("[green]✓ Fleet-telemetry config saved.[/green]")
+
+        # ── Auto-configure streaming fields via Fleet API ───────────────────
+        vin = cfg.general.default_vin
+        if not vin:
+            console.print(
+                "[yellow]No VIN configured — skipping streaming field setup.[/yellow]\n"
+                "[dim]Run: tesla telemetry configure[/dim]"
+            )
+            return
+
+        default_fields = {
+            "BatteryLevel": {"interval_seconds": 60},
+            "ChargeState": {"interval_seconds": 60},
+            "VehicleSpeed": {"interval_seconds": 30},
+            "Location": {"interval_seconds": 120},
+            "InsideTemp": {"interval_seconds": 300},
+            "OutsideTemp": {"interval_seconds": 300},
+            "Odometer": {"interval_seconds": 3600},
+            "SentryMode": {"interval_seconds": 60},
+        }
+        try:
+            from tesla_cli.core.backends.fleet_telemetry import (
+                load_fleet_telemetry_backend,
+                read_ca_cert,
+            )
+
+            ft_backend = load_fleet_telemetry_backend()
+            ca_cert = read_ca_cert(cfg.telemetry.ca_cert_path)
+            ft_backend.configure_streaming(
+                vin=vin,
+                hostname=hostname,
+                port=cfg.telemetry.port,
+                ca_cert=ca_cert,
+                fields=default_fields,
+            )
+            console.print("[green]✓ Streaming fields configured on vehicle.[/green]")
+        except Exception as e:
+            console.print(
+                f"[yellow]Warning: could not configure streaming fields:[/yellow] {e}\n"
+                "[dim]Run: tesla telemetry configure[/dim]"
+            )
     except DockerNotFoundError as e:
         console.print(f"[red]Docker error:[/red] {e}")
         console.print("[dim]Skipping — install Docker first, then run: tesla telemetry install[/dim]")
@@ -603,6 +665,56 @@ def _run_notifications_setup(cfg: object) -> None:
     send_test = Confirm.ask("Send a test notification now?", default=True)
     if send_test:
         _send_test_notification(urls)
+
+
+def _run_automations_setup() -> None:
+    """Create 3 default automation rules: low battery, charge complete, sentry event."""
+    from tesla_cli.core.automation import AutomationEngine
+    from tesla_cli.core.models.automation import AutomationAction, AutomationRule, AutomationTrigger
+
+    engine = AutomationEngine()
+
+    default_rules: list[AutomationRule] = [
+        AutomationRule(
+            name="Low battery alert",
+            trigger=AutomationTrigger(type="battery_below", threshold=20),
+            action=AutomationAction(
+                type="notify",
+                message="Battery low: {battery_level}% — plug in soon.",
+            ),
+        ),
+        AutomationRule(
+            name="Charge complete",
+            trigger=AutomationTrigger(type="charging_complete"),
+            action=AutomationAction(
+                type="notify",
+                message="Charging complete — battery at {battery_level}%.",
+            ),
+        ),
+        AutomationRule(
+            name="Sentry event",
+            trigger=AutomationTrigger(type="sentry_event"),
+            action=AutomationAction(
+                type="notify",
+                message="Sentry Mode triggered — check your vehicle.",
+            ),
+        ),
+    ]
+
+    existing_names = {r.name for r in engine.rules}
+    added = 0
+    for rule in default_rules:
+        if rule.name not in existing_names:
+            engine.add_rule(rule)
+            added += 1
+            console.print(f"  [green]✓[/green] Rule added: [bold]{rule.name}[/bold]")
+        else:
+            console.print(f"  [dim]Skipped (already exists):[/dim] {rule.name}")
+
+    if added:
+        console.print(f"[green]✓ {added} automation rule(s) saved.[/green]")
+    else:
+        console.print("[dim]All default rules already configured.[/dim]")
 
 
 def _send_test_notification(urls: list[str]) -> None:

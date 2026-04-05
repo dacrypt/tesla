@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import typer
 
@@ -266,21 +267,32 @@ def automations_run(
     interval: int = typer.Option(60, "--interval", "-i", help="Poll interval in seconds"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Log but don't execute actions"),
     vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    source: str = typer.Option(
+        "auto",
+        "--source",
+        help="Data source: auto (try MQTT first, fall back to poll), poll, mqtt",
+    ),
 ) -> None:
     """Start the automation daemon (polls vehicle, evaluates rules).
 
+    \b
     tesla automations run
     tesla automations run --interval 30
     tesla automations run --dry-run
+    tesla automations run --source mqtt
+    tesla automations run --source poll
     """
     from datetime import datetime as _dt
 
     from tesla_cli.core.backends import get_vehicle_backend
     from tesla_cli.core.config import load_config, resolve_vin
 
+    if source not in ("auto", "poll", "mqtt"):
+        console.print(f"[red]Unknown source '{source}'. Use: auto, poll, mqtt[/red]")
+        raise typer.Exit(1)
+
     cfg = load_config()
     v = resolve_vin(cfg, vin)
-    backend = get_vehicle_backend(cfg)
     engine = _engine()
 
     if not engine.rules:
@@ -290,6 +302,52 @@ def automations_run(
 
     enabled_count = sum(1 for r in engine.rules if r.enabled)
     mode = "[yellow](dry-run)[/yellow]" if dry_run else ""
+
+    # ── MQTT mode ──────────────────────────────────────────────────────────────
+    use_mqtt = source in ("mqtt", "auto")
+    if use_mqtt:
+        broker = cfg.mqtt.broker or "localhost"
+        mqtt_port = cfg.mqtt.port
+        topic_prefix = (cfg.mqtt.topic_prefix or "tesla").rstrip("/")
+        topic = f"{topic_prefix}/telemetry/{{vin}}"
+
+        def _on_fired(rule, msg):  # noqa: ANN001
+            ts = _dt.now().strftime("%H:%M:%S")
+            prefix = "[yellow]DRY-RUN[/yellow] " if dry_run else "[green]FIRED[/green] "
+            console.print(f"  [dim]{ts}[/dim]  {prefix}[bold]{rule.name}[/bold]: {msg}")
+
+        console.print(
+            f"\n  [bold]Automation engine[/bold] {mode} [dim]{v}[/dim]\n"
+            f"  [dim]{enabled_count} enabled rule(s) · source=mqtt "
+            f"broker={broker}:{mqtt_port}[/dim]\n"
+            "  [dim]Press Ctrl+C to stop.[/dim]\n"
+        )
+        try:
+            engine.run_mqtt(
+                broker=broker,
+                port=mqtt_port,
+                topic=topic,
+                vin=v,
+                dry_run=dry_run,
+                on_fired=_on_fired,
+            )
+            return
+        except ImportError:
+            if source == "mqtt":
+                console.print(
+                    "[red]paho-mqtt not installed.[/red]\n"
+                    "Install with: [bold]pip install 'tesla-cli[mqtt]'[/bold]"
+                )
+                raise typer.Exit(1)
+            # source == "auto": fall through to polling
+            render_warning("paho-mqtt not installed — falling back to poll mode.")
+        except KeyboardInterrupt:
+            console.print("\n  [dim]Automation engine stopped.[/dim]\n")
+            return
+
+    # ── Poll mode ──────────────────────────────────────────────────────────────
+    backend = get_vehicle_backend(cfg)
+
     console.print(
         f"\n  [bold]Automation engine[/bold] {mode} [dim]{v}[/dim]\n"
         f"  [dim]{enabled_count} enabled rule(s) · polling every {interval}s[/dim]\n"
@@ -377,3 +435,314 @@ def automations_test(
         f"\n  Trigger: [bold]{rule.trigger.type}[/bold]  "
         f"Action: [bold]{rule.action.type}[/bold]\n"
     )
+
+
+# ── Daemon management ──────────────────────────────────────────────────────────
+
+_LAUNCHD_LABEL = "com.tesla-cli.automations"
+_LAUNCHD_PLIST = (
+    Path.home() / "Library" / "LaunchAgents" / f"{_LAUNCHD_LABEL}.plist"
+)
+_SYSTEMD_UNIT = (
+    Path.home() / ".config" / "systemd" / "user" / "tesla-automations.service"
+)
+
+
+def _service_installed() -> bool:
+    """True if the background service unit/plist exists on disk."""
+    import sys
+
+    if sys.platform == "darwin":
+        return _LAUNCHD_PLIST.exists()
+    return _SYSTEMD_UNIT.exists()
+
+
+def _service_running() -> bool:
+    """True if the background service is currently active."""
+    import subprocess
+    import sys
+
+    try:
+        if sys.platform == "darwin":
+            r = subprocess.run(
+                ["launchctl", "list", _LAUNCHD_LABEL],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return r.returncode == 0
+        else:
+            r = subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", "tesla-automations"],
+                capture_output=True,
+                timeout=5,
+            )
+            return r.returncode == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _service_pid() -> int | None:
+    """Return the PID of the running service, or None."""
+    import subprocess
+    import sys
+
+    try:
+        if sys.platform == "darwin":
+            r = subprocess.run(
+                ["launchctl", "list", _LAUNCHD_LABEL],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if line.startswith('"PID"') or line.startswith("PID"):
+                    parts = line.split()
+                    for part in parts:
+                        part = part.strip('",;')
+                        if part.isdigit():
+                            return int(part)
+        else:
+            r = subprocess.run(
+                ["systemctl", "--user", "show", "-p", "MainPID", "tesla-automations"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in r.stdout.splitlines():
+                if line.startswith("MainPID="):
+                    pid = line.split("=", 1)[1].strip()
+                    if pid.isdigit() and int(pid) > 0:
+                        return int(pid)
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _tesla_executable() -> str:
+    """Return the path of the 'tesla' CLI executable."""
+    import shutil
+    import sys
+
+    exe = shutil.which("tesla")
+    if exe:
+        return exe
+    # Fall back to running via the current Python interpreter
+    return f"{sys.executable} -m tesla_cli"
+
+
+@automations_app.command("install")
+def automations_install(
+    source: str = typer.Option(
+        "auto",
+        "--source",
+        help="Data source for the daemon: auto, poll, mqtt",
+    ),
+    interval: int = typer.Option(60, "--interval", "-i", help="Poll interval in seconds"),
+) -> None:
+    """Install automations as a background service (launchd on macOS, systemd on Linux).
+
+    \b
+    tesla automations install
+    tesla automations install --source mqtt
+    tesla automations install --source poll --interval 30
+    """
+    import subprocess
+    import sys
+
+    tesla_exe = _tesla_executable()
+    run_args = f"{tesla_exe} automations run --source {source} --interval {interval}"
+
+    if sys.platform == "darwin":
+        _LAUNCHD_PLIST.parent.mkdir(parents=True, exist_ok=True)
+        plist_content = f"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{_LAUNCHD_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        {''.join(f'<string>{arg}</string>' + chr(10) + '        ' for arg in run_args.split())}
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{Path.home()}/.tesla-cli/automations.log</string>
+    <key>StandardErrorPath</key>
+    <string>{Path.home()}/.tesla-cli/automations-error.log</string>
+</dict>
+</plist>
+"""
+        _LAUNCHD_PLIST.write_text(plist_content)
+        try:
+            subprocess.run(
+                ["launchctl", "load", "-w", str(_LAUNCHD_PLIST)],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+        except subprocess.CalledProcessError as exc:
+            console.print(f"[red]launchctl load failed:[/red] {exc.stderr.decode()}")
+            raise typer.Exit(1)
+        render_success(
+            f"Automations service installed and started.\n"
+            f"  Plist: [dim]{_LAUNCHD_PLIST}[/dim]\n"
+            f"  Logs:  [dim]~/.tesla-cli/automations.log[/dim]"
+        )
+    else:
+        _SYSTEMD_UNIT.parent.mkdir(parents=True, exist_ok=True)
+        unit_content = f"""\
+[Unit]
+Description=Tesla CLI Automations Daemon
+After=network.target
+
+[Service]
+ExecStart={run_args}
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+"""
+        _SYSTEMD_UNIT.write_text(unit_content)
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "daemon-reload"],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+            subprocess.run(
+                ["systemctl", "--user", "enable", "--now", "tesla-automations"],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+        except subprocess.CalledProcessError as exc:
+            console.print(f"[red]systemctl failed:[/red] {exc.stderr.decode()}")
+            raise typer.Exit(1)
+        render_success(
+            f"Automations service installed and started.\n"
+            f"  Unit: [dim]{_SYSTEMD_UNIT}[/dim]\n"
+            f"  Logs: [bold]journalctl --user -u tesla-automations -f[/bold]"
+        )
+
+
+@automations_app.command("uninstall")
+def automations_uninstall() -> None:
+    """Remove the automations background service.
+
+    \b
+    tesla automations uninstall
+    """
+    import subprocess
+    import sys
+
+    if not _service_installed():
+        console.print("[yellow]Automations service is not installed.[/yellow]")
+        raise typer.Exit(1)
+
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(
+                ["launchctl", "unload", "-w", str(_LAUNCHD_PLIST)],
+                capture_output=True,
+                timeout=10,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        _LAUNCHD_PLIST.unlink(missing_ok=True)
+        render_success("Automations service uninstalled.")
+    else:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "disable", "--now", "tesla-automations"],
+                capture_output=True,
+                timeout=10,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        _SYSTEMD_UNIT.unlink(missing_ok=True)
+        render_success("Automations service uninstalled.")
+
+
+@automations_app.command("status")
+def automations_status() -> None:
+    """Show automation service status: installed, running, PID, last rule fired.
+
+    \b
+    tesla automations status
+    tesla -j automations status
+    """
+    import json as _json
+    import sys
+
+    engine = _engine()
+    rules = engine.rules
+    installed = _service_installed()
+    running = _service_running() if installed else False
+    pid = _service_pid() if running else None
+
+    # Last fired: find the most recently fired rule across all rules
+    last_fired_rule = None
+    last_fired_at = None
+    for rule in rules:
+        if rule.last_fired is not None and (last_fired_at is None or rule.last_fired > last_fired_at):
+            last_fired_at = rule.last_fired
+            last_fired_rule = rule.name
+
+    platform = "launchd" if sys.platform == "darwin" else "systemd"
+    unit_path = str(_LAUNCHD_PLIST) if sys.platform == "darwin" else str(_SYSTEMD_UNIT)
+
+    if is_json_mode():
+        console.print(
+            _json.dumps(
+                {
+                    "installed": installed,
+                    "running": running,
+                    "pid": pid,
+                    "platform": platform,
+                    "unit_path": unit_path,
+                    "rules_total": len(rules),
+                    "rules_enabled": sum(1 for r in rules if r.enabled),
+                    "last_fired_rule": last_fired_rule,
+                    "last_fired_at": last_fired_at.isoformat() if last_fired_at else None,
+                }
+            )
+        )
+        return
+
+    from rich.table import Table
+
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column("k", style="dim", width=18)
+    t.add_column("v")
+
+    installed_str = "[green]yes[/green]" if installed else "[dim]no[/dim]"
+    running_str = "[green]running[/green]" if running else ("[red]stopped[/red]" if installed else "[dim]—[/dim]")
+    pid_str = str(pid) if pid else "[dim]—[/dim]"
+    last_str = (
+        f"[bold]{last_fired_rule}[/bold] at {last_fired_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        if last_fired_rule else "[dim]never[/dim]"
+    )
+
+    t.add_row("Service manager", platform)
+    t.add_row("Installed", installed_str)
+    t.add_row("Status", running_str)
+    t.add_row("PID", pid_str)
+    t.add_row("Unit/Plist", f"[dim]{unit_path}[/dim]")
+    t.add_row("Rules total", str(len(rules)))
+    t.add_row("Rules enabled", str(sum(1 for r in rules if r.enabled)))
+    t.add_row("Last rule fired", last_str)
+
+    console.print()
+    console.print(t)
+    console.print()
