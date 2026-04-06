@@ -117,6 +117,28 @@ tesla/
 
 ---
 
+## Docker
+
+### Quick Start
+
+```bash
+docker compose up -d
+```
+
+Dashboard at `http://localhost:8080`.
+
+### Full Stack (with TeslaMate + Grafana)
+
+```bash
+docker compose -f docker-compose.full.yml up -d
+```
+
+- Dashboard: `http://localhost:8080`
+- TeslaMate: `http://localhost:4000`
+- Grafana: `http://localhost:3000`
+
+---
+
 ## Development
 
 ```bash

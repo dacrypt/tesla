@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  tesla-cli:
+    build: .
+    container_name: tesla-cli
+    ports:
+      - "${TESLA_PORT:-8080}:8080"
+    volumes:
+      - tesla-config:/root/.tesla-cli
+    depends_on:
+      - postgres
+      - mosquitto
+    environment:
+      - TESLA_VIN=${TESLA_VIN:-}
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: tesla-postgres
+    environment:
+      - POSTGRES_USER=teslamate
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-teslamate}
+      - POSTGRES_DB=teslamate
+    volumes:
+      - tesla-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  teslamate:
+    image: teslamate/teslamate:latest
+    container_name: teslamate
+    environment:
+      - DATABASE_URL=postgresql://teslamate:${DB_PASSWORD:-teslamate}@postgres/teslamate
+      - MQTT_HOST=mosquitto
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-supersecretkey}
+    ports:
+      - "${TM_PORT:-4000}:4000"
+    depends_on:
+      - postgres
+      - mosquitto
+    restart: unless-stopped
+
+  grafana:
+    image: teslamate/grafana:latest
+    container_name: tesla-grafana
+    environment:
+      - DATABASE_URL=postgresql://teslamate:${DB_PASSWORD:-teslamate}@postgres/teslamate
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: tesla-mosquitto
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+
+volumes:
+  tesla-config:
+  tesla-db:
+  mosquitto-data:
