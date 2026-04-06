@@ -26,6 +26,10 @@ def charge_status(request: Request) -> dict:
         return backend.get_charge_state(v)
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 class SetLimitRequest(BaseModel):
