@@ -6,7 +6,6 @@ import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
 from tesla_cli.cli.output import console, render_success
-from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 
 security_app = typer.Typer(name="security", help="Security, sentry, and access controls.")
@@ -21,18 +20,21 @@ def _vin(vin: str | None) -> str:
 @security_app.command("lock")
 def security_lock(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
-    all_vehicles: bool = typer.Option(False, "--all", "-A", help="Apply to all configured vehicles"),
+    all_vehicles: bool = typer.Option(
+        False, "--all", "-A", help="Apply to all configured vehicles"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Lock the vehicle (or all configured vehicles with --all)."""
     cfg = load_config()
     if all_vehicles:
         aliases = cfg.vehicles.aliases
-        vins = list(aliases.values()) or ([cfg.general.default_vin] if cfg.general.default_vin else [])
+        vins = list(aliases.values()) or (
+            [cfg.general.default_vin] if cfg.general.default_vin else []
+        )
         if not vins:
             console.print("[yellow]No vehicles configured.[/yellow]")
             raise typer.Exit(1)
-        backend = get_vehicle_backend(cfg)
         for target_vin in vins:
             if dry_run:
                 console.print(f"[dim]Dry run:[/dim] Would lock vehicle ...{target_vin[-6:]}")
@@ -51,18 +53,21 @@ def security_lock(
 @security_app.command("unlock")
 def security_unlock(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
-    all_vehicles: bool = typer.Option(False, "--all", "-A", help="Apply to all configured vehicles"),
+    all_vehicles: bool = typer.Option(
+        False, "--all", "-A", help="Apply to all configured vehicles"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Unlock the vehicle (or all configured vehicles with --all)."""
     cfg = load_config()
     if all_vehicles:
         aliases = cfg.vehicles.aliases
-        vins = list(aliases.values()) or ([cfg.general.default_vin] if cfg.general.default_vin else [])
+        vins = list(aliases.values()) or (
+            [cfg.general.default_vin] if cfg.general.default_vin else []
+        )
         if not vins:
             console.print("[yellow]No vehicles configured.[/yellow]")
             raise typer.Exit(1)
-        backend = get_vehicle_backend(cfg)
         for target_vin in vins:
             if dry_run:
                 console.print(f"[dim]Dry run:[/dim] Would unlock vehicle ...{target_vin[-6:]}")

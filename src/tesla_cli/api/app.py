@@ -198,12 +198,12 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dossier import router as dossier_router
+    from tesla_cli.api.routes.fleet import router as fleet_router
     from tesla_cli.api.routes.geofence import router as geofence_router
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
-    from tesla_cli.api.routes.fleet import router as fleet_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 

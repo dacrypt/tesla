@@ -9,7 +9,7 @@ import {
   IonToast,
   IonRange,
 } from '@ionic/react';
-import { api, ProviderStatus, TeslaConfig, ServerStatus, StackStatus } from '../api/client';
+import { api, ProviderStatus, TeslaConfig, ServerStatus, StackStatus, VehicleInvitation } from '../api/client';
 import { getBaseUrl, setBaseUrl } from '../api/client';
 
 // ---- Notification Icons ----
@@ -72,6 +72,12 @@ const Settings: React.FC = () => {
   const [evtLowBatteryThreshold, setEvtLowBatteryThreshold] = useState(() => Number(localStorage.getItem('evt_low_battery_threshold') || '20'));
   const [evtSentry, setEvtSentry] = useState(() => localStorage.getItem('evt_sentry') === 'true');
 
+  // Vehicle sharing
+  const [invitations, setInvitations] = useState<VehicleInvitation[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [sharingLoading, setSharingLoading] = useState(false);
+
   // TeslaMate stack
   const [stack, setStack] = useState<StackStatus | null>(null);
   const [stackCmd, setStackCmd] = useState<string | null>(null);
@@ -82,9 +88,9 @@ const Settings: React.FC = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s, c, p, st, au, nc] = await Promise.allSettled([
+      const [s, c, p, st, au, nc, inv] = await Promise.allSettled([
         api.getStatus(), api.getConfig(), api.getProviders(), api.getStackStatus(), api.getAuthStatus(),
-        api.getNotifyChannels(),
+        api.getNotifyChannels(), api.getInvitations(),
       ]);
       if (s.status === 'fulfilled') setStatus(s.value);
       if (c.status === 'fulfilled') setConfig(c.value);
@@ -92,8 +98,38 @@ const Settings: React.FC = () => {
       if (st.status === 'fulfilled') setStack(st.value);
       if (au.status === 'fulfilled') setAuthStatus(au.value);
       if (nc.status === 'fulfilled') setNotifyChannels(nc.value.channels || []);
+      if (inv.status === 'fulfilled') setInvitations(Array.isArray(inv.value) ? inv.value : []);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteLoading(true);
+    try {
+      await api.inviteDriver(inviteEmail.trim());
+      setInviteEmail('');
+      const fresh = await api.getInvitations();
+      setInvitations(Array.isArray(fresh) ? fresh : []);
+      setToast({ message: `Invitation sent to ${inviteEmail}`, color: 'success' });
+    } catch (e: any) {
+      setToast({ message: e?.response?.data?.detail || 'Failed to send invitation', color: 'danger' });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const revokeInvite = async (id: string) => {
+    setSharingLoading(true);
+    try {
+      await api.revokeInvitation(id);
+      setInvitations(prev => prev.filter(i => i.id !== id));
+      setToast({ message: 'Invitation revoked', color: 'success' });
+    } catch (e: any) {
+      setToast({ message: e?.response?.data?.detail || 'Failed to revoke invitation', color: 'danger' });
+    } finally {
+      setSharingLoading(false);
     }
   };
 
@@ -725,6 +761,76 @@ const Settings: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* ---- Vehicle Sharing ---- */}
+              <div className="tesla-card">
+                <p className="section-title">Vehicle Sharing</p>
+                <p style={{ color: '#999', fontSize: 13, margin: '0 0 12px' }}>
+                  Invite drivers to access your vehicle.
+                </p>
+
+                {/* Invite form */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    placeholder="Driver email"
+                    className="tesla-input"
+                    style={{ flex: 1, fontSize: 13 }}
+                    disabled={inviteLoading}
+                    onKeyDown={e => e.key === 'Enter' && sendInvite()}
+                  />
+                  <button
+                    onClick={sendInvite}
+                    disabled={inviteLoading || !inviteEmail.trim()}
+                    className="tesla-btn"
+                    style={{ fontSize: 13, padding: '8px 14px', whiteSpace: 'nowrap' }}
+                  >
+                    {inviteLoading ? '...' : 'Invite'}
+                  </button>
+                </div>
+
+                {/* Invitations list */}
+                {invitations.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: 13, textAlign: 'center', padding: '8px 0' }}>
+                    No active invitations
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {invitations.map(inv => (
+                      <div key={inv.id} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 10px', borderRadius: 8,
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 13, color: '#f5f5f7' }}>
+                            {inv.name || inv.email || inv.id}
+                          </span>
+                          {inv.email && inv.name && (
+                            <span style={{ fontSize: 11, color: '#86888f' }}>{inv.email}</span>
+                          )}
+                          {inv.status && (
+                            <span style={{ fontSize: 10, color: inv.status === 'accepted' ? '#0BE881' : '#86888f' }}>
+                              {inv.status}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => revokeInvite(inv.id)}
+                          disabled={sharingLoading}
+                          className="tesla-btn secondary"
+                          style={{ fontSize: 12, padding: '4px 10px', color: '#FF6B6B' }}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ---- Dashboard Layout ---- */}

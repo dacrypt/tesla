@@ -1535,9 +1535,7 @@ def charge_budget(
 
     # Gather this month's sessions
     now = datetime.datetime.now()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     month_days = calendar.monthrange(now.year, now.month)[1]
-    month_end = now.replace(day=month_days, hour=23, minute=59, second=59)
 
     # Use _fetch_sessions helper (limit 500 to cover full month)
     try:

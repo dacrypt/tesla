@@ -319,12 +319,15 @@ def fleet_status() -> None:
                 "alias": label,
                 "vin": f"...{vin[-6:]}",
                 "battery": f"{cs.get('battery_level', '--')}%",
-                "range": f"{round(cs.get('battery_range', 0))} mi" if cs.get("battery_range") else "--",
+                "range": f"{round(cs.get('battery_range', 0))} mi"
+                if cs.get("battery_range")
+                else "--",
                 "charging": cs.get("charging_state", "--"),
                 "locked": "Yes" if vs.get("locked") else "No",
                 "sentry": "On" if vs.get("sentry_mode") else "Off",
                 "location": f"{ds.get('latitude', 0):.4f},{ds.get('longitude', 0):.4f}"
-                if ds.get("latitude") else "--",
+                if ds.get("latitude")
+                else "--",
             }
         except Exception as exc:
             return {
