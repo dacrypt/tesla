@@ -167,7 +167,12 @@ def charge_weekly(weeks: int = 4) -> dict:
     return {
         "source": source,
         "weeks": [
-            {"week": w, "kwh": round(d["kwh"], 1), "cost": round(d["cost"], 2), "sessions": d["sessions"]}
+            {
+                "week": w,
+                "kwh": round(d["kwh"], 1),
+                "cost": round(d["cost"], 2),
+                "sessions": d["sessions"],
+            }
             for w, d in sorted_weeks
         ],
     }

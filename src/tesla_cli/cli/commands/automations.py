@@ -72,9 +72,7 @@ def automations_list(
     rules = engine.rules
 
     if is_json_mode():
-        console.print_json(
-            json.dumps([r.model_dump(mode="json") for r in rules], indent=2)
-        )
+        console.print_json(json.dumps([r.model_dump(mode="json") for r in rules], indent=2))
         return
 
     if not rules:
@@ -86,7 +84,20 @@ def automations_list(
         enabled = sum(1 for r in rules if r.enabled)
         disabled = len(rules) - enabled
         last = next(
-            (r.name for r in sorted(rules, key=lambda r: r.last_fired or __import__('datetime').datetime.min.replace(tzinfo=__import__('datetime').timezone.utc), reverse=True) if r.last_fired),
+            (
+                r.name
+                for r in sorted(
+                    rules,
+                    key=lambda r: (
+                        r.last_fired
+                        or __import__("datetime").datetime.min.replace(
+                            tzinfo=__import__("datetime").timezone.utc
+                        )
+                    ),
+                    reverse=True,
+                )
+                if r.last_fired
+            ),
             "none",
         )
         console.print(
@@ -134,8 +145,7 @@ def automations_list(
     console.print()
     console.print(table)
     console.print(
-        f"\n  [dim]{len(rules)} rule(s) · "
-        f"{sum(1 for r in rules if r.enabled)} enabled[/dim]\n"
+        f"\n  [dim]{len(rules)} rule(s) · {sum(1 for r in rules if r.enabled)} enabled[/dim]\n"
     )
 
 
@@ -378,9 +388,7 @@ def automations_run(
                 if fired:
                     for rule, msg in fired:
                         prefix = "[yellow]DRY-RUN[/yellow] " if dry_run else "[green]FIRED[/green] "
-                        console.print(
-                            f"  [dim]{ts}[/dim]  {prefix}[bold]{rule.name}[/bold]: {msg}"
-                        )
+                        console.print(f"  [dim]{ts}[/dim]  {prefix}[bold]{rule.name}[/bold]: {msg}")
                 else:
                     console.print(f"  [dim]{ts}[/dim]  [dim]No triggers fired.[/dim]")
 
@@ -446,20 +454,15 @@ def automations_test(
         render_warning(f"Rule '{name}' would NOT fire (trigger conditions not met).")
 
     console.print(
-        f"\n  Trigger: [bold]{rule.trigger.type}[/bold]  "
-        f"Action: [bold]{rule.action.type}[/bold]\n"
+        f"\n  Trigger: [bold]{rule.trigger.type}[/bold]  Action: [bold]{rule.action.type}[/bold]\n"
     )
 
 
 # ── Daemon management ──────────────────────────────────────────────────────────
 
 _LAUNCHD_LABEL = "com.tesla-cli.automations"
-_LAUNCHD_PLIST = (
-    Path.home() / "Library" / "LaunchAgents" / f"{_LAUNCHD_LABEL}.plist"
-)
-_SYSTEMD_UNIT = (
-    Path.home() / ".config" / "systemd" / "user" / "tesla-automations.service"
-)
+_LAUNCHD_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_LAUNCHD_LABEL}.plist"
+_SYSTEMD_UNIT = Path.home() / ".config" / "systemd" / "user" / "tesla-automations.service"
 
 
 def _service_installed() -> bool:
@@ -580,7 +583,7 @@ def automations_install(
     <string>{_LAUNCHD_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        {''.join(f'<string>{arg}</string>' + chr(10) + '        ' for arg in run_args.split())}
+        {"".join(f"<string>{arg}</string>" + chr(10) + "        " for arg in run_args.split())}
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -709,7 +712,9 @@ def automations_status() -> None:
     last_fired_rule = None
     last_fired_at = None
     for rule in rules:
-        if rule.last_fired is not None and (last_fired_at is None or rule.last_fired > last_fired_at):
+        if rule.last_fired is not None and (
+            last_fired_at is None or rule.last_fired > last_fired_at
+        ):
             last_fired_at = rule.last_fired
             last_fired_rule = rule.name
 
@@ -741,11 +746,16 @@ def automations_status() -> None:
     t.add_column("v")
 
     installed_str = "[green]yes[/green]" if installed else "[dim]no[/dim]"
-    running_str = "[green]running[/green]" if running else ("[red]stopped[/red]" if installed else "[dim]—[/dim]")
+    running_str = (
+        "[green]running[/green]"
+        if running
+        else ("[red]stopped[/red]" if installed else "[dim]—[/dim]")
+    )
     pid_str = str(pid) if pid else "[dim]—[/dim]"
     last_str = (
         f"[bold]{last_fired_rule}[/bold] at {last_fired_at.strftime('%Y-%m-%d %H:%M:%S')}"
-        if last_fired_rule else "[dim]never[/dim]"
+        if last_fired_rule
+        else "[dim]never[/dim]"
     )
 
     t.add_row("Service manager", platform)

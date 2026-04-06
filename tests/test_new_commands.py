@@ -563,7 +563,10 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch(
+                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
+                return_value=mock_fleet_backend,
+            ),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
@@ -576,7 +579,10 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend", return_value=mock_fleet_backend),
+            patch(
+                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
+                return_value=mock_fleet_backend,
+            ),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
@@ -3951,7 +3957,9 @@ class TestDossierExportPdf:
             ):
                 result = _run("data", "export-pdf", "--output", str(out_path))
         # Accept either success (PDF created) or graceful failure (no data)
-        assert result.exit_code in (0, 1), f"Unexpected exit code: {result.exit_code}\n{result.output}"
+        assert result.exit_code in (0, 1), (
+            f"Unexpected exit code: {result.exit_code}\n{result.output}"
+        )
         if result.exit_code == 0:
             assert out_path.exists(), "PDF not created despite exit code 0"
 
@@ -7337,9 +7345,7 @@ class TestChargeHistory:
 
         mock_cfg.return_value = MagicMock(default_vin="TEST123", backend="owner")
         backend = MagicMock()
-        backend.get_charge_history.side_effect = BackendNotSupportedError(
-            "charge history", "fleet"
-        )
+        backend.get_charge_history.side_effect = BackendNotSupportedError("charge history", "fleet")
         mock_bk.return_value = backend
 
         result = _run("charge", "history")
@@ -7460,9 +7466,7 @@ class TestChargingSessions:
             "total_charged_breakdown": {},
         }
 
-        with patch(
-            "tesla_cli.cli.commands.charge.get_vehicle_backend"
-        ) as mock_bk:
+        with patch("tesla_cli.cli.commands.charge.get_vehicle_backend") as mock_bk:
             backend = MagicMock()
             backend.get_charge_history.return_value = mock_api_resp
             mock_bk.return_value = backend
@@ -7574,8 +7578,22 @@ class TestChargeCostSummary:
         mock_cfg.return_value = cfg
 
         mock_rows = [
-            {"start_date": "2026-03-01 08:00", "energy_added_kwh": 30.0, "cost": 6.60, "start_battery_level": 20, "end_battery_level": 80, "location": "Home"},
-            {"start_date": "2026-03-05 14:00", "energy_added_kwh": 20.0, "cost": 8.00, "start_battery_level": 40, "end_battery_level": 65, "location": "Supercharger"},
+            {
+                "start_date": "2026-03-01 08:00",
+                "energy_added_kwh": 30.0,
+                "cost": 6.60,
+                "start_battery_level": 20,
+                "end_battery_level": 80,
+                "location": "Home",
+            },
+            {
+                "start_date": "2026-03-05 14:00",
+                "energy_added_kwh": 20.0,
+                "cost": 8.00,
+                "start_battery_level": 40,
+                "end_battery_level": 65,
+                "location": "Supercharger",
+            },
         ]
         MockTM.return_value.get_charging_sessions.return_value = mock_rows
 
@@ -7595,7 +7613,10 @@ class TestChargeCostSummary:
             "total_charged": {"value": "100", "after_adornment": "kWh"},
             "charging_history_graph": {
                 "data_points": [
-                    {"timestamp": {"display_string": "Mar 15"}, "values": [{"raw_value": 50.0, "sub_title": "Home"}]},
+                    {
+                        "timestamp": {"display_string": "Mar 15"},
+                        "values": [{"raw_value": 50.0, "sub_title": "Home"}],
+                    },
                 ]
             },
             "total_charged_breakdown": {},
@@ -7752,8 +7773,12 @@ class TestChargeCsvExport:
 
         mock_cfg.return_value = MagicMock(general=MagicMock(cost_per_kwh=0.22))
         sessions = [
-            ChargingSession(date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"),
-            ChargingSession(date="2026-03-20", location="SC", kwh=20.0, cost=8.00, source="teslamate"),
+            ChargingSession(
+                date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"
+            ),
+            ChargingSession(
+                date="2026-03-20", location="SC", kwh=20.0, cost=8.00, source="teslamate"
+            ),
         ]
         mock_fetch.return_value = (sessions, "TeslaMate")
 
@@ -7763,6 +7788,7 @@ class TestChargeCsvExport:
         assert "Exported 2 sessions" in result.output
 
         import csv
+
         with open(csv_path) as f:
             reader = list(csv.DictReader(f))
         assert len(reader) == 2
@@ -7776,7 +7802,9 @@ class TestChargeCsvExport:
 
         mock_cfg.return_value = MagicMock(general=MagicMock(cost_per_kwh=0.22))
         sessions = [
-            ChargingSession(date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"),
+            ChargingSession(
+                date="2026-03-15", location="Home", kwh=30.0, cost=6.60, source="teslamate"
+            ),
         ]
         mock_fetch.return_value = (sessions, "TeslaMate")
 
@@ -7940,6 +7968,7 @@ class TestVehicleExport:
         assert "Exported" in result.output
 
         import csv
+
         with open(out) as f:
             reader = list(csv.DictReader(f))
         assert len(reader) == 1
@@ -7998,8 +8027,14 @@ class TestChargeSessionMerge:
             "total_charged": {"value": "100", "after_adornment": "kWh"},
             "charging_history_graph": {
                 "data_points": [
-                    {"timestamp": {"display_string": "Mar 15"}, "values": [{"raw_value": 30.0, "sub_title": "SC"}]},
-                    {"timestamp": {"display_string": "Apr 01"}, "values": [{"raw_value": 20.0, "sub_title": "Work"}]},
+                    {
+                        "timestamp": {"display_string": "Mar 15"},
+                        "values": [{"raw_value": 30.0, "sub_title": "SC"}],
+                    },
+                    {
+                        "timestamp": {"display_string": "Apr 01"},
+                        "values": [{"raw_value": 20.0, "sub_title": "Work"}],
+                    },
                 ]
             },
             "total_charged_breakdown": {},
@@ -8010,8 +8045,14 @@ class TestChargeSessionMerge:
 
         # TeslaMate returns overlapping + unique sessions
         mock_tm_rows = [
-            {"start_date": "2026-03-15 08:00", "energy_added_kwh": 30.0, "cost": 6.60,
-             "start_battery_level": 20, "end_battery_level": 80, "location": "Supercharger"},
+            {
+                "start_date": "2026-03-15 08:00",
+                "energy_added_kwh": 30.0,
+                "cost": 6.60,
+                "start_battery_level": 20,
+                "end_battery_level": 80,
+                "location": "Supercharger",
+            },
         ]
 
         with patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked") as MockTM:
@@ -8033,13 +8074,22 @@ class TestChargeSessionMerge:
         mock_cfg.return_value = cfg
 
         mock_rows = [
-            {"start_date": "2026-03-15 08:00", "energy_added_kwh": 30.0, "cost": 6.60,
-             "start_battery_level": 20, "end_battery_level": 80, "location": "Home"},
+            {
+                "start_date": "2026-03-15 08:00",
+                "energy_added_kwh": 30.0,
+                "cost": 6.60,
+                "start_battery_level": 20,
+                "end_battery_level": 80,
+                "location": "Home",
+            },
         ]
 
         with (
             patch("tesla_cli.core.backends.teslaMate.TeslaMateBacked") as MockTM,
-            patch("tesla_cli.cli.commands.charge.get_vehicle_backend", side_effect=Exception("no fleet")),
+            patch(
+                "tesla_cli.cli.commands.charge.get_vehicle_backend",
+                side_effect=Exception("no fleet"),
+            ),
         ):
             MockTM.return_value.get_charging_sessions.return_value = mock_rows
             from tesla_cli.cli.commands.charge import _fetch_sessions
@@ -8059,10 +8109,20 @@ class TestOnelineOutput:
     """Tests for --oneline flags on vehicle summary and charge schedule-preview."""
 
     MOCK_VEHICLE_DATA = {
-        "charge_state": {"battery_level": 72, "battery_range": 186.5, "charging_state": "Stopped", "charge_limit_soc": 80},
+        "charge_state": {
+            "battery_level": 72,
+            "battery_range": 186.5,
+            "charging_state": "Stopped",
+            "charge_limit_soc": 80,
+        },
         "climate_state": {"inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": False},
         "drive_state": {"latitude": 4.711, "longitude": -74.072, "speed": 0},
-        "vehicle_state": {"locked": True, "sentry_mode": True, "car_version": "2026.8.7", "odometer": 1234.5},
+        "vehicle_state": {
+            "locked": True,
+            "sentry_mode": True,
+            "car_version": "2026.8.7",
+            "odometer": 1234.5,
+        },
     }
 
     @patch("tesla_cli.cli.commands.vehicle.get_vehicle_backend")
@@ -8110,7 +8170,9 @@ class TestOnelineOutput:
         }
         backend = MagicMock()
         backend.get_charge_state.return_value = mock_data
-        cfg = MagicMock(default_vin="7SAYTEST123456", general=MagicMock(default_vin="7SAYTEST123456"))
+        cfg = MagicMock(
+            default_vin="7SAYTEST123456", general=MagicMock(default_vin="7SAYTEST123456")
+        )
         with (
             patch("tesla_cli.cli.commands.charge.get_vehicle_backend", return_value=backend),
             patch("tesla_cli.cli.commands.charge.load_config", return_value=cfg),
@@ -8344,15 +8406,22 @@ class TestVehicleReady:
 
     MOCK_DATA = {
         "charge_state": {
-            "battery_level": 82, "battery_range": 200.0, "charging_state": "Complete",
-            "charge_limit_soc": 80, "time_to_full_charge": 0,
+            "battery_level": 82,
+            "battery_range": 200.0,
+            "charging_state": "Complete",
+            "charge_limit_soc": 80,
+            "time_to_full_charge": 0,
         },
         "climate_state": {
-            "inside_temp": 22.0, "outside_temp": 18.0,
-            "is_climate_on": False, "is_preconditioning": False,
+            "inside_temp": 22.0,
+            "outside_temp": 18.0,
+            "is_climate_on": False,
+            "is_preconditioning": False,
         },
         "vehicle_state": {
-            "locked": True, "sentry_mode": True, "car_version": "2026.8.7",
+            "locked": True,
+            "sentry_mode": True,
+            "car_version": "2026.8.7",
             "software_update": {"status": ""},
         },
     }
@@ -8423,8 +8492,13 @@ class TestChargeLast:
         from tesla_cli.core.models.charge import ChargingSession
 
         session = ChargingSession(
-            date="2026-04-02 14:30", location="Home", kwh=25.5,
-            cost=5.61, cost_estimated=False, battery_start=40, battery_end=80,
+            date="2026-04-02 14:30",
+            location="Home",
+            kwh=25.5,
+            cost=5.61,
+            cost_estimated=False,
+            battery_start=40,
+            battery_end=80,
             source="teslamate",
         )
         mock_fetch.return_value = ([session], "TeslaMate")
@@ -8440,8 +8514,11 @@ class TestChargeLast:
         from tesla_cli.core.models.charge import ChargingSession
 
         session = ChargingSession(
-            date="2026-04-02", location="SC", kwh=30.0,
-            cost=12.00, source="fleet",
+            date="2026-04-02",
+            location="SC",
+            kwh=30.0,
+            cost=12.00,
+            source="fleet",
         )
         mock_fetch.return_value = ([session], "Fleet API")
 
@@ -8606,6 +8683,7 @@ class TestVehicleLastSeen:
     @patch("tesla_cli.cli.commands.vehicle.load_config")
     def test_last_seen_online(self, mock_cfg, mock_rv, mock_bk):
         import time
+
         mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
         backend = MagicMock()
         backend.get_vehicle_data.return_value = {
@@ -8622,6 +8700,7 @@ class TestVehicleLastSeen:
     @patch("tesla_cli.cli.commands.vehicle.load_config")
     def test_last_seen_oneline(self, mock_cfg, mock_rv, mock_bk):
         import time
+
         mock_cfg.return_value = MagicMock(default_vin="7SAYTEST123456")
         backend = MagicMock()
         backend.get_vehicle_data.return_value = {
@@ -8646,7 +8725,9 @@ class TestClimateStatusOneline:
     def test_climate_oneline(self):
         backend = MagicMock()
         backend.get_climate_state.return_value = {
-            "inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": False,
+            "inside_temp": 22.5,
+            "outside_temp": 18.0,
+            "is_climate_on": False,
         }
         cfg = MagicMock(default_vin="7SAYTEST123456")
         with (
@@ -8665,7 +8746,9 @@ class TestClimateStatusOneline:
     def test_climate_json(self):
         backend = MagicMock()
         backend.get_climate_state.return_value = {
-            "inside_temp": 22.5, "outside_temp": 18.0, "is_climate_on": True,
+            "inside_temp": 22.5,
+            "outside_temp": 18.0,
+            "is_climate_on": True,
         }
         cfg = MagicMock(default_vin="7SAYTEST123456")
         with (
@@ -9149,7 +9232,11 @@ class TestAutomationsCli:
         """automations run --help exits 0 and describes polling."""
         result = _run("automations", "run", "--help")
         assert result.exit_code == 0
-        assert "interval" in result.output.lower() or "poll" in result.output.lower() or "daemon" in result.output.lower()
+        assert (
+            "interval" in result.output.lower()
+            or "poll" in result.output.lower()
+            or "daemon" in result.output.lower()
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -9309,10 +9396,12 @@ class TestEnergyBackend:
         backend._client = MagicMock()
         backend._client.request.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"response": [
-                {"energy_site_id": 123, "site_name": "Home"},
-                {"id": 456, "display_name": "Model Y"},  # vehicle, no energy_site_id
-            ]},
+            json=lambda: {
+                "response": [
+                    {"energy_site_id": 123, "site_name": "Home"},
+                    {"id": 456, "display_name": "Model Y"},  # vehicle, no energy_site_id
+                ]
+            },
         )
         sites = backend.list_energy_sites()
         assert len(sites) == 1

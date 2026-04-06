@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
 
 from tesla_cli.core.models.climate import ClimateState
 from tesla_cli.core.models.drive import DriveState, Location
 from tesla_cli.core.models.vehicle import VehicleData, VehicleSummary
-
 
 # ── VehicleSummary ─────────────────────────────────────────────────────────────
 

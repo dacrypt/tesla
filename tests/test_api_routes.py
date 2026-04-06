@@ -662,10 +662,9 @@ class TestOrderRoutes:
         }
         mock_backend = MagicMock()
         mock_backend.get_status.return_value = mock_status
-        with patch(
-            "tesla_cli.api.routes.order.load_config", return_value=cfg
-        ), patch(
-            "tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend
+        with (
+            patch("tesla_cli.api.routes.order.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend),
         ):
             r = client.get("/api/order/status")
         assert r.status_code == 200
@@ -685,10 +684,9 @@ class TestOrderRoutes:
         cfg.order.reservation_number = "RN999"
         mock_backend = MagicMock()
         mock_backend.get_status.side_effect = RuntimeError("network error")
-        with patch(
-            "tesla_cli.api.routes.order.load_config", return_value=cfg
-        ), patch(
-            "tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend
+        with (
+            patch("tesla_cli.api.routes.order.load_config", return_value=cfg),
+            patch("tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend),
         ):
             r = client.get("/api/order/status")
         assert r.status_code == 502
@@ -724,7 +722,11 @@ class TestSourcesRoutes:
 
     def test_get_source_by_id(self, srv):
         client, _, _ = srv
-        mock_result = {"id": "tesla.owner", "data": {"battery_level": 80}, "fetched_at": "2025-01-01T00:00:00"}
+        mock_result = {
+            "id": "tesla.owner",
+            "data": {"battery_level": 80},
+            "fetched_at": "2025-01-01T00:00:00",
+        }
         with patch(
             "tesla_cli.api.routes.sources.sources.get_cached_with_meta", return_value=mock_result
         ):
@@ -735,9 +737,7 @@ class TestSourcesRoutes:
 
     def test_get_unknown_source_returns_404(self, srv):
         client, _, _ = srv
-        with patch(
-            "tesla_cli.api.routes.sources.sources.get_cached_with_meta", return_value=None
-        ):
+        with patch("tesla_cli.api.routes.sources.sources.get_cached_with_meta", return_value=None):
             r = client.get("/api/sources/nonexistent.source")
         assert r.status_code == 404
 
@@ -745,10 +745,11 @@ class TestSourcesRoutes:
         client, _, _ = srv
         mock_src = {"id": "tesla.owner", "name": "Owner API"}
         mock_refreshed = {"id": "tesla.owner", "data": {}, "refreshed": True}
-        with patch(
-            "tesla_cli.api.routes.sources.sources.get_source_def", return_value=mock_src
-        ), patch(
-            "tesla_cli.api.routes.sources.sources.refresh_source", return_value=mock_refreshed
+        with (
+            patch("tesla_cli.api.routes.sources.sources.get_source_def", return_value=mock_src),
+            patch(
+                "tesla_cli.api.routes.sources.sources.refresh_source", return_value=mock_refreshed
+            ),
         ):
             r = client.post("/api/sources/tesla.owner/refresh")
         assert r.status_code == 200
@@ -777,9 +778,7 @@ class TestSourcesRoutes:
     def test_refresh_stale_sources(self, srv):
         client, _, _ = srv
         mock_result = {"refreshed": ["tesla.owner"], "failed": []}
-        with patch(
-            "tesla_cli.api.routes.sources.sources.refresh_stale", return_value=mock_result
-        ):
+        with patch("tesla_cli.api.routes.sources.sources.refresh_stale", return_value=mock_result):
             r = client.post("/api/sources/refresh-stale")
         assert r.status_code == 200
         data = r.json()
@@ -836,9 +835,10 @@ class TestDossierRoutes:
 
     def test_dossier_runt_no_vin_returns_404(self, srv):
         client, _, _ = srv
-        with patch(
-            "tesla_cli.api.routes.dossier.load_config", return_value=_make_cfg("")
-        ), patch("tesla_cli.api.routes.dossier.resolve_vin", return_value=""):
+        with (
+            patch("tesla_cli.api.routes.dossier.load_config", return_value=_make_cfg("")),
+            patch("tesla_cli.api.routes.dossier.resolve_vin", return_value=""),
+        ):
             r = client.get("/api/dossier/runt")
         assert r.status_code == 404
 
@@ -847,11 +847,11 @@ class TestDossierRoutes:
         mock_runt = MagicMock()
         mock_runt.model_dump.return_value = {"placa": "ABC123", "vin": MOCK_VIN}
         cfg = _make_cfg()
-        with patch(
-            "tesla_cli.api.routes.dossier.load_config", return_value=cfg
-        ), patch(
-            "tesla_cli.api.routes.dossier.resolve_vin", return_value=MOCK_VIN
-        ), patch("tesla_cli.core.backends.runt.RuntBackend") as MockRunt:
+        with (
+            patch("tesla_cli.api.routes.dossier.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.dossier.resolve_vin", return_value=MOCK_VIN),
+            patch("tesla_cli.core.backends.runt.RuntBackend") as MockRunt,
+        ):
             MockRunt.return_value.query_by_vin.return_value = mock_runt
             r = client.get("/api/dossier/runt")
         assert r.status_code == 200
@@ -900,7 +900,10 @@ class TestNotifyRoutes:
         mock_apprise_instance = MagicMock()
         mock_apprise_instance.notify.return_value = True
         mock_apprise_cls.return_value = mock_apprise_instance
-        with patch.dict("sys.modules", {"apprise": MagicMock(Apprise=mock_apprise_cls, NotifyType=MagicMock(INFO="info"))}):
+        with patch.dict(
+            "sys.modules",
+            {"apprise": MagicMock(Apprise=mock_apprise_cls, NotifyType=MagicMock(INFO="info"))},
+        ):
             r = client.post("/api/notify/test")
         # Either 200 (apprise available) or 501 (not installed) — both valid in CI
         assert r.status_code in (200, 501)
@@ -944,8 +947,9 @@ class TestNotifyRoutes:
 class TestAuthRoutes:
     def test_status_unauthenticated(self, srv):
         client, _, cfg = srv
-        with patch("tesla_cli.api.routes.auth.load_config", return_value=cfg), patch(
-            "tesla_cli.api.routes.auth.has_token", return_value=False
+        with (
+            patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.auth.has_token", return_value=False),
         ):
             r = client.get("/api/auth/status")
         assert r.status_code == 200
@@ -962,10 +966,12 @@ class TestAuthRoutes:
 
         def _has_token_side(key):
             from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN
+
             return key == FLEET_ACCESS_TOKEN
 
-        with patch("tesla_cli.api.routes.auth.load_config", return_value=cfg), patch(
-            "tesla_cli.api.routes.auth.has_token", side_effect=_has_token_side
+        with (
+            patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.auth.has_token", side_effect=_has_token_side),
         ):
             r = client.get("/api/auth/status")
         assert r.status_code == 200
@@ -1010,9 +1016,11 @@ class TestAuthRoutes:
     def test_tessie_token_valid(self, srv):
         client, _, cfg = srv
         cfg.tessie.configured = False
-        with patch("tesla_cli.api.routes.auth.set_token"), patch(
-            "tesla_cli.api.routes.auth.load_config", return_value=cfg
-        ), patch("tesla_cli.api.routes.auth.save_config"):
+        with (
+            patch("tesla_cli.api.routes.auth.set_token"),
+            patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.auth.save_config"),
+        ):
             r = client.post("/api/auth/tessie", json={"token": "a-valid-tessie-token-1234"})
         assert r.status_code == 200
         data = r.json()

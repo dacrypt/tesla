@@ -557,7 +557,9 @@ def query_export_pdf(
 @data_app.command("clean")
 def query_clean(
     keep: int = typer.Option(10, "--keep", "-n", help="Number of snapshots to keep (most recent)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be deleted without deleting"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be deleted without deleting"
+    ),
 ) -> None:
     """Prune old data snapshots.
 

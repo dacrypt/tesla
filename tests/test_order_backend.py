@@ -5,17 +5,13 @@ from __future__ import annotations
 import json
 import re
 import time
-from pathlib import Path
 from unittest.mock import patch
 
 import jwt
 import pytest
 
 from tesla_cli.core.backends.order import (
-    DELIVERY_CACHE_FILE,
-    ORDER_STATE_FILE,
     ORDERS_URL,
-    STATE_DIR,
     TASKS_API_BASE,
     OrderBackend,
 )
@@ -23,7 +19,6 @@ from tesla_cli.core.exceptions import AuthenticationError, OrderNotFoundError
 from tesla_cli.core.models.order import (
     DeliveryAppointment,
     OrderChange,
-    OrderDetails,
     OrderStatus,
     OrderTask,
 )
@@ -292,7 +287,9 @@ def test_detect_changes_new_order(httpx_mock, backend, patched_tokens, tmp_path)
     """No previous state — returns empty list, saves state."""
     # detect_changes calls get_order_status once directly, then get_delivery_appointment
     # which calls get_order_status again (no cache file) — register as reusable.
-    httpx_mock.add_response(url=ORDERS_URL, json={"response": [_mock_order_raw()]}, is_reusable=True)
+    httpx_mock.add_response(
+        url=ORDERS_URL, json={"response": [_mock_order_raw()]}, is_reusable=True
+    )
     httpx_mock.add_response(url=_TASKS_URL_RE, status_code=404, is_optional=True)
 
     changes = backend.detect_changes(MOCK_RN)
@@ -329,7 +326,9 @@ def test_detect_changes_with_diff(httpx_mock, backend, patched_tokens, tmp_path)
     state_file = tmp_path / "last_order.json"
     state_file.write_text(json.dumps(prev))
 
-    httpx_mock.add_response(url=ORDERS_URL, json={"response": [_mock_order_raw()]}, is_reusable=True)
+    httpx_mock.add_response(
+        url=ORDERS_URL, json={"response": [_mock_order_raw()]}, is_reusable=True
+    )
     httpx_mock.add_response(url=_TASKS_URL_RE, status_code=404, is_optional=True)
 
     changes = backend.detect_changes(MOCK_RN)
@@ -521,9 +520,11 @@ def test_expired_token_triggers_refresh(httpx_mock, backend, tmp_path):
 
 def test_no_refresh_token_raises_auth_error(backend, tmp_path):
     """Missing refresh token raises AuthenticationError immediately."""
-    with patch(
-        "tesla_cli.core.backends.order.tokens.get_token",
-        return_value=None,
+    with (
+        patch(
+            "tesla_cli.core.backends.order.tokens.get_token",
+            return_value=None,
+        ),
+        pytest.raises(AuthenticationError, match="Not authenticated"),
     ):
-        with pytest.raises(AuthenticationError, match="Not authenticated"):
-            backend.get_orders()
+        backend.get_orders()

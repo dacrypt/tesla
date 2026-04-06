@@ -86,9 +86,7 @@ def main() -> None:
                 from tesla_cli.cli.output import error_console
 
                 suggestions = "  ".join(f"[bold cyan]{m}[/bold cyan]" for m in matches)
-                error_console.print(
-                    f"\n[yellow]Did you mean?[/yellow]  {suggestions}\n"
-                )
+                error_console.print(f"\n[yellow]Did you mean?[/yellow]  {suggestions}\n")
         raise
 
 

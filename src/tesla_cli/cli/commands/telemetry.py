@@ -26,9 +26,7 @@ def _stack():
 
 @telemetry_app.command("install")
 def telemetry_install(
-    hostname: str = typer.Argument(
-        ..., help="FQDN of this machine (e.g. telemetry.example.com)"
-    ),
+    hostname: str = typer.Argument(..., help="FQDN of this machine (e.g. telemetry.example.com)"),
     port: int = typer.Option(4443, "--port", "-p", help="Port for fleet-telemetry server"),
     force: bool = typer.Option(False, "--force", help="Reinstall even if already installed"),
 ) -> None:
@@ -119,7 +117,9 @@ def telemetry_restart() -> None:
 
 @telemetry_app.command("status")
 def telemetry_status(
-    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias (uses default if omitted)"),
+    vin: str | None = typer.Option(
+        None, "--vin", "-v", help="VIN or alias (uses default if omitted)"
+    ),
 ) -> None:
     """Show fleet-telemetry server status and vehicle streaming config.
 
@@ -151,8 +151,10 @@ def telemetry_status(
         try:
             backend = load_fleet_telemetry_backend()
             with Progress(
-                SpinnerColumn(), TextColumn("{task.description}"),
-                transient=True, disable=is_json_mode(),
+                SpinnerColumn(),
+                TextColumn("{task.description}"),
+                transient=True,
+                disable=is_json_mode(),
             ) as p:
                 p.add_task(f"Fetching streaming config for {v}...", total=None)
                 vehicle_config = backend.get_streaming_config(v)
@@ -168,7 +170,9 @@ def telemetry_status(
 
 @telemetry_app.command("configure")
 def telemetry_configure(
-    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias (uses default if omitted)"),
+    vin: str | None = typer.Option(
+        None, "--vin", "-v", help="VIN or alias (uses default if omitted)"
+    ),
     fields: str = typer.Option(
         "",
         "--fields",
@@ -212,20 +216,22 @@ def telemetry_configure(
 
         all_defaults = _default_fields()
         field_dict = {
-            name.strip(): {"interval_seconds": 10}
-            for name in fields.split(",")
-            if name.strip()
+            name.strip(): {"interval_seconds": 10} for name in fields.split(",") if name.strip()
         }
         # Validate field names (warn about unknowns but proceed)
         unknown = [k for k in field_dict if k not in all_defaults]
         if unknown:
-            console.print(f"[yellow]Unknown field names (proceeding anyway):[/yellow] {', '.join(unknown)}")
+            console.print(
+                f"[yellow]Unknown field names (proceeding anyway):[/yellow] {', '.join(unknown)}"
+            )
 
     try:
         backend = load_fleet_telemetry_backend()
         with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"),
-            transient=True, disable=is_json_mode(),
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
         ) as p:
             p.add_task(f"Configuring telemetry for {v}...", total=None)
             result = backend.configure_streaming(
@@ -242,14 +248,18 @@ def telemetry_configure(
         console.print(f"[red]API error:[/red] {exc}")
         raise typer.Exit(1)
 
-    render_success(f"Vehicle {v} configured to stream to {cfg.telemetry.hostname}:{cfg.telemetry.port}")
+    render_success(
+        f"Vehicle {v} configured to stream to {cfg.telemetry.hostname}:{cfg.telemetry.port}"
+    )
     if result:
         render_dict(result, title="API Response")
 
 
 @telemetry_app.command("stop-streaming")
 def telemetry_stop_streaming(
-    vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias (uses default if omitted)"),
+    vin: str | None = typer.Option(
+        None, "--vin", "-v", help="VIN or alias (uses default if omitted)"
+    ),
 ) -> None:
     """Stop a vehicle from streaming telemetry (delete streaming config).
 
@@ -266,8 +276,10 @@ def telemetry_stop_streaming(
     try:
         backend = load_fleet_telemetry_backend()
         with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"),
-            transient=True, disable=is_json_mode(),
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
         ) as p:
             p.add_task(f"Removing streaming config for {v}...", total=None)
             backend.delete_streaming_config(v)

@@ -127,10 +127,7 @@ def load_fleet_telemetry_backend() -> FleetTelemetryBackend:
     cfg = load_config()
     access_token = get_token(FLEET_ACCESS_TOKEN)
     if not access_token:
-        raise ConfigurationError(
-            "Fleet API access token not found.\n"
-            "Run: tesla config auth fleet"
-        )
+        raise ConfigurationError("Fleet API access token not found.\nRun: tesla config auth fleet")
     return FleetTelemetryBackend(access_token, region=cfg.fleet.region)
 
 
@@ -143,13 +140,11 @@ def read_ca_cert(ca_cert_path: str) -> str:
 
     if not ca_cert_path:
         raise ConfigurationError(
-            "CA certificate path not configured.\n"
-            "Run: tesla telemetry install"
+            "CA certificate path not configured.\nRun: tesla telemetry install"
         )
     path = Path(ca_cert_path)
     if not path.exists():
         raise ConfigurationError(
-            f"CA certificate not found: {ca_cert_path}\n"
-            "Run: tesla telemetry install"
+            f"CA certificate not found: {ca_cert_path}\nRun: tesla telemetry install"
         )
     return path.read_text()

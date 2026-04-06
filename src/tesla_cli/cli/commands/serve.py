@@ -433,7 +433,6 @@ def serve(
     )
 
 
-
 @serve_app.command("uninstall-service")
 def serve_uninstall_service() -> None:
     """Remove the tesla-cli systemd/launchd service file.

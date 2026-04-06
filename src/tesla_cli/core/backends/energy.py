@@ -79,7 +79,9 @@ class EnergyBackend(HttpBackendMixin):
 
     def set_backup_reserve(self, site_id: int, percent: int) -> dict[str, Any]:
         """POST /api/1/energy_sites/{id}/backup — set backup reserve %."""
-        return self._post(f"/api/1/energy_sites/{site_id}/backup", {"backup_reserve_percent": percent})
+        return self._post(
+            f"/api/1/energy_sites/{site_id}/backup", {"backup_reserve_percent": percent}
+        )
 
     def set_operation_mode(self, site_id: int, mode: str) -> dict[str, Any]:
         """POST /api/1/energy_sites/{id}/operation — set mode.
@@ -90,9 +92,7 @@ class EnergyBackend(HttpBackendMixin):
 
     def set_storm_mode(self, site_id: int, enabled: bool) -> dict[str, Any]:
         """POST /api/1/energy_sites/{id}/storm_mode — toggle storm watch."""
-        return self._post(
-            f"/api/1/energy_sites/{site_id}/storm_mode", {"enabled": enabled}
-        )
+        return self._post(f"/api/1/energy_sites/{site_id}/storm_mode", {"enabled": enabled})
 
 
 def load_energy_backend() -> EnergyBackend:
@@ -107,8 +107,5 @@ def load_energy_backend() -> EnergyBackend:
     cfg = load_config()
     access_token = get_token(FLEET_ACCESS_TOKEN)
     if not access_token:
-        raise ConfigurationError(
-            "Fleet API access token not found.\n"
-            "Run: tesla config auth fleet"
-        )
+        raise ConfigurationError("Fleet API access token not found.\nRun: tesla config auth fleet")
     return EnergyBackend(access_token, region=cfg.fleet.region)

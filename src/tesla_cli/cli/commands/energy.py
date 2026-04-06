@@ -140,7 +140,9 @@ def energy_info(
 def energy_history(
     site: int = typer.Option(0, "--site", "-s", help="Energy site ID"),
     period: str = typer.Option("day", "--period", "-p", help="Period: day | week | month | year"),
-    start: str = typer.Option("", "--start", help="Start date (ISO 8601, e.g. 2024-01-01T00:00:00Z)"),
+    start: str = typer.Option(
+        "", "--start", help="Start date (ISO 8601, e.g. 2024-01-01T00:00:00Z)"
+    ),
     end: str = typer.Option("", "--end", help="End date (ISO 8601)"),
 ) -> None:
     """Show energy production and consumption history.
@@ -161,7 +163,9 @@ def energy_history(
 
 @energy_app.command("backup")
 def energy_backup(
-    reserve: int | None = typer.Argument(None, help="Backup reserve % to set (0-100). Omit to show current."),
+    reserve: int | None = typer.Argument(
+        None, help="Backup reserve % to set (0-100). Omit to show current."
+    ),
     site: int = typer.Option(0, "--site", "-s", help="Energy site ID"),
 ) -> None:
     """Show or set the battery backup reserve percentage.
@@ -178,7 +182,9 @@ def energy_backup(
         if is_json_mode():
             import json
 
-            typer.echo(json.dumps({"backup_reserve_percent": data.get("backup_reserve_percent")}, indent=2))
+            typer.echo(
+                json.dumps({"backup_reserve_percent": data.get("backup_reserve_percent")}, indent=2)
+            )
             return
         pct = data.get("backup_reserve_percent", "?")
         console.print(f"Backup reserve: [bold]{pct}%[/bold]")
