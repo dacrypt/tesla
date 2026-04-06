@@ -10,7 +10,9 @@ import pytest
 # Import from change-detector.py (it's a script, not a package)
 _script = Path(__file__).parent.parent / "change-detector.py"
 if not _script.exists():
-    pytest.skip("change-detector.py not present (gitignored personal script)", allow_module_level=True)
+    pytest.skip(
+        "change-detector.py not present (gitignored personal script)", allow_module_level=True
+    )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from importlib.util import module_from_spec, spec_from_file_location
