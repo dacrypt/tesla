@@ -534,20 +534,14 @@ def _register_ui(app: FastAPI, serve_ui: bool) -> None:
     _ui_dist = Path(__file__).resolve().parent / "ui_dist"
 
     if serve_ui and _ui_dist.exists() and (_ui_dist / "index.html").exists():
-        from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
 
-        _assets = _ui_dist / "assets"
-        if _assets.exists():
-            app.mount("/assets", StaticFiles(directory=str(_assets)), name="ui-assets")
-
-        @app.get("/{path:path}", include_in_schema=False)
-        def spa_fallback(path: str):
-            """Serve React SPA — static files or fallback to index.html."""
-            file = _ui_dist / path
-            if file.is_file() and ".." not in path:
-                return FileResponse(file)
-            return FileResponse(_ui_dist / "index.html")
+        # Mount the entire SPA as a StaticFiles app with html=True.
+        # html=True serves index.html for directory requests and as a
+        # fallback for paths that don't match a file — exactly what a
+        # React SPA needs (client-side routing).
+        # This must be the LAST mount so API routes take priority.
+        app.mount("/", StaticFiles(directory=str(_ui_dist), html=True), name="spa")
     else:
         from fastapi.responses import RedirectResponse
 
