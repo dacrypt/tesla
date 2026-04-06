@@ -213,6 +213,166 @@ def ble_status() -> None:
         )
 
 
+@ble_app.command("enroll")
+def ble_enroll(vin: str | None = VinOption) -> None:
+    """Enroll this device as a BLE key for the vehicle.
+
+    You must be physically next to the vehicle with a key card on the center console.
+
+    tesla ble enroll
+    """
+    v = _vin(vin)
+
+    cfg = load_config()
+    key_path = cfg.ble.key_path
+    binary = _tesla_control_bin()
+
+    args = [binary, "-ble"]
+    if v:
+        args += ["-vin", v]
+    if key_path:
+        args += ["-key-file", key_path]
+    args += ["add-key-request", "owner", "cloud_key"]
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            args,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        console.print("[red]BLE command failed:[/red] tesla-control timed out (30s)")
+        raise typer.Exit(1)
+
+    ok = result.returncode == 0
+    out = (result.stdout or "").strip()
+    err = (result.stderr or "").strip()
+
+    res = {
+        "status": "ok" if ok else "error",
+        "command": "add-key-request",
+        "vin": v,
+        "returncode": result.returncode,
+        "stdout": out,
+        "stderr": err,
+    }
+    _print_result(res, "BLE key enrollment requested — tap key card on center console to confirm")
+
+
+@ble_app.command("list-keys")
+def ble_list_keys(vin: str | None = VinOption) -> None:
+    """List all enrolled BLE keys on the vehicle."""
+    v = _vin(vin)
+    result = _run_ble("list-keys", v)
+    _print_result(result, "BLE keys listed")
+
+
+@ble_app.command("remove-key")
+def ble_remove_key(
+    public_key: str = typer.Argument(help="Public key to remove"),
+    vin: str | None = VinOption,
+) -> None:
+    """Remove a BLE key from the vehicle."""
+    v = _vin(vin)
+
+    cfg = load_config()
+    key_path = cfg.ble.key_path
+    binary = _tesla_control_bin()
+
+    args = [binary, "-ble"]
+    if v:
+        args += ["-vin", v]
+    if key_path:
+        args += ["-key-file", key_path]
+    args += ["remove-key", public_key]
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            args,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        console.print("[red]BLE command failed:[/red] tesla-control timed out (30s)")
+        raise typer.Exit(1)
+
+    ok = result.returncode == 0
+    out = (result.stdout or "").strip()
+    err = (result.stderr or "").strip()
+
+    res = {
+        "status": "ok" if ok else "error",
+        "command": "remove-key",
+        "vin": v,
+        "returncode": result.returncode,
+        "stdout": out,
+        "stderr": err,
+    }
+    _print_result(res, f"BLE key removed: {public_key}")
+
+
+@ble_app.command("state")
+def ble_state(
+    category: str = typer.Argument(
+        "charge", help="State category: charge, climate, drive, closures, vehicle"
+    ),
+    vin: str | None = VinOption,
+) -> None:
+    """Read vehicle state over BLE (without waking the vehicle).
+
+    tesla ble state charge
+    tesla ble state climate
+    tesla ble state drive
+    """
+    v = _vin(vin)
+
+    cfg = load_config()
+    key_path = cfg.ble.key_path
+    binary = _tesla_control_bin()
+
+    args = [binary, "-ble"]
+    if v:
+        args += ["-vin", v]
+    if key_path:
+        args += ["-key-file", key_path]
+    args += ["state", category]
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            args,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        console.print("[red]BLE command failed:[/red] tesla-control timed out (30s)")
+        raise typer.Exit(1)
+
+    ok = result.returncode == 0
+    out = (result.stdout or "").strip()
+    err = (result.stderr or "").strip()
+
+    res = {
+        "status": "ok" if ok else "error",
+        "command": f"state {category}",
+        "vin": v,
+        "returncode": result.returncode,
+        "stdout": out,
+        "stderr": err,
+    }
+    _print_result(res, f"Vehicle {category} state via BLE")
+
+
+@ble_app.command("body-state")
+def ble_body_state(vin: str | None = VinOption) -> None:
+    """Read body controller state over BLE."""
+    v = _vin(vin)
+    result = _run_ble("body-controller-state", v)
+    _print_result(result, "Body controller state via BLE")
+
+
 @ble_app.command("setup-key")
 def ble_setup_key(
     key_path: str = typer.Argument(..., help="Path to tesla-control private key .pem file"),

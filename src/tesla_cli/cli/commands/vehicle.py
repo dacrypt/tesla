@@ -2998,3 +2998,80 @@ def vehicle_consumption(
                     t.add_row(str(row))
             console.print(t)
         console.print("\n[dim]Live stream stopped.[/dim]")
+
+
+@vehicle_app.command("safety-score")
+def vehicle_safety_score(vin: str | None = VinOption) -> None:
+    """Show Tesla Safety Score (Insurance telematics).
+
+    Displays overall safety score, per-category breakdown, and recent trip scores.
+    Requires Fleet API backend.
+
+    Categories tracked:
+    - Forward Collision Warnings per 1000 miles
+    - Hard Braking events
+    - Aggressive Turning events
+    - Unsafe Following events
+    - Forced Autopilot Disengagements
+    """
+    import json as _json
+
+    from tesla_cli.core.exceptions import ApiError
+
+    v = _vin(vin)
+    backend = _backend()
+
+    try:
+        data = backend.get_safety_score(v)
+    except ApiError as exc:
+        if exc.status_code in (404, 403):
+            console.print(
+                "[yellow]Safety Score not available for this account or vehicle.[/yellow]\n"
+                "[dim]This endpoint may require Tesla Insurance enrollment.[/dim]"
+            )
+            raise typer.Exit(1)
+        raise
+
+    if is_json_mode():
+        console.print_json(_json.dumps(data, default=str))
+        return
+
+    score = data.get("safety_score") if isinstance(data, dict) else None
+    console.print()
+    console.print("[bold]Tesla Safety Score[/bold]")
+    console.print()
+
+    if score is not None:
+        color = "green" if score >= 80 else "yellow" if score >= 60 else "red"
+        console.print(f"  [bold]Overall Score:[/bold] [{color}]{score}/100[/{color}]")
+        console.print()
+
+    label_map = {
+        "forward_collision_warnings": "Forward Collision Warnings (per 1000 mi)",
+        "hard_braking": "Hard Braking Events",
+        "aggressive_turning": "Aggressive Turning Events",
+        "unsafe_following": "Unsafe Following Events",
+        "forced_autopilot_disengagements": "Forced Autopilot Disengagements",
+    }
+
+    if isinstance(data, dict):
+        for key, label in label_map.items():
+            val = data.get(key)
+            if val is not None:
+                console.print(f"  [dim]{label}:[/dim] {val}")
+
+    trips = data.get("trips") if isinstance(data, dict) else None
+    if trips and isinstance(trips, list):
+        console.print()
+        console.print("[bold]Recent Trips[/bold]")
+        rows = [
+            {
+                "date": t.get("date", ""),
+                "score": t.get("score", ""),
+                "distance_mi": t.get("distance_mi", ""),
+            }
+            for t in trips[:10]
+        ]
+        render_table(rows, columns=["date", "score", "distance_mi"], title="Trip Scores")
+
+    console.print()

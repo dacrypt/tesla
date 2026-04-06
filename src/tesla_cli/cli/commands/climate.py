@@ -314,3 +314,119 @@ def defrost(
     _with_wake(lambda b, v: b.command(v, "set_preconditioning_max", on=on), v)
     status = "ON" if on else "OFF"
     render_success(f"Max Defrost {status}")
+
+
+def _backend():
+    from tesla_cli.core.backends import get_vehicle_backend
+
+    return get_vehicle_backend(load_config())
+
+
+def _parse_hhmm(time_str: str) -> int:
+    """Convert HH:MM to minutes after midnight."""
+    try:
+        h, m = time_str.split(":")
+        return int(h) * 60 + int(m)
+    except ValueError:
+        raise typer.BadParameter(f"Time must be in HH:MM format, got '{time_str}'.")
+
+
+def _parse_days(days: str) -> str:
+    """Normalise days to API format: all, weekdays, weekends, or mon,tue,..."""
+    aliases = {"all": "all", "weekdays": "weekdays", "weekends": "weekends"}
+    return aliases.get(days.strip().lower(), days.strip().lower())
+
+
+@climate_app.command("add-precondition-schedule")
+def climate_add_precondition_schedule(
+    time: str = typer.Argument(help="Start time in HH:MM (24h)"),
+    days: str = typer.Option(
+        "all",
+        "--days",
+        "-d",
+        help="Days: all, weekdays, weekends, or comma-separated (mon,tue,wed,...)",
+    ),
+    lat: float | None = typer.Option(
+        None, "--lat", help="Latitude (uses vehicle location if omitted)"
+    ),
+    lon: float | None = typer.Option(
+        None, "--lon", help="Longitude (uses vehicle location if omitted)"
+    ),
+    vin: str | None = VinOption,
+) -> None:
+    """Add a location-based preconditioning schedule.
+
+    tesla climate add-precondition-schedule 07:00
+    tesla climate add-precondition-schedule 07:30 --days weekdays --lat 37.42 --lon -122.08
+    """
+    import json as _json
+
+    from tesla_cli.core.exceptions import ApiError, BackendNotSupportedError
+
+    v = _vin(vin)
+    backend = _backend()
+    start_time = _parse_hhmm(time)
+    days_val = _parse_days(days)
+
+    # Fetch vehicle location if lat/lon omitted
+    if lat is None or lon is None:
+        try:
+            drive = _with_wake(lambda b, v: b.get_drive_state(v), v)
+            lat = lat if lat is not None else drive.get("latitude", 0.0)
+            lon = lon if lon is not None else drive.get("longitude", 0.0)
+        except Exception:
+            lat = lat or 0.0
+            lon = lon or 0.0
+
+    try:
+        result = backend.add_precondition_schedule(v, days_val, start_time, lat, lon)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    except ApiError as exc:
+        if exc.status_code in (404, 403):
+            console.print(
+                "[yellow]Location-based preconditioning schedules not available for this account.[/yellow]"
+            )
+            raise typer.Exit(1)
+        raise
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, default=str))
+        return
+    render_success(
+        f"Preconditioning schedule added: {time} on {days_val} at ({lat:.4f}, {lon:.4f})"
+    )
+
+
+@climate_app.command("remove-precondition-schedule")
+def climate_remove_precondition_schedule(
+    schedule_id: int = typer.Argument(help="Schedule ID to remove"),
+    vin: str | None = VinOption,
+) -> None:
+    """Remove a location-based preconditioning schedule by ID.
+
+    tesla climate remove-precondition-schedule 42
+    """
+    import json as _json
+
+    from tesla_cli.core.exceptions import ApiError, BackendNotSupportedError
+
+    v = _vin(vin)
+    backend = _backend()
+
+    try:
+        result = backend.remove_precondition_schedule(v, schedule_id)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    except ApiError as exc:
+        if exc.status_code in (404, 403):
+            console.print("[yellow]Schedule not found or not available for this account.[/yellow]")
+            raise typer.Exit(1)
+        raise
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, default=str))
+        return
+    render_success(f"Preconditioning schedule {schedule_id} removed")
