@@ -15,6 +15,7 @@ import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
+import { useDashboardTiles } from '../hooks/useDashboardTiles';
 import { api } from '../api/client';
 
 // ---- SVG Icons ----
@@ -251,6 +252,8 @@ const Dashboard: React.FC = () => {
   const { state, charge, climate, loading, error, refresh, lastUpdated, connected } = useVehicleData();
   // Post-delivery: vehicle data is available (charge_state present)
   const isPostDelivery = charge !== null || state !== null;
+  const { tiles: enabledTiles } = useDashboardTiles();
+  const isTileEnabled = (id: string) => enabledTiles.some((t) => t.id === id);
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(true); // Assume true initially
@@ -505,7 +508,7 @@ const Dashboard: React.FC = () => {
           <PreDeliveryDashboard />
         ) : (
           <div className="page-pad">
-            {/* ---- Car silhouette card ---- */}
+            {/* ---- Car silhouette card (always visible) ---- */}
             <div className="tesla-card" style={{ padding: '8px 4px 4px' }}>
               <ModelYSilhouette
                 locked={isLocked}
@@ -515,8 +518,8 @@ const Dashboard: React.FC = () => {
               />
             </div>
 
-            {/* ---- Hero stats row ---- */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {/* ---- Hero stats row (battery tile) ---- */}
+            {isTileEnabled('battery') && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
               {/* Battery */}
               <div className="tesla-card" style={{ textAlign: 'center', padding: '16px 4px' }}>
                 <div style={{ fontSize: 44, fontWeight: 700, color: batteryColor, lineHeight: 1, letterSpacing: '-2px', fontVariantNumeric: 'tabular-nums' }}>
@@ -551,61 +554,65 @@ const Dashboard: React.FC = () => {
                   {isCharging ? `${state?.minutes_to_full_charge ?? charge?.minutes_to_full_charge ?? 0}m left` : 'Charging'}
                 </div>
               </div>
-            </div>
+            </div>}
 
             {/* ---- Quick actions ---- */}
-            <p className="section-title">Quick Actions</p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {actions.map((a) => (
-                <button
-                  key={a.key}
-                  onClick={() => handleCommand(a.cmd, (a as any).cmdParams, a.key)}
-                  disabled={!!cmdLoading}
+            {isTileEnabled('quickActions') && (
+              <>
+                <p className="section-title">Quick Actions</p>
+                <div
                   style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1px solid rgba(255,255,255,0.07)`,
-                    borderRadius: 14,
-                    padding: '14px 4px',
-                    cursor: cmdLoading === a.key ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column' as const,
-                    alignItems: 'center',
-                    gap: 7,
-                    opacity: cmdLoading && cmdLoading !== a.key ? 0.4 : 1,
-                    transition: 'all 0.15s',
-                    fontFamily: 'inherit',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 8,
+                    marginBottom: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      background: a.iconBg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      boxShadow: a.key === 'climate' && climateOn ? '0 0 14px rgba(15,188,249,0.5)' : a.key === 'lock' && !isLocked ? '0 0 14px rgba(5,196,107,0.5)' : 'none',
-                    }}
-                  >
-                    {cmdLoading === a.key ? <Spin color="#fff" /> : a.icon}
-                  </div>
-                  <span style={{ color: '#f5f5f7', fontSize: 10, fontWeight: 600, textAlign: 'center' }}>
-                    {a.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+                  {actions.map((a) => (
+                    <button
+                      key={a.key}
+                      onClick={() => handleCommand(a.cmd, (a as any).cmdParams, a.key)}
+                      disabled={!!cmdLoading}
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: `1px solid rgba(255,255,255,0.07)`,
+                        borderRadius: 14,
+                        padding: '14px 4px',
+                        cursor: cmdLoading === a.key ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column' as const,
+                        alignItems: 'center',
+                        gap: 7,
+                        opacity: cmdLoading && cmdLoading !== a.key ? 0.4 : 1,
+                        transition: 'all 0.15s',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          background: a.iconBg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          boxShadow: a.key === 'climate' && climateOn ? '0 0 14px rgba(15,188,249,0.5)' : a.key === 'lock' && !isLocked ? '0 0 14px rgba(5,196,107,0.5)' : 'none',
+                        }}
+                      >
+                        {cmdLoading === a.key ? <Spin color="#fff" /> : a.icon}
+                      </div>
+                      <span style={{ color: '#f5f5f7', fontSize: 10, fontWeight: 600, textAlign: 'center' }}>
+                        {a.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
-            {/* ---- Wake button if asleep ---- */}
+            {/* ---- Wake button if asleep (always visible) ---- */}
             {isAsleep && (
               <button
                 onClick={handleWake}
@@ -618,8 +625,8 @@ const Dashboard: React.FC = () => {
               </button>
             )}
 
-            {/* ---- Charging progress card ---- */}
-            {isCharging && (
+            {/* ---- Charging progress card (schedule tile) ---- */}
+            {isTileEnabled('schedule') && isCharging && (
               <div className="tesla-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0BE881', fontWeight: 600, fontSize: 14 }}>
@@ -652,10 +659,10 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* ---- Recent Charges ---- */}
-            <RecentCharges />
+            {isTileEnabled('recentCharges') && <RecentCharges />}
 
-            {/* ---- Vehicle info footer ---- */}
-            {state && !isAsleep && (
+            {/* ---- Vehicle info footer (vehicle tile) ---- */}
+            {isTileEnabled('vehicle') && state && !isAsleep && (
               <div style={{
                 display: 'flex',
                 justifyContent: 'center',
