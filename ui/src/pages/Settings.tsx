@@ -38,7 +38,7 @@ function Spin() {
 
 function providerColor(s: string): string {
   if (['ok', 'connected', 'active'].includes(s)) return '#0BE881';
-  if (['error', 'failed'].includes(s)) return '#05C46B';
+  if (['error', 'failed'].includes(s)) return '#FF6B6B';
   return '#86888f';
 }
 
@@ -291,8 +291,8 @@ const Settings: React.FC = () => {
               </div>
               {/* Connection status dot */}
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: status ? '#0BE881' : '#05C46B', boxShadow: `0 0 6px ${status ? '#0BE881' : '#05C46B'}` }} />
-                <span style={{ color: status ? '#0BE881' : '#05C46B', fontSize: 12, fontWeight: 600 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: status ? '#0BE881' : '#FF6B6B', boxShadow: `0 0 6px ${status ? '#0BE881' : '#FF6B6B'}` }} />
+                <span style={{ color: status ? '#0BE881' : '#FF6B6B', fontSize: 12, fontWeight: 600 }}>
                   {status ? 'Connected' : 'Offline'}
                 </span>
               </div>

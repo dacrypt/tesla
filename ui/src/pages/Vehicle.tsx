@@ -6,6 +6,7 @@ import {
   IonToolbar,
   IonTitle,
 } from '@ionic/react';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 /* ── Lazy-load sub-pages ── */
 const ControlsContent = React.lazy(() => import('./vehicle/ControlsContent'));
@@ -72,21 +73,23 @@ const Vehicle: React.FC = () => {
         </div>
 
         {/* Content */}
-        <React.Suspense fallback={
-          <div className="loading-center">
-            <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-              <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.1)" strokeWidth={3} />
-              <path d="M12 3a9 9 0 019 9" stroke="#05C46B" strokeWidth={3} strokeLinecap="round">
-                <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-              </path>
-            </svg>
-          </div>
-        }>
-          {activeTab === 'controls' && <ControlsContent />}
-          {activeTab === 'charge' && <ChargeContent />}
-          {activeTab === 'climate' && <ClimateContent />}
-          {activeTab === 'schedule' && <ScheduleContent />}
-        </React.Suspense>
+        <ErrorBoundary>
+          <React.Suspense fallback={
+            <div className="loading-center">
+              <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.1)" strokeWidth={3} />
+                <path d="M12 3a9 9 0 019 9" stroke="#05C46B" strokeWidth={3} strokeLinecap="round">
+                  <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+                </path>
+              </svg>
+            </div>
+          }>
+            {activeTab === 'controls' && <ControlsContent />}
+            {activeTab === 'charge' && <ChargeContent />}
+            {activeTab === 'climate' && <ClimateContent />}
+            {activeTab === 'schedule' && <ScheduleContent />}
+          </React.Suspense>
+        </ErrorBoundary>
       </IonContent>
     </IonPage>
   );

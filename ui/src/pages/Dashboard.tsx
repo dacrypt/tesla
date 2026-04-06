@@ -8,6 +8,7 @@ import {
   IonRefresher,
   IonRefresherContent,
   IonSpinner,
+  IonToast,
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
@@ -67,17 +68,19 @@ function Spin({ color = '#05C46B' }: { color?: string }) {
   );
 }
 
-const FALLBACK_DELIVERY_DATE = new Date('2026-04-10T10:00:00');
-
 function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
   const [, setTick] = React.useState(0);
   React.useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(id);
   }, []);
-  const target = deliveryDate ?? FALLBACK_DELIVERY_DATE;
+
+  if (!deliveryDate) {
+    return <div style={{ color: '#86888f', fontSize: 14, fontWeight: 500, marginTop: 4 }}>Delivery date pending</div>;
+  }
+
   const now = new Date();
-  const diff = target.getTime() - now.getTime();
+  const diff = deliveryDate.getTime() - now.getTime();
   const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   const hours = Math.max(0, Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
   const isPast = diff <= 0;
@@ -255,6 +258,7 @@ const Dashboard: React.FC = () => {
   const { tiles: enabledTiles } = useDashboardTiles();
   const isTileEnabled = (id: string) => enabledTiles.some((t) => t.id === id);
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
+  const [cmdError, setCmdError] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(true); // Assume true initially
   const [authLoading, setAuthLoading] = useState(false);
@@ -284,7 +288,7 @@ const Dashboard: React.FC = () => {
     }).catch(() => {
       setFleetData([]);
     }).finally(() => setFleetLoading(false));
-  }, []);
+  }, [enabledTiles]);
 
   const doLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) return;
@@ -316,11 +320,13 @@ const Dashboard: React.FC = () => {
   const handleCommand = async (command: string, params?: Record<string, unknown>, label?: string) => {
     const k = label || command;
     setCmdLoading(k);
+    setCmdError(null);
     try {
       await api.sendCommand({ command, params });
       setTimeout(refresh, 1500);
-    } catch {
-      // silently fail
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || 'Command failed';
+      setCmdError(msg);
     } finally {
       setCmdLoading(null);
     }
@@ -368,7 +374,7 @@ const Dashboard: React.FC = () => {
     batteryPct == null ? '#86888f'
     : batteryPct > 50 ? '#0BE881'
     : batteryPct > 20 ? '#F99716'
-    : '#05C46B';
+    : '#FF6B6B';
 
   const actions = [
     {
@@ -396,7 +402,7 @@ const Dashboard: React.FC = () => {
       key: 'sentry',
       icon: <span style={{ fontSize: 18 }}>{sentryOn ? '🛡' : '🛡'}</span>,
       label: sentryOn ? 'Sentry Off' : 'Sentry On',
-      cmd: sentryOn ? 'set_sentry_mode' : 'set_sentry_mode',
+      cmd: 'set_sentry_mode',
       cmdParams: { on: !sentryOn },
       iconBg: sentryOn ? 'rgba(5,196,107,0.7)' : 'rgba(255,255,255,0.1)',
     },
@@ -767,6 +773,15 @@ const Dashboard: React.FC = () => {
           </div>
         )}
       </IonContent>
+
+      <IonToast
+        isOpen={!!cmdError}
+        message={cmdError ?? ''}
+        duration={3000}
+        color="danger"
+        onDidDismiss={() => setCmdError(null)}
+        position="bottom"
+      />
     </IonPage>
   );
 };

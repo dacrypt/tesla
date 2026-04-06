@@ -34,6 +34,60 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
+function SpeedLimitSection({ cmdLoading, runCmd }: {
+  cmdLoading: string | null;
+  runCmd: (fn: () => Promise<unknown>, key: string, msg: string) => void;
+}) {
+  const [pin, setPin] = useState('');
+
+  return (
+    <>
+      <div className="label-xs" style={{ marginBottom: 6 }}>PIN</div>
+      <input
+        type="password"
+        inputMode="numeric"
+        maxLength={4}
+        value={pin}
+        onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        placeholder="4-digit PIN"
+        style={{
+          background: 'rgba(255,255,255,0.06)',
+          color: '#ffffff',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 10,
+          padding: '10px 14px',
+          fontSize: 18,
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          width: '100%',
+          outline: 'none',
+          colorScheme: 'dark',
+          marginBottom: 12,
+          letterSpacing: '0.3em',
+          textAlign: 'center',
+        }}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <button
+          onClick={() => runCmd(() => api.sendCommand({ command: 'speed_limit_activate', params: { pin } }), 'spd_on', 'Speed limit on')}
+          disabled={!!cmdLoading || pin.length !== 4}
+          style={{ background: 'rgba(255,152,0,0.1)', color: '#F99716', border: '1px solid rgba(255,152,0,0.3)', borderRadius: 10, padding: '12px 8px', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', cursor: pin.length === 4 ? 'pointer' : 'not-allowed', transition: 'all 0.15s', opacity: pin.length !== 4 ? 0.5 : 1 }}
+        >
+          Activate
+        </button>
+        <button
+          onClick={() => runCmd(() => api.sendCommand({ command: 'speed_limit_deactivate', params: { pin } }), 'spd_off', 'Speed limit off')}
+          disabled={!!cmdLoading || pin.length !== 4}
+          className="tesla-btn secondary"
+          style={{ fontSize: 13 }}
+        >
+          Deactivate
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function ScheduleContent() {
   const { state, charge, refresh } = useVehicleData();
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
@@ -49,7 +103,7 @@ export default function ScheduleContent() {
   const batteryPct = state?.battery_level ?? charge?.battery_level ?? 0;
   const chargingState = state?.charging_state ?? charge?.charging_state ?? 'Disconnected';
 
-  const batteryColor = batteryPct > 50 ? '#0BE881' : batteryPct > 20 ? '#F99716' : '#05C46B';
+  const batteryColor = batteryPct > 50 ? '#0BE881' : batteryPct > 20 ? '#F99716' : '#FF6B6B';
   const chargeColor = chargingState === 'Charging' ? '#0BE881' : chargingState === 'Complete' ? '#0FBCF9' : '#86888f';
 
   useEffect(() => {
@@ -218,23 +272,7 @@ export default function ScheduleContent() {
                 <div style={{ color: '#86888f', fontSize: 12 }}>Restrict maximum vehicle speed</div>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button
-                onClick={() => runCmd(() => api.sendCommand({ command: 'speed_limit_activate', params: { pin: '0000' } }), 'spd_on', 'Speed limit on')}
-                disabled={!!cmdLoading}
-                style={{ background: 'rgba(255,152,0,0.1)', color: '#F99716', border: '1px solid rgba(255,152,0,0.3)', borderRadius: 10, padding: '12px 8px', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s' }}
-              >
-                Activate
-              </button>
-              <button
-                onClick={() => runCmd(() => api.sendCommand({ command: 'speed_limit_deactivate', params: { pin: '0000' } }), 'spd_off', 'Speed limit off')}
-                disabled={!!cmdLoading}
-                className="tesla-btn secondary"
-                style={{ fontSize: 13 }}
-              >
-                Deactivate
-              </button>
-            </div>
+            <SpeedLimitSection cmdLoading={cmdLoading} runCmd={runCmd} />
           </div>
 
           {/* PIN to Drive info */}

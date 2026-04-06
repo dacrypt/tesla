@@ -49,7 +49,7 @@ const BatteryGauge: React.FC<BatteryGaugeProps> = ({
 
   const fillColor =
     offline ? '#86888f' :
-    clampedPct > 50 ? '#0BE881' : clampedPct > 20 ? '#F99716' : '#05C46B';
+    clampedPct > 50 ? '#0BE881' : clampedPct > 20 ? '#F99716' : '#FF6B6B';
 
   const limitPt = limitAngle != null ? polarToXY(limitAngle) : null;
 
@@ -84,7 +84,7 @@ const BatteryGauge: React.FC<BatteryGaugeProps> = ({
             cx={limitPt.x}
             cy={limitPt.y}
             r={strokeWidth * 0.55}
-            fill="#05C46B"
+            fill="#0FBCF9"
             stroke="#1a1d23"
             strokeWidth={2}
           />
@@ -123,7 +123,7 @@ const BatteryGauge: React.FC<BatteryGaugeProps> = ({
             </div>
           )}
           {limit != null && (
-            <div style={{ fontSize: size * 0.065, color: '#05C46B', marginTop: 2, opacity: 0.8 }}>
+            <div style={{ fontSize: size * 0.065, color: '#0FBCF9', marginTop: 2, opacity: 0.8 }}>
               Limit {limit}%
             </div>
           )}
