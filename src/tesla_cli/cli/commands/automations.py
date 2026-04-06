@@ -241,7 +241,9 @@ def automations_add(
         if len(parts) != 3:  # noqa: PLR2004
             console.print(f"[red]Invalid condition format '{cond_str}'. Use field:op:value.[/red]")
             raise typer.Exit(1)
-        parsed_conditions.append(AutomationCondition(field=parts[0], operator=parts[1], value=parts[2]))
+        parsed_conditions.append(
+            AutomationCondition(field=parts[0], operator=parts[1], value=parts[2])
+        )
 
     rule = AutomationRule(
         name=name,
