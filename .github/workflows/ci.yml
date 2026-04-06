@@ -30,7 +30,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf
+      - run: uv sync --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf --extra query
       - run: uv run pytest -m "not integration" -v --cov=tesla_cli --cov-report=xml
         env:
           NO_COLOR: "1"
