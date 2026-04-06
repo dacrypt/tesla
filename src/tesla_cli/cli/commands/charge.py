@@ -1211,3 +1211,285 @@ def charge_invoices(
             else ""
         )
     )
+
+
+@charge_app.command("savings")
+def charge_savings(
+    gas_price: float = typer.Option(4.50, "--gas-price", "-g", help="Gas price per gallon (USD)"),
+    mpg: float = typer.Option(28.0, "--mpg", help="Equivalent ICE vehicle MPG"),
+    period: str = typer.Option("all", "--period", "-p", help="Period: week, month, year, all"),
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Calculate EV vs gas savings from your charging data.
+
+    Compares actual electricity costs against what an equivalent gas car would have cost.
+
+    \b
+    tesla charge savings
+    tesla charge savings --gas-price 5.00 --mpg 30
+    tesla charge savings --period month
+    tesla -j charge savings
+    """
+    import json as _json
+    from datetime import datetime, timedelta
+
+    from rich.table import Table
+
+    cfg = load_config()
+    cost_per_kwh = cfg.general.cost_per_kwh
+
+    # Fetch all sessions for aggregation
+    sessions, source = _fetch_sessions(limit=500)
+
+    if not sessions:
+        console.print("[yellow]No charging data available.[/yellow]")
+        console.print(
+            "[dim]Tip: Connect TeslaMate (`tesla teslaMate connect`) "
+            "or use Fleet API backend for charging data.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # Filter by period
+    now = datetime.now()
+    if period == "week":
+        cutoff = now - timedelta(weeks=1)
+    elif period == "month":
+        cutoff = now - timedelta(days=30)
+    elif period == "year":
+        cutoff = now - timedelta(days=365)
+    else:
+        cutoff = None
+
+    if cutoff is not None:
+        filtered = []
+        for s in sessions:
+            try:
+                dt = datetime.strptime(s.date[:10], "%Y-%m-%d")
+                if dt >= cutoff:
+                    filtered.append(s)
+            except (ValueError, TypeError):
+                pass
+        sessions = filtered
+
+    if not sessions:
+        console.print(f"[yellow]No charging data in period: {period}[/yellow]")
+        raise typer.Exit(1)
+
+    # Aggregate kWh and cost
+    total_kwh = sum(s.kwh for s in sessions)
+    sessions_with_cost = [s for s in sessions if s.cost is not None]
+    total_ev_cost = sum(s.cost for s in sessions_with_cost)
+
+    # If no cost data, estimate from cost_per_kwh config
+    cost_estimated = False
+    if not sessions_with_cost and cost_per_kwh and cost_per_kwh > 0:
+        total_ev_cost = total_kwh * float(cost_per_kwh)
+        cost_estimated = True
+    elif not sessions_with_cost:
+        total_ev_cost = 0.0
+
+    # Estimate miles driven: use TeslaMate driving stats when available
+    total_miles: float | None = None
+    try:
+        if cfg.teslaMate.database_url:
+            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+
+            tm = TeslaMateBacked(cfg.teslaMate.database_url)
+            stats = tm.get_stats()
+            total_km = float(stats.get("total_km") or 0)
+            if total_km > 0:
+                total_miles = total_km * 0.621371
+    except Exception:
+        pass
+
+    # Fallback: estimate miles from kWh (Tesla avg ~3.5 mi/kWh)
+    miles_estimated = False
+    if not total_miles:
+        total_miles = total_kwh * 3.5
+        miles_estimated = True
+
+    # Calculate gas equivalent cost
+    gas_cost = (total_miles / mpg) * gas_price
+
+    # Savings
+    savings = gas_cost - total_ev_cost
+
+    # CO2 avoided: 8.89 kg CO2 per gallon of gas
+    co2_kg = (total_miles / mpg) * 8.89
+
+    if is_json_mode():
+        console.print_json(
+            _json.dumps(
+                {
+                    "period": period,
+                    "source": source,
+                    "sessions": len(sessions),
+                    "total_kwh": round(total_kwh, 1),
+                    "total_ev_cost_usd": round(total_ev_cost, 2),
+                    "cost_estimated": cost_estimated,
+                    "total_miles": round(total_miles, 1),
+                    "miles_estimated": miles_estimated,
+                    "gas_price_per_gallon": gas_price,
+                    "mpg_equivalent": mpg,
+                    "equivalent_gas_cost_usd": round(gas_cost, 2),
+                    "savings_usd": round(savings, 2),
+                    "co2_avoided_kg": round(co2_kg, 1),
+                }
+            )
+        )
+        return
+
+    t = Table(title=f"EV vs Gas Savings ({period})", show_header=False, box=None, padding=(0, 2))
+    t.add_column("Label", style="dim", width=28)
+    t.add_column("Value", style="bold")
+
+    t.add_row("Data source", source or "—")
+    t.add_row("Charging sessions", str(len(sessions)))
+    t.add_row("", "")
+    t.add_row(
+        "Miles driven",
+        f"{total_miles:,.1f} mi" + (" [dim](estimated)[/dim]" if miles_estimated else ""),
+    )
+    t.add_row("Energy consumed", f"{total_kwh:.1f} kWh")
+    t.add_row("", "")
+    ev_cost_str = f"${total_ev_cost:.2f}"
+    if cost_estimated:
+        ev_cost_str += f" [dim](estimated @ ${cost_per_kwh or 0:.4f}/kWh)[/dim]"
+    t.add_row("Electricity cost", ev_cost_str)
+    t.add_row(
+        "Equivalent gas cost",
+        f"[yellow]${gas_cost:.2f}[/yellow] [dim]({total_miles / mpg:.1f} gal @ ${gas_price:.2f})[/dim]",
+    )
+    t.add_row("", "")
+
+    savings_color = "green" if savings >= 0 else "red"
+    savings_prefix = "+" if savings >= 0 else ""
+    t.add_row(
+        "Total savings",
+        f"[{savings_color}][bold]{savings_prefix}${savings:.2f}[/bold][/{savings_color}]",
+    )
+    t.add_row("CO2 avoided", f"[green]{co2_kg:.1f} kg[/green] [dim](vs ICE equivalent)[/dim]")
+
+    console.print()
+    console.print(t)
+
+    if not sessions_with_cost and not cost_per_kwh:
+        console.print("\n  [dim]Tip: Set your electricity rate for accurate cost comparison:[/dim]")
+        console.print("  [dim]`tesla config set cost-per-kwh 0.22`[/dim]")
+
+
+def _parse_days(days: str) -> str:
+    """Normalise days argument to the API's expected format.
+
+    Accepts: all, weekdays, weekends, or comma-separated day names (mon,tue,...).
+    Returns the string as-is (Fleet API accepts these values directly).
+    """
+    aliases = {
+        "all": "all",
+        "weekdays": "weekdays",
+        "weekends": "weekends",
+    }
+    lower = days.strip().lower()
+    return aliases.get(lower, lower)
+
+
+def _parse_hhmm(time_str: str) -> int:
+    """Convert HH:MM to minutes after midnight."""
+    try:
+        h, m = time_str.split(":")
+        return int(h) * 60 + int(m)
+    except ValueError:
+        raise typer.BadParameter(f"Time must be in HH:MM format, got '{time_str}'.")
+
+
+@charge_app.command("add-schedule")
+def charge_add_schedule(
+    time: str = typer.Argument(help="Start time in HH:MM (24h)"),
+    days: str = typer.Option(
+        "all",
+        "--days",
+        "-d",
+        help="Days: all, weekdays, weekends, or comma-separated (mon,tue,wed,...)",
+    ),
+    lat: float | None = typer.Option(
+        None, "--lat", help="Latitude (uses vehicle location if omitted)"
+    ),
+    lon: float | None = typer.Option(
+        None, "--lon", help="Longitude (uses vehicle location if omitted)"
+    ),
+    vin: str | None = VinOption,
+) -> None:
+    """Add a location-based charging schedule.
+
+    tesla charge add-schedule 23:00
+    tesla charge add-schedule 22:30 --days weekdays --lat 37.42 --lon -122.08
+    """
+    import json as _json
+
+    from tesla_cli.core.exceptions import ApiError, BackendNotSupportedError
+
+    v = _vin(vin)
+    backend = _backend()
+    start_time = _parse_hhmm(time)
+    days_val = _parse_days(days)
+
+    # Fetch vehicle location if lat/lon omitted
+    if lat is None or lon is None:
+        try:
+            drive = _with_wake(lambda b, v: b.get_drive_state(v), v)
+            lat = lat if lat is not None else drive.get("latitude", 0.0)
+            lon = lon if lon is not None else drive.get("longitude", 0.0)
+        except Exception:
+            lat = lat or 0.0
+            lon = lon or 0.0
+
+    try:
+        result = backend.add_charge_schedule(v, days_val, start_time, lat, lon)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    except ApiError as exc:
+        if exc.status_code in (404, 403):
+            console.print(
+                "[yellow]Location-based schedules not available for this account.[/yellow]"
+            )
+            raise typer.Exit(1)
+        raise
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, default=str))
+        return
+    render_success(f"Charge schedule added: {time} on {days_val} at ({lat:.4f}, {lon:.4f})")
+
+
+@charge_app.command("remove-schedule")
+def charge_remove_schedule(
+    schedule_id: int = typer.Argument(help="Schedule ID to remove"),
+    vin: str | None = VinOption,
+) -> None:
+    """Remove a location-based charging schedule by ID.
+
+    tesla charge remove-schedule 42
+    """
+    import json as _json
+
+    from tesla_cli.core.exceptions import ApiError, BackendNotSupportedError
+
+    v = _vin(vin)
+    backend = _backend()
+
+    try:
+        result = backend.remove_charge_schedule(v, schedule_id)
+    except BackendNotSupportedError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        raise typer.Exit(1)
+    except ApiError as exc:
+        if exc.status_code in (404, 403):
+            console.print("[yellow]Schedule not found or not available for this account.[/yellow]")
+            raise typer.Exit(1)
+        raise
+
+    if is_json_mode():
+        console.print_json(_json.dumps(result, default=str))
+        return
+    render_success(f"Charge schedule {schedule_id} removed")

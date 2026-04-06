@@ -68,6 +68,71 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
         data = self._get(f"/api/1/vehicles/{vin}/mobile_enabled")
         return bool(data) if not isinstance(data, dict) else data.get("result", False)
 
+    # ── Safety / Telematics ─────────────────────────────────────────
+
+    def get_safety_score(self, vin: str) -> dict[str, Any]:
+        """Get Tesla Safety Score / Insurance telematics."""
+        return self._get(f"/api/1/vehicles/{vin}/safety_score")
+
+    def get_drive_score(self, vin: str) -> dict[str, Any]:
+        """Get per-drive safety scoring breakdown."""
+        return self._get(f"/api/1/vehicles/{vin}/drive_score")
+
+    # ── Service ─────────────────────────────────────────────────────
+
+    def get_service_visits(self, vin: str) -> list[dict[str, Any]]:
+        """Get service visit history."""
+        data = self._get(f"/api/1/vehicles/{vin}/service_data")
+        return data if isinstance(data, list) else []
+
+    def get_service_appointments(self) -> dict[str, Any]:
+        """Get upcoming service appointments."""
+        return self._get("/api/1/dx/service/appointments")
+
+    # ── Location-based schedules ────────────────────────────────────
+
+    def add_charge_schedule(
+        self, vin: str, days: str, time: int, lat: float, lon: float, enabled: bool = True
+    ) -> dict[str, Any]:
+        """Add a location-based charging schedule."""
+        return self._post(
+            f"/api/1/vehicles/{vin}/command/add_charge_schedule",
+            {
+                "days_of_week": days,
+                "start_time": time,
+                "lat": lat,
+                "lon": lon,
+                "enabled": enabled,
+            },
+        )
+
+    def remove_charge_schedule(self, vin: str, schedule_id: int) -> dict[str, Any]:
+        """Remove a charging schedule by ID."""
+        return self._post(
+            f"/api/1/vehicles/{vin}/command/remove_charge_schedule", {"id": schedule_id}
+        )
+
+    def add_precondition_schedule(
+        self, vin: str, days: str, time: int, lat: float, lon: float, enabled: bool = True
+    ) -> dict[str, Any]:
+        """Add a location-based preconditioning schedule."""
+        return self._post(
+            f"/api/1/vehicles/{vin}/command/add_precondition_schedule",
+            {
+                "days_of_week": days,
+                "start_time": time,
+                "lat": lat,
+                "lon": lon,
+                "enabled": enabled,
+            },
+        )
+
+    def remove_precondition_schedule(self, vin: str, schedule_id: int) -> dict[str, Any]:
+        """Remove a preconditioning schedule by ID."""
+        return self._post(
+            f"/api/1/vehicles/{vin}/command/remove_precondition_schedule", {"id": schedule_id}
+        )
+
     # ── Data endpoints (Phase 2) ────────────────────────────────────
 
     def get_nearby_charging_sites(self, vin: str) -> dict[str, Any]:

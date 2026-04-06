@@ -109,6 +109,11 @@ def _register_commands() -> None:
     app.add_typer(media_app, name="media")
     app.add_typer(notify_app, name="notify")
 
+    # Service center management
+    from tesla_cli.cli.commands.service import service_app
+
+    app.add_typer(service_app, name="service")
+
     # Energy (Powerwall/Solar)
     from tesla_cli.cli.commands.energy import energy_app
 
