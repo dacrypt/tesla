@@ -56,17 +56,29 @@ def climate_status(
 
 
 @climate_app.command("on")
-def climate_on(vin: str | None = VinOption) -> None:
+def climate_on(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Turn climate/AC on."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would turn climate ON for VIN ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "auto_conditioning_start"), v)
     render_success("Climate ON")
 
 
 @climate_app.command("off")
-def climate_off(vin: str | None = VinOption) -> None:
+def climate_off(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Turn climate/AC off."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would turn climate OFF for VIN ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "auto_conditioning_stop"), v)
     render_success("Climate OFF")
 

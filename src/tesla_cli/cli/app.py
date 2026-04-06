@@ -154,6 +154,66 @@ def _register_commands() -> None:
 
     app.add_typer(scenes_app, name="scene")
 
+    # Short aliases (hidden — do not appear in --help)
+    @app.command("cs", hidden=True)
+    def _alias_cs(
+        watch: bool = typer.Option(False, "--watch", "-w", help="Live monitor"),
+        oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+        interval: int = typer.Option(30, "--interval", "-i", help="Refresh interval in seconds"),
+        vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    ):
+        """Alias: tesla charge status"""
+        from tesla_cli.cli.commands.charge import charge_status
+
+        charge_status(watch=watch, oneline=oneline, interval=interval, vin=vin)
+
+    @app.command("vs", hidden=True)
+    def _alias_vs(
+        oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+        vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    ):
+        """Alias: tesla vehicle summary"""
+        from tesla_cli.cli.commands.vehicle import vehicle_summary
+
+        vehicle_summary(oneline=oneline, vin=vin)
+
+    @app.command("os", hidden=True)
+    def _alias_os(
+        oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+    ):
+        """Alias: tesla order status"""
+        from tesla_cli.cli.commands.order import order_status
+
+        order_status(oneline=oneline)
+
+    @app.command("vr", hidden=True)
+    def _alias_vr(
+        oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+        vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    ):
+        """Alias: tesla vehicle ready"""
+        from tesla_cli.cli.commands.vehicle import vehicle_ready
+
+        vehicle_ready(oneline=oneline, vin=vin)
+
+    @app.command("sm", hidden=True)
+    def _alias_sm(
+        vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    ):
+        """Alias: tesla scene morning"""
+        from tesla_cli.cli.commands.scenes import scene_morning
+
+        scene_morning(vin=vin)
+
+    @app.command("sg", hidden=True)
+    def _alias_sg(
+        vin: str | None = typer.Option(None, "--vin", "-v", help="VIN or alias"),
+    ):
+        """Alias: tesla scene goodnight"""
+        from tesla_cli.cli.commands.scenes import scene_goodnight
+
+        scene_goodnight(vin=vin)
+
 
 @app.command("quickstart")
 def quickstart() -> None:
