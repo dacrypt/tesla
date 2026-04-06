@@ -499,6 +499,24 @@ export interface VehicleDossier {
   account?: TeslaAccount;
 }
 
+export interface OrderTask {
+  task_type: string;
+  task_status: string;
+  task_name: string;
+  completed: boolean;
+  active: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface OrderDetails {
+  status: OrderStatus;
+  tasks: OrderTask[];
+  financing: Record<string, unknown>;
+  registration: Record<string, unknown>;
+  delivery: Record<string, unknown>;
+  vehicle_info: Record<string, unknown>;
+}
+
 export interface GeofenceZone {
   name: string;
   lat: number;
@@ -594,6 +612,7 @@ export const api = {
 
   // Order
   getOrderStatus: () => client().get<OrderStatus>('/api/order/status').then(r => r.data),
+  getOrderDetails: () => client().get<OrderDetails>('/api/order/details', { timeout: 10000 }).then(r => r.data),
 
   // Dossier
   getDossier: () => client().get<VehicleDossier>('/api/dossier', { timeout: 5000 }).then(r => r.data),

@@ -10,15 +10,16 @@ export interface TileConfig {
 const STORAGE_KEY = 'dashboard_tiles_v1';
 
 const DEFAULT_TILES: TileConfig[] = [
-  { id: 'battery', label: 'Battery & Charging', enabled: true, order: 0 },
-  { id: 'climate', label: 'Climate', enabled: true, order: 1 },
-  { id: 'location', label: 'Location', enabled: true, order: 2 },
-  { id: 'vehicle', label: 'Vehicle State', enabled: true, order: 3 },
-  { id: 'quickActions', label: 'Quick Actions', enabled: true, order: 4 },
-  { id: 'recentCharges', label: 'Recent Charges', enabled: true, order: 5 },
-  { id: 'schedule', label: 'Charge Schedule', enabled: true, order: 6 },
-  { id: 'map', label: 'Map', enabled: true, order: 7 },
-  { id: 'fleet', label: 'Fleet Health', enabled: true, order: 8 },
+  { id: 'orderProcess', label: 'Order Process', enabled: true, order: 0 },
+  { id: 'battery', label: 'Battery & Charging', enabled: true, order: 1 },
+  { id: 'climate', label: 'Climate', enabled: true, order: 2 },
+  { id: 'location', label: 'Location', enabled: true, order: 3 },
+  { id: 'vehicle', label: 'Vehicle State', enabled: true, order: 4 },
+  { id: 'quickActions', label: 'Quick Actions', enabled: true, order: 5 },
+  { id: 'recentCharges', label: 'Recent Charges', enabled: true, order: 6 },
+  { id: 'schedule', label: 'Charge Schedule', enabled: true, order: 7 },
+  { id: 'map', label: 'Map', enabled: true, order: 8 },
+  { id: 'fleet', label: 'Fleet Health', enabled: true, order: 9 },
 ];
 
 function loadTiles(): TileConfig[] {

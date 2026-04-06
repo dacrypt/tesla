@@ -14,10 +14,11 @@ import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
 import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
+import OrderProcessTracker from '../components/OrderProcessTracker';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
-import { api, FleetVehicle } from '../api/client';
+import { api, FleetVehicle, OrderTask } from '../api/client';
 
 // ---- SVG Icons ----
 const LockIcon = () => (
@@ -111,6 +112,10 @@ function PreDeliveryDashboard() {
   const { dossier } = useDossierData();
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
+  const [orderTasks, setOrderTasks] = React.useState<OrderTask[]>([]);
+  const [orderFinancing, setOrderFinancing] = React.useState<Record<string, unknown> | null>(null);
+  const [orderStatus, setOrderStatus] = React.useState<Record<string, unknown> | null>(null);
+  const [orderLoading, setOrderLoading] = React.useState(false);
 
   React.useEffect(() => {
     const placa = dossier?.runt?.placa;
@@ -118,6 +123,23 @@ function PreDeliveryDashboard() {
       api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
     }
   }, [dossier?.runt?.placa]);
+
+  React.useEffect(() => {
+    setOrderLoading(true);
+    api.getOrderDetails()
+      .then(details => {
+        setOrderTasks(details.tasks || []);
+        setOrderFinancing(details.financing || null);
+        setOrderStatus(details.status as unknown as Record<string, unknown> || null);
+      })
+      .catch(() => {
+        // Fallback: try basic order status
+        api.getOrderStatus().then(s => {
+          setOrderStatus(s as unknown as Record<string, unknown>);
+        }).catch(() => {});
+      })
+      .finally(() => setOrderLoading(false));
+  }, []);
 
   const status = dossier?.real_status;
   const order = dossier?.order;
@@ -225,7 +247,18 @@ function PreDeliveryDashboard() {
         </div>
       )}
 
-      {/* ── CTA: View full detail ── */}
+      {/* ── Order Process Tracker ── */}
+      <OrderProcessTracker
+        orderStatus={orderStatus}
+        tasks={orderTasks}
+        financing={orderFinancing}
+        realStatus={status}
+        logistics={dossier?.logistics}
+        runt={dossier?.runt}
+        financial={dossier?.financial}
+        loading={orderLoading}
+      />
+
       {/* ── CTA: View full detail ── */}
       <button
         onClick={() => history.push('/info')}
