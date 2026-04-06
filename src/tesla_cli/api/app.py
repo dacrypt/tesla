@@ -534,14 +534,34 @@ def _register_ui(app: FastAPI, serve_ui: bool) -> None:
     _ui_dist = Path(__file__).resolve().parent / "ui_dist"
 
     if serve_ui and _ui_dist.exists() and (_ui_dist / "index.html").exists():
-        from fastapi.staticfiles import StaticFiles
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.responses import FileResponse as StarletteFileResponse
 
-        # Mount the entire SPA as a StaticFiles app with html=True.
-        # html=True serves index.html for directory requests and as a
-        # fallback for paths that don't match a file — exactly what a
-        # React SPA needs (client-side routing).
-        # This must be the LAST mount so API routes take priority.
-        app.mount("/", StaticFiles(directory=str(_ui_dist), html=True), name="spa")
+        _index = str(_ui_dist / "index.html")
+
+        class SPAMiddleware(BaseHTTPMiddleware):
+            """Serve React SPA with client-side routing fallback.
+
+            For paths that don't start with /api/ and don't match a static
+            file in ui_dist, serve index.html so the React router handles it.
+            """
+
+            async def dispatch(self, request, call_next):
+                path = request.url.path
+
+                # Let API routes pass through.
+                if path.startswith("/api"):
+                    return await call_next(request)
+
+                # Try serving a static file from ui_dist.
+                file = _ui_dist / path.lstrip("/")
+                if file.is_file() and ".." not in path:
+                    return StarletteFileResponse(str(file))
+
+                # Fallback: serve index.html for client-side routing.
+                return StarletteFileResponse(_index)
+
+        app.add_middleware(SPAMiddleware)
     else:
         from fastapi.responses import RedirectResponse
 
