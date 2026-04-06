@@ -152,6 +152,11 @@ def _register_commands() -> None:
     app.add_typer(serve_app, name="serve")
     app.add_typer(providers_app, name="providers")
 
+    # Dashcam clip management
+    from tesla_cli.cli.commands.dashcam import dashcam_app
+
+    app.add_typer(dashcam_app, name="dashcam")
+
     # Smart scene commands
     from tesla_cli.cli.commands.scenes import scenes_app
 

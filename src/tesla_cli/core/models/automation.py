@@ -21,9 +21,11 @@ class AutomationTrigger(BaseModel):
 
 
 class AutomationAction(BaseModel):
-    type: str  # notify, command, exec (alias for command)
+    type: str  # notify, command, exec (alias for command), webhook
     message: str = ""
     command: str = ""
+    webhook_url: str = ""  # URL to POST to (for type="webhook")
+    webhook_payload: str = ""  # JSON template; supports {battery_level}, {ts}, etc.
 
 
 class AutomationRule(BaseModel):

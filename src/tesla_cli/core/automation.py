@@ -200,13 +200,15 @@ class AutomationEngine:
             return template
 
     def _execute_action(self, action: AutomationAction, data: dict) -> None:
-        """Execute the action (notify or shell command)."""
+        """Execute the action (notify, shell command, or webhook)."""
         if action.type == "notify":
             self._send_notification(action, data)
         elif action.type in ("command", "exec"):
             cmd = self._format_action(action, data)
             if cmd:
                 subprocess.run(cmd, shell=True, check=False)  # noqa: S602
+        elif action.type == "webhook":
+            self._send_webhook(action, data)
 
     # ── MQTT subscription loop ─────────────────────────────────────────────────
 
@@ -260,6 +262,28 @@ class AutomationEngine:
         client.on_message = _on_message
         client.connect(broker, port, keepalive=60)
         client.loop_forever()
+
+    def _send_webhook(self, action: AutomationAction, data: dict) -> None:
+        """POST a JSON payload to the configured webhook URL."""
+        if not action.webhook_url:
+            return
+
+        import httpx
+
+        context = _build_template_context(data)
+        payload = action.webhook_payload or json.dumps(context)
+        for k, v in context.items():
+            payload = payload.replace(f"{{{k}}}", str(v))
+
+        try:
+            httpx.post(
+                action.webhook_url,
+                content=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def _send_notification(self, action: AutomationAction, data: dict) -> None:
         try:

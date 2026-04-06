@@ -1,4 +1,4 @@
-"""Service commands: tesla service history|appointments|reminders."""
+"""Service commands: tesla service history|appointments|reminders|setup-reminders."""
 
 from __future__ import annotations
 
@@ -308,3 +308,91 @@ def service_reminders(
         "for accurate reminders.[/dim]"
     )
     console.print()
+
+
+@service_app.command("setup-reminders")
+def setup_service_reminders(
+    vin: str | None = VinOption,
+    time: str = typer.Option("08:00", "--time", "-t", help="Daily check time in HH:MM format"),
+    cooldown: int = typer.Option(
+        1440, "--cooldown", "-c", help="Cooldown in minutes between alerts (default: 24h)"
+    ),
+) -> None:
+    """Configure automatic service reminder notifications.
+
+    Creates automation rules that check maintenance status once daily and
+    notify you via configured notification channels when any item is due.
+
+    \b
+    tesla service setup-reminders
+    tesla service setup-reminders --time 09:00
+    tesla service setup-reminders --vin <VIN> --time 07:30
+    """
+    from tesla_cli.core.automation import AUTOMATIONS_FILE, AutomationEngine
+    from tesla_cli.core.models.automation import (
+        AutomationAction,
+        AutomationRule,
+        AutomationTrigger,
+    )
+
+    engine = AutomationEngine(AUTOMATIONS_FILE)
+
+    rules_to_create: list[tuple[str, str]] = [
+        (
+            "service-tire-rotation",
+            "Maintenance due: Tire rotation — check your odometer and schedule a rotation.",
+        ),
+        (
+            "service-cabin-filter",
+            "Maintenance due: Cabin air filter replacement — 2-year interval reached.",
+        ),
+        (
+            "service-brake-fluid",
+            "Maintenance due: Brake fluid check — 4-year interval reached.",
+        ),
+        (
+            "service-ac-desiccant",
+            "Maintenance due: A/C desiccant replacement — service interval reached.",
+        ),
+    ]
+
+    created: list[str] = []
+    skipped: list[str] = []
+
+    for rule_name, message in rules_to_create:
+        if any(r.name == rule_name for r in engine.rules):
+            skipped.append(rule_name)
+            continue
+
+        trigger = AutomationTrigger(type="time_of_day", time=time)
+        action = AutomationAction(
+            type="notify",
+            message=message,
+        )
+        rule = AutomationRule(
+            name=rule_name,
+            trigger=trigger,
+            action=action,
+            cooldown_minutes=cooldown,
+        )
+        engine.add_rule(rule)
+        created.append(rule_name)
+
+    console.print()
+    if created:
+        render_success(
+            f"Created {len(created)} service reminder rule(s) — daily check at {time}:\n"
+            + "\n".join(f"  [dim]• {n}[/dim]" for n in created)
+        )
+    if skipped:
+        console.print(
+            f"[yellow]Skipped {len(skipped)} rule(s) — already configured:[/yellow]\n"
+            + "\n".join(f"  [dim]• {n}[/dim]" for n in skipped)
+        )
+    if not created and not skipped:
+        console.print("[dim]No rules created.[/dim]")
+
+    console.print(
+        "\n[dim]Tip: start the automation daemon with [bold]tesla automations run[/bold] "
+        "to activate notifications.[/dim]\n"
+    )
