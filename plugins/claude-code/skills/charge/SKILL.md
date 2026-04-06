@@ -61,6 +61,14 @@ tesla charge limit               # show current limit
 tesla charge amps                # show current amperage
 ```
 
+## Charging Budget
+
+```bash
+tesla charge budget              # show current month vs budget
+tesla charge budget --set 200    # set $200/month limit
+tesla charge savings             # EV vs gas savings calculator
+```
+
 ## Supercharging Invoices
 
 ```bash
