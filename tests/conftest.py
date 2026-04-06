@@ -2,13 +2,35 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
+from typer.testing import CliRunner
 
+from tesla_cli.cli.app import app
 from tesla_cli.core.backends.fleet import FleetBackend
 
 MOCK_VIN = "5YJ3E1EA1PF000001"
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_runner = CliRunner()
+
+
+class CliResult:
+    """Wrapper around typer Result with ANSI-stripped output."""
+
+    def __init__(self, result):
+        self._result = result
+        self.output = _ANSI_RE.sub("", result.output)
+        self.exit_code = result.exit_code
+        self.exception = result.exception
+
+
+def run_cli(*args: str) -> CliResult:
+    """Invoke the tesla CLI and return ANSI-stripped result."""
+    return CliResult(_runner.invoke(app, list(args)))
+
 
 MOCK_VEHICLE_DATA = {
     "vin": MOCK_VIN,

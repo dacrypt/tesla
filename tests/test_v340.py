@@ -7,10 +7,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from typer.testing import CliRunner
 
-from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
+from tests.conftest import run_cli as _run
 
 # Skip server tests if fastapi not installed
 fastapi = pytest.importorskip("fastapi")
@@ -19,14 +18,6 @@ pytest.importorskip("httpx")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from tesla_cli.api.app import create_app  # noqa: E402
-
-_runner = CliRunner()
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _run(*args):
-    return _runner.invoke(cli_app, list(args))
 
 
 def _make_cfg(**overrides):

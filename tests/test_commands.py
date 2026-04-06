@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from tesla_cli.cli.app import app
 from tesla_cli.core.backends.fleet import FleetBackend
-from tests.conftest import MOCK_VIN
+from tests.conftest import MOCK_VIN, run_cli
 
 runner = CliRunner()
 
@@ -62,7 +62,7 @@ def _patched_env(mock_fleet_backend):
 
 
 def _run(args: list[str]):
-    return runner.invoke(app, args)
+    return run_cli(*args)
 
 
 # ── Command Registration Tests ──────────────────────────────────────
