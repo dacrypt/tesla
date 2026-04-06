@@ -16,7 +16,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
-import { api } from '../api/client';
+import { api, FleetVehicle } from '../api/client';
 
 // ---- SVG Icons ----
 const LockIcon = () => (
@@ -258,6 +258,8 @@ const Dashboard: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(true); // Assume true initially
   const [authLoading, setAuthLoading] = useState(false);
+  const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
+  const [fleetLoading, setFleetLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginMfa, setLoginMfa] = useState('');
@@ -271,6 +273,17 @@ const Dashboard: React.FC = () => {
       setAuthenticated(s.authenticated);
       setAuthChecked(true);
     }).catch(() => setAuthChecked(true));
+  }, []);
+
+  // Fetch fleet summary when fleet tile is enabled
+  React.useEffect(() => {
+    if (!isTileEnabled('fleet')) return;
+    setFleetLoading(true);
+    api.getFleetSummary().then(data => {
+      setFleetData(data);
+    }).catch(() => {
+      setFleetData([]);
+    }).finally(() => setFleetLoading(false));
   }, []);
 
   const doLogin = async () => {
@@ -679,6 +692,68 @@ const Dashboard: React.FC = () => {
                   <span>📏 {Math.round((state.odometer as number) * 1.60934).toLocaleString()} km</span>
                 )}
               </div>
+            )}
+
+            {/* ---- Fleet health tile (only shown when >1 vehicle) ---- */}
+            {isTileEnabled('fleet') && fleetData.length > 1 && (
+              <>
+                <p className="section-title">Fleet Health</p>
+                <div className="tesla-card" style={{ padding: 12, marginBottom: 10 }}>
+                  {fleetLoading ? (
+                    <div style={{ textAlign: 'center', padding: 12 }}>
+                      <IonSpinner name="dots" style={{ '--color': '#86888f' } as React.CSSProperties} />
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {fleetData.map(v => {
+                        const battColor = v.battery_level == null ? '#86888f'
+                          : v.battery_level > 50 ? '#0BE881'
+                          : v.battery_level > 20 ? '#F99716'
+                          : '#FF6B6B';
+                        return (
+                          <div key={v.vin} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#f5f5f7' }}>
+                                {v.alias}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#86888f' }}>
+                                ...{v.vin.slice(-6)}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              {v.battery_level != null && (
+                                <span style={{ fontSize: 13, fontWeight: 700, color: battColor }}>
+                                  {v.battery_level}%
+                                </span>
+                              )}
+                              {v.charging_state === 'Charging' && (
+                                <span style={{ fontSize: 10, color: '#0BE881' }}>⚡</span>
+                              )}
+                              <span style={{ fontSize: 11, color: v.locked ? '#86888f' : '#F99716' }}>
+                                {v.locked == null ? '—' : v.locked ? '🔒' : '🔓'}
+                              </span>
+                              {v.sentry && (
+                                <span style={{ fontSize: 11, color: '#0FBCF9' }}>🛡</span>
+                              )}
+                              {v.error && (
+                                <span style={{ fontSize: 10, color: '#FF6B6B' }} title={v.error}>⚠</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {/* ---- Last updated ---- */}

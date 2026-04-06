@@ -91,6 +91,27 @@ export interface ChargingSession {
   source: string;
 }
 
+export interface FleetVehicle {
+  vin: string;
+  alias: string;
+  battery_level: number | null;
+  battery_range: number | null;
+  charging_state: string | null;
+  locked: boolean | null;
+  sentry: boolean | null;
+  lat: number | null;
+  lon: number | null;
+  error: string | null;
+}
+
+export interface VehicleInvitation {
+  id: string;
+  email?: string;
+  name?: string;
+  created_at?: string;
+  status?: string;
+}
+
 export interface ChargeState {
   battery_level?: number;
   battery_range?: number;
@@ -669,6 +690,18 @@ export const api = {
     client().get<AutomationRule[]>('/api/automations').then(r => r.data),
   toggleAutomation: (name: string, enabled: boolean) =>
     client().post<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}/toggle`, { enabled }).then(r => r.data),
+
+  // Fleet
+  getFleetSummary: () =>
+    client().get<FleetVehicle[]>('/api/fleet/summary').then(r => r.data),
+
+  // Vehicle sharing / invitations
+  getInvitations: () =>
+    client().get<VehicleInvitation[]>('/api/vehicle/invitations').then(r => r.data),
+  inviteDriver: (email: string) =>
+    client().post<{ ok: boolean; invite_id?: string }>('/api/vehicle/invite', { email }).then(r => r.data),
+  revokeInvitation: (inviteId: string) =>
+    client().delete<{ ok: boolean }>(`/api/vehicle/invite/${encodeURIComponent(inviteId)}`).then(r => r.data),
 
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,

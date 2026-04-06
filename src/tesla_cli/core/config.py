@@ -26,6 +26,8 @@ class GeneralConfig(BaseModel):
     cost_per_kwh: float = Field(0.0, ge=0.0)
     cedula: str = ""  # Owner's cedula (Colombia) — used for SIMIT, Procuraduria, etc.
     country: str = ""  # ISO 3166-1 alpha-2 (e.g. "CO", "US", "BR", "MX")
+    charge_budget: float = Field(0.0, ge=0.0)  # Monthly charging budget limit (0 = no budget)
+    charge_budget_currency: str = "USD"  # Currency code for charge budget
 
 
 class OrderConfig(BaseModel):

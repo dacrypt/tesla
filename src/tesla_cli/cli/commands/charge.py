@@ -1493,3 +1493,123 @@ def charge_remove_schedule(
         console.print_json(_json.dumps(result, default=str))
         return
     render_success(f"Charge schedule {schedule_id} removed")
+
+
+@charge_app.command("budget")
+def charge_budget(
+    monthly_limit: float | None = typer.Option(None, "--set", help="Set monthly budget amount"),
+    currency: str = typer.Option("USD", "--currency", help="Currency code (e.g. USD, EUR, COP)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show or set monthly charging budget with alerts.
+
+    \b
+    tesla charge budget              # show current month vs budget
+    tesla charge budget --set 200    # set $200/month budget
+    tesla charge budget --set 0      # clear budget
+    """
+    import calendar
+    import datetime
+    import json as _json
+
+    from tesla_cli.core.config import save_config
+
+    cfg = load_config()
+
+    # ── Set budget ────────────────────────────────────────────────────────────
+    if monthly_limit is not None:
+        cfg.general.charge_budget = monthly_limit
+        if currency != "USD":
+            cfg.general.charge_budget_currency = currency
+        save_config(cfg)
+        if monthly_limit == 0:
+            render_success("Charging budget cleared")
+        else:
+            cur = cfg.general.charge_budget_currency
+            render_success(f"Monthly charging budget set to {cur} {monthly_limit:.2f}")
+        return
+
+    # ── Show budget ────────────────────────────────────────────────────────────
+    budget = cfg.general.charge_budget
+    cur = cfg.general.charge_budget_currency
+
+    # Gather this month's sessions
+    now = datetime.datetime.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_days = calendar.monthrange(now.year, now.month)[1]
+    month_end = now.replace(day=month_days, hour=23, minute=59, second=59)
+
+    # Use _fetch_sessions helper (limit 500 to cover full month)
+    try:
+        sessions, source = _fetch_sessions(500)
+    except Exception:
+        sessions, source = [], "unavailable"
+
+    # Filter to current month
+    month_sessions = []
+    for s in sessions:
+        try:
+            # TeslaMate dates are ISO format YYYY-MM-DD; Fleet API uses "Mar 15" style
+            if len(s.date) >= 10 and s.date[:7] == now.strftime("%Y-%m"):
+                month_sessions.append(s)
+        except Exception:
+            pass
+
+    spent = sum(s.cost for s in month_sessions if s.cost)
+    kwh_total = sum(s.kwh for s in month_sessions if s.kwh)
+    sessions_count = len(month_sessions)
+
+    # Project end-of-month spend based on elapsed days
+    elapsed_days = now.day
+    projected = (spent / elapsed_days * month_days) if elapsed_days > 0 and spent > 0 else spent
+
+    if is_json_mode():
+        console.print(
+            _json.dumps(
+                {
+                    "month": now.strftime("%Y-%m"),
+                    "budget": budget,
+                    "currency": cur,
+                    "spent": round(spent, 2),
+                    "remaining": round(budget - spent, 2) if budget > 0 else None,
+                    "percent_used": round(spent / budget * 100, 1) if budget > 0 else None,
+                    "projected": round(projected, 2),
+                    "kwh_total": round(kwh_total, 2),
+                    "sessions": sessions_count,
+                    "source": source,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    from rich.panel import Panel
+    from rich.table import Table
+
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column("Key", style="dim", width=28)
+    t.add_column("Value", style="bold")
+
+    t.add_row("Month", now.strftime("%B %Y"))
+    t.add_row("Sessions", str(sessions_count))
+    t.add_row("Energy", f"{kwh_total:.1f} kWh")
+    t.add_row("Spent", f"{cur} {spent:.2f}")
+
+    if budget > 0:
+        remaining = budget - spent
+        pct = spent / budget * 100
+        pct_color = "red" if pct >= 80 else ("yellow" if pct >= 60 else "green")
+        t.add_row("Budget", f"{cur} {budget:.2f}")
+        t.add_row("Remaining", f"[{pct_color}]{cur} {remaining:.2f}[/{pct_color}]")
+        t.add_row("Used", f"[{pct_color}]{pct:.1f}%[/{pct_color}]")
+        t.add_row("Projected", f"{cur} {projected:.2f}")
+        if pct >= 80:
+            t.add_row("", "[bold red]Warning: >80% of monthly budget used[/bold red]")
+    else:
+        t.add_row("Budget", "[dim]Not set (use --set to configure)[/dim]")
+        t.add_row("Projected", f"{cur} {projected:.2f}")
+
+    if source and source != "unavailable":
+        t.add_row("Source", f"[dim]{source}[/dim]")
+
+    console.print(Panel(t, title="[bold]Monthly Charging Budget[/bold]", border_style="blue"))

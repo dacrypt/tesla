@@ -28,13 +28,25 @@ class AutomationAction(BaseModel):
     webhook_payload: str = ""  # JSON template; supports {battery_level}, {ts}, etc.
 
 
+class AutomationCondition(BaseModel):
+    """Additional condition that must be true for rule to fire."""
+
+    field: str = ""  # e.g. "climate_state.inside_temp", "charge_state.battery_level"
+    operator: str = "lt"  # lt, gt, eq, ne, contains
+    value: str = ""  # compared as float if numeric, string otherwise
+
+
 class AutomationRule(BaseModel):
     name: str
     trigger: AutomationTrigger
     action: AutomationAction
+    conditions: list[AutomationCondition] = Field(default_factory=list)
     enabled: bool = True
     last_fired: datetime | None = None
     cooldown_minutes: int = 30  # prevent rapid re-firing
+    delay_seconds: int = 0  # Delay before executing action
+    retry_count: int = 0  # Number of retries on action failure
+    retry_delay_seconds: int = 60
 
 
 class AutomationConfig(BaseModel):

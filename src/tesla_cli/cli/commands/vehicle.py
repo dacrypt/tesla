@@ -285,6 +285,79 @@ def vehicle_unlock(vin: str | None = VinOption) -> None:
     render_success("Vehicle unlocked")
 
 
+@vehicle_app.command("fleet-status")
+def fleet_status() -> None:
+    """Show status of all configured vehicles at once.
+
+    tesla vehicle fleet-status
+    """
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    cfg = load_config()
+    aliases = cfg.vehicles.aliases  # {alias: vin}
+    default_vin = cfg.general.default_vin
+
+    # Build list of (label, vin) pairs — include default VIN if not already in aliases
+    vins: list[tuple[str, str]] = [(alias, vin) for alias, vin in aliases.items()]
+    aliased_vins = set(aliases.values())
+    if default_vin and default_vin not in aliased_vins:
+        vins.append((f"...{default_vin[-6:]}", default_vin))
+
+    if not vins:
+        console.print("[yellow]No vehicles configured. Set default-vin or add aliases.[/yellow]")
+        raise typer.Exit(1)
+
+    backend = _backend()
+
+    def _fetch(label: str, vin: str) -> dict:
+        try:
+            cs = backend.get_charge_state(vin)
+            vs = backend.get_vehicle_state(vin)
+            ds = backend.get_drive_state(vin)
+            return {
+                "alias": label,
+                "vin": f"...{vin[-6:]}",
+                "battery": f"{cs.get('battery_level', '--')}%",
+                "range": f"{round(cs.get('battery_range', 0))} mi" if cs.get("battery_range") else "--",
+                "charging": cs.get("charging_state", "--"),
+                "locked": "Yes" if vs.get("locked") else "No",
+                "sentry": "On" if vs.get("sentry_mode") else "Off",
+                "location": f"{ds.get('latitude', 0):.4f},{ds.get('longitude', 0):.4f}"
+                if ds.get("latitude") else "--",
+            }
+        except Exception as exc:
+            return {
+                "alias": label,
+                "vin": f"...{vin[-6:]}",
+                "battery": "--",
+                "range": "--",
+                "charging": "--",
+                "locked": "--",
+                "sentry": "--",
+                "location": f"[red]{exc}[/red]",
+            }
+
+    rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=min(len(vins), 8)) as pool:
+        futures = {pool.submit(_fetch, label, vin): (label, vin) for label, vin in vins}
+        for future in as_completed(futures):
+            rows.append(future.result())
+
+    # Sort by alias for stable output
+    rows.sort(key=lambda r: r["alias"])
+
+    if is_json_mode():
+        console.print(_json.dumps(rows, indent=2))
+        return
+
+    render_table(
+        rows,
+        columns=["alias", "vin", "battery", "range", "charging", "locked", "sentry", "location"],
+        title="Fleet Status",
+    )
+
+
 @vehicle_app.command("horn")
 def vehicle_horn(vin: str | None = VinOption) -> None:
     """Honk the horn."""
