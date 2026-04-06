@@ -145,12 +145,12 @@ const Navigation: React.FC = () => {
           </div>
 
           {/* ---- Location info ---- */}
-          {state?.latitude && (
+          {state?.latitude && state?.longitude && (
             <div className="tesla-card">
               <p className="section-title" style={{ paddingTop: 0 }}>Current Location</p>
               <VehicleMap
                 latitude={state.latitude}
-                longitude={state.longitude ?? 0}
+                longitude={state.longitude}
                 label={state.speed != null ? `${state.speed} mph` : undefined}
                 height="280px"
                 geofences={geofences}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { IonCard, IonCardHeader, IonCardTitle, IonCardContent } from '@ionic/react';
 import { api, ChargingSession } from '../api/client';
 
 export default function RecentCharges() {
@@ -17,46 +16,42 @@ export default function RecentCharges() {
     .reduce((sum, s) => sum + (s.cost ?? 0), 0);
 
   return (
-    <IonCard>
-      <IonCardHeader>
-        <IonCardTitle style={{ fontSize: '1rem' }}>
-          ⚡ Recent Charges
-          <span style={{ float: 'right', fontSize: '0.8rem', opacity: 0.7 }}>
-            {sessions[0]?.source === 'teslamate' ? 'TeslaMate' : 'Fleet API'}
-          </span>
-        </IonCardTitle>
-      </IonCardHeader>
-      <IonCardContent>
-        <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ opacity: 0.6, textAlign: 'left' }}>
-              <th>Date</th>
-              <th>Location</th>
-              <th style={{ textAlign: 'right' }}>kWh</th>
-              <th style={{ textAlign: 'right' }}>Cost</th>
+    <div className="tesla-card" style={{ padding: '16px 16px 12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Recent Charges</span>
+        <span style={{ fontSize: '0.75rem', color: '#86888f' }}>
+          {sessions[0]?.source === 'teslamate' ? 'TeslaMate' : 'Fleet API'}
+        </span>
+      </div>
+      <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ color: '#86888f', textAlign: 'left' }}>
+            <th style={{ fontWeight: 500, paddingBottom: 6 }}>Date</th>
+            <th style={{ fontWeight: 500, paddingBottom: 6 }}>Location</th>
+            <th style={{ fontWeight: 500, paddingBottom: 6, textAlign: 'right' }}>kWh</th>
+            <th style={{ fontWeight: 500, paddingBottom: 6, textAlign: 'right' }}>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sessions.map((s, i) => (
+            <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <td style={{ padding: '6px 0', color: '#e5e5e5' }}>{s.date}</td>
+              <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#86888f' }}>
+                {s.location || '—'}
+              </td>
+              <td style={{ textAlign: 'right', fontWeight: 600, color: '#0BE881' }}>{s.kwh.toFixed(1)}</td>
+              <td style={{ textAlign: 'right', color: '#e5e5e5' }}>
+                {s.cost !== null ? `$${s.cost.toFixed(2)}` : '—'}
+                {s.cost_estimated && ' ~'}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s, i) => (
-              <tr key={i} style={{ borderTop: '1px solid var(--ion-color-step-100, #eee)' }}>
-                <td style={{ padding: '4px 0' }}>{s.date}</td>
-                <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {s.location || '—'}
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{s.kwh.toFixed(1)}</td>
-                <td style={{ textAlign: 'right' }}>
-                  {s.cost !== null ? `$${s.cost.toFixed(2)}` : '—'}
-                  {s.cost_estimated && ' ~'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 8, fontSize: '0.8rem', opacity: 0.7 }}>
-          {totalKwh.toFixed(1)} kWh total
-          {totalCost > 0 && ` · $${totalCost.toFixed(2)}`}
-        </div>
-      </IonCardContent>
-    </IonCard>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 10, fontSize: '0.78rem', color: '#86888f' }}>
+        {totalKwh.toFixed(1)} kWh total
+        {totalCost > 0 && ` · $${totalCost.toFixed(2)}`}
+      </div>
+    </div>
   );
 }

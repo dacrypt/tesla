@@ -1,5 +1,6 @@
 import React from 'react';
 import { Redirect, Route } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import {
   IonApp,
   IonLabel,
@@ -75,6 +76,7 @@ const GearTabIcon = () => (
 );
 
 const App: React.FC = () => (
+  <ErrorBoundary>
   <IonApp>
     <IonReactRouter>
       <IonTabs>
@@ -114,6 +116,7 @@ const App: React.FC = () => (
       </IonTabs>
     </IonReactRouter>
   </IonApp>
+  </ErrorBoundary>
 );
 
 export default App;

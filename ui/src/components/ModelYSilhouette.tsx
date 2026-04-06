@@ -37,7 +37,7 @@ const ModelYSilhouette: React.FC<ModelYSilhouetteProps> = ({
     batteryPercent == null ? '#86888f'
     : batteryPercent > 50 ? '#0BE881'
     : batteryPercent > 20 ? '#F99716'
-    : '#05C46B';
+    : '#FF6B6B';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0 4px' }}>

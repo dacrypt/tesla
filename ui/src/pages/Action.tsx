@@ -7,6 +7,7 @@ import {
   IonTitle,
 } from '@ionic/react';
 import { useLocation } from 'react-router-dom';
+import { getBaseUrl } from '../api/client';
 
 interface ActionDef {
   method: 'GET' | 'POST';
@@ -100,7 +101,7 @@ const Action: React.FC = () => {
         opts.headers = { 'Content-Type': 'application/json' };
         opts.body = JSON.stringify({});
       }
-      const res = await fetch(actionDef.path, opts);
+      const res = await fetch(`${getBaseUrl()}${actionDef.path}`, opts);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`${res.status}: ${text}`);

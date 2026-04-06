@@ -155,8 +155,10 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [tripPath, setTripPath] = useState<[number, number][]>([]);
   const [tripPathLoading, setTripPathLoading] = useState(false);
+  const fetchedTabs = React.useRef<Set<Tab>>(new Set());
 
   const fetchData = async (tab: Tab) => {
+    if (fetchedTabs.current.has(tab)) return;
     setLoading(true);
     setNotConfigured(false);
     try {
@@ -189,6 +191,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
         const data = await api.getVampire();
         setVampire(data);
       }
+      fetchedTabs.current.add(tab);
     } catch {
       setNotConfigured(true);
     } finally {

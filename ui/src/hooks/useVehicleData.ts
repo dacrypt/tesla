@@ -35,6 +35,10 @@ export function useVehicleData(): VehicleData {
       if (cl.status === 'fulfilled') setClimate(cl.value);
       if (s.status === 'rejected' && ch.status === 'rejected' && cl.status === 'rejected') {
         setError('Vehicle not connected');
+      } else if (s.status === 'rejected' || ch.status === 'rejected' || cl.status === 'rejected') {
+        // Partial failure — some sources unavailable, show warning but don't block
+        const failed = [s, ch, cl].filter(r => r.status === 'rejected').length;
+        setError(`${failed} data source(s) unavailable`);
       }
       setLastUpdated(new Date());
     } catch (e) {
