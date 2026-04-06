@@ -9307,7 +9307,7 @@ class TestEnergyBackend:
 
         backend = EnergyBackend.__new__(EnergyBackend)
         backend._client = MagicMock()
-        backend._client.get.return_value = MagicMock(
+        backend._client.request.return_value = MagicMock(
             status_code=200,
             json=lambda: {"response": [
                 {"energy_site_id": 123, "site_name": "Home"},
