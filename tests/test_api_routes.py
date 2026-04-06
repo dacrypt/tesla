@@ -654,14 +654,16 @@ class TestSecurityRoutes:
 
 class TestOrderRoutes:
     def test_order_status_returns_data(self, srv):
+        from tesla_cli.core.models.order import OrderStatus
+
         client, _, cfg = srv
-        mock_status = {
-            "reservation_number": "RN123456789",
-            "status": "CONFIRMED",
-            "vin": MOCK_VIN,
-        }
+        mock_status = OrderStatus(
+            reservation_number="RN123456789",
+            order_status="CONFIRMED",
+            vin=MOCK_VIN,
+        )
         mock_backend = MagicMock()
-        mock_backend.get_status.return_value = mock_status
+        mock_backend.get_order_status.return_value = mock_status
         with (
             patch("tesla_cli.api.routes.order.load_config", return_value=cfg),
             patch("tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend),
@@ -683,7 +685,7 @@ class TestOrderRoutes:
         client, _, cfg = srv
         cfg.order.reservation_number = "RN999"
         mock_backend = MagicMock()
-        mock_backend.get_status.side_effect = RuntimeError("network error")
+        mock_backend.get_order_status.side_effect = RuntimeError("network error")
         with (
             patch("tesla_cli.api.routes.order.load_config", return_value=cfg),
             patch("tesla_cli.core.backends.order.OrderBackend", return_value=mock_backend),

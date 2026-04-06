@@ -19,7 +19,8 @@ def order_status() -> dict:
     if not rn:
         raise HTTPException(status_code=404, detail="No reservation number configured.")
     try:
-        backend = OrderBackend(rn)
-        return backend.get_status()
+        backend = OrderBackend()
+        status = backend.get_order_status(rn)
+        return status.model_dump() if hasattr(status, "model_dump") else status
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
