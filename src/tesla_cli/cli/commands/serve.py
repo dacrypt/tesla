@@ -277,7 +277,7 @@ def serve(
         False, "--build-ui", help="Run npm build in ui/ before starting (implies --serve-ui)"
     ),
     serve_ui: bool = typer.Option(
-        False, "--serve-ui", help="Serve React app from ui/dist/ on the same port"
+        True, "--serve-ui/--no-ui", help="Serve React dashboard (default: on)"
     ),
 ) -> None:
     """Start the tesla-cli API server.
