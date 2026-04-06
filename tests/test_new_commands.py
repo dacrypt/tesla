@@ -549,6 +549,7 @@ class TestStreamLive:
         assert "--interval" in result.output
         assert "--count" in result.output
 
+    @pytest.mark.integration
     def test_stream_runs_once(self, mock_fleet_backend):
         cfg = MagicMock()
         cfg.general.backend = "fleet"
@@ -562,6 +563,7 @@ class TestStreamLive:
             result = _run("vehicle", "stream", "--count", "1", "--interval", "0")
             assert result.exit_code == 0
 
+    @pytest.mark.integration
     def test_stream_json_exits(self, mock_fleet_backend):
         cfg = MagicMock()
         cfg.general.backend = "fleet"
