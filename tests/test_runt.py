@@ -12,9 +12,7 @@ from tesla_cli.core.backends.runt import RuntBackend, RuntError
 from tesla_cli.core.models.dossier import RuntData
 
 _openquery_available = _ilu.find_spec("openquery") is not None
-_skip_no_openquery = pytest.mark.skipif(
-    not _openquery_available, reason="openquery not installed"
-)
+_skip_no_openquery = pytest.mark.skipif(not _openquery_available, reason="openquery not installed")
 
 
 def _mock_runt_result(extra_fields: dict | None = None) -> MagicMock:

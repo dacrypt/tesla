@@ -7,12 +7,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from typer.testing import CliRunner
 
-from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
-
-_runner = CliRunner()
+from tests.conftest import run_cli as _run
 
 # Skip server tests if fastapi/httpx not installed
 fastapi = pytest.importorskip("fastapi")
@@ -38,10 +35,6 @@ def _make_cfg(**overrides):
             obj = getattr(obj, part)
         setattr(obj, parts[-1], v)
     return cfg
-
-
-def _run(*args):
-    return _runner.invoke(cli_app, list(args))
 
 
 def _make_vehicle_backend():

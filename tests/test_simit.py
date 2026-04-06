@@ -12,9 +12,7 @@ from tesla_cli.core.backends.simit import SimitBackend, SimitError
 from tesla_cli.core.models.dossier import SimitData
 
 _openquery_available = _ilu.find_spec("openquery") is not None
-_skip_no_openquery = pytest.mark.skipif(
-    not _openquery_available, reason="openquery not installed"
-)
+_skip_no_openquery = pytest.mark.skipif(not _openquery_available, reason="openquery not installed")
 
 
 def _mock_simit_result(extra_fields: dict | None = None) -> MagicMock:

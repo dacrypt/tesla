@@ -5,12 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from typer.testing import CliRunner
-
-from tesla_cli.cli.app import app as cli_app
 from tests.conftest import MOCK_VIN
-
-_runner = CliRunner()
+from tests.conftest import run_cli as _run
 
 
 def _make_cfg(**overrides):
@@ -25,10 +21,6 @@ def _make_cfg(**overrides):
             obj = getattr(obj, part)
         setattr(obj, parts[-1], v)
     return cfg
-
-
-def _run(*args):
-    return _runner.invoke(cli_app, list(args))
 
 
 # ── Tests: mqtt setup ─────────────────────────────────────────────────────────

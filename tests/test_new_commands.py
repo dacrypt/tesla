@@ -4,35 +4,14 @@ anonymize mode, VIN decoder, option code decoder, i18n, and TeslaMate config."""
 from __future__ import annotations
 
 import json
-import re
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from typer.testing import CliRunner
 
-from tesla_cli.cli.app import app
 from tests.conftest import MOCK_VIN
-
-runner = CliRunner()
-
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
-
-class _Result:
-    """Thin wrapper around typer Result with ANSI-stripped output."""
-
-    def __init__(self, result):
-        self._result = result
-        self.output = _ANSI_RE.sub("", result.output)
-        self.exit_code = result.exit_code
-        self.exception = result.exception
-
-
-def _run(*args):
-    return _Result(runner.invoke(app, list(args)))
-
+from tests.conftest import run_cli as _run
 
 # ── VIN Decoder ──────────────────────────────────────────────────────────────
 
@@ -6753,9 +6732,7 @@ class TestHaCommands:
 import importlib.util as _ilu
 
 _openquery_available = _ilu.find_spec("openquery") is not None
-_skip_no_openquery = pytest.mark.skipif(
-    not _openquery_available, reason="openquery not installed"
-)
+_skip_no_openquery = pytest.mark.skipif(not _openquery_available, reason="openquery not installed")
 
 
 @_skip_no_openquery
