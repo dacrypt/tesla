@@ -621,7 +621,10 @@ def charge_forecast(vin: str | None = VinOption) -> None:
 
 
 @charge_app.command("history")
-def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
+def charge_history(
+    vin: str | None = VinOption,  # noqa: ARG001
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+) -> None:
     """Show charging history (Fleet API) or redirect to TeslaMate."""
     from rich.table import Table
 
@@ -650,6 +653,11 @@ def charge_history(vin: str | None = VinOption) -> None:  # noqa: ARG001
 
     if not history.points:
         console.print("[yellow]No charging history available.[/yellow]")
+        return
+
+    if oneline:
+        total_kwh = sum(pt.kwh for pt in history.points)
+        console.print(f"⚡ {len(history.points)} sessions | 🔋 {total_kwh:.1f} kWh total")
         return
 
     t = Table(title=f"Charging History — {history.total_label}", show_lines=False)
@@ -823,6 +831,7 @@ def charge_sessions(
 @charge_app.command("cost-summary")
 def charge_cost_summary(
     csv_out: str | None = typer.Option(None, "--csv", help="Export to CSV file"),
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
     vin: str | None = VinOption,  # noqa: ARG001
 ) -> None:
     """Show charging cost summary across all sources.
@@ -876,6 +885,12 @@ def charge_cost_summary(
                     "configured_cost_per_kwh": cost_per_kwh,
                 }
             )
+        )
+        return
+
+    if oneline:
+        console.print(
+            f"💰 ${total_cost:.2f} total | ⚡ {total_kwh:.0f} kWh | 📊 {len(sessions)} sessions"
         )
         return
 

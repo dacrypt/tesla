@@ -58,7 +58,9 @@ def _cooldown_str(rule: AutomationRule) -> str:
 
 
 @automations_app.command("list")
-def automations_list() -> None:
+def automations_list(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+) -> None:
     """List all automation rules with their status.
 
     tesla automations list
@@ -78,6 +80,18 @@ def automations_list() -> None:
     if not rules:
         console.print("\n  [dim]No automation rules configured.[/dim]")
         console.print("  Add one with: [bold]tesla automations add[/bold]\n")
+        return
+
+    if oneline:
+        enabled = sum(1 for r in rules if r.enabled)
+        disabled = len(rules) - enabled
+        last = next(
+            (r.name for r in sorted(rules, key=lambda r: r.last_fired or __import__('datetime').datetime.min.replace(tzinfo=__import__('datetime').timezone.utc), reverse=True) if r.last_fired),
+            "none",
+        )
+        console.print(
+            f"📋 {len(rules)} rules | ✅ {enabled} enabled | ⏸ {disabled} disabled | 🔥 last: {last}"
+        )
         return
 
     from rich.table import Table

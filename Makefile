@@ -44,6 +44,26 @@ clean: ## Remove build artifacts
 	rm -rf src/tesla_cli/api/ui_dist/*
 	rm -rf ui/node_modules/.vite
 
+# ── Docker ───────────────────────────────────────────────────────────────────
+
+docker-build: ## Build Docker images
+	docker compose build
+
+docker-up: ## Start containers in background
+	docker compose up -d
+
+docker-down: ## Stop and remove containers
+	docker compose down
+
+docker-full: ## Start full stack (with extras)
+	docker compose -f docker-compose.full.yml up -d
+
+# ── Coverage ─────────────────────────────────────────────────────────────────
+
+coverage: ## Run tests with HTML coverage report
+	uv run pytest --cov=tesla_cli --cov-report=html
+	@echo "Coverage report: htmlcov/index.html"
+
 # ── Production ───────────────────────────────────────────────────────────────
 
 serve: build ## Build UI and start production server
