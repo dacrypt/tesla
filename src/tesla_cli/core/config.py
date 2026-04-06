@@ -25,6 +25,7 @@ class GeneralConfig(BaseModel):
     backend: str = "owner"  # "owner" | "tessie" | "fleet"
     cost_per_kwh: float = Field(0.0, ge=0.0)
     cedula: str = ""  # Owner's cedula (Colombia) — used for SIMIT, Procuraduria, etc.
+    country: str = ""  # ISO 3166-1 alpha-2 (e.g. "CO", "US", "BR", "MX")
 
 
 class OrderConfig(BaseModel):

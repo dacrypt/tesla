@@ -582,3 +582,111 @@ def query_data_sources() -> None:
     from tesla_cli.cli.commands.dossier import dossier_sources
 
     dossier_sources()
+
+
+@data_app.command("set-country")
+def set_country(
+    country: str = typer.Argument(help="ISO country code (e.g. US, CO, BR, MX)"),
+) -> None:
+    """Set your country to auto-register relevant vehicle data sources.
+
+    tesla data set-country CO
+    tesla data set-country US
+    """
+    from tesla_cli.core.config import load_config, save_config
+    from tesla_cli.core.sources import COUNTRY_SOURCES
+
+    code = country.upper().strip()
+    known = set(COUNTRY_SOURCES.keys())
+    if code and code not in known:
+        console.print(
+            f"[yellow]Warning:[/yellow] Country '{code}' has no registered sources. "
+            f"Known: {', '.join(sorted(known))}"
+        )
+
+    cfg = load_config()
+    old = cfg.general.country
+    cfg.general.country = code
+    save_config(cfg)
+
+    if is_json_mode():
+        import json as _json2
+
+        console.print(_json2.dumps({"country": code, "previous": old}))
+        return
+
+    console.print(f"[green]Country set to:[/green] [bold]{code}[/bold]")
+    if code in known:
+        count = len(COUNTRY_SOURCES.get(code, []))
+        console.print(f"[dim]{count} country-specific source(s) will be active on next load.[/dim]")
+    console.print("[dim]Restart the server or re-run any command for sources to take effect.[/dim]")
+
+
+@data_app.command("available-sources")
+def available_sources() -> None:
+    """Show all available data sources for your configured country.
+
+    tesla data available-sources
+    tesla -j data available-sources
+    """
+    import json as _json2  # noqa: PLC0415
+
+    from tesla_cli.core.config import load_config
+    from tesla_cli.core.sources import _SOURCES, COUNTRY_SOURCES
+
+    cfg = load_config()
+    country = cfg.general.country or "(none — showing all)"
+
+    rows = []
+    for sid, src in _SOURCES.items():
+        rows.append(
+            {
+                "id": sid,
+                "name": src.name,
+                "category": src.category,
+                "country": src.country,
+                "ttl": src.ttl,
+                "requires_auth": src.requires_auth,
+                "uses_playwright": src.uses_playwright,
+            }
+        )
+
+    # Also list country sources not yet registered (if a different country is set)
+    registered_ids = set(_SOURCES.keys())
+    for _c, srcs in COUNTRY_SOURCES.items():
+        for src in srcs:
+            if src.id not in registered_ids:
+                rows.append(
+                    {
+                        "id": src.id,
+                        "name": src.name,
+                        "category": src.category,
+                        "country": src.country,
+                        "ttl": src.ttl,
+                        "requires_auth": src.requires_auth,
+                        "uses_playwright": src.uses_playwright,
+                        "inactive": True,
+                    }
+                )
+
+    if is_json_mode():
+        console.print(_json2.dumps(rows, indent=2))
+        return
+
+    t = Table(
+        title=f"Available Data Sources  [dim](country: {country})[/dim]",
+        border_style="dim",
+    )
+    t.add_column("ID", style="bold cyan", width=26)
+    t.add_column("Name", width=34)
+    t.add_column("Category", width=14)
+    t.add_column("Country", justify="center", width=8)
+    t.add_column("Browser", justify="center", width=8)
+    t.add_column("Active", justify="center", width=7)
+
+    for r in sorted(rows, key=lambda x: (x.get("country", ""), x["id"])):
+        active = "[green]✓[/green]" if not r.get("inactive") else "[dim]—[/dim]"
+        browser = "[yellow]✓[/yellow]" if r.get("uses_playwright") else "[dim]—[/dim]"
+        t.add_row(r["id"], r["name"], r["category"], r.get("country", ""), browser, active)
+
+    console.print(t)
