@@ -252,11 +252,11 @@ class AutomationEngine:
 
         resolved_topic = topic.format(vin=vin)
 
-        def _on_connect(client, userdata, flags, rc):  # noqa: ANN001
+        def _on_connect(client, userdata, flags, rc) -> None:  # noqa: ANN001
             if rc == 0:
                 client.subscribe(resolved_topic)
 
-        def _on_message(client, userdata, msg):  # noqa: ANN001
+        def _on_message(client, userdata, msg) -> None:  # noqa: ANN001
             try:
                 payload = json.loads(msg.payload.decode())
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -316,7 +316,7 @@ def _get_charging_state(data: dict) -> str:
     return str(data.get("charging_state", ""))
 
 
-def _get_nested(data: dict, *keys: str):
+def _get_nested(data: dict, *keys: str) -> object:
     """Navigate nested dicts safely."""
     cur = data
     for k in keys:
@@ -326,7 +326,7 @@ def _get_nested(data: dict, *keys: str):
     return cur
 
 
-def _get_nested_flat(data: dict, field: str):
+def _get_nested_flat(data: dict, field: str) -> object:
     """Get a field that might be top-level or dot-separated."""
     if "." in field:
         parts = field.split(".", 1)

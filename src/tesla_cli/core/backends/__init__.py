@@ -5,7 +5,7 @@ from __future__ import annotations
 from tesla_cli.core.config import Config
 
 
-def get_vehicle_backend(config: Config):
+def get_vehicle_backend(config: Config) -> object:
     """Return the configured vehicle backend."""
     if config.general.backend == "tessie":
         from tesla_cli.core.auth.tokens import TESSIE_TOKEN, get_token

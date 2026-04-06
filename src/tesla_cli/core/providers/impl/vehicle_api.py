@@ -38,7 +38,7 @@ class VehicleApiProvider(Provider):
     def __init__(self, config: Config) -> None:
         self._cfg = config
 
-    def _backend(self):
+    def _backend(self) -> object:
         from tesla_cli.core.backends import get_vehicle_backend
 
         return get_vehicle_backend(self._cfg)
