@@ -1947,8 +1947,20 @@ def dossier_export_pdf(
         all_snaps = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json"))
         section(f"Snapshot History ({len(all_snaps)} snapshots)")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 6, f"  First snapshot: {all_snaps[0].stem if all_snaps else 'none'}", new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 6, f"  Latest snapshot: {all_snaps[-1].stem if all_snaps else 'none'}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0,
+            6,
+            f"  First snapshot: {all_snaps[0].stem if all_snaps else 'none'}",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.cell(
+            0,
+            6,
+            f"  Latest snapshot: {all_snaps[-1].stem if all_snaps else 'none'}",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         pdf.ln(2)
 
     # Footer

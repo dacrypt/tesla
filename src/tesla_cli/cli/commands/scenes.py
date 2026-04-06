@@ -12,7 +12,9 @@ from tesla_cli.cli.output import console
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 
-scenes_app = typer.Typer(name="scene", help="Smart scene commands — common workflows in one command.")
+scenes_app = typer.Typer(
+    name="scene", help="Smart scene commands — common workflows in one command."
+)
 
 VinOption = typer.Option(None, "--vin", "-v", help="VIN or alias (uses default if omitted)")
 
@@ -80,8 +82,9 @@ def scene_morning(vin: str | None = VinOption) -> None:
     table.add_row(
         "Battery",
         f"[{battery_color}]{battery_level}%[/{battery_color}] (limit {charge_limit}%)"
-        f"  ~{est_range:.0f} mi" if isinstance(est_range, float) else
-        f"[{battery_color}]{battery_level}%[/{battery_color}] (limit {charge_limit}%)",
+        f"  ~{est_range:.0f} mi"
+        if isinstance(est_range, float)
+        else f"[{battery_color}]{battery_level}%[/{battery_color}] (limit {charge_limit}%)",
     )
     table.add_row("Charge State", charging_state)
 
@@ -106,7 +109,9 @@ def scene_morning(vin: str | None = VinOption) -> None:
     table.add_row("Drive State", "  ".join(location_parts))
 
     # Vehicle / software
-    sw_version = vehicle.get("vehicle_state", {}).get("car_version", "") if isinstance(vehicle, dict) else ""
+    sw_version = (
+        vehicle.get("vehicle_state", {}).get("car_version", "") if isinstance(vehicle, dict) else ""
+    )
     if sw_version:
         table.add_row("Software", sw_version)
 
@@ -125,7 +130,13 @@ def scene_morning(vin: str | None = VinOption) -> None:
         sentry_str = "[green]On[/green]" if sentry_on else "[dim]Off[/dim]"
         table.add_row("Sentry", sentry_str)
 
-    console.print(Panel(table, title="[bold cyan]Good Morning — Vehicle Briefing[/bold cyan]", border_style="cyan"))
+    console.print(
+        Panel(
+            table,
+            title="[bold cyan]Good Morning — Vehicle Briefing[/bold cyan]",
+            border_style="cyan",
+        )
+    )
 
 
 @scenes_app.command("goodnight")
@@ -173,7 +184,9 @@ def scene_goodnight(vin: str | None = VinOption) -> None:
     scheduled_charging = charge.get("scheduled_charging_pending", False)
 
     if battery_level is not None:
-        battery_color = "green" if battery_level >= 50 else "yellow" if battery_level >= 20 else "red"
+        battery_color = (
+            "green" if battery_level >= 50 else "yellow" if battery_level >= 20 else "red"
+        )
         table.add_row(
             "Battery",
             f"[{battery_color}]{battery_level}%[/{battery_color}] (limit {charge_limit}%)",
@@ -219,8 +232,10 @@ def scene_trip(
     battery_level = charge.get("battery_level", "?")
     est_range = charge.get("battery_range", charge.get("est_battery_range"))
     battery_color = (
-        "green" if isinstance(battery_level, int) and battery_level >= 50
-        else "yellow" if isinstance(battery_level, int) and battery_level >= 20
+        "green"
+        if isinstance(battery_level, int) and battery_level >= 50
+        else "yellow"
+        if isinstance(battery_level, int) and battery_level >= 20
         else "red"
     )
     range_str = f"  ~{est_range:.0f} mi range" if isinstance(est_range, float) else ""
@@ -260,16 +275,25 @@ def scene_trip(
     # Destination / navigation
     if destination:
         try:
-            backend.command(v, "navigation_request", type="share_ext_content_raw", value={
-                "android.intent.extra.TEXT": destination,
-                "content-version": 1,
-                "share_name": destination,
-            })
+            backend.command(
+                v,
+                "navigation_request",
+                type="share_ext_content_raw",
+                value={
+                    "android.intent.extra.TEXT": destination,
+                    "content-version": 1,
+                    "share_name": destination,
+                },
+            )
             table.add_row("Navigation", f"[green]Sent[/green]  {destination}")
         except Exception as exc:  # noqa: BLE001
             table.add_row("Navigation", f"[yellow]Failed[/yellow]  {exc}")
     else:
         table.add_row("Navigation", "[dim]No destination given[/dim]")
 
-    title = f"[bold green]Trip Prep — {destination}[/bold green]" if destination else "[bold green]Pre-Trip Check[/bold green]"
+    title = (
+        f"[bold green]Trip Prep — {destination}[/bold green]"
+        if destination
+        else "[bold green]Pre-Trip Check[/bold green]"
+    )
     console.print(Panel(table, title=title, border_style="green"))

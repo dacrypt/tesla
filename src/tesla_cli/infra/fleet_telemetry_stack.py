@@ -283,29 +283,52 @@ class FleetTelemetryStack:
         # Generate CA key + self-signed cert
         subprocess.run(
             ["openssl", "genrsa", "-out", ca_key, "4096"],
-            capture_output=True, check=True, timeout=30,
+            capture_output=True,
+            check=True,
+            timeout=30,
         )
         subprocess.run(
             [
-                "openssl", "req", "-new", "-x509", "-days", "3650",
-                "-key", ca_key, "-out", ca_cert,
-                "-subj", "/CN=fleet-telemetry-ca/O=tesla-cli",
+                "openssl",
+                "req",
+                "-new",
+                "-x509",
+                "-days",
+                "3650",
+                "-key",
+                ca_key,
+                "-out",
+                ca_cert,
+                "-subj",
+                "/CN=fleet-telemetry-ca/O=tesla-cli",
             ],
-            capture_output=True, check=True, timeout=30,
+            capture_output=True,
+            check=True,
+            timeout=30,
         )
 
         # Generate server key + CSR
         subprocess.run(
             ["openssl", "genrsa", "-out", server_key, "4096"],
-            capture_output=True, check=True, timeout=30,
+            capture_output=True,
+            check=True,
+            timeout=30,
         )
         subprocess.run(
             [
-                "openssl", "req", "-new",
-                "-key", server_key, "-out", server_csr,
-                "-subj", f"/CN={hostname}/O=tesla-cli",
+                "openssl",
+                "req",
+                "-new",
+                "-key",
+                server_key,
+                "-out",
+                server_csr,
+                "-subj",
+                f"/CN={hostname}/O=tesla-cli",
             ],
-            capture_output=True, check=True, timeout=30,
+            capture_output=True,
+            check=True,
+            timeout=30,
         )
 
         # Sign server cert with CA
@@ -317,12 +340,26 @@ class FleetTelemetryStack:
         )
         subprocess.run(
             [
-                "openssl", "x509", "-req", "-days", "3650",
-                "-in", server_csr, "-CA", ca_cert, "-CAkey", ca_key,
-                "-CAcreateserial", "-out", server_cert,
-                "-extfile", str(ext_file),
+                "openssl",
+                "x509",
+                "-req",
+                "-days",
+                "3650",
+                "-in",
+                server_csr,
+                "-CA",
+                ca_cert,
+                "-CAkey",
+                ca_key,
+                "-CAcreateserial",
+                "-out",
+                server_cert,
+                "-extfile",
+                str(ext_file),
             ],
-            capture_output=True, check=True, timeout=30,
+            capture_output=True,
+            check=True,
+            timeout=30,
         )
         ext_file.unlink(missing_ok=True)
 

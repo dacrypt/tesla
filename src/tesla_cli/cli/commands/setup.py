@@ -370,9 +370,7 @@ def setup_wizard(
             if tm_stack.is_installed() and not force:
                 running = tm_stack.is_running()
                 status_str = "[green]running[/green]" if running else "[yellow]stopped[/yellow]"
-                console.print(
-                    f"[green]✓ TeslaMate already installed[/green] — {status_str}"
-                )
+                console.print(f"[green]✓ TeslaMate already installed[/green] — {status_str}")
                 if not running:
                     console.print("[dim]Start it with: tesla teslaMate start[/dim]")
             else:
@@ -410,9 +408,7 @@ def setup_wizard(
         urls_preview = ", ".join(
             u.split("://")[0] + "://***" for u in cfg.notifications.apprise_urls
         )
-        console.print(
-            f"[green]✓ Notifications already configured:[/green] {urls_preview}"
-        )
+        console.print(f"[green]✓ Notifications already configured:[/green] {urls_preview}")
     else:
         setup_notif = Confirm.ask("Set up push notifications?", default=False)
         if setup_notif:
@@ -432,9 +428,7 @@ def setup_wizard(
     if setup_automations:
         _run_automations_setup()
     else:
-        console.print(
-            "[dim]Skipped — configure later with: tesla automations add[/dim]"
-        )
+        console.print("[dim]Skipped — configure later with: tesla automations add[/dim]")
 
     console.print()
 
@@ -443,9 +437,7 @@ def setup_wizard(
         console.print("[dim]Skipping data build (--skip-build).[/dim]")
     else:
         console.print(
-            Panel.fit(
-                "[bold]Step 8 / 8[/bold] — Building your vehicle data", border_style="blue"
-            )
+            Panel.fit("[bold]Step 8 / 8[/bold] — Building your vehicle data", border_style="blue")
         )
         console.print("[dim]Pulling from Tesla API, NHTSA, RUNT, ship tracking...[/dim]\n")
 
@@ -565,8 +557,7 @@ def _check_owner_api_and_maybe_upgrade(cfg: object, tier_selected: str, force: b
                     cfg.general.backend = "fleet-signed"
                     save_config(cfg)
                     console.print(
-                        "[green]✓ Upgraded to Advanced tier — "
-                        "fleet-signed backend active.[/green]"
+                        "[green]✓ Upgraded to Advanced tier — fleet-signed backend active.[/green]"
                     )
                     return "advanced"
                 except (TeslaCliError, KeyboardInterrupt, EOFError):
@@ -585,9 +576,7 @@ def _print_done_panel(tier_selected: str) -> None:
     """Print the final summary panel, tailored to the chosen tier."""
     if tier_selected == "advanced":
         tier_line = "Tier: [bold green]Advanced[/bold green] (Fleet API)"
-        features_line = (
-            "Available: everything — telemetry, Powerwall, signed commands, analytics"
-        )
+        features_line = "Available: everything — telemetry, Powerwall, signed commands, analytics"
         upgrade_line = ""
     elif tier_selected == "tessie":
         tier_line = "Tier: [bold cyan]Tessie[/bold cyan] (managed proxy)"
@@ -599,9 +588,7 @@ def _print_done_panel(tier_selected: str) -> None:
     else:
         # basic / owner
         tier_line = "Tier: [bold]Basic[/bold] (email + password)"
-        features_line = (
-            "Available: order tracking, vehicle data, commands, TeslaMate analytics"
-        )
+        features_line = "Available: order tracking, vehicle data, commands, TeslaMate analytics"
         upgrade_line = (
             "\n  Upgrade: [bold]tesla config auth fleet[/bold]"
             " (for telemetry, Powerwall, signed commands)"
@@ -670,9 +657,7 @@ def _run_fleet_telemetry_install(ft_stack: object) -> None:
 
         if result.get("healthy"):
             console.print("[green]✓ Fleet-telemetry installed and running.[/green]")
-            console.print(
-                f"  Listening on [bold]{hostname}:{result.get('port', 4443)}[/bold]"
-            )
+            console.print(f"  Listening on [bold]{hostname}:{result.get('port', 4443)}[/bold]")
         else:
             console.print(
                 "[yellow]Fleet-telemetry installed but may not be healthy yet.[/yellow]\n"
@@ -728,7 +713,9 @@ def _run_fleet_telemetry_install(ft_stack: object) -> None:
             )
     except DockerNotFoundError as e:
         console.print(f"[red]Docker error:[/red] {e}")
-        console.print("[dim]Skipping — install Docker first, then run: tesla telemetry install[/dim]")
+        console.print(
+            "[dim]Skipping — install Docker first, then run: tesla telemetry install[/dim]"
+        )
     except FleetTelemetryStackError as e:
         console.print(f"[yellow]Fleet-telemetry install failed:[/yellow] {e}")
         console.print("[dim]Retry manually: tesla telemetry install[/dim]")
@@ -771,7 +758,9 @@ def _run_teslamate_install(tm_stack: object) -> None:
             )
     except DockerNotFoundError as e:
         console.print(f"[red]Docker error:[/red] {e}")
-        console.print("[dim]Skipping — install Docker first, then run: tesla teslaMate install[/dim]")
+        console.print(
+            "[dim]Skipping — install Docker first, then run: tesla teslaMate install[/dim]"
+        )
     except TeslaMateStackError as e:
         console.print(f"[yellow]TeslaMate install failed:[/yellow] {e}")
         console.print("[dim]Retry manually: tesla teslaMate install[/dim]")

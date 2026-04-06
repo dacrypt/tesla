@@ -1207,7 +1207,9 @@ def order_estimate() -> None:
 
 @order_app.command("checklist")
 def order_checklist(
-    mark: str | None = typer.Option(None, "--mark", "-m", help="Mark items by number (comma-separated)"),
+    mark: str | None = typer.Option(
+        None, "--mark", "-m", help="Mark items by number (comma-separated)"
+    ),
     reset: bool = typer.Option(False, "--reset", help="Reset all checkmarks"),
 ) -> None:
     """Tesla delivery inspection checklist (34 items).
@@ -1310,7 +1312,9 @@ def order_documents(
         }
         for d in docs
     ]
-    render_table(doc_rows, columns=["name", "category", "url"], title=f"Portal Documents ({len(docs)})")
+    render_table(
+        doc_rows, columns=["name", "category", "url"], title=f"Portal Documents ({len(docs)})"
+    )
 
     if not download:
         console.print(

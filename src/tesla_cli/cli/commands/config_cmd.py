@@ -374,9 +374,7 @@ def config_auth(
     elif backend == "fleet":
         _auth_fleet()
     else:
-        console.print(
-            f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet"
-        )
+        console.print(f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet")
         raise typer.Exit(1)
 
 
@@ -1113,7 +1111,9 @@ def _auth_fleet() -> None:
 
 @config_app.command("export-env")
 def config_export_env(
-    output: str | None = typer.Option(None, "--output", "-o", help="Write to file (default: stdout)"),
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="Write to file (default: stdout)"
+    ),
     docker: bool = typer.Option(False, "--docker", help="Docker Compose format (with quotes)"),
 ) -> None:
     """Export configuration as environment variables.

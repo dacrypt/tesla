@@ -25,7 +25,6 @@ from tesla_cli.core.sources import (
     register_source,
 )
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -127,8 +126,18 @@ class TestListSources:
         result = list_sources()
         assert len(result) == 1
         entry = result[0]
-        for key in ("id", "name", "category", "country", "requires_auth", "ttl",
-                    "refreshed_at", "stale", "has_data", "error"):
+        for key in (
+            "id",
+            "name",
+            "category",
+            "country",
+            "requires_auth",
+            "ttl",
+            "refreshed_at",
+            "stale",
+            "has_data",
+            "error",
+        ):
             assert key in entry
 
     def test_list_sources_no_cache(self, isolated_registry, simple_source):
@@ -142,11 +151,15 @@ class TestListSources:
 
     def test_list_sources_with_cached_data(self, isolated_registry, simple_source, tmp_path):
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"value": 1},
-            "refreshed_at": _now_iso(),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"value": 1},
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
         result = list_sources()
         entry = result[0]
         assert entry["has_data"] is True
@@ -156,21 +169,29 @@ class TestListSources:
     def test_list_sources_with_stale_cache(self, isolated_registry, simple_source, tmp_path):
         simple_source.ttl = 60
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"value": 1},
-            "refreshed_at": _ago_iso(120),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"value": 1},
+                "refreshed_at": _ago_iso(120),
+                "error": None,
+            },
+        )
         result = list_sources()
         assert result[0]["stale"] is True
 
     def test_list_sources_with_error_cache(self, isolated_registry, simple_source, tmp_path):
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": None,
-            "refreshed_at": _now_iso(),
-            "error": "something went wrong",
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": None,
+                "refreshed_at": _now_iso(),
+                "error": "something went wrong",
+            },
+        )
         result = list_sources()
         assert result[0]["error"] == "something went wrong"
         # "data" key is present (value None) — has_data reflects key presence, not truthiness
@@ -190,15 +211,21 @@ class TestGetCached:
 
     def test_get_cached_with_data(self, isolated_registry, simple_source, tmp_path):
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"value": 99},
-            "refreshed_at": _now_iso(),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"value": 99},
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
         result = get_cached("test.simple")
         assert result == {"value": 99}
 
-    def test_get_cached_returns_none_when_no_data_key(self, isolated_registry, simple_source, tmp_path):
+    def test_get_cached_returns_none_when_no_data_key(
+        self, isolated_registry, simple_source, tmp_path
+    ):
         register_source(simple_source)
         _write_cache(tmp_path, "test.simple", {"refreshed_at": _now_iso(), "error": "oops"})
         result = get_cached("test.simple")
@@ -226,11 +253,15 @@ class TestGetCachedWithMeta:
     def test_get_cached_with_meta_with_data(self, isolated_registry, simple_source, tmp_path):
         register_source(simple_source)
         ts = _now_iso()
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"x": 1},
-            "refreshed_at": ts,
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"x": 1},
+                "refreshed_at": ts,
+                "error": None,
+            },
+        )
         result = get_cached_with_meta("test.simple")
         assert result["id"] == "test.simple"
         assert result["data"] == {"x": 1}
@@ -240,11 +271,15 @@ class TestGetCachedWithMeta:
 
     def test_get_cached_with_meta_includes_error(self, isolated_registry, simple_source, tmp_path):
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": None,
-            "refreshed_at": _now_iso(),
-            "error": "fetch failed",
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": None,
+                "refreshed_at": _now_iso(),
+                "error": "fetch failed",
+            },
+        )
         result = get_cached_with_meta("test.simple")
         assert result["error"] == "fetch failed"
         assert result["data"] is None
@@ -270,9 +305,7 @@ class TestRefreshSource:
         def _boom():
             raise RuntimeError("network error")
 
-        src = SourceDef(
-            id="test.boom", name="Boom", category="servicios", fetch_fn=_boom, ttl=3600
-        )
+        src = SourceDef(id="test.boom", name="Boom", category="servicios", fetch_fn=_boom, ttl=3600)
         register_source(src)
         result = refresh_source("test.boom")
         assert result["error"] == "network error"
@@ -360,8 +393,10 @@ class TestRefreshSource:
         cfg.general.default_vin = "7SA123"
         cfg.general.cedula = ""
 
-        with patch("tesla_cli.core.sources.subprocess.run", return_value=mock_result), \
-             patch("tesla_cli.core.sources.load_config", return_value=cfg):
+        with (
+            patch("tesla_cli.core.sources.subprocess.run", return_value=mock_result),
+            patch("tesla_cli.core.sources.load_config", return_value=cfg),
+        ):
             result = refresh_source("test.playwright")
 
         assert result["data"] == {"placa": "ABC123"}
@@ -446,21 +481,29 @@ class TestIsStale:
     def test_is_stale_fresh(self, isolated_registry, simple_source, tmp_path):
         simple_source.ttl = 3600
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"x": 1},
-            "refreshed_at": _now_iso(),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"x": 1},
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
         assert _is_stale("test.simple") is False
 
     def test_is_stale_expired(self, isolated_registry, simple_source, tmp_path):
         simple_source.ttl = 60
         register_source(simple_source)
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"x": 1},
-            "refreshed_at": _ago_iso(120),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"x": 1},
+                "refreshed_at": _ago_iso(120),
+                "error": None,
+            },
+        )
         assert _is_stale("test.simple") is True
 
     def test_is_stale_no_refreshed_at_field(self, isolated_registry, simple_source, tmp_path):
@@ -473,11 +516,15 @@ class TestIsStale:
         simple_source.ttl = 3600
         register_source(simple_source)
         # 3599s ago — still fresh
-        _write_cache(tmp_path, "test.simple", {
-            "data": {"x": 1},
-            "refreshed_at": _ago_iso(3599),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.simple",
+            {
+                "data": {"x": 1},
+                "refreshed_at": _ago_iso(3599),
+                "error": None,
+            },
+        )
         assert _is_stale("test.simple") is False
 
 
@@ -512,8 +559,10 @@ class TestGetHistory:
         history_dir = sources_module.HISTORY_DIR
         history_dir.mkdir(parents=True, exist_ok=True)
         history_file = history_dir / "test.limited.jsonl"
-        lines = [json.dumps({"timestamp": _ago_iso(i * 10), "data_hash": f"hash{i}", "changes": []})
-                 for i in range(20)]
+        lines = [
+            json.dumps({"timestamp": _ago_iso(i * 10), "data_hash": f"hash{i}", "changes": []})
+            for i in range(20)
+        ]
         history_file.write_text("\n".join(lines) + "\n")
 
         result = get_history("test.limited", limit=5)
@@ -565,12 +614,16 @@ class TestGetAudits:
         pdf_path = audit_dir / "co.runt_2025-01-15_10-00-00.pdf"
         pdf_path.write_bytes(b"%PDF-1.4 fake content")
         meta_path = audit_dir / "co.runt_2025-01-15_10-00-00.json"
-        meta_path.write_text(json.dumps({
-            "queried_at": "2025-01-15T10:00:00+00:00",
-            "source": "co.runt",
-            "duration_ms": 3200,
-            "has_pdf": True,
-        }))
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "queried_at": "2025-01-15T10:00:00+00:00",
+                    "source": "co.runt",
+                    "duration_ms": 3200,
+                    "has_pdf": True,
+                }
+            )
+        )
 
         result = get_audits("co.runt")
         assert len(result) == 1
@@ -615,13 +668,13 @@ class TestMissingAuth:
 
     def test_missing_auth_fleet_missing(self, isolated_registry):
         src = SourceDef(
-            id="test.fleet", name="Fleet Src", category="vehiculo",
-            requires_auth="fleet", ttl=3600
+            id="test.fleet", name="Fleet Src", category="vehiculo", requires_auth="fleet", ttl=3600
         )
         register_source(src)
 
         def _fake_has_token(key):
             from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN
+
             return key != FLEET_ACCESS_TOKEN
 
         with patch("tesla_cli.core.auth.tokens.has_token", side_effect=_fake_has_token):
@@ -634,13 +687,17 @@ class TestMissingAuth:
 
     def test_missing_auth_order_missing(self, isolated_registry):
         src = SourceDef(
-            id="test.order", name="Order Src", category="financiero",
-            requires_auth="order", ttl=1800
+            id="test.order",
+            name="Order Src",
+            category="financiero",
+            requires_auth="order",
+            ttl=1800,
         )
         register_source(src)
 
         def _fake_has_token(key):
             from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN
+
             return key != ORDER_ACCESS_TOKEN
 
         with patch("tesla_cli.core.auth.tokens.has_token", side_effect=_fake_has_token):
@@ -652,10 +709,15 @@ class TestMissingAuth:
     def test_missing_auth_deduplicates_by_type(self, isolated_registry):
         """Two sources with same auth_type should produce only one missing entry."""
         for i in range(3):
-            register_source(SourceDef(
-                id=f"test.fleet{i}", name=f"Fleet {i}", category="vehiculo",
-                requires_auth="fleet", ttl=3600
-            ))
+            register_source(
+                SourceDef(
+                    id=f"test.fleet{i}",
+                    name=f"Fleet {i}",
+                    category="vehiculo",
+                    requires_auth="fleet",
+                    ttl=3600,
+                )
+            )
         with patch("tesla_cli.core.auth.tokens.has_token", return_value=False):
             result = missing_auth()
 
@@ -663,12 +725,12 @@ class TestMissingAuth:
         assert len(fleet_entries) == 1
 
     def test_missing_auth_all_tokens_present(self, isolated_registry):
-        register_source(SourceDef(
-            id="test.f", name="F", category="vehiculo", requires_auth="fleet", ttl=3600
-        ))
-        register_source(SourceDef(
-            id="test.o", name="O", category="financiero", requires_auth="order", ttl=1800
-        ))
+        register_source(
+            SourceDef(id="test.f", name="F", category="vehiculo", requires_auth="fleet", ttl=3600)
+        )
+        register_source(
+            SourceDef(id="test.o", name="O", category="financiero", requires_auth="order", ttl=1800)
+        )
         with patch("tesla_cli.core.auth.tokens.has_token", return_value=True):
             result = missing_auth()
         assert result == []
@@ -685,8 +747,9 @@ class TestRefreshStale:
             sid = f"test.src{i}"
             fn = MagicMock(return_value={"i": i})
             fetches[sid] = fn
-            register_source(SourceDef(id=sid, name=f"Src{i}", category="servicios",
-                                      fetch_fn=fn, ttl=60))
+            register_source(
+                SourceDef(id=sid, name=f"Src{i}", category="servicios", fetch_fn=fn, ttl=60)
+            )
 
         result = refresh_stale()
         assert set(result["refreshed"]) == set(fetches.keys())
@@ -698,19 +761,25 @@ class TestRefreshStale:
         fresh_fn = MagicMock(return_value={"ok": True})
         stale_fn = MagicMock(return_value={"ok": True})
 
-        fresh = SourceDef(id="test.fresh", name="Fresh", category="servicios",
-                          fetch_fn=fresh_fn, ttl=3600)
-        stale = SourceDef(id="test.stale", name="Stale", category="servicios",
-                          fetch_fn=stale_fn, ttl=60)
+        fresh = SourceDef(
+            id="test.fresh", name="Fresh", category="servicios", fetch_fn=fresh_fn, ttl=3600
+        )
+        stale = SourceDef(
+            id="test.stale", name="Stale", category="servicios", fetch_fn=stale_fn, ttl=60
+        )
         register_source(fresh)
         register_source(stale)
 
         # Write a fresh cache for test.fresh
-        _write_cache(tmp_path, "test.fresh", {
-            "data": {"ok": True},
-            "refreshed_at": _now_iso(),
-            "error": None,
-        })
+        _write_cache(
+            tmp_path,
+            "test.fresh",
+            {
+                "data": {"ok": True},
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
         # test.stale has no cache → stale
 
         result = refresh_stale()
@@ -723,10 +792,11 @@ class TestRefreshStale:
         def _fail():
             raise RuntimeError("boom")
 
-        register_source(SourceDef(
-            id="test.failing", name="Failing", category="servicios",
-            fetch_fn=_fail, ttl=60
-        ))
+        register_source(
+            SourceDef(
+                id="test.failing", name="Failing", category="servicios", fetch_fn=_fail, ttl=60
+            )
+        )
         result = refresh_stale()
         assert result["refreshed"] == []
         assert len(result["failed"]) == 1
@@ -735,14 +805,16 @@ class TestRefreshStale:
 
     def test_refresh_stale_mixed_results(self, isolated_registry, tmp_path):
         ok_fn = MagicMock(return_value={"data": "good"})
-        register_source(SourceDef(id="test.ok", name="OK", category="servicios",
-                                  fetch_fn=ok_fn, ttl=60))
+        register_source(
+            SourceDef(id="test.ok", name="OK", category="servicios", fetch_fn=ok_fn, ttl=60)
+        )
 
         def _bad():
             raise ValueError("fail")
 
-        register_source(SourceDef(id="test.bad", name="Bad", category="servicios",
-                                  fetch_fn=_bad, ttl=60))
+        register_source(
+            SourceDef(id="test.bad", name="Bad", category="servicios", fetch_fn=_bad, ttl=60)
+        )
 
         result = refresh_stale()
         assert "test.ok" in result["refreshed"]
@@ -780,8 +852,14 @@ class TestDefaultSources:
             assert sid in registered, f"Missing default source: {sid}"
 
     def test_default_source_categories_are_valid(self):
-        valid_categories = {"vehiculo", "registro", "infracciones", "financiero",
-                            "seguridad", "servicios"}
+        valid_categories = {
+            "vehiculo",
+            "registro",
+            "infracciones",
+            "financiero",
+            "seguridad",
+            "servicios",
+        }
         for entry in list_sources():
             assert entry["category"] in valid_categories, (
                 f"Source {entry['id']} has invalid category: {entry['category']}"

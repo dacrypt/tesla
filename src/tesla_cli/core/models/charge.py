@@ -49,9 +49,7 @@ class ChargingHistory(BaseModel):
                 total_kwh = float(total.get("value", 0))
             except (ValueError, TypeError):
                 pass
-            total_label = (
-                f"{total.get('value', '')} {total.get('after_adornment', '')}".strip()
-            )
+            total_label = f"{total.get('value', '')} {total.get('after_adornment', '')}".strip()
 
         points: list[ChargingHistoryPoint] = []
         graph = data.get("charging_history_graph", {})
@@ -135,7 +133,9 @@ class ChargingSession(BaseModel):
         )
 
     @classmethod
-    def from_fleet_point(cls, pt: ChargingHistoryPoint, cost_per_kwh: float = 0.0) -> ChargingSession:
+    def from_fleet_point(
+        cls, pt: ChargingHistoryPoint, cost_per_kwh: float = 0.0
+    ) -> ChargingSession:
         """Create from Fleet API charging history data point."""
         cost = None
         estimated = False

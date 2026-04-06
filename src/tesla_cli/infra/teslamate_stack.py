@@ -406,9 +406,7 @@ class TeslaMateStack:
         except (subprocess.SubprocessError, OSError) as exc:
             import logging
 
-            logging.getLogger("tesla-cli.teslamate").warning(
-                "Token injection RPC failed: %s", exc
-            )
+            logging.getLogger("tesla-cli.teslamate").warning("Token injection RPC failed: %s", exc)
             return False
 
     def sync_tokens_from_keyring(self) -> bool:

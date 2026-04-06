@@ -86,8 +86,7 @@ def _auto_install_teslamate(stack, cfg, log) -> None:
         save_config(cfg)
         health = "healthy" if result["healthy"] else "starting"
         log.info(
-            "TeslaMate stack installed (%s). "
-            "UI: http://localhost:%s  Grafana: http://localhost:%s",
+            "TeslaMate stack installed (%s). UI: http://localhost:%s  Grafana: http://localhost:%s",
             health,
             result["teslamate_port"],
             result["grafana_port"],
@@ -366,13 +365,23 @@ def _register_metrics(app: FastAPI) -> None:
             _g("tesla_charger_voltage", "Charger voltage in V", cs.get("charger_voltage")),
             _g("tesla_charger_current", "Charger current in A", cs.get("charger_actual_current")),
             _g("tesla_charge_rate", "Charge rate in mph added", cs.get("charge_rate")),
-            _g("tesla_energy_added", "Energy added in kWh this session", cs.get("charge_energy_added")),
+            _g(
+                "tesla_energy_added",
+                "Energy added in kWh this session",
+                cs.get("charge_energy_added"),
+            ),
             _g("tesla_time_to_full", "Hours to full charge", cs.get("time_to_full_charge")),
             # Temperature
             _g("tesla_inside_temp", "Inside temperature in Celsius", cl.get("inside_temp")),
             _g("tesla_outside_temp", "Outside temperature in Celsius", cl.get("outside_temp")),
-            _g("tesla_driver_temp_setting", "Driver temp setting in Celsius", cl.get("driver_temp_setting")),
-            _bool_g("tesla_climate_on", "Climate system active (1=on 0=off)", cl.get("is_climate_on")),
+            _g(
+                "tesla_driver_temp_setting",
+                "Driver temp setting in Celsius",
+                cl.get("driver_temp_setting"),
+            ),
+            _bool_g(
+                "tesla_climate_on", "Climate system active (1=on 0=off)", cl.get("is_climate_on")
+            ),
             # TPMS Tire Pressure
             _g("tesla_tpms_fl", "Tire pressure front-left in bar", vs.get("tpms_pressure_fl")),
             _g("tesla_tpms_fr", "Tire pressure front-right in bar", vs.get("tpms_pressure_fr")),
@@ -388,7 +397,9 @@ def _register_metrics(app: FastAPI) -> None:
             _bool_g("tesla_locked", "Doors locked (1=locked 0=unlocked)", vs.get("locked")),
             _bool_g("tesla_sentry_mode", "Sentry mode active (1=on 0=off)", vs.get("sentry_mode")),
             _bool_g("tesla_climate_on_state", "HVAC active (1=on 0=off)", cl.get("is_climate_on")),
-            _bool_g("tesla_charge_port_open", "Charge port door open", cs.get("charge_port_door_open")),
+            _bool_g(
+                "tesla_charge_port_open", "Charge port door open", cs.get("charge_port_door_open")
+            ),
         ]
 
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")

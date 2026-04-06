@@ -317,7 +317,9 @@ def teslaMate_trips(
 
 @teslaMate_app.command("drive-path")
 def teslaMate_drive_path(
-    drive_id: int = typer.Argument(..., help="Drive ID from TeslaMate (see: tesla teslaMate trips)"),
+    drive_id: int = typer.Argument(
+        ..., help="Drive ID from TeslaMate (see: tesla teslaMate trips)"
+    ),
     fmt: str = typer.Option("gpx", "--format", "-f", help="Export format: gpx or geojson"),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
 ) -> None:
@@ -370,8 +372,7 @@ def _build_gpx(drive_id: int, positions: list[dict]) -> str:
     """Build GPX XML string from a list of position dicts."""
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<gpx version="1.1" creator="tesla-cli"'
-        ' xmlns="http://www.topografix.com/GPX/1/1">',
+        '<gpx version="1.1" creator="tesla-cli" xmlns="http://www.topografix.com/GPX/1/1">',
         "  <trk>",
         f"    <name>Drive {drive_id}</name>",
         "    <trkseg>",
@@ -2030,8 +2031,9 @@ def teslaMate_battery_degradation(
         return
 
     if data["data_points"] == 0:
-        console.print("[yellow]No high-SoC charges (>=95%) found in the last "
-                      f"{months} months.[/yellow]")
+        console.print(
+            f"[yellow]No high-SoC charges (>=95%) found in the last {months} months.[/yellow]"
+        )
         console.print("[dim]Tip: charge to 100% occasionally to get degradation data.[/dim]")
         raise typer.Exit(1)
 
@@ -2058,7 +2060,13 @@ def teslaMate_battery_degradation(
 
     console.print(t)
 
-    color = "green" if data["degradation_pct"] < 3 else "yellow" if data["degradation_pct"] < 8 else "red"
+    color = (
+        "green"
+        if data["degradation_pct"] < 3
+        else "yellow"
+        if data["degradation_pct"] < 8
+        else "red"
+    )
     console.print(
         f"\n  [{color}]Degradation: {data['degradation_pct']}%[/{color}]"
         f"  ({data['first_range_km']} km → {data['last_range_km']} km)"
@@ -2297,8 +2305,12 @@ def _insert_teslafi_rows(database_url: str, car_id: int, rows: list[dict]) -> in
 @teslaMate_app.command("import")
 def teslamate_import(
     file: str = typer.Argument(help="Path to CSV or JSON file"),
-    fmt: str = typer.Option("auto", "--format", "-f", help="Format: auto, teslafi-csv, teslamate-json, csv"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be imported without writing"),
+    fmt: str = typer.Option(
+        "auto", "--format", "-f", help="Format: auto, teslafi-csv, teslamate-json, csv"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be imported without writing"
+    ),
 ) -> None:
     """Import historical data from TeslaFi CSV or TeslaMate JSON backup.
 
@@ -2322,15 +2334,11 @@ def teslamate_import(
     json_data: dict | None = None
 
     if detected == "teslafi-csv":
-        with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True
-        ) as p:
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
             p.add_task("Parsing TeslaFi CSV...", total=None)
             rows = _parse_teslafi_csv(file)
     elif detected == "teslamate-json":
-        with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True
-        ) as p:
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
             p.add_task("Parsing TeslaMate JSON...", total=None)
             json_data = _parse_teslamate_json(file)
         # For JSON, summarise tables rather than flat rows
@@ -2340,9 +2348,7 @@ def teslamate_import(
                     rows.extend(table_rows[:5])  # preview only first 5 per table
     else:
         # generic CSV
-        with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True
-        ) as p:
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as p:
             p.add_task("Parsing CSV...", total=None)
             rows = _parse_generic_csv(file)
 
@@ -2352,7 +2358,9 @@ def teslamate_import(
     _preview_rows(rows[:5] if detected != "teslamate-json" else rows, n=5)
 
     # Date range
-    dates = [r.get("date") or r.get("Date") or r.get("started_at") or r.get("timestamp") for r in rows]
+    dates = [
+        r.get("date") or r.get("Date") or r.get("started_at") or r.get("timestamp") for r in rows
+    ]
     dates = [d for d in dates if d]
     date_range = f"{min(dates)[:10]} → {max(dates)[:10]}" if dates else "unknown"
 

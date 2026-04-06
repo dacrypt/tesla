@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # oauth._extract_code_from_url
 # ---------------------------------------------------------------------------
@@ -296,9 +295,11 @@ class TestRegisterFleetPartner:
             text="Unprocessable Entity",
         )
 
-        with patch("tesla_cli.core.config.load_config", return_value=self._mock_config()):
-            with pytest.raises(AuthenticationError, match="422"):
-                register_fleet_partner("cid", "csecret", region="na")
+        with (
+            patch("tesla_cli.core.config.load_config", return_value=self._mock_config()),
+            pytest.raises(AuthenticationError, match="422"),
+        ):
+            register_fleet_partner("cid", "csecret", region="na")
 
     def test_strips_https_prefix_from_domain(self, httpx_mock):
         from tesla_cli.core.auth.oauth import TOKEN_URL, register_fleet_partner
@@ -428,6 +429,8 @@ class TestGetTessieToken:
         from tesla_cli.core.auth.tessie import get_tessie_token
         from tesla_cli.core.exceptions import AuthenticationError
 
-        with patch("keyring.get_password", return_value=None):
-            with pytest.raises(AuthenticationError, match="Tessie not configured"):
-                get_tessie_token()
+        with (
+            patch("keyring.get_password", return_value=None),
+            pytest.raises(AuthenticationError, match="Tessie not configured"),
+        ):
+            get_tessie_token()

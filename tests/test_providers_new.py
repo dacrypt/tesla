@@ -54,7 +54,10 @@ class TestMqttProvider:
     def test_available_with_broker_and_paho(self):
         p = self._provider()
         mock_paho = MagicMock()
-        with patch.dict("sys.modules", {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho}):
+        with patch.dict(
+            "sys.modules",
+            {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho},
+        ):
             assert p.is_available() is True
 
     def test_health_check_no_broker(self):
@@ -105,7 +108,10 @@ class TestMqttProvider:
     def test_status_row_available(self):
         p = self._provider()
         mock_paho = MagicMock()
-        with patch.dict("sys.modules", {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho}):
+        with patch.dict(
+            "sys.modules",
+            {"paho": mock_paho, "paho.mqtt": mock_paho, "paho.mqtt.client": mock_paho},
+        ):
             row = p.status_row()
         assert row["name"] == "mqtt"
         assert "mqtt.local" in row["detail"]
@@ -350,7 +356,11 @@ class TestAbrpProvider:
     def test_execute_charging_state_in_tlm(self):
         p = self._provider()
         data = {
-            "charge_state": {"battery_level": 50, "charging_state": "Charging", "charger_power": 11},
+            "charge_state": {
+                "battery_level": 50,
+                "charging_state": "Charging",
+                "charger_power": 11,
+            },
             "drive_state": {},
             "climate_state": {},
         }

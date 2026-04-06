@@ -933,7 +933,9 @@ def vehicle_schedule_charge(
 
 @vehicle_app.command("tires")
 def vehicle_tires(
-    history: bool = typer.Option(False, "--history", "-H", help="Show historical data (Tessie only)"),
+    history: bool = typer.Option(
+        False, "--history", "-H", help="Show historical data (Tessie only)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Show TPMS tire pressure readings.
@@ -957,7 +959,10 @@ def vehicle_tires(
             console.print("[dim]Configure Tessie: tesla config set tessie-token <token>[/dim]")
             raise typer.Exit(1)
         with Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            transient=True,
+            disable=is_json_mode(),
         ) as p:
             p.add_task("Fetching tire pressure history...", total=None)
             records = backend.get_tire_pressure_history(v)
@@ -1825,8 +1830,7 @@ def vehicle_watch(
                         change_data = [
                             {"key": c.split(":")[0].strip(), "change": c}
                             for c in [
-                                c.replace("[bold]", "").replace("[/bold]", "")
-                                for c in changes
+                                c.replace("[bold]", "").replace("[/bold]", "") for c in changes
                             ]
                         ]
                         env = {**os.environ, "TESLA_CHANGES": _json.dumps(change_data)}
@@ -2054,7 +2058,9 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
 
 @vehicle_app.command("summary")
 def vehicle_summary(
-    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output (tmux/cron friendly)"),
+    oneline: bool = typer.Option(
+        False, "--oneline", "-1", help="Single-line output (tmux/cron friendly)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Compact vehicle snapshot.
@@ -2154,7 +2160,9 @@ def vehicle_summary(
         lines.append(f"{climate_line}\n")
     if loc_line:
         lines.append(f"{loc_line}\n")
-    lines.append(f"{lock_icon} {'Locked' if locked else 'Unlocked'}  |  {sentry_icon}  |  🚗 {sw}\n")
+    lines.append(
+        f"{lock_icon} {'Locked' if locked else 'Unlocked'}  |  {sentry_icon}  |  🚗 {sw}\n"
+    )
     if odo:
         odo_km = round(odo * 1.60934)
         lines.append(f"📏 {odo_km:,} km")
@@ -2458,7 +2466,6 @@ def vehicle_revoke_invite(
     render_success(f"Invitation {invitation_id} revoked")
 
 
-
 @vehicle_app.command("export")
 def vehicle_export(
     output: str = typer.Option(None, "--output", "-o", help="Output file path (default: stdout)"),
@@ -2752,7 +2759,9 @@ def vehicle_status_line(vin: str | None = VinOption) -> None:
 
 @vehicle_app.command("stream-live")
 def vehicle_stream_live(
-    lines: int = typer.Option(50, "--lines", "-n", help="Number of recent log lines to show before following"),
+    lines: int = typer.Option(
+        50, "--lines", "-n", help="Number of recent log lines to show before following"
+    ),
     raw: bool = typer.Option(False, "--raw", help="Print raw log lines without formatting"),
     vin: str | None = VinOption,
 ) -> None:
@@ -2905,9 +2914,18 @@ def vehicle_weather(
         ("Condition", current.get("condition") or current.get("description") or ""),
         ("Temperature", _fmt_temp(current.get("temp") or current.get("temperature"))),
         ("Feels like", _fmt_temp(current.get("feels_like") or current.get("apparent_temperature"))),
-        ("Humidity", f"{current.get('humidity', '')}%" if current.get("humidity") is not None else ""),
-        ("Wind speed", f"{current.get('wind_speed', '')} m/s" if current.get("wind_speed") is not None else ""),
-        ("Visibility", f"{current.get('visibility', '')} m" if current.get("visibility") is not None else ""),
+        (
+            "Humidity",
+            f"{current.get('humidity', '')}%" if current.get("humidity") is not None else "",
+        ),
+        (
+            "Wind speed",
+            f"{current.get('wind_speed', '')} m/s" if current.get("wind_speed") is not None else "",
+        ),
+        (
+            "Visibility",
+            f"{current.get('visibility', '')} m" if current.get("visibility") is not None else "",
+        ),
         ("UV index", str(current.get("uvi") or current.get("uv_index") or "")),
     ]
     console.print()

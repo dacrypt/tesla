@@ -187,6 +187,7 @@ def vehicle_summary(request: Request) -> dict:
         },
     }
 
+
 @router.get("/alerts")
 def vehicle_alerts(request: Request) -> dict:
     """Recent vehicle alerts and fault codes."""
@@ -276,9 +277,7 @@ def vehicle_last_seen(request: Request) -> dict:
     if gps_ts:
         try:
             if isinstance(gps_ts, (int, float)):
-                last_dt = datetime.fromtimestamp(
-                    gps_ts / 1000 if gps_ts > 1e12 else gps_ts, tz=UTC
-                )
+                last_dt = datetime.fromtimestamp(gps_ts / 1000 if gps_ts > 1e12 else gps_ts, tz=UTC)
             else:
                 last_dt = datetime.fromisoformat(str(gps_ts))
             last_seen = last_dt.isoformat()

@@ -322,9 +322,7 @@ class OrderBackend:
                 doc_type = value.get(
                     "type", value.get("documentType", value.get("category", category))
                 )
-                doc_id = value.get(
-                    "id", value.get("documentId", value.get("document_id", ""))
-                )
+                doc_id = value.get("id", value.get("documentId", value.get("document_id", "")))
                 if url and isinstance(url, str) and url not in seen_urls:
                     seen_urls.add(url)
                     docs.append(
@@ -374,7 +372,7 @@ class OrderBackend:
         # Derive filename: prefer doc.name, fallback to URL basename
         raw_name = doc.name or doc.url.split("/")[-1].split("?")[0] or f"document-{doc.document_id}"
         # Sanitize filename
-        safe_name = re.sub(r'[^\w\s.\-]', "_", raw_name).strip()
+        safe_name = re.sub(r"[^\w\s.\-]", "_", raw_name).strip()
         if not safe_name.lower().endswith(".pdf") and ".pdf" in doc.url.lower():
             safe_name += ".pdf"
 

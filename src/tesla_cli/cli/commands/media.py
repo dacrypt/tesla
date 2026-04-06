@@ -99,11 +99,14 @@ def media_send_destination(
     ts = str(int(_time.time() * 1000))
     _with_wake(
         lambda b, v: b.command(
-            v, "share",
+            v,
+            "share",
             type="share_ext_content_raw",
             value={"android.intent.extra.TEXT": destination},
-            locale="en-US", timestamp_ms=ts,
-        ), v,
+            locale="en-US",
+            timestamp_ms=ts,
+        ),
+        v,
     )
     render_success(f"Destination sent: {destination}")
 
@@ -125,11 +128,14 @@ def media_home(vin: str | None = VinOption) -> None:
     ts = str(int(_time.time() * 1000))
     _with_wake(
         lambda b, v: b.command(
-            v, "share",
+            v,
+            "share",
             type="share_ext_content_raw",
             value={"android.intent.extra.TEXT": "Home"},
-            locale="en-US", timestamp_ms=ts,
-        ), v,
+            locale="en-US",
+            timestamp_ms=ts,
+        ),
+        v,
     )
     render_success("Navigating home")
 
@@ -143,10 +149,13 @@ def media_work(vin: str | None = VinOption) -> None:
     ts = str(int(_time.time() * 1000))
     _with_wake(
         lambda b, v: b.command(
-            v, "share",
+            v,
+            "share",
             type="share_ext_content_raw",
             value={"android.intent.extra.TEXT": "Work"},
-            locale="en-US", timestamp_ms=ts,
-        ), v,
+            locale="en-US",
+            timestamp_ms=ts,
+        ),
+        v,
     )
     render_success("Navigating to work")

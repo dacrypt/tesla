@@ -121,9 +121,7 @@ class FleetSignedBackend(VehicleBackend):
 
             token = get_token(FLEET_ACCESS_TOKEN)
             if not token:
-                raise AuthenticationError(
-                    "No Fleet API token. Run: tesla config auth fleet"
-                )
+                raise AuthenticationError("No Fleet API token. Run: tesla config auth fleet")
             cfg = load_config()
             self._read_backend = FleetBackend(access_token=token, region=cfg.fleet.region)
         return self._read_backend
@@ -142,9 +140,7 @@ class FleetSignedBackend(VehicleBackend):
             if not access_token:
                 from tesla_cli.core.exceptions import AuthenticationError
 
-                raise AuthenticationError(
-                    "No Fleet API token. Run: tesla config auth fleet"
-                )
+                raise AuthenticationError("No Fleet API token. Run: tesla config auth fleet")
 
             session = aiohttp.ClientSession()
             api = TeslaFleetApi(

@@ -76,7 +76,9 @@ def notify_remove(body: RemoveChannelRequest) -> dict:
     cfg = load_config()
     urls = cfg.notifications.apprise_urls
     if body.index < 0 or body.index >= len(urls):
-        raise HTTPException(status_code=404, detail=f"Invalid index {body.index}. Have {len(urls)} channels.")
+        raise HTTPException(
+            status_code=404, detail=f"Invalid index {body.index}. Have {len(urls)} channels."
+        )
     removed = urls.pop(body.index)
     if not urls:
         cfg.notifications.enabled = False

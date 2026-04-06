@@ -726,8 +726,7 @@ def _fetch_sessions(limit: int = 20) -> tuple[list, str]:
         raw = backend.get_charge_history()
         history = ChargingHistory.from_api(raw)
         fleet_sessions = [
-            ChargingSession.from_fleet_point(pt, cost_per_kwh)
-            for pt in history.points[:limit]
+            ChargingSession.from_fleet_point(pt, cost_per_kwh) for pt in history.points[:limit]
         ]
         if fleet_sessions:
             sources.append("Fleet API")
@@ -1015,7 +1014,12 @@ def charge_weekly(
                 {
                     "source": source,
                     "weeks": [
-                        {"week": w, "kwh": round(d["kwh"], 1), "cost": round(d["cost"], 2), "sessions": d["sessions"]}
+                        {
+                            "week": w,
+                            "kwh": round(d["kwh"], 1),
+                            "cost": round(d["cost"], 2),
+                            "sessions": d["sessions"],
+                        }
                         for w, d in sorted_weeks
                     ],
                 }
@@ -1078,7 +1082,9 @@ def charge_watch_complete(
         except ImportError:
             pass
 
-    console.print(f"  [dim]Watching for charge completion (every {interval}s, Ctrl+C to stop)...[/dim]")
+    console.print(
+        f"  [dim]Watching for charge completion (every {interval}s, Ctrl+C to stop)...[/dim]"
+    )
 
     try:
         while True:

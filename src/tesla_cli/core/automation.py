@@ -51,9 +51,7 @@ class AutomationEngine:
 
     def save_config(self) -> None:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_text(
-            json.dumps(self._config.model_dump(mode="json"), indent=2)
-        )
+        self.config_path.write_text(json.dumps(self._config.model_dump(mode="json"), indent=2))
 
     @property
     def rules(self) -> list[AutomationRule]:
@@ -116,9 +114,7 @@ class AutomationEngine:
         self._prev_state = dict(vehicle_data)
         return fired
 
-    def _check_trigger(
-        self, rule: AutomationRule, data: dict, prev_data: dict
-    ) -> bool:
+    def _check_trigger(self, rule: AutomationRule, data: dict, prev_data: dict) -> bool:
         t = rule.trigger
         trigger_type = t.type
 
@@ -133,20 +129,12 @@ class AutomationEngine:
         if trigger_type == "charging_complete":
             prev_state = _get_charging_state(prev_data)
             curr_state = _get_charging_state(data)
-            return (
-                prev_data != {}
-                and prev_state == "Charging"
-                and curr_state == "Complete"
-            )
+            return prev_data != {} and prev_state == "Charging" and curr_state == "Complete"
 
         if trigger_type == "charging_started":
             prev_state = _get_charging_state(prev_data)
             curr_state = _get_charging_state(data)
-            return (
-                prev_data != {}
-                and prev_state != "Charging"
-                and curr_state == "Charging"
-            )
+            return prev_data != {} and prev_state != "Charging" and curr_state == "Charging"
 
         if trigger_type == "sentry_event":
             prev_sentry = _get_nested(prev_data, "vehicle_state", "sentry_mode_active")
@@ -246,8 +234,7 @@ class AutomationEngine:
             import paho.mqtt.client as _mqtt  # type: ignore[import-untyped]
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
-                "paho-mqtt is required for MQTT mode. "
-                "Install with: pip install 'tesla-cli[mqtt]'"
+                "paho-mqtt is required for MQTT mode. Install with: pip install 'tesla-cli[mqtt]'"
             ) from exc
 
         resolved_topic = topic.format(vin=vin)

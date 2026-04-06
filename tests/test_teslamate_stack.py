@@ -26,14 +26,16 @@ def stack(stack_dir):
 
 class TestDockerChecks:
     def test_check_docker_not_installed(self, stack):
-        with patch("subprocess.run", side_effect=FileNotFoundError), pytest.raises(
-            DockerNotFoundError, match="Install Docker"
+        with (
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            pytest.raises(DockerNotFoundError, match="Install Docker"),
         ):
             stack.check_docker()
 
     def test_check_docker_daemon_not_running(self, stack):
-        with patch("subprocess.run", return_value=MagicMock(returncode=1)), pytest.raises(
-            DockerNotFoundError, match="daemon is not running"
+        with (
+            patch("subprocess.run", return_value=MagicMock(returncode=1)),
+            pytest.raises(DockerNotFoundError, match="daemon is not running"),
         ):
             stack.check_docker()
 
@@ -42,9 +44,10 @@ class TestDockerChecks:
             stack.check_docker()  # should not raise
 
     def test_check_docker_compose_not_found(self, stack):
-        with patch(
-            "subprocess.run", return_value=MagicMock(returncode=1, stdout="")
-        ), pytest.raises(DockerNotFoundError, match="compose.*plugin"):
+        with (
+            patch("subprocess.run", return_value=MagicMock(returncode=1, stdout="")),
+            pytest.raises(DockerNotFoundError, match="compose.*plugin"),
+        ):
             stack.check_docker_compose()
 
     def test_check_docker_compose_ok(self, stack):
@@ -157,9 +160,7 @@ class TestInstall:
     @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
     @patch("tesla_cli.infra.teslamate_stack.get_token")
     @patch("tesla_cli.infra.teslamate_stack.set_token")
-    def test_install_includes_tesla_tokens(
-        self, _st, mock_gt, mock_run, _wh, stack, stack_dir
-    ):
+    def test_install_includes_tesla_tokens(self, _st, mock_gt, mock_run, _wh, stack, stack_dir):
         def token_lookup(key):
             return {
                 "fleet-access-token": "access123",
