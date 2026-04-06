@@ -358,10 +358,14 @@ def serve(
             host,
             "--no-open",
         ]
+        if serve_ui or build_ui:
+            argv.append("--serve-ui")
         if reload:
             argv.append("--reload")
         if vin:
             argv += ["--vin", vin]
+        if api_key:
+            argv += ["--api-key", api_key]
 
         proc = subprocess.Popen(
             argv,
