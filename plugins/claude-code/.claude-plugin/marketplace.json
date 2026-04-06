@@ -10,7 +10,7 @@
     {
       "name": "tesla",
       "description": "Natural language Tesla vehicle management — status, charging, climate, order tracking, VIN intelligence, TeslaMate analytics, and a self-hosted React dashboard. Privacy-first, 100% local.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "David Velasquez",
         "email": "dacrypt@users.noreply.github.com"
@@ -27,5 +27,5 @@
       ]
     }
   ],
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

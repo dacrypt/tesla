@@ -4,7 +4,7 @@
 
 Full-stack Tesla management platform: CLI (Typer) + REST API (FastAPI) + Web Dashboard (React/Ionic). Tracks orders, controls vehicles, aggregates data from 15+ sources, integrates with TeslaMate/MQTT/HA/ABRP.
 
-**Version**: v4.7.3 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 1243
+**Version**: v4.8.0 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 1527
 
 ## Architecture (quick reference)
 

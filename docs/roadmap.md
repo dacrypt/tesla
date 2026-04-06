@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (v4.7.3)
+## Current State (v4.8.0)
 
-140+ commands across 17 groups, 1243+ tests, 70 documented API endpoints, 27 Prometheus gauges, React dashboard with 6 quick actions, 7 providers, managed TeslaMate stack, 15 data sources, 6 i18n languages, 9 --oneline commands for tmux/polybar, Claude Code plugin (9 skills).
+175+ commands across 20 groups, 1527 tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, 17 --oneline commands, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support.
 
 ---
 
-## Shipped (v4.0 → v4.7.3)
+## Shipped (v4.0 → v4.8.0)
 
 - ✅ **Charge History Unification** — `charge sessions` merges TeslaMate + Fleet API
 - ✅ **Battery Health** — `teslaMate battery-degradation` + `vehicle battery-health`

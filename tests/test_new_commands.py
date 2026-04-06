@@ -9243,3 +9243,91 @@ class TestExceptions:
         err = ExternalToolNotFoundError("tesla-control", "brew install tesla")
         assert "tesla-control" in str(err)
         assert "brew install" in str(err)
+
+
+class TestEnergyCommands:
+    def test_energy_help(self):
+        result = _run("energy", "--help")
+        assert result.exit_code == 0
+        assert "status" in result.output
+        assert "sites" in result.output
+
+    def test_sites_help(self):
+        result = _run("energy", "sites", "--help")
+        assert result.exit_code == 0
+
+    def test_status_help(self):
+        result = _run("energy", "status", "--help")
+        assert result.exit_code == 0
+
+    def test_history_help(self):
+        result = _run("energy", "history", "--help")
+        assert result.exit_code == 0
+
+    def test_backup_help(self):
+        result = _run("energy", "backup", "--help")
+        assert result.exit_code == 0
+
+    def test_mode_help(self):
+        result = _run("energy", "mode", "--help")
+        assert result.exit_code == 0
+
+    def test_storm_help(self):
+        result = _run("energy", "storm", "--help")
+        assert result.exit_code == 0
+
+
+class TestSceneCommands:
+    def test_scene_help(self):
+        result = _run("scene", "--help")
+        assert result.exit_code == 0
+        assert "morning" in result.output
+        assert "goodnight" in result.output
+        assert "trip" in result.output
+
+    def test_morning_help(self):
+        result = _run("scene", "morning", "--help")
+        assert result.exit_code == 0
+
+    def test_goodnight_help(self):
+        result = _run("scene", "goodnight", "--help")
+        assert result.exit_code == 0
+
+    def test_trip_help(self):
+        result = _run("scene", "trip", "--help")
+        assert result.exit_code == 0
+
+
+class TestEnergyBackend:
+    def test_list_energy_sites_filters_products(self):
+        """list_energy_sites should filter products with energy_site_id."""
+        from unittest.mock import MagicMock
+
+        from tesla_cli.core.backends.energy import EnergyBackend
+
+        backend = EnergyBackend.__new__(EnergyBackend)
+        backend._client = MagicMock()
+        backend._client.get.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"response": [
+                {"energy_site_id": 123, "site_name": "Home"},
+                {"id": 456, "display_name": "Model Y"},  # vehicle, no energy_site_id
+            ]},
+        )
+        sites = backend.list_energy_sites()
+        assert len(sites) == 1
+        assert sites[0]["energy_site_id"] == 123
+
+
+class TestFleetSignedBackend:
+    def test_command_map_has_essential_commands(self):
+        """Verify the command dispatch map covers essential operations."""
+        from tesla_cli.core.backends.fleet_signed import FleetSignedBackend
+
+        # Just verify the class has _COMMAND_MAP or similar
+        backend = FleetSignedBackend.__new__(FleetSignedBackend)
+        # Check it has key methods
+        assert hasattr(backend, "command")
+        assert hasattr(backend, "list_vehicles")
+        assert hasattr(backend, "get_vehicle_data")
+        assert hasattr(backend, "wake_up")

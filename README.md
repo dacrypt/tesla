@@ -9,9 +9,9 @@ Control your Tesla and track your order from the terminal — with a live web da
 ```
 tesla vehicle ready              → am I ready to drive?
 tesla charge status --oneline    → 🔋 72% | ⚡ 11kW | 1h30m to 80%
-tesla charge last                → most recent charge session + cost
-tesla charge weekly              → weekly kWh + cost summary
-tesla teslaMate battery-degradation → battery health trend
+tesla charge invoices            → download Supercharging invoices
+tesla scene morning              → run morning scene (climate, sentry, etc.)
+tesla energy status              → Powerwall/Solar backup + storm watch
 tesla serve                      → start REST API + web dashboard
 ```
 
@@ -27,7 +27,7 @@ uv tool install -e .
 tesla setup
 ```
 
-`tesla setup` is an interactive wizard: Tesla OAuth2 authentication, auto-discovery of your VIN and order number, optional vehicle control backend, and first data build.
+`tesla setup` is an interactive wizard: email + password is all you need. It handles OAuth2 authentication, VIN auto-discovery, optional vehicle control backend selection, and first data build — tiered so basic features work immediately.
 
 Config: `~/.tesla-cli/config.toml` | Tokens: system keyring (never plain text)
 
@@ -48,28 +48,37 @@ uv tool install -e ".[pdf]"         # PDF dossier export
 Track your Tesla order with change detection, push notifications, delivery ETA estimation, and a 13-gate delivery journey tracker.
 
 ### Vehicle Control
-Lock/unlock, charging, climate, sentry mode, windows, trunk/frunk, software updates, speed limit, and 50+ more commands. Three backends: Owner API (free), Tessie, Fleet API. Quick status with `--oneline` for tmux/cron. Export state to JSON/CSV.
+Lock/unlock, charging, climate, sentry mode, windows, trunk/frunk, software updates, speed limit, and 50+ more commands. Three backends: Owner API (free), Tessie, Fleet API (with signed-command support for 2024.26+ firmware). Scene commands (`tesla scene morning/goodnight/trip`) apply multi-step routines in one shot. Quick status with `--oneline` for tmux/cron. Export state to JSON/CSV.
 
 ### Charging Intelligence
-Unified charging sessions from TeslaMate + Fleet API with cost tracking. Schedule preview, forecast, cost summary, CSV export. 27 Prometheus gauges for Grafana dashboards.
+Unified charging sessions from TeslaMate + Fleet API with cost tracking. Schedule preview, forecast, cost summary, CSV export. Supercharging invoices download (`tesla charge invoices`). 27 Prometheus gauges for Grafana dashboards.
+
+### Energy (Powerwall / Solar)
+Monitor Powerwall backup reserve, grid state, solar production, and storm watch mode. Set backup percentage and energy mode without leaving the terminal.
+
+### Automation Engine
+Event-driven automation with 9 trigger types (geofence, charge %, time, climate, sentry, battery, speed, odometer, custom). Daemon management — start, stop, status, and log tailing in one command group.
+
+### Fleet Telemetry
+Self-hosted real-time streaming via Tesla's Fleet Telemetry protocol. Docker-managed receiver with automatic config push — low-latency alternative to polling.
 
 ### Data Sources
-15 registered sources with TTL caching: Tesla APIs, VIN decode (140+ option codes), NHTSA recalls, RUNT (Colombia), SIMIT, ship tracking. Historical snapshots with diff comparison and HTML/PDF export.
+15 registered sources with TTL caching: Tesla APIs, VIN decode (140+ option codes), NHTSA recalls, RUNT (Colombia), SIMIT, ship tracking. Historical snapshots with diff comparison and HTML/PDF export. Drive path export to GPX/GeoJSON from TeslaMate.
+
+### Portal Documents
+Download MVPA, purchase invoices, and other Tesla portal documents directly: `tesla portal documents`.
 
 ### TeslaMate Analytics
 Trip history, charging sessions, cost reports, drive heatmaps, vampire drain analysis, and more — from your TeslaMate PostgreSQL database. Includes managed Docker stack (one-command install).
 
 ### REST API + Web Dashboard
-FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notifications, dossier, TeslaMate. SSE live stream, Prometheus metrics (27 gauges), mobile-friendly React dashboard.
+FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notifications, dossier, TeslaMate. SSE live stream, Prometheus metrics (27 gauges), mobile-friendly React dashboard with Leaflet live map (dark tiles) and Recharts analytics visualizations.
 
 ### Integrations
-MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services). Config doctor validates all connections.
+MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services), Apple Shortcuts via `web+tesla://` URL scheme. Config doctor validates all connections.
 
 ### Claude Code Plugin
-Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). The plugin lives in [`plugins/claude-code/`](plugins/claude-code/) — nine skills covering status, control, charging, order tracking, dossier, analytics, and the web dashboard. See the [plugin README](plugins/claude-code/README.md) for setup.
-
-### Data Sources
-15 registered sources with TTL caching and change detection: Tesla APIs, NHTSA, RUNT (Colombia), SIMIT, Fasecolda, ship tracking, and more via the OpenQuery library.
+Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). The plugin lives in [`plugins/claude-code/`](plugins/claude-code/) — eleven skills covering status, control, charging, order tracking, dossier, analytics, automations, telemetry, and the web dashboard. See the [plugin README](plugins/claude-code/README.md) for setup.
 
 ---
 
@@ -79,13 +88,13 @@ Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claud
 tesla/
 ├── src/tesla_cli/         # Python CLI + FastAPI backend
 │   ├── core/              # Business logic (backends, models, providers)
-│   ├── cli/               # Typer CLI (14 command groups, 100+ commands)
+│   ├── cli/               # Typer CLI (14 command groups, 175+ commands)
 │   ├── api/               # FastAPI REST API (45+ endpoints, SSE, Prometheus)
 │   └── infra/             # Docker Compose lifecycle
 ├── ui/                    # React 19 + Ionic web dashboard
 ├── plugins/
-│   └── claude-code/       # Claude Code plugin (9 skills)
-├── tests/                 # pytest suite (1243 tests)
+│   └── claude-code/       # Claude Code plugin (11 skills)
+├── tests/                 # pytest suite (1527 tests)
 ├── docs/                  # Architecture, API ref, user guide, roadmap
 └── docker/                # TeslaMate stack configs
 ```
@@ -112,7 +121,7 @@ tesla/
 
 ```bash
 uv sync --extra dev --extra serve --extra teslaMate --extra fleet --extra pdf
-uv run pytest -m "not integration"         # unit tests (1132 tests)
+uv run pytest -m "not integration"         # unit tests (1527 tests)
 uv run ruff check src/ tests/              # lint
 ```
 
