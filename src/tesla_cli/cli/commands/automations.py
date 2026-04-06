@@ -11,6 +11,7 @@ from tesla_cli.cli.output import console, is_json_mode, render_success, render_w
 from tesla_cli.core.automation import AUTOMATIONS_FILE, AutomationEngine
 from tesla_cli.core.models.automation import (
     AutomationAction,
+    AutomationCondition,
     AutomationRule,
     AutomationTrigger,
 )
@@ -112,6 +113,7 @@ def automations_list(
     table.add_column("Name")
     table.add_column("Trigger")
     table.add_column("Action")
+    table.add_column("Cond", width=5)
     table.add_column("Last fired", width=12)
     table.add_column("Cooldown", width=10)
 
@@ -133,11 +135,14 @@ def automations_list(
             cmd = rule.action.command[:40]
             action_desc += f": {cmd}{'…' if len(rule.action.command) > 40 else ''}"
 
+        cond_count = str(len(rule.conditions)) if rule.conditions else "[dim]—[/dim]"
+
         table.add_row(
             _status_icon(rule.enabled),
             rule.name,
             trigger_desc,
             action_desc,
+            cond_count,
             _cooldown_str(rule),
             f"{rule.cooldown_minutes}m",
         )
@@ -154,7 +159,14 @@ def automations_add(
     name: str = typer.Option("", "--name", "-n", help="Rule name"),
     trigger_type: str = typer.Option("", "--trigger", "-t", help="Trigger type"),
     action_type: str = typer.Option("", "--action", "-a", help="Action type (notify/command)"),
-    cooldown: int = typer.Option(30, "--cooldown", "-c", help="Cooldown in minutes"),
+    cooldown: int = typer.Option(30, "--cooldown", help="Cooldown in minutes"),
+    condition: list[str] = typer.Option(  # noqa: B008
+        [],
+        "--condition",
+        "-c",
+        help="Condition: field:op:value (e.g. charge_state.battery_level:lt:90)",
+    ),
+    delay: int = typer.Option(0, "--delay", help="Delay in seconds before action"),
 ) -> None:
     """Interactively add a new automation rule.
 
@@ -222,11 +234,22 @@ def automations_add(
 
     action = AutomationAction(**action_kwargs)
 
+    # Parse conditions from "field:op:value" format
+    parsed_conditions: list[AutomationCondition] = []
+    for cond_str in condition:
+        parts = cond_str.split(":", 2)
+        if len(parts) != 3:  # noqa: PLR2004
+            console.print(f"[red]Invalid condition format '{cond_str}'. Use field:op:value.[/red]")
+            raise typer.Exit(1)
+        parsed_conditions.append(AutomationCondition(field=parts[0], operator=parts[1], value=parts[2]))
+
     rule = AutomationRule(
         name=name,
         trigger=trigger,
         action=action,
+        conditions=parsed_conditions,
         cooldown_minutes=cooldown,
+        delay_seconds=delay,
     )
 
     # Check for name collision

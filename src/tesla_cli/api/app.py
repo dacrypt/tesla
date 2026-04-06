@@ -203,6 +203,7 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
+    from tesla_cli.api.routes.fleet import router as fleet_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
@@ -218,6 +219,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(notify_router, prefix="/api/notify", tags=["Notify"])
     app.include_router(geofence_router, prefix="/api/geofences", tags=["Geofences"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
+    app.include_router(fleet_router, prefix="/api/fleet", tags=["Fleet"])
 
 
 def _register_system_endpoints(app: FastAPI) -> None:

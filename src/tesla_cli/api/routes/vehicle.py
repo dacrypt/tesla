@@ -320,3 +320,53 @@ def vehicle_status_line(request: Request) -> dict:
         "charging_state": cs.get("charging_state"),
         "charger_power": cs.get("charger_power"),
     }
+
+
+# ── Vehicle sharing / invitations ────────────────────────────────────────────
+
+
+class InviteRequest(BaseModel):
+    email: str
+
+
+@router.get("/invitations")
+def vehicle_invitations(request: Request) -> list:
+    """List active driver invitations for the vehicle."""
+    backend, v = _backend_and_vin(request)
+    try:
+        result = backend.command(v, "share_invite_list")
+        invites = result if isinstance(result, list) else result.get("invitations", [])
+        return [
+            {
+                "id": inv.get("id", inv.get("share_user_id", "")),
+                "email": inv.get("email", ""),
+                "name": inv.get("name", ""),
+                "created_at": inv.get("created_at", ""),
+                "status": inv.get("status", "pending"),
+            }
+            for inv in invites
+        ]
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/invite")
+def vehicle_invite(body: InviteRequest, request: Request) -> dict:
+    """Invite a driver to access the vehicle."""
+    backend, v = _backend_and_vin(request)
+    try:
+        result = backend.command(v, "share_invite_send", email=body.email)
+        return {"ok": True, "invite_id": result.get("id") if isinstance(result, dict) else None}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.delete("/invite/{invite_id}")
+def vehicle_revoke_invite(invite_id: str, request: Request) -> dict:
+    """Revoke a driver invitation."""
+    backend, v = _backend_and_vin(request)
+    try:
+        backend.command(v, "share_invite_revoke", id=invite_id)
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))

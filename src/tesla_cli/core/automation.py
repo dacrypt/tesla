@@ -8,10 +8,16 @@ from __future__ import annotations
 import json
 import math
 import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tesla_cli.core.models.automation import AutomationAction, AutomationConfig, AutomationRule
+from tesla_cli.core.models.automation import (
+    AutomationAction,
+    AutomationCondition,
+    AutomationConfig,
+    AutomationRule,
+)
 
 AUTOMATIONS_FILE = Path.home() / ".tesla-cli" / "automations.json"
 
@@ -102,10 +108,12 @@ class AutomationEngine:
 
             triggered = self._check_trigger(rule, vehicle_data, self._prev_state)
             if triggered:
+                if not self._check_conditions(rule.conditions, vehicle_data):
+                    continue  # conditions not met, skip
                 msg = self._format_action(rule.action, vehicle_data)
                 fired.append((rule, msg))
                 if not dry_run:
-                    self._execute_action(rule.action, vehicle_data)
+                    self._execute_action_with_delay_retry(rule, vehicle_data)
                     rule.last_fired = now
 
         if not dry_run:
@@ -189,6 +197,38 @@ class AutomationEngine:
             return inside and not was_inside
         else:
             return not inside and was_inside
+
+    def _check_conditions(self, conditions: list[AutomationCondition], data: dict) -> bool:
+        """Check if ALL conditions are met."""
+        for cond in conditions:
+            value = _get_nested_flat(data, cond.field)
+            if value is None:
+                return False
+            if cond.operator == "lt" and float(value) >= float(cond.value):
+                return False
+            if cond.operator == "gt" and float(value) <= float(cond.value):
+                return False
+            if cond.operator == "eq" and str(value) != cond.value:
+                return False
+            if cond.operator == "ne" and str(value) == cond.value:
+                return False
+            if cond.operator == "contains" and cond.value not in str(value):
+                return False
+        return True
+
+    def _execute_action_with_delay_retry(self, rule: AutomationRule, data: dict) -> None:
+        """Execute action with optional delay and retry logic."""
+        if rule.delay_seconds > 0:
+            time.sleep(rule.delay_seconds)
+        for attempt in range(max(1, rule.retry_count + 1)):
+            try:
+                self._execute_action(rule.action, data)
+                break
+            except Exception:  # noqa: BLE001
+                if attempt < rule.retry_count:
+                    time.sleep(rule.retry_delay_seconds)
+                else:
+                    raise
 
     def _format_action(self, action: AutomationAction, data: dict) -> str:
         """Format the action message using vehicle data as template vars."""
