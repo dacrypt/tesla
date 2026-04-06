@@ -9427,3 +9427,93 @@ class TestFleetSignedBackend:
         assert hasattr(backend, "list_vehicles")
         assert hasattr(backend, "get_vehicle_data")
         assert hasattr(backend, "wake_up")
+
+
+class TestCompoundAutomations:
+    def test_condition_lt_fires(self):
+        """Rule with condition lt should fire when value below threshold."""
+        import tempfile
+        from pathlib import Path
+
+        from tesla_cli.core.automation import AutomationEngine
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationCondition,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            engine = AutomationEngine(Path(tmp) / "automations.json")
+            rule = AutomationRule(
+                name="low-battery",
+                trigger=AutomationTrigger(type="battery_below", threshold=20),
+                action=AutomationAction(type="notify", message="Battery low: {battery_level}%"),
+                conditions=[
+                    AutomationCondition(
+                        field="charge_state.battery_level", operator="lt", value="20"
+                    )
+                ],
+                cooldown_minutes=0,
+            )
+            engine.add_rule(rule)
+
+            vehicle_data = {
+                "charge_state": {"battery_level": 15, "charging_state": "Disconnected"},
+                "drive_state": {},
+                "vehicle_state": {},
+            }
+            fired = engine.evaluate(vehicle_data, dry_run=True)
+            assert any(r.name == "low-battery" for r, _ in fired)
+
+    def test_condition_not_met_skips(self):
+        """Rule should not fire when condition is not met."""
+        import tempfile
+        from pathlib import Path
+
+        from tesla_cli.core.automation import AutomationEngine
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationCondition,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            engine = AutomationEngine(Path(tmp) / "automations.json")
+            rule = AutomationRule(
+                name="high-battery-check",
+                trigger=AutomationTrigger(type="battery_below", threshold=20),
+                action=AutomationAction(type="notify", message="Battery low"),
+                conditions=[
+                    AutomationCondition(
+                        field="charge_state.battery_level", operator="lt", value="20"
+                    )
+                ],
+                cooldown_minutes=0,
+            )
+            engine.add_rule(rule)
+
+            vehicle_data = {
+                "charge_state": {"battery_level": 80, "charging_state": "Disconnected"},
+                "drive_state": {},
+                "vehicle_state": {},
+            }
+            fired = engine.evaluate(vehicle_data, dry_run=True)
+            assert not any(r.name == "high-battery-check" for r, _ in fired)
+
+    def test_delay_field_exists(self):
+        """AutomationRule should have delay_seconds field."""
+        from tesla_cli.core.models.automation import (
+            AutomationAction,
+            AutomationRule,
+            AutomationTrigger,
+        )
+
+        rule = AutomationRule(
+            name="test",
+            trigger=AutomationTrigger(type="battery_below", threshold=20),
+            action=AutomationAction(type="notify", message="test"),
+        )
+        assert rule.delay_seconds == 0
+        assert rule.retry_count == 0

@@ -64,6 +64,13 @@ tesla vehicle tires              # TPMS pressure readings
 tesla vehicle alerts             # recent fault codes
 ```
 
+## Fleet Status
+
+```bash
+tesla vehicle fleet-status       # all vehicles at a glance
+tesla security lock --all        # lock all vehicles
+```
+
 ## Pre-delivery Fallback
 
 If vehicle commands fail with HTTP 412, `ConfigurationError`, or `AuthenticationError`, the car may not be delivered yet. You MUST run ALL of these commands in order:

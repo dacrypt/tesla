@@ -75,6 +75,14 @@ tesla vehicle speed-limit --on 90  # set speed limit
 tesla vehicle speed-limit --off
 ```
 
+## Dashcam
+
+```bash
+tesla dashcam list /Volumes/TESLADRIVE   # list clips
+tesla dashcam process ./clips -o out.mp4 # merge clips
+tesla dashcam export ./clips             # copy from USB
+```
+
 ## Media & Navigation
 
 ```bash

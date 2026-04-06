@@ -1213,32 +1213,17 @@ def charge_invoices(
     )
 
 
-@charge_app.command("savings")
-def charge_savings(
-    gas_price: float = typer.Option(4.50, "--gas-price", "-g", help="Gas price per gallon (USD)"),
-    mpg: float = typer.Option(28.0, "--mpg", help="Equivalent ICE vehicle MPG"),
-    period: str = typer.Option("all", "--period", "-p", help="Period: week, month, year, all"),
-    vin: str | None = VinOption,  # noqa: ARG001
-) -> None:
-    """Calculate EV vs gas savings from your charging data.
+def _fetch_savings_data(
+    period: str,
+    cost_per_kwh: float | None,
+) -> tuple[list, str, float, float, bool, float, bool]:
+    """Fetch and aggregate charging sessions for the savings calculator.
 
-    Compares actual electricity costs against what an equivalent gas car would have cost.
-
-    \b
-    tesla charge savings
-    tesla charge savings --gas-price 5.00 --mpg 30
-    tesla charge savings --period month
-    tesla -j charge savings
+    Returns (sessions, source, total_kwh, total_ev_cost, cost_estimated, total_miles,
+    miles_estimated).
     """
-    import json as _json
     from datetime import datetime, timedelta
 
-    from rich.table import Table
-
-    cfg = load_config()
-    cost_per_kwh = cfg.general.cost_per_kwh
-
-    # Fetch all sessions for aggregation
     sessions, source = _fetch_sessions(limit=500)
 
     if not sessions:
@@ -1251,21 +1236,18 @@ def charge_savings(
 
     # Filter by period
     now = datetime.now()
-    if period == "week":
-        cutoff = now - timedelta(weeks=1)
-    elif period == "month":
-        cutoff = now - timedelta(days=30)
-    elif period == "year":
-        cutoff = now - timedelta(days=365)
-    else:
-        cutoff = None
+    cutoff_map = {
+        "week": timedelta(weeks=1),
+        "month": timedelta(days=30),
+        "year": timedelta(days=365),
+    }
+    cutoff = (now - cutoff_map[period]) if period in cutoff_map else None
 
     if cutoff is not None:
         filtered = []
         for s in sessions:
             try:
-                dt = datetime.strptime(s.date[:10], "%Y-%m-%d")
-                if dt >= cutoff:
+                if datetime.strptime(s.date[:10], "%Y-%m-%d") >= cutoff:
                     filtered.append(s)
             except (ValueError, TypeError):
                 pass
@@ -1275,18 +1257,38 @@ def charge_savings(
         console.print(f"[yellow]No charging data in period: {period}[/yellow]")
         raise typer.Exit(1)
 
-    # Aggregate kWh and cost
     total_kwh = sum(s.kwh for s in sessions)
     sessions_with_cost = [s for s in sessions if s.cost is not None]
     total_ev_cost = sum(s.cost for s in sessions_with_cost)
 
-    # If no cost data, estimate from cost_per_kwh config
     cost_estimated = False
     if not sessions_with_cost and cost_per_kwh and cost_per_kwh > 0:
         total_ev_cost = total_kwh * float(cost_per_kwh)
         cost_estimated = True
     elif not sessions_with_cost:
         total_ev_cost = 0.0
+
+    return sessions, source, total_kwh, total_ev_cost, cost_estimated, sessions_with_cost
+
+
+def _calculate_savings(
+    cfg,  # noqa: ANN001
+    sessions: list,
+    source: str,
+    total_kwh: float,
+    total_ev_cost: float,
+    cost_estimated: bool,
+    sessions_with_cost: list,
+    gas_price: float,
+    mpg: float,
+    period: str,
+) -> None:
+    """Render the EV vs gas savings table (or JSON)."""
+    import json as _json
+
+    from rich.table import Table
+
+    cost_per_kwh = cfg.general.cost_per_kwh
 
     # Estimate miles driven: use TeslaMate driving stats when available
     total_miles: float | None = None
@@ -1302,19 +1304,13 @@ def charge_savings(
     except Exception:
         pass
 
-    # Fallback: estimate miles from kWh (Tesla avg ~3.5 mi/kWh)
     miles_estimated = False
     if not total_miles:
         total_miles = total_kwh * 3.5
         miles_estimated = True
 
-    # Calculate gas equivalent cost
     gas_cost = (total_miles / mpg) * gas_price
-
-    # Savings
     savings = gas_cost - total_ev_cost
-
-    # CO2 avoided: 8.89 kg CO2 per gallon of gas
     co2_kg = (total_miles / mpg) * 8.89
 
     if is_json_mode():
@@ -1376,6 +1372,41 @@ def charge_savings(
     if not sessions_with_cost and not cost_per_kwh:
         console.print("\n  [dim]Tip: Set your electricity rate for accurate cost comparison:[/dim]")
         console.print("  [dim]`tesla config set cost-per-kwh 0.22`[/dim]")
+
+
+@charge_app.command("savings")
+def charge_savings(
+    gas_price: float = typer.Option(4.50, "--gas-price", "-g", help="Gas price per gallon (USD)"),
+    mpg: float = typer.Option(28.0, "--mpg", help="Equivalent ICE vehicle MPG"),
+    period: str = typer.Option("all", "--period", "-p", help="Period: week, month, year, all"),
+    vin: str | None = VinOption,  # noqa: ARG001
+) -> None:
+    """Calculate EV vs gas savings from your charging data.
+
+    Compares actual electricity costs against what an equivalent gas car would have cost.
+
+    \b
+    tesla charge savings
+    tesla charge savings --gas-price 5.00 --mpg 30
+    tesla charge savings --period month
+    tesla -j charge savings
+    """
+    cfg = load_config()
+    sessions, source, total_kwh, total_ev_cost, cost_estimated, sessions_with_cost = (
+        _fetch_savings_data(period, cfg.general.cost_per_kwh)
+    )
+    _calculate_savings(
+        cfg,
+        sessions,
+        source,
+        total_kwh,
+        total_ev_cost,
+        cost_estimated,
+        sessions_with_cost,
+        gas_price,
+        mpg,
+        period,
+    )
 
 
 def _parse_days(days: str) -> str:
@@ -1495,59 +1526,29 @@ def charge_remove_schedule(
     render_success(f"Charge schedule {schedule_id} removed")
 
 
-@charge_app.command("budget")
-def charge_budget(
-    monthly_limit: float | None = typer.Option(None, "--set", help="Set monthly budget amount"),
-    currency: str = typer.Option("USD", "--currency", help="Currency code (e.g. USD, EUR, COP)"),
-    vin: str | None = VinOption,
-) -> None:
-    """Show or set monthly charging budget with alerts.
-
-    \b
-    tesla charge budget              # show current month vs budget
-    tesla charge budget --set 200    # set $200/month budget
-    tesla charge budget --set 0      # clear budget
-    """
+def _show_budget_status(cfg) -> None:  # noqa: ANN001
+    """Render the current month's charging budget status (table or JSON)."""
     import calendar
     import datetime
     import json as _json
 
-    from tesla_cli.core.config import save_config
+    from rich.panel import Panel
+    from rich.table import Table
 
-    cfg = load_config()
-
-    # ── Set budget ────────────────────────────────────────────────────────────
-    if monthly_limit is not None:
-        cfg.general.charge_budget = monthly_limit
-        if currency != "USD":
-            cfg.general.charge_budget_currency = currency
-        save_config(cfg)
-        if monthly_limit == 0:
-            render_success("Charging budget cleared")
-        else:
-            cur = cfg.general.charge_budget_currency
-            render_success(f"Monthly charging budget set to {cur} {monthly_limit:.2f}")
-        return
-
-    # ── Show budget ────────────────────────────────────────────────────────────
     budget = cfg.general.charge_budget
     cur = cfg.general.charge_budget_currency
 
-    # Gather this month's sessions
     now = datetime.datetime.now()
     month_days = calendar.monthrange(now.year, now.month)[1]
 
-    # Use _fetch_sessions helper (limit 500 to cover full month)
     try:
         sessions, source = _fetch_sessions(500)
     except Exception:
         sessions, source = [], "unavailable"
 
-    # Filter to current month
     month_sessions = []
     for s in sessions:
         try:
-            # TeslaMate dates are ISO format YYYY-MM-DD; Fleet API uses "Mar 15" style
             if len(s.date) >= 10 and s.date[:7] == now.strftime("%Y-%m"):
                 month_sessions.append(s)
         except Exception:
@@ -1557,7 +1558,6 @@ def charge_budget(
     kwh_total = sum(s.kwh for s in month_sessions if s.kwh)
     sessions_count = len(month_sessions)
 
-    # Project end-of-month spend based on elapsed days
     elapsed_days = now.day
     projected = (spent / elapsed_days * month_days) if elapsed_days > 0 and spent > 0 else spent
 
@@ -1580,9 +1580,6 @@ def charge_budget(
             )
         )
         return
-
-    from rich.panel import Panel
-    from rich.table import Table
 
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("Key", style="dim", width=28)
@@ -1611,3 +1608,35 @@ def charge_budget(
         t.add_row("Source", f"[dim]{source}[/dim]")
 
     console.print(Panel(t, title="[bold]Monthly Charging Budget[/bold]", border_style="blue"))
+
+
+@charge_app.command("budget")
+def charge_budget(
+    monthly_limit: float | None = typer.Option(None, "--set", help="Set monthly budget amount"),
+    currency: str = typer.Option("USD", "--currency", help="Currency code (e.g. USD, EUR, COP)"),
+    vin: str | None = VinOption,
+) -> None:
+    """Show or set monthly charging budget with alerts.
+
+    \b
+    tesla charge budget              # show current month vs budget
+    tesla charge budget --set 200    # set $200/month budget
+    tesla charge budget --set 0      # clear budget
+    """
+    from tesla_cli.core.config import save_config
+
+    cfg = load_config()
+
+    if monthly_limit is not None:
+        cfg.general.charge_budget = monthly_limit
+        if currency != "USD":
+            cfg.general.charge_budget_currency = currency
+        save_config(cfg)
+        if monthly_limit == 0:
+            render_success("Charging budget cleared")
+        else:
+            cur = cfg.general.charge_budget_currency
+            render_success(f"Monthly charging budget set to {cur} {monthly_limit:.2f}")
+        return
+
+    _show_budget_status(cfg)

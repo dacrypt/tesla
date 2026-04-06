@@ -46,6 +46,46 @@ def _status_icon(enabled: bool) -> str:
     return "[green]●[/green]" if enabled else "[dim]○[/dim]"
 
 
+def _parse_trigger_params(trigger_type: str) -> dict:
+    """Prompt for trigger-specific parameters and return kwargs dict."""
+    kwargs: dict = {"type": trigger_type}
+
+    if trigger_type in ("battery_below", "battery_above"):
+        threshold = typer.prompt("Threshold (%)", default="20")
+        kwargs["threshold"] = float(threshold)
+
+    elif trigger_type in ("location_enter", "location_exit"):
+        kwargs["latitude"] = float(typer.prompt("Latitude"))
+        kwargs["longitude"] = float(typer.prompt("Longitude"))
+        kwargs["radius_km"] = float(typer.prompt("Radius (km)", default="0.5"))
+
+    elif trigger_type == "state_change":
+        kwargs["field"] = typer.prompt("Field (e.g. charge_state.charging_state)")
+        from_val = typer.prompt("From value (leave blank for any)", default="")
+        to_val = typer.prompt("To value (leave blank for any)", default="")
+        if from_val:
+            kwargs["from_value"] = from_val
+        if to_val:
+            kwargs["to_value"] = to_val
+
+    elif trigger_type == "time_of_day":
+        kwargs["time"] = typer.prompt("Time (HH:MM)")
+
+    return kwargs
+
+
+def _parse_conditions(condition: list[str]) -> list[AutomationCondition]:
+    """Parse condition strings in 'field:op:value' format into AutomationCondition list."""
+    parsed: list[AutomationCondition] = []
+    for cond_str in condition:
+        parts = cond_str.split(":", 2)
+        if len(parts) != 3:  # noqa: PLR2004
+            console.print(f"[red]Invalid condition format '{cond_str}'. Use field:op:value.[/red]")
+            raise typer.Exit(1)
+        parsed.append(AutomationCondition(field=parts[0], operator=parts[1], value=parts[2]))
+    return parsed
+
+
 def _cooldown_str(rule: AutomationRule) -> str:
     if rule.last_fired is None:
         return "[dim]never[/dim]"
@@ -188,31 +228,7 @@ def automations_add(
         console.print(f"  Valid types: {', '.join(TRIGGER_TYPES)}")
         raise typer.Exit(1)
 
-    # Build trigger
-    trigger_kwargs: dict = {"type": trigger_type}
-
-    if trigger_type in ("battery_below", "battery_above"):
-        threshold = typer.prompt("Threshold (%)", default="20")
-        trigger_kwargs["threshold"] = float(threshold)
-
-    elif trigger_type in ("location_enter", "location_exit"):
-        trigger_kwargs["latitude"] = float(typer.prompt("Latitude"))
-        trigger_kwargs["longitude"] = float(typer.prompt("Longitude"))
-        trigger_kwargs["radius_km"] = float(typer.prompt("Radius (km)", default="0.5"))
-
-    elif trigger_type == "state_change":
-        trigger_kwargs["field"] = typer.prompt("Field (e.g. charge_state.charging_state)")
-        from_val = typer.prompt("From value (leave blank for any)", default="")
-        to_val = typer.prompt("To value (leave blank for any)", default="")
-        if from_val:
-            trigger_kwargs["from_value"] = from_val
-        if to_val:
-            trigger_kwargs["to_value"] = to_val
-
-    elif trigger_type == "time_of_day":
-        trigger_kwargs["time"] = typer.prompt("Time (HH:MM)")
-
-    trigger = AutomationTrigger(**trigger_kwargs)
+    trigger = AutomationTrigger(**_parse_trigger_params(trigger_type))
 
     # Build action
     if not action_type:
@@ -234,16 +250,7 @@ def automations_add(
 
     action = AutomationAction(**action_kwargs)
 
-    # Parse conditions from "field:op:value" format
-    parsed_conditions: list[AutomationCondition] = []
-    for cond_str in condition:
-        parts = cond_str.split(":", 2)
-        if len(parts) != 3:  # noqa: PLR2004
-            console.print(f"[red]Invalid condition format '{cond_str}'. Use field:op:value.[/red]")
-            raise typer.Exit(1)
-        parsed_conditions.append(
-            AutomationCondition(field=parts[0], operator=parts[1], value=parts[2])
-        )
+    parsed_conditions = _parse_conditions(condition)
 
     rule = AutomationRule(
         name=name,

@@ -107,6 +107,8 @@ _ROUTE_PATCHES = [
     "tesla_cli.api.routes.geofence.load_config",
     "tesla_cli.api.routes.geofence.get_vehicle_backend",
     "tesla_cli.api.routes.geofence.resolve_vin",
+    "tesla_cli.api.routes.fleet.load_config",
+    "tesla_cli.api.routes.fleet.get_vehicle_backend",
     "tesla_cli.api.app.load_config",
     "tesla_cli.api.app.resolve_vin",
 ]
@@ -463,3 +465,33 @@ class TestSecurityRoutes:
         client, _ = srv_asleep
         r = client.post("/api/security/trunk/rear")
         assert r.status_code == 503
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Fleet Routes — /api/fleet/*
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestFleetRoutes:
+    """Fleet summary route tests."""
+
+    def test_fleet_summary_empty(self, srv):
+        """Fleet summary with no aliases returns empty list."""
+        client, backend, cfg = srv
+        # Patch fleet.load_config to return a config with no aliases
+        from tesla_cli.core.config import Config
+
+        empty_cfg = Config()
+        empty_cfg.general.default_vin = ""
+        empty_cfg.vehicles.aliases = {}
+        with patch("tesla_cli.api.routes.fleet.load_config", return_value=empty_cfg):
+            r = client.get("/api/fleet/summary")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_fleet_summary_help_exists(self, srv):
+        """Fleet summary endpoint exists and returns a list."""
+        client, backend, cfg = srv
+        r = client.get("/api/fleet/summary")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
