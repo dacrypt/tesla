@@ -100,17 +100,29 @@ def charge_status(
 
 
 @charge_app.command("start")
-def charge_start(vin: str | None = VinOption) -> None:
+def charge_start(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Start charging."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would start charging for VIN ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "charge_start"), v)
     render_success("Charging started")
 
 
 @charge_app.command("stop")
-def charge_stop(vin: str | None = VinOption) -> None:
+def charge_stop(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Stop charging."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would stop charging for VIN ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "charge_stop"), v)
     render_success("Charging stopped")
 

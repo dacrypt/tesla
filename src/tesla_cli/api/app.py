@@ -225,13 +225,24 @@ def _register_system_endpoints(app: FastAPI) -> None:
     """Register /api/health, /api/status, /api/vehicles, /api/config, and provider endpoints."""
 
     @app.get("/api/health", tags=["System"])
-    def api_health() -> dict:
+    def api_health(deep: bool = False) -> dict:
         """Health check for Docker/Kubernetes liveness probes.
 
         Returns 200 with {"status": "ok"} — always succeeds if server is running.
         Use as: GET /api/health for Docker HEALTHCHECK or k8s livenessProbe.
+        Add ?deep=true for extended config/auth diagnostics.
         """
-        return {"status": "ok", "version": __version__}
+        result: dict = {"status": "ok", "version": __version__}
+        if deep:
+            from tesla_cli.core.auth import tokens
+
+            cfg = load_config()
+            result["backend"] = cfg.general.backend
+            result["vin_configured"] = bool(cfg.general.default_vin)
+            result["has_auth_token"] = tokens.has_token(tokens.ORDER_REFRESH_TOKEN)
+            result["telemetry_enabled"] = cfg.telemetry.enabled
+            result["teslamate_managed"] = cfg.teslaMate.managed
+        return result
 
     @app.get("/api/status", tags=["System"])
     def api_status(request: Request) -> dict:

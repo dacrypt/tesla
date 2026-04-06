@@ -322,10 +322,14 @@ def vehicle_wake(vin: str | None = VinOption) -> None:
 @vehicle_app.command("trunk")
 def vehicle_trunk(
     which: str = typer.Argument("rear", help="rear | front (frunk)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
     vin: str | None = VinOption,
 ) -> None:
     """Open trunk or frunk."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would open {which} trunk for VIN ...{v[-6:]}")
+        return
     cmd = "actuate_trunk"
     param = "rear" if which == "rear" else "front"
     _with_wake(lambda b, v: b.command(v, cmd, which_trunk=param), v)

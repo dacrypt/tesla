@@ -18,17 +18,29 @@ def _vin(vin: str | None) -> str:
 
 
 @security_app.command("lock")
-def security_lock(vin: str | None = VinOption) -> None:
+def security_lock(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Lock the vehicle."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would lock vehicle ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "door_lock"), v)
     render_success("Vehicle locked 🔒")
 
 
 @security_app.command("unlock")
-def security_unlock(vin: str | None = VinOption) -> None:
+def security_unlock(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview action without executing"),
+    vin: str | None = VinOption,
+) -> None:
     """Unlock the vehicle."""
     v = _vin(vin)
+    if dry_run:
+        console.print(f"[dim]Dry run:[/dim] Would unlock vehicle ...{v[-6:]}")
+        return
     _with_wake(lambda b, v: b.command(v, "door_unlock"), v)
     render_success("Vehicle unlocked 🔓")
 
