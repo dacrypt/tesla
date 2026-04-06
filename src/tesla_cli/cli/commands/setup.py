@@ -3,11 +3,12 @@
 Guides the user from zero to a fully configured CLI with their first data built:
   1. Tesla account auth (OAuth2 + PKCE)
   2. Auto-discover VIN and reservation number from the API
-  3. Vehicle control backend (fleet-signed recommended for 2024+ firmware)
-  4. Fleet Telemetry (real-time streaming, optional — requires Docker)
+  3. Vehicle control tier (basic / advanced / tessie)
+  4. Fleet Telemetry (real-time streaming, optional — Advanced tier only, requires Docker)
   5. TeslaMate Analytics (deep logging, optional — requires Docker)
   6. Notifications (Apprise URLs, optional)
-  7. Build the first data dossier (cross all data sources)
+  7. Default automations (optional)
+  8. Build the first data dossier (cross all data sources)
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from rich.prompt import Confirm, Prompt
 from tesla_cli.cli.output import console
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
-from tesla_cli.core.exceptions import AuthenticationError, TeslaCliError
+from tesla_cli.core.exceptions import AuthenticationError, EndpointDeprecatedError, TeslaCliError
 
 
 def setup_wizard(
@@ -38,11 +39,12 @@ def setup_wizard(
             "This wizard will:\n"
             "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
             "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
-            "  [dim]3.[/dim] Choose and configure a vehicle control backend\n"
-            "  [dim]4.[/dim] Optionally install fleet-telemetry for real-time streaming\n"
+            "  [dim]3.[/dim] Choose your tier (Basic works immediately — no registration needed)\n"
+            "  [dim]4.[/dim] Optionally install fleet-telemetry for real-time streaming (Advanced only)\n"
             "  [dim]5.[/dim] Optionally install TeslaMate for deep analytics\n"
             "  [dim]6.[/dim] Optionally set up push notifications\n"
-            "  [dim]7.[/dim] Build your first data dossier from all sources\n\n"
+            "  [dim]7.[/dim] Optionally configure smart automation rules\n"
+            "  [dim]8.[/dim] Build your first data dossier from all sources\n\n"
             "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
             border_style="cyan",
         )
@@ -70,7 +72,7 @@ def setup_wizard(
 
     # ── Step 1: Auth ────────────────────────────────────────────────────────────
     console.print(
-        Panel.fit("[bold]Step 1 / 7[/bold] — Tesla Account Authentication", border_style="blue")
+        Panel.fit("[bold]Step 1 / 8[/bold] — Tesla Account Authentication", border_style="blue")
     )
     console.print()
 
@@ -93,7 +95,7 @@ def setup_wizard(
 
     # ── Step 2: Auto-discover VIN + RN ─────────────────────────────────────────
     console.print(
-        Panel.fit("[bold]Step 2 / 7[/bold] — Discovering your order", border_style="blue")
+        Panel.fit("[bold]Step 2 / 8[/bold] — Discovering your order", border_style="blue")
     )
     console.print()
 
@@ -177,17 +179,23 @@ def setup_wizard(
 
     console.print()
 
-    # ── Step 3: Vehicle control backend ────────────────────────────────────────
+    # ── Step 3: Vehicle control tier ────────────────────────────────────────────
+    # Tier explanation:
+    #   basic    → Owner API, uses the token from Step 1, no extra registration
+    #   advanced → Fleet API (free, requires developer.tesla.com app)
+    #   tessie   → Paid third-party proxy (~$12/month)
     console.print(
         Panel.fit(
-            "[bold]Step 3 / 7[/bold] — Vehicle Control Backend\n\n"
-            "Choose how tesla-cli talks to your vehicle:\n\n"
-            "  [bold green]fleet-signed[/bold green]  [dim](recommended)[/dim] End-to-end encrypted commands via Fleet API.\n"
-            "               Required for 2024.26+ firmware. Requires a free developer.tesla.com app.\n"
-            "  [dim]fleet        Fleet API without signed commands (older firmware)[/dim]\n"
-            "  [dim]owner        Free — your Tesla account token (may not work on newer VINs)[/dim]\n"
-            "  [dim]tessie       Paid proxy service (tessie.com, ~$10/month)[/dim]\n"
-            "  [dim]skip         Configure later with: tesla config auth fleet[/dim]",
+            "[bold]Step 3 / 8[/bold] — Vehicle Control\n\n"
+            "Tesla CLI works in three tiers. Start with Basic — upgrade later if needed.\n\n"
+            "  [bold green]basic[/bold green]     Email + password only. Order tracking, vehicle data & commands.\n"
+            "            No registration needed. Works immediately.\n"
+            "            (Some newer VINs may need the Advanced tier)\n\n"
+            "  [dim]advanced  Tesla Developer API. Required for newer vehicles (2024+),\n"
+            "            signed commands, real-time telemetry, Powerwall/Solar.\n"
+            "            Free — requires registering an app at developer.tesla.com[/dim]\n\n"
+            "  [dim]tessie    Third-party proxy service (~$12/month).\n"
+            "            Alternative if you prefer a managed service.[/dim]",
             border_style="blue",
         )
     )
@@ -198,49 +206,63 @@ def setup_wizard(
     tessie_ok = tokens.has_token(tokens.TESSIE_TOKEN)
     fleet_ok = tokens.has_token(tokens.FLEET_ACCESS_TOKEN)
 
-    backend_selected = cfg.general.backend  # track what was chosen for step 4 gating
+    # Track which tier was chosen — used to gate Step 4 (Fleet Telemetry)
+    tier_selected = "basic"  # default
 
     if (already_owner or tessie_ok or fleet_ok) and not force:
-        backend_name = (
-            cfg.general.backend if already_owner else ("tessie" if tessie_ok else "fleet")
-        )
+        # Derive a display name for the existing configuration
+        if tessie_ok:
+            backend_name = "tessie"
+            tier_selected = "tessie"
+        elif fleet_ok:
+            backend_name = cfg.general.backend  # fleet or fleet-signed
+            tier_selected = "advanced"
+        else:
+            backend_name = "owner"
+            tier_selected = "basic"
         console.print(
             f"[green]✓ Vehicle backend already configured ({backend_name}) — skipping.[/green]"
         )
-        backend_selected = backend_name
     else:
         choice = Prompt.ask(
-            "Vehicle backend",
-            choices=["fleet-signed", "fleet", "owner", "tessie", "skip"],
-            default="fleet-signed",
+            "Choose tier",
+            choices=["basic", "advanced", "tessie"],
+            default="basic",
         )
-        backend_selected = choice
-        if choice in ("fleet-signed", "fleet"):
+
+        if choice == "basic":
+            # Owner API token already obtained in Step 1 — nothing more to do
+            cfg = load_config()
+            cfg.general.backend = "owner"
+            save_config(cfg)
+            tier_selected = "basic"
+            console.print(
+                "[green]✓ Using your existing Tesla account token — no extra setup needed.[/green]"
+            )
+
+        elif choice == "advanced":
+            tier_selected = "advanced"
+            _show_fleet_api_guide()
             try:
                 from tesla_cli.cli.commands.config_cmd import _auth_fleet
 
                 _auth_fleet()
-                # Override backend to fleet-signed if requested
-                if choice == "fleet-signed":
-                    cfg = load_config()
-                    cfg.general.backend = "fleet-signed"
-                    save_config(cfg)
-                    console.print(
-                        "[green]✓ Backend set to 'fleet-signed' — end-to-end encrypted commands enabled.[/green]"
-                    )
+                # Default to fleet-signed for full signed-command support
+                cfg = load_config()
+                cfg.general.backend = "fleet-signed"
+                save_config(cfg)
+                console.print(
+                    "[green]✓ Backend set to 'fleet-signed' — end-to-end encrypted commands enabled.[/green]"
+                )
             except (TeslaCliError, KeyboardInterrupt, EOFError):
                 console.print(
                     "[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth fleet[/bold]"
                 )
-                backend_selected = "skip"
-        elif choice == "owner":
-            cfg = load_config()
-            cfg.general.backend = "owner"
-            save_config(cfg)
-            console.print(
-                "[green]✓ Vehicle backend set to 'owner' — no extra setup needed.[/green]"
-            )
-        elif choice == "tessie":
+                # Fall back to basic so Step 4 is correctly gated
+                tier_selected = "basic"
+
+        else:  # tessie
+            tier_selected = "tessie"
             try:
                 from tesla_cli.cli.commands.config_cmd import _auth_tessie
 
@@ -249,30 +271,37 @@ def setup_wizard(
                 console.print(
                     "[yellow]Skipping — configure later with[/yellow] [bold]tesla config auth tessie[/bold]"
                 )
-                backend_selected = "skip"
-        else:
-            console.print(
-                "[dim]Skipped — run [bold]tesla config set backend fleet-signed[/bold] when ready.[/dim]"
-            )
+                tier_selected = "basic"
 
     console.print()
 
+    # ── Auto-detect 412 / Owner API blocked ────────────────────────────────────
+    # If the user chose basic (Owner API), do a quick probe to see if their VIN
+    # is blocked and offer to upgrade to Advanced right now.
+    cfg = load_config()
+    if tier_selected == "basic" and cfg.general.default_vin:
+        tier_selected = _check_owner_api_and_maybe_upgrade(cfg, tier_selected, force)
+        console.print()
+
     # ── Step 4: Fleet Telemetry ─────────────────────────────────────────────────
+    # Fleet Telemetry is only meaningful with the Advanced tier (Fleet API).
+    # Skip it with an informative message for Basic/Tessie users.
     console.print(
         Panel.fit(
-            "[bold]Step 4 / 7[/bold] — Fleet Telemetry [dim](real-time streaming)[/dim]\n\n"
+            "[bold]Step 4 / 8[/bold] — Fleet Telemetry [dim](real-time streaming)[/dim]\n\n"
             "Fleet Telemetry streams live data directly from your vehicle — speed,\n"
             "location, battery state — without polling the Tesla API.\n\n"
-            "[dim]Requires: Docker, a publicly reachable hostname (or local network setup)[/dim]",
+            "[dim]Requires: Advanced tier + Docker + a publicly reachable hostname[/dim]",
             border_style="blue",
         )
     )
     console.print()
 
-    # Only meaningful with fleet/fleet-signed backend
-    if backend_selected not in ("fleet", "fleet-signed"):
+    if tier_selected != "advanced":
+        # Not on Fleet API — telemetry is unavailable
         console.print(
-            "[dim]Skipping — fleet-telemetry requires fleet or fleet-signed backend.[/dim]"
+            "[dim]Fleet Telemetry requires the Advanced tier — skipping.[/dim]\n"
+            "[dim]Upgrade anytime with: tesla config auth fleet[/dim]"
         )
     else:
         # Check Docker availability first
@@ -314,9 +343,10 @@ def setup_wizard(
     console.print()
 
     # ── Step 5: TeslaMate ───────────────────────────────────────────────────────
+    # TeslaMate works with any tier — always offered.
     console.print(
         Panel.fit(
-            "[bold]Step 5 / 7[/bold] — TeslaMate Analytics [dim](optional)[/dim]\n\n"
+            "[bold]Step 5 / 8[/bold] — TeslaMate Analytics [dim](optional)[/dim]\n\n"
             "TeslaMate logs every drive, charge, and sleep — giving you beautiful\n"
             "Grafana dashboards with historical efficiency, range, and cost data.\n\n"
             "[dim]Requires: Docker[/dim]",
@@ -363,7 +393,7 @@ def setup_wizard(
     # ── Step 6: Notifications ───────────────────────────────────────────────────
     console.print(
         Panel.fit(
-            "[bold]Step 6 / 7[/bold] — Notifications [dim](optional)[/dim]\n\n"
+            "[bold]Step 6 / 8[/bold] — Notifications [dim](optional)[/dim]\n\n"
             "Get push notifications when your vehicle finishes charging,\n"
             "a software update is ready, or automations fire.\n\n"
             "Supported: Telegram, Discord, Slack, email, Pushover, and 80+ more\n"
@@ -394,7 +424,7 @@ def setup_wizard(
 
     console.print()
 
-    # ── Step 6.5: Automations ───────────────────────────────────────────────────
+    # ── Step 7: Automations ─────────────────────────────────────────────────────
     setup_automations = Confirm.ask(
         "Set up smart automation rules? These fire automatically when conditions are met.",
         default=False,
@@ -408,13 +438,13 @@ def setup_wizard(
 
     console.print()
 
-    # ── Step 7: Build dossier ───────────────────────────────────────────────────
+    # ── Step 8: Build dossier ───────────────────────────────────────────────────
     if skip_build:
         console.print("[dim]Skipping data build (--skip-build).[/dim]")
     else:
         console.print(
             Panel.fit(
-                "[bold]Step 7 / 7[/bold] — Building your vehicle data", border_style="blue"
+                "[bold]Step 8 / 8[/bold] — Building your vehicle data", border_style="blue"
             )
         )
         console.print("[dim]Pulling from Tesla API, NHTSA, RUNT, ship tracking...[/dim]\n")
@@ -451,28 +481,127 @@ def setup_wizard(
 
     # ── Done ────────────────────────────────────────────────────────────────────
     console.print()
-    console.print(
-        Panel.fit(
-            "[bold green]✓ Setup complete![/bold green]\n\n"
-            "Next steps:\n"
-            "  [bold]tesla config doctor[/bold]        — validate all connections\n"
-            "  [bold]tesla vehicle ready[/bold]        — check if your car is ready to drive\n"
-            "  [bold]tesla vehicle summary[/bold]      — compact vehicle status\n\n"
-            "Daily commands:\n"
-            "  [bold]tesla charge status[/bold]        — current charge state\n"
-            "  [bold]tesla charge last[/bold]          — most recent charging session\n"
-            "  [bold]tesla order status[/bold]         — check your order\n"
-            "  [bold]tesla order watch -i 5[/bold]     — monitor for changes every 5 min\n\n"
-            "Infrastructure:\n"
-            "  [bold]tesla telemetry status[/bold]     — fleet-telemetry streaming status\n"
-            "  [bold]tesla teslaMate status[/bold]     — TeslaMate analytics status\n"
-            "  [bold]tesla config doctor[/bold]        — full system health check",
-            border_style="green",
-        )
-    )
+    _print_done_panel(tier_selected)
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
+
+
+def _show_fleet_api_guide() -> None:
+    """Print step-by-step instructions for registering a Fleet API app."""
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold]To set up Fleet API (free, ~5 minutes):[/bold]\n\n"
+            "  1. Go to [cyan]https://developer.tesla.com[/cyan]\n"
+            "  2. Sign in with your Tesla account\n"
+            "  3. Click [bold]Create Application[/bold]\n"
+            "  4. Fill in:\n"
+            "       - Name: anything (e.g. [italic]my-tesla-cli[/italic])\n"
+            "       - Redirect URI: [cyan]https://auth.tesla.com/void/callback[/cyan]\n"
+            "       - Scopes: [dim]vehicle_device_data, vehicle_cmds, vehicle_charging_cmds[/dim]\n"
+            "  5. Copy the [bold]Client ID[/bold] and [bold]Client Secret[/bold] shown",
+            border_style="dim",
+        )
+    )
+    console.print()
+
+
+def _check_owner_api_and_maybe_upgrade(cfg: object, tier_selected: str, force: bool) -> str:
+    """Probe the Owner API for the configured VIN.
+
+    If the VIN receives a 412 EndpointDeprecated response, offer the user an
+    in-place upgrade to the Advanced (Fleet API) tier.  Returns the final tier.
+    """
+    from tesla_cli.core.config import Config
+
+    assert isinstance(cfg, Config)
+
+    try:
+        from tesla_cli.core.backends.owner import OwnerApiVehicleBackend
+
+        backend = OwnerApiVehicleBackend()
+        backend.list_vehicles()
+        console.print("[green]✓ Owner API working for your vehicle.[/green]")
+    except EndpointDeprecatedError:
+        console.print(
+            "[yellow]Your VIN requires the Advanced tier (Fleet API).[/yellow]\n"
+            "  The Owner API is blocked for newer Tesla vehicles.\n"
+        )
+        upgrade = Prompt.ask(
+            "Upgrade to Advanced (Fleet API) now?", choices=["y", "n"], default="y"
+        )
+        if upgrade == "y":
+            _show_fleet_api_guide()
+            try:
+                from tesla_cli.cli.commands.config_cmd import _auth_fleet
+
+                _auth_fleet()
+                cfg = load_config()
+                cfg.general.backend = "fleet-signed"
+                save_config(cfg)
+                console.print(
+                    "[green]✓ Upgraded to Advanced tier — fleet-signed backend active.[/green]"
+                )
+                return "advanced"
+            except (TeslaCliError, KeyboardInterrupt, EOFError):
+                console.print(
+                    "[yellow]Upgrade skipped — configure later with[/yellow] "
+                    "[bold]tesla config auth fleet[/bold]"
+                )
+    except Exception:
+        # Network error or other transient issue — silently skip the probe
+        pass
+
+    return tier_selected
+
+
+def _print_done_panel(tier_selected: str) -> None:
+    """Print the final summary panel, tailored to the chosen tier."""
+    if tier_selected == "advanced":
+        tier_line = "Tier: [bold green]Advanced[/bold green] (Fleet API)"
+        features_line = (
+            "Available: everything — telemetry, Powerwall, signed commands, analytics"
+        )
+        upgrade_line = ""
+    elif tier_selected == "tessie":
+        tier_line = "Tier: [bold cyan]Tessie[/bold cyan] (managed proxy)"
+        features_line = "Available: vehicle data, commands, order tracking, TeslaMate analytics"
+        upgrade_line = (
+            "\n  Upgrade to Fleet: [bold]tesla config auth fleet[/bold]"
+            " (for telemetry, Powerwall, signed commands)"
+        )
+    else:
+        # basic / owner
+        tier_line = "Tier: [bold]Basic[/bold] (email + password)"
+        features_line = (
+            "Available: order tracking, vehicle data, commands, TeslaMate analytics"
+        )
+        upgrade_line = (
+            "\n  Upgrade: [bold]tesla config auth fleet[/bold]"
+            " (for telemetry, Powerwall, signed commands)"
+        )
+
+    body = (
+        f"[bold green]✓ Setup complete![/bold green]\n\n"
+        f"  {tier_line}\n"
+        f"  {features_line}"
+        f"{upgrade_line}\n\n"
+        "Next steps:\n"
+        "  [bold]tesla config doctor[/bold]        — validate all connections\n"
+        "  [bold]tesla vehicle ready[/bold]        — check if your car is ready to drive\n"
+        "  [bold]tesla vehicle summary[/bold]      — compact vehicle status\n\n"
+        "Daily commands:\n"
+        "  [bold]tesla charge status[/bold]        — current charge state\n"
+        "  [bold]tesla charge last[/bold]          — most recent charging session\n"
+        "  [bold]tesla order status[/bold]         — check your order\n"
+        "  [bold]tesla order watch -i 5[/bold]     — monitor for changes every 5 min\n\n"
+        "Infrastructure:\n"
+        "  [bold]tesla telemetry status[/bold]     — fleet-telemetry streaming status\n"
+        "  [bold]tesla teslaMate status[/bold]     — TeslaMate analytics status\n"
+        "  [bold]tesla config doctor[/bold]        — full system health check"
+    )
+    console.print(Panel.fit(body, border_style="green"))
 
 
 def _check_docker_available() -> bool:
