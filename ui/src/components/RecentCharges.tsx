@@ -1,17 +1,15 @@
+import { useState, useEffect } from 'react';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent } from '@ionic/react';
-import { useQuery } from '@tanstack/react-query';
 import { api, ChargingSession } from '../api/client';
 
 export default function RecentCharges() {
-  const { data: sessions, isLoading, isError } = useQuery<ChargingSession[]>({
-    queryKey: ['charge-sessions'],
-    queryFn: () => api.getChargeSessions(5),
-    staleTime: 60_000,
-    retry: 1,
-  });
+  const [sessions, setSessions] = useState<ChargingSession[] | null>(null);
 
-  if (isLoading) return null;
-  if (isError || !sessions || sessions.length === 0) return null;
+  useEffect(() => {
+    api.getChargeSessions(5).then(setSessions).catch(() => setSessions(null));
+  }, []);
+
+  if (!sessions || sessions.length === 0) return null;
 
   const totalKwh = sessions.reduce((sum, s) => sum + s.kwh, 0);
   const totalCost = sessions
