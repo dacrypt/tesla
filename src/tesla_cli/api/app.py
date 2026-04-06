@@ -37,72 +37,85 @@ def _auto_provision_teslamate() -> None:
         return  # Docker not available — skip silently
 
     if cfg.teslaMate.managed and stack.is_installed():
-        # Already managed — ensure it's running
-        if not stack.is_running():
-            log.info("TeslaMate stack installed but stopped — starting...")
-            try:
-                stack.start()
-                log.info("TeslaMate stack started.")
-            except Exception as exc:
-                log.warning("Failed to start TeslaMate stack: %s", exc)
-        # Always sync tokens from keyring → TeslaMate
-        try:
-            import time as _t
-
-            _t.sleep(5)  # Wait for TeslaMate to be fully ready
-            if stack.sync_tokens_from_keyring():
-                log.info("Tesla tokens synced to TeslaMate.")
-            else:
-                log.debug("No tokens to sync or sync failed.")
-        except Exception as exc:
-            log.debug("Token sync skipped: %s", exc)
+        _ensure_teslamate_running(stack, log)
     elif not cfg.teslaMate.managed and not cfg.teslaMate.database_url:
-        # Not configured at all — auto-install
-        log.info("TeslaMate not configured — auto-installing managed stack...")
+        _auto_install_teslamate(stack, cfg, log)
+
+
+def _ensure_teslamate_running(stack, log) -> None:
+    """Start TeslaMate if installed but stopped, then sync tokens."""
+    if not stack.is_running():
+        log.info("TeslaMate stack installed but stopped — starting...")
         try:
-            from tesla_cli.core.config import save_config
-
-            # Pick free ports (avoid conflicts with host services)
-            ports = {
-                "postgres_port": 5432,
-                "grafana_port": 3000,
-                "teslamate_port": 4000,
-                "mqtt_port": 1883,
-            }
-            for key, default in ports.items():
-                port = default
-                while stack.port_in_use(port):
-                    port += 1
-                ports[key] = port
-            result = stack.install(**ports)
-            cfg = load_config()
-            cfg.teslaMate.database_url = result["database_url"]
-            cfg.teslaMate.managed = True
-            cfg.teslaMate.stack_dir = result["stack_dir"]
-            cfg.teslaMate.postgres_port = result["postgres_port"]
-            cfg.teslaMate.grafana_port = result["grafana_port"]
-            cfg.teslaMate.teslamate_port = result["teslamate_port"]
-            cfg.teslaMate.mqtt_port = result["mqtt_port"]
-            cfg.grafana.url = f"http://localhost:{result['grafana_port']}"
-            cfg.mqtt.broker = "localhost"
-            cfg.mqtt.port = result["mqtt_port"]
-            save_config(cfg)
-            health = "healthy" if result["healthy"] else "starting"
-            log.info(
-                "TeslaMate stack installed (%s). "
-                "UI: http://localhost:%s  Grafana: http://localhost:%s",
-                health,
-                result["teslamate_port"],
-                result["grafana_port"],
-            )
-            # Sync tokens to TeslaMate after install
-            import time as _t
-
-            _t.sleep(8)  # Wait for TeslaMate to fully start
-            if stack.sync_tokens_from_keyring():
-                log.info("Tesla tokens synced to TeslaMate after install.")
+            stack.start()
+            log.info("TeslaMate stack started.")
         except Exception as exc:
-            log.warning("Auto-install of TeslaMate stack failed: %s", exc)
+            log.warning("Failed to start TeslaMate stack: %s", exc)
+    # Always sync tokens from keyring → TeslaMate
+    try:
+        import time as _t
+
+        _t.sleep(5)  # Wait for TeslaMate to be fully ready
+        if stack.sync_tokens_from_keyring():
+            log.info("Tesla tokens synced to TeslaMate.")
+        else:
+            log.debug("No tokens to sync or sync failed.")
+    except Exception as exc:
+        log.debug("Token sync skipped: %s", exc)
+
+
+def _auto_install_teslamate(stack, cfg, log) -> None:
+    """Install TeslaMate managed stack and update config."""
+    log.info("TeslaMate not configured — auto-installing managed stack...")
+    try:
+        from tesla_cli.core.config import save_config
+
+        ports = _find_free_ports(stack)
+        result = stack.install(**ports)
+        cfg = load_config()
+        cfg.teslaMate.database_url = result["database_url"]
+        cfg.teslaMate.managed = True
+        cfg.teslaMate.stack_dir = result["stack_dir"]
+        cfg.teslaMate.postgres_port = result["postgres_port"]
+        cfg.teslaMate.grafana_port = result["grafana_port"]
+        cfg.teslaMate.teslamate_port = result["teslamate_port"]
+        cfg.teslaMate.mqtt_port = result["mqtt_port"]
+        cfg.grafana.url = f"http://localhost:{result['grafana_port']}"
+        cfg.mqtt.broker = "localhost"
+        cfg.mqtt.port = result["mqtt_port"]
+        save_config(cfg)
+        health = "healthy" if result["healthy"] else "starting"
+        log.info(
+            "TeslaMate stack installed (%s). "
+            "UI: http://localhost:%s  Grafana: http://localhost:%s",
+            health,
+            result["teslamate_port"],
+            result["grafana_port"],
+        )
+        import time as _t
+
+        _t.sleep(8)  # Wait for TeslaMate to fully start
+        if stack.sync_tokens_from_keyring():
+            log.info("Tesla tokens synced to TeslaMate after install.")
+    except Exception as exc:
+        log.warning("Auto-install of TeslaMate stack failed: %s", exc)
+
+
+def _find_free_ports(stack) -> dict:
+    """Find available ports for the TeslaMate stack services."""
+    defaults = {
+        "postgres_port": 5432,
+        "grafana_port": 3000,
+        "teslamate_port": 4000,
+        "mqtt_port": 1883,
+    }
+    ports = {}
+    for key, default in defaults.items():
+        port = default
+        while stack.port_in_use(port):
+            port += 1
+        ports[key] = port
+    return ports
 
 
 def _auto_refresh_sources() -> None:
@@ -148,6 +161,24 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         lifespan=_lifespan,
     )
 
+    _register_middleware(app)
+    _register_routes(app)
+    _register_system_endpoints(app)
+    _register_metrics(app)
+    _register_sse_stream(app)
+    _register_ui(app, serve_ui)
+
+    # Store resolved VIN in app state
+    app.state.override_vin = vin
+
+    return app
+
+
+# ── Registration helpers ───────────────────────────────────────────────────────
+
+
+def _register_middleware(app: FastAPI) -> None:
+    """Add CORS and API key middleware."""
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -155,16 +186,14 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # API Key auth middleware (no-op when key not configured)
     from tesla_cli.api.auth import ApiKeyMiddleware
 
-    cfg0 = load_config()
-    app.add_middleware(ApiKeyMiddleware, api_key=cfg0.server.api_key)
+    cfg = load_config()
+    app.add_middleware(ApiKeyMiddleware, api_key=cfg.server.api_key)
 
-    # Store resolved VIN in app state
-    app.state.override_vin = vin
 
-    # ── Register routes ───────────────────────────────────────────────────────
+def _register_routes(app: FastAPI) -> None:
+    """Include all API routers."""
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.charge import router as charge_router
     from tesla_cli.api.routes.climate import router as climate_router
@@ -191,7 +220,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     app.include_router(geofence_router, prefix="/api/geofences", tags=["Geofences"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
 
-    # ── System endpoints ──────────────────────────────────────────────────────
+
+def _register_system_endpoints(app: FastAPI) -> None:
+    """Register /api/health, /api/status, /api/vehicles, /api/config, and provider endpoints."""
 
     @app.get("/api/health", tags=["System"])
     def api_health() -> dict:
@@ -243,8 +274,6 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             "auth_enabled": bool(cfg.server.api_key),
         }
 
-    # ── Provider registry endpoints ───────────────────────────────────────────
-
     @app.get("/api/providers", tags=["System"])
     def api_providers() -> list:
         """Ecosystem provider status — availability and capabilities."""
@@ -266,7 +295,23 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             out[cap] = {"available": available, "all": all_p}
         return out
 
-    # ── Prometheus metrics endpoint ──────────────────────────────────────────
+    @app.get("/api/config/validate", tags=["System"])
+    def api_config_validate() -> dict:
+        """Run config validation checks — same as `tesla config validate`.
+
+        Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
+        """
+        from tesla_cli.cli.commands.config_cmd import _run_config_checks
+
+        cfg = load_config()
+        checks = _run_config_checks(cfg)
+        errors = sum(1 for c in checks if c["status"] == "error")
+        warnings = sum(1 for c in checks if c["status"] == "warn")
+        return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
+
+
+def _register_metrics(app: FastAPI) -> None:
+    """Register the Prometheus-format /api/metrics endpoint."""
 
     @app.get("/api/metrics", tags=["System"])
     def api_metrics(request: Request):
@@ -281,7 +326,6 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         cfg = load_config()
         v = resolve_vin(cfg, app.state.override_vin)
 
-        # Try to get fresh data; fall back to empty on any error
         try:
             backend = get_vehicle_backend(cfg)
             data = backend.get_vehicle_data(v)
@@ -338,21 +382,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
 
-    @app.get("/api/config/validate", tags=["System"])
-    def api_config_validate() -> dict:
-        """Run config validation checks — same as `tesla config validate`.
 
-        Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
-        """
-        from tesla_cli.cli.commands.config_cmd import _run_config_checks
-
-        cfg = load_config()
-        checks = _run_config_checks(cfg)
-        errors = sum(1 for c in checks if c["status"] == "error")
-        warnings = sum(1 for c in checks if c["status"] == "warn")
-        return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
-
-    # ── Real-time SSE stream ──────────────────────────────────────────────────
+def _register_sse_stream(app: FastAPI) -> None:
+    """Register the real-time SSE vehicle stream endpoint."""
 
     @app.get("/api/vehicle/stream", tags=["Vehicle"])
     async def vehicle_stream(
@@ -405,7 +437,6 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
                     )
                     yield f"event: vehicle\ndata: {payload}\n\n"
 
-                    # Fine-grained named topic events
                     if want_battery:
                         cs = data.get("charge_state") or {}
                         yield f"event: battery\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cs)})}\n\n"
@@ -428,13 +459,11 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
                         }
                         yield f"event: location\ndata: {json.dumps({'ts': ts, 'data': loc})}\n\n"
 
-                    # Fan-out to all telemetry sinks if requested
                     if fanout:
                         await asyncio.get_event_loop().run_in_executor(
                             None, _fanout_telemetry, data, v, cfg
                         )
 
-                    # Geofence crossing detection
                     if want_geofence:
                         drive = data.get("drive_state") or data.get("response", {}).get(
                             "drive_state", {}
@@ -477,7 +506,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
             },
         )
 
-    # ── Serve React UI or redirect to docs ──────────────────────────────────
+
+def _register_ui(app: FastAPI, serve_ui: bool) -> None:
+    """Mount static UI assets or redirect root to API docs."""
     _ui_dist = Path(__file__).resolve().parent / "ui_dist"
 
     if serve_ui and _ui_dist.exists() and (_ui_dist / "index.html").exists():
@@ -501,8 +532,6 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
         @app.get("/", include_in_schema=False)
         def root_redirect():
             return RedirectResponse(url="/api/docs")
-
-    return app
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

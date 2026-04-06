@@ -7,11 +7,13 @@ from typing import Any
 import httpx
 
 from tesla_cli.core.backends.fleet import FLEET_API_REGIONS
-from tesla_cli.core.exceptions import ApiError, AuthenticationError
+from tesla_cli.core.backends.http import HttpBackendMixin
 
 
-class EnergyBackend:
+class EnergyBackend(HttpBackendMixin):
     """Query and control Tesla energy products (Powerwall, Solar)."""
+
+    _auth_error_message = "Fleet API token expired. Run: tesla config auth fleet"
 
     def __init__(self, access_token: str, region: str = "na") -> None:
         base_url = FLEET_API_REGIONS.get(region, FLEET_API_REGIONS["na"])
@@ -24,23 +26,9 @@ class EnergyBackend:
             timeout=30,
         )
 
-    def _get(self, path: str, **params: Any) -> dict[str, Any]:
-        resp = self._client.get(path, params=params or None)
-        if resp.status_code == 401:
-            raise AuthenticationError("Fleet API token expired. Run: tesla config auth fleet")
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
-
-    def _post(self, path: str, body: dict | None = None) -> dict[str, Any]:
-        resp = self._client.post(path, json=body or {})
-        if resp.status_code == 401:
-            raise AuthenticationError("Fleet API token expired. Run: tesla config auth fleet")
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
+    def _get(self, path: str, **params: Any) -> dict[str, Any]:  # type: ignore[override]
+        """GET with optional query parameters (energy endpoints use these)."""
+        return self._request("GET", path, params=params or None)
 
     # ── Site discovery ──────────────────────────────────────────────
 

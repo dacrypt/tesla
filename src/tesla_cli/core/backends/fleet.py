@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from tesla_cli.core.backends.base import VehicleBackend
-from tesla_cli.core.exceptions import ApiError, AuthenticationError, VehicleAsleepError
+from tesla_cli.core.backends.http import HttpBackendMixin
 
 FLEET_API_REGIONS = {
     "na": "https://fleet-api.prd.na.vn.cloud.tesla.com",
@@ -16,8 +16,10 @@ FLEET_API_REGIONS = {
 }
 
 
-class FleetBackend(VehicleBackend):
+class FleetBackend(HttpBackendMixin, VehicleBackend):
     """Vehicle backend using Tesla Fleet API directly."""
+
+    _auth_error_message = "Fleet API token expired. Run: tesla config auth fleet"
 
     def __init__(self, access_token: str, region: str = "na") -> None:
         base_url = FLEET_API_REGIONS.get(region, FLEET_API_REGIONS["na"])
@@ -29,28 +31,6 @@ class FleetBackend(VehicleBackend):
             },
             timeout=30,
         )
-
-    def _get(self, path: str) -> dict[str, Any]:
-        resp = self._client.get(path)
-        if resp.status_code == 401:
-            raise AuthenticationError("Fleet API token expired. Run: tesla config auth fleet")
-        if resp.status_code == 408:
-            raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
-
-    def _post(self, path: str, body: dict | None = None) -> dict[str, Any]:
-        resp = self._client.post(path, json=body or {})
-        if resp.status_code == 401:
-            raise AuthenticationError("Fleet API token expired. Run: tesla config auth fleet")
-        if resp.status_code == 408:
-            raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
 
     # ── Vehicle listing & data ──────────────────────────────────────
 
