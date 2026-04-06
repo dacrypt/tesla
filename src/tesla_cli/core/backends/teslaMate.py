@@ -29,7 +29,7 @@ class TeslaMateBacked:
 
     # ── Connection ──────────────────────────────────────────────────────────
 
-    def _get_conn(self):
+    def _get_conn(self) -> object:
         """Return a live psycopg2 connection, creating it lazily."""
         if self._conn is None or self._conn.closed:
             try:

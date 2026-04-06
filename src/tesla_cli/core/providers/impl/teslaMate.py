@@ -39,7 +39,7 @@ class TeslaMateProvider(Provider):
     def __init__(self, config: Config) -> None:
         self._cfg = config
 
-    def _backend(self):
+    def _backend(self) -> object:
         from tesla_cli.core.backends.teslaMate import TeslaMateBacked
 
         return TeslaMateBacked(

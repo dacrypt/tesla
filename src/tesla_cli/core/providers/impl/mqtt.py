@@ -46,7 +46,7 @@ class MqttProvider(Provider):
         self._cfg = config
 
     @property
-    def _mcfg(self):
+    def _mcfg(self) -> object:
         return self._cfg.mqtt
 
     def is_available(self) -> bool:
@@ -151,7 +151,7 @@ class MqttProvider(Provider):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _make_client(self, client_id: str):
+    def _make_client(self, client_id: str) -> object:
         import paho.mqtt.client as mqtt
 
         client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)

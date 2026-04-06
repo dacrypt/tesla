@@ -380,34 +380,8 @@ def config_auth(
         raise typer.Exit(1)
 
 
-@config_app.command("doctor")
-def config_doctor() -> None:
-    """Diagnose the CLI configuration — check tokens, API connectivity, and settings.
-
-    tesla config doctor
-    tesla -j config doctor
-    """
-    import json as _json
-
-    checks: list[dict] = []
-    ok_count = 0
-    warn_count = 0
-    fail_count = 0
-
-    def _check(name: str, status: str, detail: str, fix: str = "") -> None:
-        """Record a check result. status: ok | warn | fail"""
-        nonlocal ok_count, warn_count, fail_count
-        checks.append({"name": name, "status": status, "detail": detail, "fix": fix})
-        if status == "ok":
-            ok_count += 1
-        elif status == "warn":
-            warn_count += 1
-        else:
-            fail_count += 1
-
-    cfg = load_config()
-
-    # ── 1. Order auth token ──────────────────────────────────────────────────
+def _doctor_check_tokens(cfg, _check) -> None:
+    """Check 1–5: auth tokens and vehicle backend."""
     if tokens.has_token(tokens.ORDER_ACCESS_TOKEN):
         _check("Order auth token", "ok", "Token present in keyring")
     else:
@@ -418,7 +392,6 @@ def config_doctor() -> None:
             "Run: tesla config auth order",
         )
 
-    # ── 2. VIN configured ────────────────────────────────────────────────────
     vin = cfg.general.default_vin or ""
     if vin:
         _check("Default VIN", "ok", f"VIN: {vin}")
@@ -430,7 +403,6 @@ def config_doctor() -> None:
             "Run: tesla config set default-vin <YOUR_VIN>",
         )
 
-    # ── 3. Reservation number ────────────────────────────────────────────────
     rn = cfg.order.reservation_number or ""
     if rn:
         _check("Reservation number", "ok", f"RN: {rn}")
@@ -442,7 +414,6 @@ def config_doctor() -> None:
             "Run: tesla config set reservation-number RNXXXXXXXXX",
         )
 
-    # ── 4. Vehicle backend ───────────────────────────────────────────────────
     backend_name = cfg.general.backend or "owner"
     if backend_name in ("fleet", "fleet-signed", "tessie", "owner"):
         _check("Vehicle backend", "ok", f"Backend: {backend_name}")
@@ -454,7 +425,6 @@ def config_doctor() -> None:
             "Run: tesla config set backend fleet|fleet-signed|tessie|owner",
         )
 
-    # ── 5. Backend-specific token ────────────────────────────────────────────
     if backend_name == "tessie":
         if tokens.has_token(tokens.TESSIE_TOKEN):
             _check("Tessie API token", "ok", "Token present in keyring")
@@ -486,7 +456,9 @@ def config_doctor() -> None:
                 "",
             )
 
-    # ── 6. TeslaMate ─────────────────────────────────────────────────────────
+
+def _doctor_check_teslaMate(cfg, _check) -> None:
+    """Check 6: TeslaMate database connectivity."""
     tm_url = cfg.teslaMate.database_url or ""
     if not tm_url:
         _check(
@@ -495,26 +467,28 @@ def config_doctor() -> None:
             "Not configured (optional)",
             "Run: tesla teslaMate connect <url>",
         )
-    else:
-        try:
-            from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+        return
+    try:
+        from tesla_cli.core.backends.teslaMate import TeslaMateBacked
 
-            tm = TeslaMateBacked(tm_url, car_id=cfg.teslaMate.car_id)
-            if tm.ping():
-                _check("TeslaMate DB", "ok", f"Connected: {tm_url[:40]}...")
-            else:
-                _check("TeslaMate DB", "fail", "DB unreachable", "Check DB URL and connectivity")
-        except ImportError:
-            _check(
-                "TeslaMate DB",
-                "warn",
-                "psycopg2 not installed (optional)",
-                "uv pip install psycopg2-binary",
-            )
-        except Exception as exc:
-            _check("TeslaMate DB", "fail", f"Connection error: {str(exc)[:60]}", "Check DB URL")
+        tm = TeslaMateBacked(tm_url, car_id=cfg.teslaMate.car_id)
+        if tm.ping():
+            _check("TeslaMate DB", "ok", f"Connected: {tm_url[:40]}...")
+        else:
+            _check("TeslaMate DB", "fail", "DB unreachable", "Check DB URL and connectivity")
+    except ImportError:
+        _check(
+            "TeslaMate DB",
+            "warn",
+            "psycopg2 not installed (optional)",
+            "uv pip install psycopg2-binary",
+        )
+    except Exception as exc:
+        _check("TeslaMate DB", "fail", f"Connection error: {str(exc)[:60]}", "Check DB URL")
 
-    # ── 7. Config file ───────────────────────────────────────────────────────
+
+def _doctor_check_config_file(_check) -> None:
+    """Check 7: config file on disk."""
     try:
         from tesla_cli.core.config import CONFIG_PATH
 
@@ -530,119 +504,170 @@ def config_doctor() -> None:
     except Exception:
         _check("Config file", "ok", "Config loaded successfully")
 
-    # ── 8. MQTT broker ───────────────────────────────────────────────────────
+
+def _doctor_check_mqtt(cfg, _check) -> None:
+    """Check 8: MQTT broker reachability."""
     mqtt_broker = cfg.mqtt.broker or ""
     if not mqtt_broker:
         _check("MQTT broker", "warn", "Not configured (optional)", "Run: tesla mqtt setup")
-    else:
-        try:
-            import socket
+        return
+    try:
+        import socket
 
-            sock = socket.create_connection((mqtt_broker, cfg.mqtt.port), timeout=5)
-            sock.close()
-            _check("MQTT broker", "ok", f"Reachable: {mqtt_broker}:{cfg.mqtt.port}")
-        except Exception as exc:
-            _check(
-                "MQTT broker",
-                "fail",
-                f"Unreachable: {mqtt_broker}:{cfg.mqtt.port} — {str(exc)[:40]}",
-                "Check broker address and port",
-            )
+        sock = socket.create_connection((mqtt_broker, cfg.mqtt.port), timeout=5)
+        sock.close()
+        _check("MQTT broker", "ok", f"Reachable: {mqtt_broker}:{cfg.mqtt.port}")
+    except Exception as exc:
+        _check(
+            "MQTT broker",
+            "fail",
+            f"Unreachable: {mqtt_broker}:{cfg.mqtt.port} — {str(exc)[:40]}",
+            "Check broker address and port",
+        )
 
-    # ── 9. Notifications ────────────────────────────────────────────────────
+
+def _doctor_check_notifications(cfg, _check) -> None:
+    """Check 9: notification channels."""
     notify_urls = cfg.notifications.apprise_urls
     if not notify_urls:
-        _check("Notifications", "warn", "No channels configured (optional)", "Run: tesla notify add <url>")
+        _check(
+            "Notifications",
+            "warn",
+            "No channels configured (optional)",
+            "Run: tesla notify add <url>",
+        )
     else:
         _check("Notifications", "ok", f"{len(notify_urls)} channel(s) configured")
 
-    # ── 10. Home Assistant ──────────────────────────────────────────────────
+
+def _doctor_check_home_assistant(cfg, _check) -> None:
+    """Check 10: Home Assistant connectivity."""
     ha_url = cfg.home_assistant.url or ""
     if not ha_url:
         _check("Home Assistant", "warn", "Not configured (optional)", "Run: tesla ha setup")
-    else:
-        try:
-            import httpx
+        return
+    try:
+        import httpx
 
-            r = httpx.get(f"{ha_url}/api/", timeout=5)
-            if r.status_code < 500:
-                _check("Home Assistant", "ok", f"Reachable: {ha_url}")
-            else:
-                _check("Home Assistant", "fail", f"Error {r.status_code}", "Check HA URL")
-        except Exception as exc:
-            _check("Home Assistant", "fail", f"Unreachable: {str(exc)[:40]}", "Check HA URL")
+        r = httpx.get(f"{ha_url}/api/", timeout=5)
+        if r.status_code < 500:
+            _check("Home Assistant", "ok", f"Reachable: {ha_url}")
+        else:
+            _check("Home Assistant", "fail", f"Error {r.status_code}", "Check HA URL")
+    except Exception as exc:
+        _check("Home Assistant", "fail", f"Unreachable: {str(exc)[:40]}", "Check HA URL")
 
-    # ── 11. Fleet Telemetry ─────────────────────────────────────────────────
-    if cfg.telemetry.enabled:
-        import subprocess
 
-        try:
-            result = subprocess.run(
-                ["docker", "ps", "--filter", "name=fleet-telemetry", "--format", "{{.Names}}"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if result.returncode != 0:
-                _check(
-                    "Fleet Telemetry",
-                    "warn",
-                    "Docker not available — cannot verify container status",
-                    "Ensure Docker is running",
-                )
-            elif result.stdout.strip():
-                _check(
-                    "Fleet Telemetry",
-                    "ok",
-                    f"Container running — host: {cfg.telemetry.hostname}:{cfg.telemetry.port}",
-                )
-            else:
-                _check(
-                    "Fleet Telemetry",
-                    "fail",
-                    "Enabled in config but container not running",
-                    "Run: tesla telemetry start",
-                )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+def _doctor_check_fleet_telemetry(cfg, _check) -> None:
+    """Check 11: Fleet Telemetry container status."""
+    if not cfg.telemetry.enabled:
+        _check("Fleet Telemetry", "warn", "Not enabled (optional)", "Run: tesla telemetry install")
+        return
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--filter", "name=fleet-telemetry", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
             _check(
                 "Fleet Telemetry",
                 "warn",
-                "Docker not found — cannot verify container status",
-                "Install Docker or run: tesla telemetry status",
+                "Docker not available — cannot verify container status",
+                "Ensure Docker is running",
             )
-    else:
-        _check("Fleet Telemetry", "warn", "Not enabled (optional)", "Run: tesla telemetry install")
+        elif result.stdout.strip():
+            _check(
+                "Fleet Telemetry",
+                "ok",
+                f"Container running — host: {cfg.telemetry.hostname}:{cfg.telemetry.port}",
+            )
+        else:
+            _check(
+                "Fleet Telemetry",
+                "fail",
+                "Enabled in config but container not running",
+                "Run: tesla telemetry start",
+            )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        _check(
+            "Fleet Telemetry",
+            "warn",
+            "Docker not found — cannot verify container status",
+            "Install Docker or run: tesla telemetry status",
+        )
 
-    # ── 12. Automations ─────────────────────────────────────────────────────
+
+def _doctor_check_automations(_check) -> None:
+    """Check 12: automations configuration."""
+    import json as _json
     from pathlib import Path as _Path
 
     automations_path = _Path.home() / ".tesla-cli" / "automations.json"
-    if automations_path.exists():
-        try:
-            import json as _json
-
-            raw = _json.loads(automations_path.read_text())
-            rules = raw.get("rules", [])
-            enabled_count = sum(1 for r in rules if r.get("enabled", True))
-            _check(
-                "Automations",
-                "ok",
-                f"{len(rules)} rule(s) configured, {enabled_count} enabled",
-            )
-        except Exception as exc:
-            _check(
-                "Automations",
-                "warn",
-                f"Could not parse automations.json: {str(exc)[:60]}",
-                "Run: tesla automations list",
-            )
-    else:
+    if not automations_path.exists():
         _check(
             "Automations",
             "warn",
             "No automation rules configured (optional)",
             "Run: tesla setup or tesla automations add",
         )
+        return
+    try:
+        raw = _json.loads(automations_path.read_text())
+        rules = raw.get("rules", [])
+        enabled_count = sum(1 for r in rules if r.get("enabled", True))
+        _check(
+            "Automations",
+            "ok",
+            f"{len(rules)} rule(s) configured, {enabled_count} enabled",
+        )
+    except Exception as exc:
+        _check(
+            "Automations",
+            "warn",
+            f"Could not parse automations.json: {str(exc)[:60]}",
+            "Run: tesla automations list",
+        )
+
+
+@config_app.command("doctor")
+def config_doctor() -> None:
+    """Diagnose the CLI configuration — check tokens, API connectivity, and settings.
+
+    tesla config doctor
+    tesla -j config doctor
+    """
+    import json as _json
+
+    checks: list[dict] = []
+    ok_count = 0
+    warn_count = 0
+    fail_count = 0
+
+    def _check(name: str, status: str, detail: str, fix: str = "") -> None:
+        """Record a check result. status: ok | warn | fail"""
+        nonlocal ok_count, warn_count, fail_count
+        checks.append({"name": name, "status": status, "detail": detail, "fix": fix})
+        if status == "ok":
+            ok_count += 1
+        elif status == "warn":
+            warn_count += 1
+        else:
+            fail_count += 1
+
+    cfg = load_config()
+
+    _doctor_check_tokens(cfg, _check)
+    _doctor_check_teslaMate(cfg, _check)
+    _doctor_check_config_file(_check)
+    _doctor_check_mqtt(cfg, _check)
+    _doctor_check_notifications(cfg, _check)
+    _doctor_check_home_assistant(cfg, _check)
+    _doctor_check_fleet_telemetry(cfg, _check)
+    _doctor_check_automations(_check)
 
     # ── Output ───────────────────────────────────────────────────────────────
     if is_json_mode():

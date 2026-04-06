@@ -28,7 +28,7 @@ from rich.prompt import Prompt
 from tesla_cli.core.exceptions import AuthenticationError
 
 
-def _console():
+def _console() -> None:
     """Lazy import to avoid circular dependency core -> cli."""
     from tesla_cli.cli.output import console
 
