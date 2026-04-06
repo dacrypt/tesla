@@ -4,7 +4,7 @@
 
 Full-stack Tesla management platform: CLI (Typer) + REST API (FastAPI) + Web Dashboard (React/Ionic). Tracks orders, controls vehicles, aggregates data from 15+ sources, integrates with TeslaMate/MQTT/HA/ABRP.
 
-**Version**: v4.8.0 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 1527
+**Version**: v4.8.0 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 1679
 
 ## Architecture (quick reference)
 
@@ -16,7 +16,7 @@ src/tesla_cli/
 │   ├── models/    # Pydantic data models
 │   ├── providers/ # 7 providers across 4 layers (BLE → VehicleAPI → TeslaMate → ABRP/HA/MQTT/Apprise)
 │   └── sources.py # 15 registered data sources with TTL cache
-├── cli/commands/  # 14 Typer command groups (100+ commands)
+├── cli/commands/  # 25 Typer command groups (175+ commands)
 ├── api/           # FastAPI REST API + SSE stream + Prometheus
 └── infra/         # Docker Compose lifecycle (TeslaMate stack)
 

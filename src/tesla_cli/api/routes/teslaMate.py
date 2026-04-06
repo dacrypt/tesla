@@ -230,6 +230,40 @@ def teslaMate_trip_stats_api(days: int = 30) -> dict:
         raise HTTPException(status_code=502, detail=str(exc))
 
 
+@router.get("/geo")
+def tm_geo(sample: int = 5) -> list:
+    """All recorded GPS positions sampled for lifetime driving map.
+
+    Query params:
+    - `sample` — keep 1 out of every N positions (default 5)
+
+    Returns list of {lat, lon} dicts.
+    """
+    try:
+        return _backend().get_geo_locations(sample=sample)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/drive-path/{drive_id}")
+def tm_drive_path(drive_id: int) -> list:
+    """GPS trace for a specific drive.
+
+    Path params:
+    - `drive_id` — TeslaMate drive ID
+
+    Returns list of {latitude, longitude, elevation, speed, timestamp} dicts.
+    """
+    try:
+        return _backend().get_drive_path(drive_id=drive_id)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @router.get("/stack/status")
 def teslaMate_stack_status() -> dict:
     """Managed TeslaMate stack status (Docker containers).

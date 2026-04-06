@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, CircleMarker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -27,6 +27,8 @@ interface VehicleMapProps {
   label?: string;
   height?: string;
   geofences?: GeofenceOverlay[];
+  heatPoints?: { lat: number; lon: number }[];
+  trackPoints?: [number, number][];
 }
 
 function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
@@ -41,20 +43,30 @@ function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
-export default function VehicleMap({ latitude, longitude, label, height = '400px', geofences }: VehicleMapProps) {
+export default function VehicleMap({ latitude, longitude, label, height = '400px', geofences, heatPoints, trackPoints }: VehicleMapProps) {
+  const showMarker = latitude !== 0 || longitude !== 0;
+  const center: [number, number] = trackPoints && trackPoints.length > 0
+    ? trackPoints[Math.floor(trackPoints.length / 2)]
+    : heatPoints && heatPoints.length > 0 && !showMarker
+      ? [heatPoints[Math.floor(heatPoints.length / 2)].lat, heatPoints[Math.floor(heatPoints.length / 2)].lon]
+      : [latitude, longitude];
+  const zoom = trackPoints && trackPoints.length > 0 ? 13 : heatPoints && heatPoints.length > 0 && !showMarker ? 11 : 15;
+
   return (
     <div style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
       <MapContainer
-        center={[latitude, longitude]}
-        zoom={15}
+        center={center}
+        zoom={zoom}
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
         attributionControl={false}
       >
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        <Marker position={[latitude, longitude]}>
-          {label && <Popup>{label}</Popup>}
-        </Marker>
+        {showMarker && (
+          <Marker position={[latitude, longitude]}>
+            {label && <Popup>{label}</Popup>}
+          </Marker>
+        )}
         {geofences?.map((g) => (
           <Circle
             key={g.name}
@@ -65,7 +77,21 @@ export default function VehicleMap({ latitude, longitude, label, height = '400px
             <Popup>{g.name} ({g.radius_km} km)</Popup>
           </Circle>
         ))}
-        <RecenterMap lat={latitude} lng={longitude} />
+        {heatPoints?.map((p, i) => (
+          <CircleMarker
+            key={i}
+            center={[p.lat, p.lon]}
+            radius={2}
+            pathOptions={{ color: '#10b981', fillOpacity: 0.6, stroke: false }}
+          />
+        ))}
+        {trackPoints && trackPoints.length > 0 && (
+          <Polyline
+            positions={trackPoints}
+            pathOptions={{ color: '#10b981', weight: 3, opacity: 0.8 }}
+          />
+        )}
+        {!heatPoints && !trackPoints && <RecenterMap lat={latitude} lng={longitude} />}
       </MapContainer>
     </div>
   );

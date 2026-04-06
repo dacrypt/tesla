@@ -38,8 +38,12 @@ const Navigation: React.FC = () => {
   const [geoRadius, setGeoRadius] = useState('0.2');
   const [geoLoading, setGeoLoading] = useState(false);
 
+  // Lifetime map
+  const [geoPoints, setGeoPoints] = useState<{ lat: number; lon: number }[]>([]);
+
   useEffect(() => {
     api.getGeofences().then(setGeofences).catch(() => {});
+    api.getGeoLocations().then(setGeoPoints).catch(() => {});
   }, []);
 
   const addGeofence = async () => {
@@ -178,6 +182,22 @@ const Navigation: React.FC = () => {
               >
                 Open in Google Maps
               </a>
+            </div>
+          )}
+
+          {/* ---- Lifetime Map ---- */}
+          {geoPoints.length > 0 && (
+            <div className="tesla-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <p className="section-title" style={{ paddingTop: 0, margin: 0 }}>Lifetime Driving Map</p>
+                <span style={{ color: '#86888f', fontSize: 11 }}>{geoPoints.length.toLocaleString()} pts</span>
+              </div>
+              <VehicleMap
+                latitude={0}
+                longitude={0}
+                height="320px"
+                heatPoints={geoPoints}
+              />
             </div>
           )}
 

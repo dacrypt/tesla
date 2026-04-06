@@ -20,6 +20,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { api, TripStat, ChargeStat, Stats } from '../api/client';
+import VehicleMap from '../components/VehicleMap';
 
 // ---- Icons ----
 const ChartIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>;
@@ -151,6 +152,9 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [heatmap, setHeatmap] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
+  const [tripPath, setTripPath] = useState<[number, number][]>([]);
+  const [tripPathLoading, setTripPathLoading] = useState(false);
 
   const fetchData = async (tab: Tab) => {
     setLoading(true);
@@ -311,31 +315,79 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
               {activeTab === 'trips' && (
                 trips.length === 0 ? <NotConfigured /> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {trips.slice(0, 50).map((trip, i) => (
-                      <div key={trip.id || i} className="tesla-card" style={{ padding: '14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div style={{ flex: 1, marginRight: 12 }}>
-                            <div style={{ color: '#ffffff', fontSize: 13, fontWeight: 500, lineHeight: 1.4 }}>
-                              {trip.start_address || 'Unknown'}
+                    {trips.slice(0, 50).map((trip, i) => {
+                      const driveId = (trip as any).drive_id ?? (trip as any).id;
+                      const isSelected = selectedTripId != null && selectedTripId === driveId;
+                      return (
+                        <div key={trip.id || i} className="tesla-card" style={{ padding: '14px' }}>
+                          <div
+                            style={{ cursor: driveId != null ? 'pointer' : 'default' }}
+                            onClick={() => {
+                              if (driveId == null) return;
+                              if (isSelected) {
+                                setSelectedTripId(null);
+                                setTripPath([]);
+                                return;
+                              }
+                              setSelectedTripId(driveId);
+                              setTripPath([]);
+                              setTripPathLoading(true);
+                              api.getDrivePath(Number(driveId))
+                                .then(pts => setTripPath(pts.map(p => [p.latitude, p.longitude] as [number, number])))
+                                .catch(() => setTripPath([]))
+                                .finally(() => setTripPathLoading(false));
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                              <div style={{ flex: 1, marginRight: 12 }}>
+                                <div style={{ color: '#ffffff', fontSize: 13, fontWeight: 500, lineHeight: 1.4 }}>
+                                  {trip.start_address || 'Unknown'}
+                                </div>
+                                <div style={{ color: '#86888f', fontSize: 12, marginTop: 1 }}>
+                                  to {trip.end_address || 'Unknown'}
+                                </div>
+                                <div style={{ color: '#86888f', fontSize: 11, marginTop: 3 }}>
+                                  {formatDate(trip.start_date)}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ color: '#0BE881', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                                  {formatDistance(trip.distance)}
+                                </span>
+                                {driveId != null && (
+                                  <span style={{ color: '#86888f', fontSize: 11 }}>{isSelected ? '▲' : '▼'}</span>
+                                )}
+                              </div>
                             </div>
-                            <div style={{ color: '#86888f', fontSize: 12, marginTop: 1 }}>
-                              to {trip.end_address || 'Unknown'}
-                            </div>
-                            <div style={{ color: '#86888f', fontSize: 11, marginTop: 3 }}>
-                              {formatDate(trip.start_date)}
+                            <div style={{ display: 'flex', gap: 14 }}>
+                              <span style={{ color: '#86888f', fontSize: 12 }}>{formatDuration(trip.duration)}</span>
+                              {trip.energy_used != null && <span style={{ color: '#86888f', fontSize: 12 }}>{trip.energy_used.toFixed(1)} kWh</span>}
+                              {trip.efficiency != null && <span style={{ color: '#86888f', fontSize: 12 }}>{trip.efficiency.toFixed(0)} Wh/km</span>}
                             </div>
                           </div>
-                          <span style={{ color: '#0BE881', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                            {formatDistance(trip.distance)}
-                          </span>
+                          {isSelected && (
+                            <div style={{ marginTop: 12 }}>
+                              {tripPathLoading ? (
+                                <div style={{ textAlign: 'center', padding: '20px 0', color: '#86888f', fontSize: 13 }}>
+                                  Loading route...
+                                </div>
+                              ) : tripPath.length > 0 ? (
+                                <VehicleMap
+                                  latitude={tripPath[0][0]}
+                                  longitude={tripPath[0][1]}
+                                  height="240px"
+                                  trackPoints={tripPath}
+                                />
+                              ) : (
+                                <div style={{ textAlign: 'center', padding: '12px 0', color: '#86888f', fontSize: 12 }}>
+                                  No GPS data for this trip
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ display: 'flex', gap: 14 }}>
-                          <span style={{ color: '#86888f', fontSize: 12 }}>{formatDuration(trip.duration)}</span>
-                          {trip.energy_used != null && <span style={{ color: '#86888f', fontSize: 12 }}>{trip.energy_used.toFixed(1)} kWh</span>}
-                          {trip.efficiency != null && <span style={{ color: '#86888f', fontSize: 12 }}>{trip.efficiency.toFixed(0)} Wh/km</span>}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )
               )}

@@ -527,6 +527,31 @@ class TeslaMateBacked:
             ],
         }
 
+    def get_geo_locations(self, sample: int = 5) -> list[dict[str, Any]]:
+        """Return sampled GPS positions across all recorded drives.
+
+        Samples every Nth position to keep payload manageable.
+
+        Args:
+            sample: keep 1 row out of every N (default 5)
+
+        Returns list of {lat, lon} dicts.
+        """
+        sql = """
+            SELECT latitude AS lat, longitude AS lon
+            FROM (
+                SELECT latitude, longitude,
+                       ROW_NUMBER() OVER (ORDER BY date ASC) AS rn
+                FROM positions
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+            ) sub
+            WHERE rn %% %s = 0
+            ORDER BY rn ASC
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (sample,))
+            return [dict(r) for r in cur.fetchall()]
+
     def get_drive_path(self, drive_id: int) -> list[dict[str, Any]]:
         """Get GPS positions for a specific drive from TeslaMate.
 
