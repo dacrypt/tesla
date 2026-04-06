@@ -32,3 +32,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf
       - run: uv run pytest -m "not integration" -v --cov=tesla_cli --cov-report=xml
+        env:
+          NO_COLOR: "1"
