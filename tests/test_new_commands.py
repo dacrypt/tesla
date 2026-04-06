@@ -9215,7 +9215,7 @@ class TestExceptions:
         err = EndpointDeprecatedError()
         assert err.status_code == 412
         assert "Fleet API" in str(err)
-        assert "Tessie" in str(err)
+        assert "delivery" in str(err).lower()
 
     def test_endpoint_deprecated_custom_message(self):
         from tesla_cli.core.exceptions import EndpointDeprecatedError

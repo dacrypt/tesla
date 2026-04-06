@@ -28,14 +28,20 @@ class ApiError(TeslaCliError):
 class EndpointDeprecatedError(ApiError):
     """412 — Owner API endpoint unavailable for this VIN.
 
-    Modern VINs (LRW/7SA/XP7) require Fleet API or Tessie.
+    This can mean:
+    1. Vehicle not yet delivered (not linked to account)
+    2. Modern VIN that requires Fleet API (LRW/7SA/XP7 prefixes)
+
+    Use is_likely_pre_delivery() to distinguish.
     """
 
     def __init__(self, message: str = "") -> None:
         detail = message or (
-            "This endpoint is not available on the Owner API for your vehicle.\n"
-            "Switch to Fleet API:  tesla config set backend fleet && tesla config auth fleet\n"
-            "Or use Tessie:        tesla config set backend tessie && tesla config auth tessie"
+            "Vehicle not accessible via Owner API.\n"
+            "If your vehicle hasn't been delivered yet, this is normal — "
+            "live data will be available after delivery.\n"
+            "If already delivered, switch to Fleet API:\n"
+            "  tesla config set backend fleet && tesla config auth fleet"
         )
         super().__init__(412, detail)
 

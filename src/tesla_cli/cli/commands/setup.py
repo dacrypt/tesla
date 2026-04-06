@@ -524,31 +524,56 @@ def _check_owner_api_and_maybe_upgrade(cfg: object, tier_selected: str, force: b
         backend.list_vehicles()
         console.print("[green]✓ Owner API working for your vehicle.[/green]")
     except EndpointDeprecatedError:
-        console.print(
-            "[yellow]Your VIN requires the Advanced tier (Fleet API).[/yellow]\n"
-            "  The Owner API is blocked for newer Tesla vehicles.\n"
-        )
-        upgrade = Prompt.ask(
-            "Upgrade to Advanced (Fleet API) now?", choices=["y", "n"], default="y"
-        )
-        if upgrade == "y":
-            _show_fleet_api_guide()
-            try:
-                from tesla_cli.cli.commands.config_cmd import _auth_fleet
+        # Check if vehicle is pre-delivery (412 is expected before delivery)
+        is_pre_delivery = False
+        try:
+            from tesla_cli.core.backends.order import OrderBackend
 
-                _auth_fleet()
-                cfg = load_config()
-                cfg.general.backend = "fleet-signed"
-                save_config(cfg)
-                console.print(
-                    "[green]✓ Upgraded to Advanced tier — fleet-signed backend active.[/green]"
-                )
-                return "advanced"
-            except (TeslaCliError, KeyboardInterrupt, EOFError):
-                console.print(
-                    "[yellow]Upgrade skipped — configure later with[/yellow] "
-                    "[bold]tesla config auth fleet[/bold]"
-                )
+            rn = cfg.order.reservation_number
+            if rn:
+                status = OrderBackend().get_order_status(rn)
+                order_st = (status.order_status or "").upper()
+                if order_st in ("BOOKED", "PENDING", "CONFIRMED", "IN_TRANSIT"):
+                    is_pre_delivery = True
+        except Exception:
+            pass
+
+        if is_pre_delivery:
+            console.print(
+                "[cyan]Your vehicle hasn't been delivered yet — this is normal.[/cyan]\n"
+                "  The Owner API cannot access vehicles before delivery.\n"
+                "  Live vehicle data (battery, location, climate) will be\n"
+                "  available after you take delivery.\n\n"
+                "  [dim]Order tracking and dossier data work perfectly in the meantime.[/dim]\n"
+                "  [dim]After delivery, run [bold]tesla setup --force[/bold] to re-check.[/dim]"
+            )
+        else:
+            console.print(
+                "[yellow]Your VIN requires the Advanced tier (Fleet API).[/yellow]\n"
+                "  The Owner API is blocked for newer Tesla vehicles.\n"
+            )
+            upgrade = Prompt.ask(
+                "Upgrade to Advanced (Fleet API) now?", choices=["y", "n"], default="y"
+            )
+            if upgrade == "y":
+                _show_fleet_api_guide()
+                try:
+                    from tesla_cli.cli.commands.config_cmd import _auth_fleet
+
+                    _auth_fleet()
+                    cfg = load_config()
+                    cfg.general.backend = "fleet-signed"
+                    save_config(cfg)
+                    console.print(
+                        "[green]✓ Upgraded to Advanced tier — "
+                        "fleet-signed backend active.[/green]"
+                    )
+                    return "advanced"
+                except (TeslaCliError, KeyboardInterrupt, EOFError):
+                    console.print(
+                        "[yellow]Upgrade skipped — configure later with[/yellow] "
+                        "[bold]tesla config auth fleet[/bold]"
+                    )
     except Exception:
         # Network error or other transient issue — silently skip the probe
         pass
