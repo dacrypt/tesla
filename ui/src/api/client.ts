@@ -581,7 +581,9 @@ export const api = {
   getDossierSimit: () => client().get<SimitData>('/api/dossier/simit', { timeout: 15000 }).then(r => r.data),
 
   // TeslaMate
-  getTrips: () => client().get<TripStat[]>('/api/teslaMate/trips').then(r => r.data),
+  getTrips: (limit = 50) => client().get<TripStat[]>(`/api/teslaMate/trips?limit=${limit}`).then(r => r.data),
+  getGeoLocations: () => client().get<{ lat: number; lon: number }[]>('/api/teslaMate/geo').then(r => r.data),
+  getDrivePath: (driveId: number) => client().get<{ latitude: number; longitude: number; elevation?: number; speed?: number; timestamp?: string }[]>(`/api/teslaMate/drive-path/${driveId}`).then(r => r.data),
   getCharges: () => client().get<ChargeStat[]>('/api/teslaMate/charges').then(r => r.data),
   getStats: () => client().get<Stats>('/api/teslaMate/stats').then(r => r.data),
   getEfficiency: () => client().get<unknown>('/api/teslaMate/efficiency').then(r => r.data),

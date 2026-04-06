@@ -7,7 +7,7 @@
 
 ## Current State (v4.8.0)
 
-175+ commands across 20 groups, 1527 tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, 17 --oneline commands, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support.
+175+ commands across 25 groups, 1679 tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, 17 --oneline commands, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support.
 
 ---
 
@@ -37,63 +37,28 @@
 
 ## Remaining Gaps
 
-### P1 — High Priority
-
-#### 1. Vehicle Command Protocol (Signed Commands)
-Required for 2024.26+ firmware vehicles that reject unsigned Fleet API commands.
-- Key enrollment workflow (`tesla ble enroll`)
-- End-to-end signed command dispatch
-- NFC key pairing
-- Alternative: `tesla-http-proxy` auto-signing
-- **Blocker**: Without this, vehicle control fails on new firmware
-
-#### 2. Fleet Telemetry Integration
-Real-time WebSocket streaming eliminates polling (no vampire drain from API calls).
-- Requires: FQDN, TLS cert, fleet-telemetry Go server
-- Alternative: Teslemetry.com as hosted proxy (no infra needed)
-- Sub-second data for location, energy monitoring
-- **Value**: Only way to achieve zero vampire drain while logging
-
-### P2 — Medium Priority
-
-#### 3. Portal Document Download
-- 7 documents available at `/teslaaccount/order/{RN}/documents/{id}`
-- Requires authenticated browser session (patchright/playwright)
-- Archive MVPA, invoice, registration docs locally
-- `tesla order documents` — list and download
-
-#### 4. Supercharging Invoice Tracking
-- Tessie `/charging_invoices` provides this
-- Fleet API may add this in future
-- `tesla charge invoices` — expense tracking and tax documentation
-
-#### 5. Drive Path Recording
-- Tessie `driving_path` gives GPS traces per drive
-- TeslaMate already stores GPS data in PostgreSQL
-- `tesla teslaMate drive-path <trip_id>` — export GPX/GeoJSON
-- Enables: heatmaps, route replay, geo-analysis
-
-#### 6. Advanced Automation Engine
-Only Tessie has this — major differentiator.
-- Build on `--on-change-exec` with config-based rules
-- `tesla automations add` — YAML rule definitions
-- Triggers: battery_below, sentry_event, location_enter/exit, charging_complete, time_of_day
-- Actions: notify, exec, climate-on, lock, charge-limit
-- Daemon: `tesla automations run` — watches vehicle state and fires rules
-
 ### P3 — Lower Priority
 
-#### 7. Powerwall / Solar Integration
-Fleet API energy endpoints exist but require energy product ownership.
-- `tesla energy status` — solar production, battery level, grid usage
+#### 1. Dashcam Video Processing
+- Wrap `tesla_dashcam` for clip download and processing
+- `tesla vehicle dashcam-export` — pull clips from USB drive
 
-#### 8. Additional Tessie Data
-- `firmware_alerts`, `tire_pressure` history, `weather`, `consumption`
-- Low priority — most available via TeslaMate already
+#### 2. Fleet Battery Benchmarking
+- Community opt-in degradation dataset
+- Compare your pack against fleet percentile by age/mileage
 
-#### 9. TeslaMate/TeslaFi Data Import
-- `tesla teslaMate import` from CSV/JSON/TeslaFi export
-- For users migrating from other platforms
+#### 3. TezLab Data Import
+- Import historical data from TezLab app export
+- Migration path for users switching from TezLab
+
+#### 4. Smart Home Integrations
+- HomeKit via HomeBridge plugin
+- Google Home / IFTTT webhooks
+- Alexa skill for voice control
+
+#### 5. Customizable Dashboard Tiles
+- User-configurable widget layout in React dashboard
+- Drag-and-drop tile ordering, show/hide per preference
 
 ---
 
@@ -127,4 +92,9 @@ Full 20-tool competitive analysis: [research/competitive-analysis.md](research/c
 | Supercharging invoices | ✅ | Tessie |
 | Portal document download | ✅ | TOST |
 | Drive path GPX/GeoJSON export | ✅ | TeslaMate |
-| Powerwall / Solar | ⏳ Not yet | TeslaMate, TeslaFi |
+| BLE key management (enroll, list, remove, state reads) | ✅ | tesla-control |
+| Safety Score (Insurance telematics) | ✅ | -- (first-mover) |
+| Service scheduling (history, appointments, reminders) | ✅ | -- (first-mover) |
+| Location-based charging/precondition schedules | ✅ | tesla-control |
+| EV vs gas savings calculator | ✅ | Stats for Tesla |
+| Powerwall / Solar | ✅ | TeslaMate, TeslaFi |
