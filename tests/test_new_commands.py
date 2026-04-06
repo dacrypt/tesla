@@ -576,10 +576,7 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch(
-                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
-                return_value=mock_fleet_backend,
-            ),
+            patch("tesla_cli.cli.commands.vehicle._backend", return_value=mock_fleet_backend),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
@@ -592,10 +589,7 @@ class TestStreamLive:
         cfg.general.default_vin = MOCK_VIN
         cfg.fleet.region = "na"
         with (
-            patch(
-                "tesla_cli.cli.commands.vehicle.get_vehicle_backend",
-                return_value=mock_fleet_backend,
-            ),
+            patch("tesla_cli.cli.commands.vehicle._backend", return_value=mock_fleet_backend),
             patch("tesla_cli.cli.commands.vehicle.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
         ):
@@ -4959,12 +4953,20 @@ class TestVehicleSpeedLimit:
         mock.command.assert_called_once()
 
     def test_speed_limit_activate_requires_pin(self):
-        result = _run("vehicle", "speed-limit", "--on")
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--on")
         assert result.exit_code == 1
         assert "pin" in result.output.lower() or "--pin" in result.output
 
     def test_speed_limit_deactivate_requires_pin(self):
-        result = _run("vehicle", "speed-limit", "--off")
+        with (
+            patch("tesla_cli.cli.commands.vehicle.load_config", return_value=self._cfg()),
+            patch("tesla_cli.cli.commands.vehicle.resolve_vin", return_value=MOCK_VIN),
+        ):
+            result = _run("vehicle", "speed-limit", "--off")
         assert result.exit_code == 1
         assert "pin" in result.output.lower()
 
@@ -6748,7 +6750,15 @@ class TestHaCommands:
 
 # ─── tesla query ─────────────────────────────────────────────────────────────
 
+import importlib.util as _ilu
 
+_openquery_available = _ilu.find_spec("openquery") is not None
+_skip_no_openquery = pytest.mark.skipif(
+    not _openquery_available, reason="openquery not installed"
+)
+
+
+@_skip_no_openquery
 class TestQueryCommand:
     """Tests for tesla query (openquery integration)."""
 
@@ -9297,6 +9307,11 @@ class TestTelemetryCommands:
         """Status should handle missing Docker gracefully."""
         with patch("tesla_cli.cli.commands.telemetry.load_config") as mock_cfg:
             mock_cfg.return_value.telemetry.enabled = False
+            mock_cfg.return_value.telemetry.managed = False
+            mock_cfg.return_value.telemetry.hostname = None
+            mock_cfg.return_value.telemetry.port = 4443
+            mock_cfg.return_value.telemetry.stack_dir = None
+            mock_cfg.return_value.general.default_vin = None
             result = _run("telemetry", "status")
         # Should not crash, just report not configured
         assert result.exit_code == 0 or "not" in result.output.lower()

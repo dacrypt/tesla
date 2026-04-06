@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util as _ilu
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,11 @@ import pytest
 
 from tesla_cli.core.backends.runt import RuntBackend, RuntError
 from tesla_cli.core.models.dossier import RuntData
+
+_openquery_available = _ilu.find_spec("openquery") is not None
+_skip_no_openquery = pytest.mark.skipif(
+    not _openquery_available, reason="openquery not installed"
+)
 
 
 def _mock_runt_result(extra_fields: dict | None = None) -> MagicMock:
@@ -70,6 +76,7 @@ class TestRuntBackendInit:
         assert backend._timeout == 60.0
 
 
+@_skip_no_openquery
 class TestRuntBackendDelegation:
     """Test that RuntBackend delegates to openquery co.runt."""
 
