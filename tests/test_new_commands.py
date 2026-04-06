@@ -4,6 +4,7 @@ anonymize mode, VIN decoder, option code decoder, i18n, and TeslaMate config."""
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -16,9 +17,21 @@ from tests.conftest import MOCK_VIN
 
 runner = CliRunner()
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+class _Result:
+    """Thin wrapper around typer Result with ANSI-stripped output."""
+
+    def __init__(self, result):
+        self._result = result
+        self.output = _ANSI_RE.sub("", result.output)
+        self.exit_code = result.exit_code
+        self.exception = result.exception
+
 
 def _run(*args):
-    return runner.invoke(app, list(args))
+    return _Result(runner.invoke(app, list(args)))
 
 
 # ── VIN Decoder ──────────────────────────────────────────────────────────────
