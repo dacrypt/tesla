@@ -227,11 +227,9 @@ function PreDeliveryDashboard() {
       )}
 
       {/* ── Documents — SOAT + RTM ── */}
-      {(sources['co.runt_soat'] || sources['co.runt_rtm']) && (() => {
-        const soat = sources['co.runt_soat'];
-        const rtm = sources['co.runt_rtm'];
-        const soatExp = soat?.vencimiento || soat?.soat_vencimiento || '';
-        const rtmExp = rtm?.vencimiento || rtm?.tecnomecanica_vencimiento || '';
+      {runt && (() => {
+        const soatExp = runt?.soat_vencimiento || sources['co.runt_soat']?.vencimiento || '';
+        const rtmExp = runt?.tecnomecanica_vencimiento || sources['co.runt_rtm']?.vencimiento || '';
         const daysUntil = (dateStr: string) => {
           if (!dateStr) return null;
           const d = new Date(dateStr);
