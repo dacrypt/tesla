@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, Request
@@ -11,13 +12,23 @@ from tesla_cli.core.config import load_config
 
 router = APIRouter()
 
+# Server-side cache to prevent Tesla API hammering
+_cache: dict = {"data": None, "timestamp": 0}
+_CACHE_TTL = 60  # seconds
+
 
 @router.get("/summary")
 def fleet_summary(request: Request) -> list:
     """Get summary status of all configured vehicles.
 
     Returns list of {vin, alias, battery_level, charging_state, locked, sentry, lat, lon}.
+    Cached for 60 seconds to prevent Tesla API rate limiting.
     """
+    # Return cached data if fresh
+    now = time.time()
+    if _cache["data"] is not None and (now - _cache["timestamp"]) < _CACHE_TTL:
+        return _cache["data"]
+
     cfg = load_config()
     aliases = cfg.vehicles.aliases  # {alias: vin}
     default_vin = cfg.general.default_vin
@@ -29,6 +40,8 @@ def fleet_summary(request: Request) -> list:
         vins.append((f"...{default_vin[-6:]}", default_vin))
 
     if not vins:
+        _cache["data"] = []
+        _cache["timestamp"] = now
         return []
 
     backend = get_vehicle_backend(cfg)
@@ -71,4 +84,8 @@ def fleet_summary(request: Request) -> list:
             results.append(future.result())
 
     results.sort(key=lambda r: r["alias"])
+
+    # Cache results
+    _cache["data"] = results
+    _cache["timestamp"] = now
     return results
