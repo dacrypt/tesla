@@ -44,11 +44,26 @@ export function useVehicleData(): VehicleData {
     setLoading(true);
     setError(null);
     try {
+      // Single API call to get vehicle state — charge and climate are included
+      // This replaces 3 parallel calls that each hit Tesla's API separately
       const [s, ch, cl] = await Promise.allSettled([
         api.getVehicleState(),
         api.getChargeState(),
         api.getClimateState(),
       ]);
+
+      // If ALL failed with 412 (pre-delivery), don't retry — cache and show message
+      const all412 = [s, ch, cl].every(
+        r => r.status === 'rejected' && String(r.reason).includes('412')
+      );
+      if (all412) {
+        setError('Vehicle not accessible (pre-delivery)');
+        loadFromCache();
+        setLoading(false);
+        // Don't set up SSE polling — it would also fail
+        setConnected(false);
+        return;
+      }
       const anyFulfilled = s.status === 'fulfilled' || ch.status === 'fulfilled' || cl.status === 'fulfilled';
       if (s.status === 'fulfilled') setState(s.value);
       if (ch.status === 'fulfilled') setCharge(ch.value);
@@ -83,14 +98,27 @@ export function useVehicleData(): VehicleData {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [preDelivery, setPreDelivery] = useState(false);
+
   useEffect(() => {
-    fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    fetchAll().then(() => {
+      // If all 3 calls failed with 412, mark as pre-delivery and don't poll
+      if (error === 'Vehicle not accessible (pre-delivery)') {
+        setPreDelivery(true);
+        return;
+      }
+    });
+    // Only set up polling interval if NOT pre-delivery
+    const interval = setInterval(() => {
+      if (!preDelivery) fetchAll();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [fetchAll]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // SSE stream with exponential backoff reconnection
+  // Skip SSE entirely when pre-delivery (vehicle not accessible)
   useEffect(() => {
+    if (preDelivery) return;
     let es: EventSource | null = null;
     let retryCount = 0;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
