@@ -1795,6 +1795,39 @@ _WATCH_KEYS: list[tuple[str, str, str]] = [
 ]
 
 
+def _format_watch_change(
+    curr: dict,
+    changes: list[str],
+    ts: str,
+    tag: str,
+    mode: str,
+) -> str:
+    """Format a watch poll result for display.
+
+    mode='simple'  — key changes only (default)
+    mode='detail'  — same as simple (alias kept for future expansion)
+    mode='raw'     — JSON per change event
+    """
+    import json as _json
+
+    if mode == "raw":
+        clean = [c.replace("[bold]", "").replace("[/bold]", "") for c in changes]
+        return _json.dumps({"ts": ts, "changes": clean, "state": {k: v for k, v in curr.items()}})
+
+    if changes:
+        lines = [f"  {tag}[dim]{ts}[/dim]  {c}" for c in changes]
+        return "\n".join(lines)
+
+    # No changes — show brief status line
+    batt = curr.get("charge_state.battery_level", "?")
+    state = curr.get("charge_state.charging_state", "Unknown")
+    locked = curr.get("vehicle_state.locked", "?")
+    return (
+        f"  {tag}[dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}"
+        "  [dim](no changes)[/dim]"
+    )
+
+
 @vehicle_app.command("watch")
 def vehicle_watch(
     interval: int = typer.Option(60, "--interval", "-i", min=10, help="Poll interval in seconds"),
@@ -1809,6 +1842,14 @@ def vehicle_watch(
     all_vehicles: bool = typer.Option(
         False, "--all", "-A", help="Watch all configured vehicles simultaneously"
     ),
+    mode: str = typer.Option(
+        "simple",
+        "--mode",
+        help="Output mode: simple (key changes only), detail (same as simple), raw (JSON per change)",
+    ),
+    max_changes: int = typer.Option(
+        0, "--max-changes", help="Stop after N state changes (0 = unlimited, useful for cron)"
+    ),
     vin: str | None = VinOption,
 ) -> None:
     """Continuous vehicle monitoring — prints alerts on state changes.
@@ -1822,11 +1863,17 @@ def vehicle_watch(
     tesla vehicle watch --notify "tgram://botid/chatid"
     tesla vehicle watch --all
     tesla vehicle watch --all --notify "tgram://botid/chatid"
+    tesla vehicle watch --mode raw
+    tesla vehicle watch --max-changes 5
     Press Ctrl+C to stop.
     """
     import json as _json
     import threading
     from datetime import datetime as _dt
+
+    if mode not in ("simple", "detail", "raw"):
+        console.print("[red]--mode must be one of: simple, detail, raw[/red]")
+        raise typer.Exit(1)
 
     cfg = load_config()
 
@@ -1839,6 +1886,10 @@ def vehicle_watch(
             notifier.add(notify)
         except ImportError:
             console.print("[yellow]⚠ apprise not installed — notifications disabled[/yellow]")
+
+    # Shared counter for max-changes tracking across threads
+    _change_count: list[int] = [0]
+    _change_lock = threading.Lock()
 
     def _snapshot(backend, target_v: str) -> dict:
         """Fetch vehicle data and extract watched keys into a flat dict."""
@@ -1890,34 +1941,35 @@ def vehicle_watch(
                         ],
                     }
                     console.print(_json.dumps(payload))
-                elif changes:
-                    for c in changes:
-                        console.print(f"  {tag}[dim]{ts}[/dim]  {c}")
-                    if notifier:
-                        body = "\n".join(
-                            c.replace("[bold]", "").replace("[/bold]", "") for c in changes
-                        )
-                        prefix_title = f"Tesla Watch — {label}" if label else "Tesla Watch"
-                        notifier.notify(title=prefix_title, body=body)
-                    if on_change_exec:
-                        import os
-                        import subprocess
-
-                        change_data = [
-                            {"key": c.split(":")[0].strip(), "change": c}
-                            for c in [
-                                c.replace("[bold]", "").replace("[/bold]", "") for c in changes
-                            ]
-                        ]
-                        env = {**os.environ, "TESLA_CHANGES": _json.dumps(change_data)}
-                        subprocess.Popen(on_change_exec, shell=True, env=env)
                 else:
-                    batt = curr.get("charge_state.battery_level", "?")
-                    state = curr.get("charge_state.charging_state", "Unknown")
-                    locked = curr.get("vehicle_state.locked", "?")
-                    console.print(
-                        f"  {tag}[dim]{ts}[/dim]  🔋{batt}%  ⚡{state}  🔒{'yes' if locked else 'no'}  [dim](no changes)[/dim]"
-                    )
+                    line = _format_watch_change(curr, changes, ts, tag, mode)
+                    console.print(line)
+                    if changes:
+                        if notifier:
+                            body = "\n".join(
+                                c.replace("[bold]", "").replace("[/bold]", "") for c in changes
+                            )
+                            prefix_title = f"Tesla Watch — {label}" if label else "Tesla Watch"
+                            notifier.notify(title=prefix_title, body=body)
+                        if on_change_exec:
+                            import os
+                            import subprocess
+
+                            change_data = [
+                                {"key": c.split(":")[0].strip(), "change": c}
+                                for c in [
+                                    c.replace("[bold]", "").replace("[/bold]", "") for c in changes
+                                ]
+                            ]
+                            env = {**os.environ, "TESLA_CHANGES": _json.dumps(change_data)}
+                            subprocess.Popen(on_change_exec, shell=True, env=env)
+                        if max_changes > 0:
+                            with _change_lock:
+                                _change_count[0] += len(changes)
+                                if _change_count[0] >= max_changes:
+                                    if stop is not None:
+                                        stop.set()
+                                    return
             prev = curr
             time.sleep(interval)
 
@@ -1957,12 +2009,14 @@ def vehicle_watch(
             console.print("\n  [dim]Watch stopped.[/dim]\n")
     else:
         v = _vin(vin)
+        stop_msg = f" (stops after {max_changes} changes)" if max_changes > 0 else ""
         console.print(
-            f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]"
+            f"\n  [bold]Watching vehicle[/bold] [dim]{v}[/dim] — polling every [bold]{interval}s[/bold]{stop_msg}"
         )
         console.print("  [dim]Press Ctrl+C to stop.[/dim]\n")
+        _single_stop = threading.Event()
         try:
-            _watch_one(v, "", None)
+            _watch_one(v, "", _single_stop)
         except KeyboardInterrupt:
             console.print("\n  [dim]Watch stopped.[/dim]\n")
 

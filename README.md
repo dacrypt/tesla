@@ -72,13 +72,13 @@ Download MVPA, purchase invoices, and other Tesla portal documents directly: `te
 Trip history, charging sessions, cost reports, drive heatmaps, vampire drain analysis, and more — from your TeslaMate PostgreSQL database. Includes managed Docker stack (one-command install).
 
 ### REST API + Web Dashboard
-FastAPI server with 45+ endpoints: vehicle, charge, climate, security, notifications, dossier, TeslaMate. SSE live stream, Prometheus metrics (27 gauges), mobile-friendly React dashboard with Leaflet live map (dark tiles) and Recharts analytics visualizations.
+FastAPI server with 143+ endpoints: vehicle, charge, climate, security, notifications, dossier, TeslaMate. SSE live stream, Prometheus metrics (27 gauges), mobile-friendly React dashboard with Leaflet live map (dark tiles) and Recharts analytics visualizations.
 
 ### Integrations
 MQTT + Home Assistant auto-discovery (15 sensors), ABRP live telemetry, BLE local control, geofencing with alerts, Apprise notifications (100+ services), Apple Shortcuts via `web+tesla://` URL scheme. Config doctor validates all connections.
 
 ### Claude Code Plugin
-Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). The plugin lives in [`plugins/claude-code/`](plugins/claude-code/) — eleven skills covering status, control, charging, order tracking, dossier, analytics, automations, telemetry, and the web dashboard. See the [plugin README](plugins/claude-code/README.md) for setup.
+Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claude-code). The plugin lives in [`plugins/claude-code/`](plugins/claude-code/) — 12 skills covering status, control, charging, order tracking, dossier, analytics, automations, telemetry, and the web dashboard. See the [plugin README](plugins/claude-code/README.md) for setup.
 
 ---
 
@@ -88,13 +88,13 @@ Talk to your Tesla in natural language via [Claude Code](https://claude.ai/claud
 tesla/
 ├── src/tesla_cli/         # Python CLI + FastAPI backend
 │   ├── core/              # Business logic (backends, models, providers)
-│   ├── cli/               # Typer CLI (14 command groups, 175+ commands)
-│   ├── api/               # FastAPI REST API (45+ endpoints, SSE, Prometheus)
+│   ├── cli/               # Typer CLI (14 command groups, 278+ commands)
+│   ├── api/               # FastAPI REST API (143+ endpoints, SSE, Prometheus)
 │   └── infra/             # Docker Compose lifecycle
-├── ui/                    # React 19 + Ionic web dashboard
+├── ui/                    # React 19 + Ionic web dashboard (10 pages)
 ├── plugins/
-│   └── claude-code/       # Claude Code plugin (11 skills)
-├── tests/                 # pytest suite (1527 tests)
+│   └── claude-code/       # Claude Code plugin (12 skills)
+├── tests/                 # pytest suite (1682 tests)
 ├── docs/                  # Architecture, API ref, user guide, roadmap
 └── docker/                # TeslaMate stack configs
 ```
@@ -112,7 +112,7 @@ tesla/
 | **[Data Sources](docs/data-sources.md)** | Tesla API catalog, third-party services, registered sources |
 | **[Roadmap](docs/roadmap.md)** | Upcoming features and remaining gaps |
 | **[Competitive Analysis](docs/research/competitive-analysis.md)** | 20-tool ecosystem deep dive |
-| **[Changelog](CHANGELOG.md)** | Version history (v0.1.0 → v4.0.0) |
+| **[Changelog](CHANGELOG.md)** | Version history (v0.1.0 → v4.9.0) |
 | **[Contributing](CONTRIBUTING.md)** | Development setup, testing, pull requests |
 
 ---
@@ -143,7 +143,7 @@ docker compose -f docker-compose.full.yml up -d
 
 ```bash
 uv sync --extra dev --extra serve --extra teslaMate --extra fleet --extra pdf
-uv run pytest -m "not integration"         # unit tests (1527 tests)
+uv run pytest -m "not integration"         # unit tests (1682 tests)
 uv run ruff check src/ tests/              # lint
 ```
 
