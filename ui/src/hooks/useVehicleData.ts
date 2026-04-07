@@ -24,6 +24,7 @@ export function useVehicleData(): VehicleData {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [connected, setConnected] = useState(false);
   const [stale, setStale] = useState(false);
+  const [preDelivery, setPreDelivery] = useState(false);
 
   const loadFromCache = useCallback(() => {
     try {
@@ -44,70 +45,43 @@ export function useVehicleData(): VehicleData {
     setLoading(true);
     setError(null);
     try {
-      // Single API call to get vehicle state — charge and climate are included
-      // This replaces 3 parallel calls that each hit Tesla's API separately
-      const [s, ch, cl] = await Promise.allSettled([
-        api.getVehicleState(),
-        api.getChargeState(),
-        api.getClimateState(),
-      ]);
+      // Single API call — /api/vehicle/state returns full vehicle_data including sub-states
+      const data = await api.getVehicleState();
 
-      // If ALL failed with 412 (pre-delivery), don't retry — cache and show message
-      const all412 = [s, ch, cl].every(
-        r => r.status === 'rejected' && String(r.reason).includes('412')
-      );
-      if (all412) {
-        setError('Vehicle not accessible (pre-delivery)');
-        loadFromCache();
-        setLoading(false);
-        // Don't set up SSE polling — it would also fail
-        setConnected(false);
-        return;
-      }
-      const anyFulfilled = s.status === 'fulfilled' || ch.status === 'fulfilled' || cl.status === 'fulfilled';
-      if (s.status === 'fulfilled') setState(s.value);
-      if (ch.status === 'fulfilled') setCharge(ch.value);
-      if (cl.status === 'fulfilled') setClimate(cl.value);
-      if (s.status === 'rejected' && ch.status === 'rejected' && cl.status === 'rejected') {
-        setError('Vehicle not connected');
-        loadFromCache();
-      } else if (s.status === 'rejected' || ch.status === 'rejected' || cl.status === 'rejected') {
-        // Partial failure — some sources unavailable, show warning but don't block
-        const failed = [s, ch, cl].filter(r => r.status === 'rejected').length;
-        setError(`${failed} data source(s) unavailable`);
-      }
-      if (anyFulfilled) {
-        setStale(false);
-        // Cache successful data
-        const newState = s.status === 'fulfilled' ? s.value : state;
-        const newCharge = ch.status === 'fulfilled' ? ch.value : charge;
-        const newClimate = cl.status === 'fulfilled' ? cl.value : climate;
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          state: newState,
-          charge: newCharge,
-          climate: newClimate,
-          timestamp: Date.now(),
-        }));
-      }
+      // Extract sub-states from the full vehicle_data response
+      const chargeState = (data as any).charge_state || null;
+      const climateState = (data as any).climate_state || null;
+
+      setState(data);
+      setCharge(chargeState);
+      setClimate(climateState);
+      setStale(false);
       setLastUpdated(new Date());
-    } catch (e) {
-      setError('Connection failed');
-      loadFromCache();
+
+      // Cache successful data
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        state: data,
+        charge: chargeState,
+        climate: climateState,
+        timestamp: Date.now(),
+      }));
+    } catch (e: any) {
+      if (String(e).includes('412')) {
+        setError('Vehicle not accessible (pre-delivery)');
+        setPreDelivery(true);
+        loadFromCache();
+        setConnected(false);
+      } else {
+        setError('Connection failed');
+        loadFromCache();
+      }
     } finally {
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const [preDelivery, setPreDelivery] = useState(false);
+  }, [loadFromCache]);
 
   useEffect(() => {
-    fetchAll().then(() => {
-      // If all 3 calls failed with 412, mark as pre-delivery and don't poll
-      if (error === 'Vehicle not accessible (pre-delivery)') {
-        setPreDelivery(true);
-        return;
-      }
-    });
+    fetchAll();
     // Only set up polling interval if NOT pre-delivery
     const interval = setInterval(() => {
       if (!preDelivery) fetchAll();

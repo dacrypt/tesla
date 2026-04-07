@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from tesla_cli.core.config import Config
+from tesla_cli.core.backends.base import VehicleBackend
+from tesla_cli.core.backends.cached import CachedVehicleBackend
+
+_cached_backend: CachedVehicleBackend | None = None
+_cached_backend_key: str = ""
 
 
-def get_vehicle_backend(config: Config) -> object:
-    """Return the configured vehicle backend."""
+def _create_real_backend(config) -> VehicleBackend:
+    """Instantiate the real backend based on config (no caching)."""
     if config.general.backend == "tessie":
         from tesla_cli.core.auth.tokens import TESSIE_TOKEN, get_token
         from tesla_cli.core.backends.tessie import TessieBackend
@@ -52,3 +56,22 @@ def get_vehicle_backend(config: Config) -> object:
             f"Unknown backend: {config.general.backend}. "
             "Use 'owner', 'tessie', 'fleet', or 'fleet-signed'."
         )
+
+
+def get_vehicle_backend(config=None) -> VehicleBackend:
+    """Return the configured vehicle backend, wrapped in a singleton CachedVehicleBackend."""
+    global _cached_backend, _cached_backend_key
+
+    if config is None:
+        from tesla_cli.core.config import load_config
+
+        config = load_config()
+
+    key = f"{config.general.backend}:{id(config)}"
+    if _cached_backend is not None and _cached_backend_key == key:
+        return _cached_backend
+
+    inner = _create_real_backend(config)
+    _cached_backend = CachedVehicleBackend(inner, ttl=45)
+    _cached_backend_key = key
+    return _cached_backend
