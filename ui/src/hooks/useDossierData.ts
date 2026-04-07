@@ -22,6 +22,47 @@ let _cacheError: string | null = null;
 let _cacheLoaded = false;
 let _cachePromise: Promise<void> | null = null;
 
+// Source update tracking — maps source_id to latest data
+const _sourceUpdates: Record<string, unknown> = {};
+// Listeners to notify all mounted hooks when sources update
+const _sourceListeners: Set<() => void> = new Set();
+
+// Shared SSE listener for source events (one per app, not per component)
+let _sseListening = false;
+
+function _startSourceSSE() {
+  if (_sseListening) return;
+  _sseListening = true;
+
+  const es = new EventSource(api.getStreamUrl());
+
+  es.addEventListener('source', (evt) => {
+    try {
+      const parsed = JSON.parse((evt as MessageEvent).data);
+      if (parsed.id && parsed.data !== undefined) {
+        _sourceUpdates[parsed.id] = parsed.data;
+        // Re-fetch the dossier (fast disk read) to get updated aggregate
+        api.getDossier()
+          .then(d => {
+            _cachedDossier = d;
+            _cacheError = null;
+            // Notify all mounted hooks
+            _sourceListeners.forEach(fn => fn());
+          })
+          .catch(() => {}); // ignore — dossier might not be built yet
+      }
+    } catch {
+      // ignore parse errors
+    }
+  });
+
+  es.onerror = () => {
+    // SSE closed — allow reconnect on next mount
+    _sseListening = false;
+    es.close();
+  };
+}
+
 export function useDossierData(): DossierData {
   const [dossier, setDossier] = useState<VehicleDossier | null>(_cachedDossier);
   const [runtLive, setRuntLive] = useState<RuntData | null>(null);
@@ -42,7 +83,6 @@ export function useDossierData(): DossierData {
       return;
     }
 
-    // Deduplicate: if another component already started the fetch, wait for it
     if (_cachePromise) {
       await _cachePromise;
       setDossier(_cachedDossier);
@@ -78,7 +118,7 @@ export function useDossierData(): DossierData {
     setLoading(false);
   }, []);
 
-  // Full rebuild (slow) — also refreshes the session cache
+  // Full rebuild (slow)
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -95,7 +135,6 @@ export function useDossierData(): DossierData {
     }
   }, []);
 
-  // Independent RUNT query
   const refreshRunt = useCallback(async () => {
     setRuntLoading(true);
     setRuntError(null);
@@ -109,7 +148,6 @@ export function useDossierData(): DossierData {
     }
   }, []);
 
-  // Independent SIMIT query
   const refreshSimit = useCallback(async () => {
     setSimitLoading(true);
     setSimitError(null);
@@ -123,9 +161,18 @@ export function useDossierData(): DossierData {
     }
   }, []);
 
-  // On mount: load from session cache (instant if already loaded)
+  // On mount: load from session cache + start SSE listener
   useEffect(() => {
     fetchCached();
+    _startSourceSSE();
+
+    // Subscribe to source updates
+    const onUpdate = () => {
+      setDossier(_cachedDossier);
+      setError(_cacheError);
+    };
+    _sourceListeners.add(onUpdate);
+    return () => { _sourceListeners.delete(onUpdate); };
   }, [fetchCached]);
 
   return {

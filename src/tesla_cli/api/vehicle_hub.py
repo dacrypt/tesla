@@ -151,6 +151,18 @@ class VehicleStateHub:
         event = f"event: vehicle\ndata: {payload}\n\n"
         self._send_to_clients(event)
 
+    def broadcast_source(self, source_id: str, data: Any) -> None:
+        """Push a data source update to all connected SSE clients.
+
+        Called by the auto-refresh loop when a source is refreshed.
+        Frontend receives event: source with {id, data, ts}.
+        """
+        ts = int(time.time())
+        payload = json.dumps({"ts": ts, "id": source_id, "data": _sanitize(data)})
+        event = f"event: source\ndata: {payload}\n\n"
+        self._send_to_clients(event)
+        log.debug("Broadcast source update: %s", source_id)
+
     def _broadcast_error(self, error_type: str, message: str) -> None:
         """Push error event to all connected SSE clients."""
         payload = json.dumps({"error": error_type, "message": message})
