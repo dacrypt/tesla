@@ -273,7 +273,7 @@ const Order: React.FC = () => {
   };
 
   const status = computed.real_status;
-  const order = sources.order;
+  const order = sources['tesla.order'];
   const specs = computed.specs;
   const phase = status?.phase || 'ordered';
 
@@ -332,7 +332,7 @@ const Order: React.FC = () => {
             financing={orderFinancing}
             realStatus={status}
             logistics={null}
-            runt={sources.runt}
+            runt={sources['co.runt']}
             financial={null}
             loading={orderLoading}
           />

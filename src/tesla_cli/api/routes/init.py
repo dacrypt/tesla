@@ -1,7 +1,8 @@
 """Init API route: /api/init — single payload for app startup.
 
-Returns everything the frontend needs in one request: source data,
-computed fields (real_status, specs), auth, automations, and vehicle state.
+Returns everything the frontend needs in one request: all source data
+for the configured country, computed fields (real_status, specs),
+geolocation, auth, automations, and vehicle state.
 No dossier dependency — reads source caches directly.
 """
 
@@ -23,41 +24,52 @@ log = logging.getLogger("tesla-cli.init")
 def app_init(request: Request) -> dict:
     """Bundle all data needed for initial app render.
 
-    Returns {sources, computed, auth, automations, vehicle}.
-    Each section is best-effort — failures return null, not errors.
+    Returns {sources, computed, location, auth, automations, vehicle}.
+    Each section is best-effort — failures return null/empty, not errors.
     """
     cfg = load_config()
     vin = cfg.general.default_vin or ""
+    country = cfg.general.country or "CO"
 
     result: dict = {
-        "sources": {
-            "order": None,
-            "runt": None,
-        },
+        "sources": {},
         "computed": {
             "real_status": None,
             "specs": None,
         },
+        "location": None,
         "auth": None,
         "automations": None,
         "vehicle": None,
     }
 
-    # ── Sources (read from cache, no API calls) ──
+    # ── All sources for this country (read from cache, no API calls) ──
 
     order_data = None
     runt_data = None
 
     try:
-        from tesla_cli.core.sources import get_cached
+        from tesla_cli.core.sources import _SOURCES, get_cached
 
-        order_data = get_cached("tesla.order")
-        result["sources"]["order"] = order_data
-
-        runt_data = get_cached("co.runt")
-        result["sources"]["runt"] = runt_data
+        for sid, src in _SOURCES.items():
+            if src.country in ("", country):
+                cached = get_cached(sid)
+                if cached is not None:
+                    result["sources"][sid] = cached
+                    # Track specific sources for computed fields
+                    if sid == "tesla.order":
+                        order_data = cached
+                    elif sid == "co.runt":
+                        runt_data = cached
     except Exception as exc:
         log.debug("Init: source cache read failed: %s", exc)
+
+    # ── Geolocation (vehicle GPS → delivery cache → default) ──
+
+    try:
+        result["location"] = _resolve_location(request, cfg)
+    except Exception as exc:
+        log.debug("Init: location resolution failed: %s", exc)
 
     # ── Computed fields ──
 
@@ -151,3 +163,57 @@ def app_init(request: Request) -> dict:
             result["vehicle"] = {"_pre_delivery": True}
 
     return result
+
+
+def _resolve_location(request: Request, cfg) -> dict:
+    """Resolve vehicle/user location with fallback chain.
+
+    Priority: vehicle GPS → delivery cache → config → default (bogota).
+    """
+    from tesla_cli.core.backends.energy_prices import CITY_COORDS, nearest_city
+
+    # 1. Try vehicle GPS from hub
+    hub = getattr(request.app.state, "vehicle_hub", None)
+    if hub:
+        latest = hub.get_latest()
+        if latest:
+            ds = latest.get("drive_state") or {}
+            lat = ds.get("latitude")
+            lon = ds.get("longitude")
+            if lat is not None and lon is not None:
+                city = nearest_city(float(lat), float(lon))
+                return {
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "city": city,
+                    "source": "vehicle_gps",
+                }
+
+    # 2. Try delivery cache location
+    try:
+        from tesla_cli.core.backends.order import DELIVERY_CACHE_FILE
+
+        if DELIVERY_CACHE_FILE.exists():
+            dc = json.loads(DELIVERY_CACHE_FILE.read_text())
+            loc_name = dc.get("location_name", "")
+            # Parse city from location name (e.g., "Tesla Medellin Centro de Entrega")
+            for city_key in CITY_COORDS:
+                if city_key in loc_name.lower():
+                    clat, clon = CITY_COORDS[city_key]
+                    return {
+                        "lat": clat,
+                        "lon": clon,
+                        "city": city_key,
+                        "source": "delivery_cache",
+                    }
+    except Exception:
+        pass
+
+    # 3. Default: bogota
+    clat, clon = CITY_COORDS.get("bogota", (4.711, -74.072))
+    return {
+        "lat": clat,
+        "lon": clon,
+        "city": "bogota",
+        "source": "default",
+    }
