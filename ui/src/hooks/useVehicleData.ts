@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, VehicleState, ChargeState, ClimateState } from '../api/client';
+import { subscribe, isConnected } from './sseHub';
 
 const CACHE_KEY = 'tesla_vehicle_data_cache';
 
@@ -95,78 +96,47 @@ export function useVehicleData(): VehicleData {
     fetchInitial();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SSE stream — receives push updates from backend hub
+  // SSE stream — receives push updates from shared hub connection
   useEffect(() => {
     if (preDeliveryRef.current) return;
 
-    let es: EventSource | null = null;
-    let retryCount = 0;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-
-    const connect = () => {
-      if (cancelled || preDeliveryRef.current) return;
+    // Subscribe to vehicle state updates
+    const unsubVehicle = subscribe('vehicle', (evt) => {
       try {
-        es = new EventSource(api.getStreamUrl());
-        es.onopen = () => {
+        const parsed = JSON.parse(evt.data);
+        const data = parsed.data || parsed;
+        if (data.battery_level !== undefined || data.charge_state) {
+          applyData(data);
           setConnected(true);
-          retryCount = 0;
-        };
-
-        // Vehicle state updates from hub
-        es.addEventListener('vehicle', (evt) => {
-          try {
-            const parsed = JSON.parse(evt.data);
-            const data = parsed.data || parsed;
-            if (data.battery_level !== undefined || data.charge_state) {
-              applyData(data);
-            }
-          } catch {
-            // ignore parse errors
-          }
-        });
-
-        // Error events (pre-delivery, asleep, etc.)
-        es.addEventListener('error', (evt) => {
-          try {
-            // SSE spec fires generic error on disconnect — check if it's our custom event
-            if (evt instanceof MessageEvent && evt.data) {
-              const parsed = JSON.parse(evt.data);
-              if (parsed.error === 'pre_delivery') {
-                preDeliveryRef.current = true;
-                setError('Vehicle not accessible (pre-delivery)');
-                setConnected(false);
-                es?.close();
-                return;
-              }
-            }
-          } catch {
-            // Not a JSON error event — it's a connection error
-          }
-
-          setConnected(false);
-          es?.close();
-          es = null;
-          if (!cancelled && !preDeliveryRef.current) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-            retryTimeout = setTimeout(() => {
-              retryCount++;
-              connect();
-            }, delay);
-          }
-        });
+        }
       } catch {
-        // SSE not available
+        // ignore parse errors
       }
-    };
+    });
 
-    connect();
+    // Subscribe to error events (pre-delivery, asleep, etc.)
+    const unsubError = subscribe('error', (evt) => {
+      try {
+        const parsed = JSON.parse(evt.data);
+        if (parsed.error === 'pre_delivery') {
+          preDeliveryRef.current = true;
+          setError('Vehicle not accessible (pre-delivery)');
+          setConnected(false);
+        }
+      } catch {
+        // ignore
+      }
+    });
+
+    // Track connection state
+    const checkInterval = setInterval(() => {
+      setConnected(isConnected());
+    }, 5000);
 
     return () => {
-      cancelled = true;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      if (es) es.close();
-      setConnected(false);
+      unsubVehicle();
+      unsubError();
+      clearInterval(checkInterval);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
