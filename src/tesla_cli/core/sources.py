@@ -794,6 +794,15 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             openquery_source="co.multas_medellin",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
+        SourceDef(
+            id="co.tarifas_energia",
+            name="Tarifas de Energía (kWh)",
+            category="servicios",
+            ttl=86400,  # daily refresh
+            country="CO",
+            openquery_source="co.tarifas_energia",
+            openquery_params={"doc_type": "custom", "doc_number": ""},
+        ),
     ],
     "AR": [
         SourceDef(

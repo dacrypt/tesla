@@ -724,8 +724,8 @@ export const api = {
     client().post<any>(`/api/sources/${id}/refresh`).then(r => r.data),
   getMissingAuth: () =>
     client().get<any[]>('/api/sources/missing-auth').then(r => r.data),
-  getSourceHistory: (id: string) =>
-    client().get<any[]>(`/api/sources/${id}/history`).then(r => r.data),
+  getSourceHistory: (id: string, limit = 10) =>
+    client().get<any[]>(`/api/sources/${id}/history?limit=${limit}`).then(r => r.data),
   getSourceAudits: (id: string) =>
     client().get<any[]>(`/api/sources/${id}/audits`).then(r => r.data),
   getSourceConfig: () =>
