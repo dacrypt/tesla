@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 import httpx
@@ -16,6 +17,35 @@ from tesla_cli.core.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _TokenBucket:
+    """Simple token bucket rate limiter."""
+
+    def __init__(self, max_tokens: int = 5, refill_rate: float = 5 / 60) -> None:
+        self._max = max_tokens
+        self._tokens = float(max_tokens)
+        self._rate = refill_rate
+        self._last = time.time()
+        self._lock = threading.Lock()
+
+    def acquire(self, timeout: float = 30) -> bool:
+        deadline = time.time() + timeout
+        while True:
+            with self._lock:
+                now = time.time()
+                self._tokens = min(self._max, self._tokens + (now - self._last) * self._rate)
+                self._last = now
+                if self._tokens >= 1:
+                    self._tokens -= 1
+                    return True
+            if time.time() >= deadline:
+                return False
+            time.sleep(0.5)
+
+
+# Shared across all backend instances
+_tesla_rate_limiter = _TokenBucket(max_tokens=5, refill_rate=5 / 60)
 
 
 class HttpBackendMixin:
@@ -39,6 +69,8 @@ class HttpBackendMixin:
     _base_delay: float = 1.0
 
     def _request(self, method: str, path: str, **kwargs) -> dict:
+        if not _tesla_rate_limiter.acquire(timeout=30):
+            raise RateLimitError("Local rate limit exceeded")
         for attempt in range(self._max_retries + 1):
             resp = self._client.request(method, path, **kwargs)
 
