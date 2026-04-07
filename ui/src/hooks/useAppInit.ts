@@ -69,8 +69,19 @@ export function useAppInit(): AppInitData {
         if (result.dossier) {
           seedDossierCache(result.dossier);
         }
-      } catch (e: unknown) {
-        _initData = { dossier: null, auth: null, automations: null, vehicle: null };
+      } catch {
+        // /api/init not available — fallback to individual requests
+        const [dossierResult, authResult, autoResult] = await Promise.allSettled([
+          api.getDossier(),
+          api.getAuthStatus(),
+          api.getAutomationsStatus(),
+        ]);
+        const dossier = dossierResult.status === 'fulfilled' ? dossierResult.value : null;
+        const auth = authResult.status === 'fulfilled' ? authResult.value : null;
+        const automations = autoResult.status === 'fulfilled' ? autoResult.value : null;
+
+        _initData = { dossier, auth, automations, vehicle: null };
+        if (dossier) seedDossierCache(dossier);
       } finally {
         _initLoaded = true;
         _initPromise = null;
