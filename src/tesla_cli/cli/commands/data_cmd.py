@@ -480,6 +480,155 @@ def query_siniestralidad(
     _run("co.siniestralidad", q)
 
 
+@data_app.command("energia")
+def query_energia(
+    ciudad: str = typer.Option(
+        "bogota", "--ciudad", "-c", help="City (bogota, medellin, cali, barranquilla)"
+    ),
+    estrato: int = typer.Option(0, "--estrato", "-e", help="Estrato 1–6, 0 = all"),
+) -> None:
+    """Electricity tariff by city and estrato — cost per kWh for EV charging.
+
+    Shows the current electricity price per kWh in your city, useful for
+    calculating real charging costs at home.
+
+    Examples:
+
+      tesla data energia --ciudad bogota --estrato 4
+      tesla data energia -c medellin
+    """
+    try:
+        from openquery.sources import get_source
+        from openquery.sources.base import DocumentType, QueryInput
+    except ImportError:
+        console.print(_NOT_INSTALLED)
+        raise typer.Exit(1)
+
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
+    extra: dict = {"ciudad": ciudad}
+    if estrato:
+        extra["estrato"] = estrato
+
+    qi = QueryInput(
+        document_type=DocumentType.CUSTOM,
+        document_number="",
+        extra=extra,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as prog:
+        prog.add_task("Consultando tarifas de energía…", total=None)
+        try:
+            src = get_source("co.tarifas_energia")
+            result = src.query(qi)
+        except KeyError:
+            console.print(
+                "[red]Source co.tarifas_energia not available in this openquery version.[/red]"
+            )
+            raise typer.Exit(1)
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[red]Error consultando tarifas:[/red] {exc}")
+            raise typer.Exit(1)
+
+    data = result.model_dump(exclude={"audit", "queried_at"})
+
+    if is_json_mode():
+        import json as _j
+
+        console.print(_j.dumps(data, indent=2, ensure_ascii=False))
+        return
+
+    # ── Display results ────────────────────────────────────────────────────────
+    tarifas: list[dict] = []
+    if isinstance(data.get("tarifas"), list):
+        tarifas = data["tarifas"]
+    elif isinstance(data.get("data"), list):
+        tarifas = data["data"]
+    else:
+        # Fallback: generic display
+        t = Table(
+            title=f"Tarifas de Energía — {ciudad.title()}",
+            show_header=False,
+            box=None,
+            padding=(0, 2),
+        )
+        t.add_column("key", style="bold dim", width=28)
+        t.add_column("val")
+        for k, v in data.items():
+            if v is None or v == "" or v == []:
+                continue
+            t.add_row(k.replace("_", " ").title(), str(v))
+        console.print(t)
+        return
+
+    # Filter by estrato if specified
+    if estrato:
+        tarifas = [r for r in tarifas if str(r.get("estrato", "")) == str(estrato)]
+
+    t = Table(
+        title=f"Tarifas de Energía — {ciudad.title()}",
+        border_style="dim",
+    )
+    t.add_column("Estrato", justify="center", width=8)
+    t.add_column("$/kWh", justify="right", width=10)
+    t.add_column("Operador", width=28)
+    t.add_column("Municipio", width=18)
+
+    target_tariff: float | None = None
+    target_row: dict | None = None
+
+    for row in tarifas:
+        est = str(row.get("estrato", "—"))
+        kwh = row.get("tarifa_kwh") or row.get("costo_kwh") or row.get("valor_kwh")
+        operador = str(row.get("operador") or row.get("empresa") or "—")
+        municipio = str(row.get("municipio") or row.get("ciudad") or "—")
+        kwh_str = f"${float(kwh):,.4f}" if kwh is not None else "—"
+
+        # Highlight the requested estrato
+        highlight = estrato and str(estrato) == est
+        style = "bold green" if highlight else ""
+        t.add_row(est, kwh_str, operador, municipio, style=style)
+
+        if highlight and kwh is not None:
+            target_tariff = float(kwh)
+            target_row = row
+
+    console.print(t)
+
+    # ── Offer to update cost_per_kwh ──────────────────────────────────────────
+    if target_tariff is not None and target_row is not None:
+        from tesla_cli.core.config import load_config, save_config
+
+        cfg = load_config()
+        current = cfg.general.cost_per_kwh
+        operador = target_row.get("operador") or target_row.get("empresa") or "—"
+
+        console.print()
+        console.print(
+            f"[dim]Current cost_per_kwh in config:[/dim] "
+            f"[{'yellow' if current else 'dim'}]${current:.2f}[/{'yellow' if current else 'dim'}]"
+        )
+        console.print(
+            f"Your estrato [bold]{estrato}[/bold] tariff: "
+            f"[bold green]${target_tariff:.4f}/kWh[/bold green] "
+            f"[dim]({operador} — {ciudad.title()})[/dim]"
+        )
+        console.print()
+
+        update = typer.confirm("Update cost_per_kwh in config?", default=False)
+        if update:
+            cfg.general.cost_per_kwh = target_tariff
+            save_config(cfg)
+            console.print(
+                f"[green]✓[/green] cost_per_kwh updated to [bold]${target_tariff:.4f}[/bold]/kWh"
+            )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Vehicle Data Aggregation & Export
 # ═══════════════════════════════════════════════════════════════════════════════
