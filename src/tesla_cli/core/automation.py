@@ -345,14 +345,25 @@ class AutomationEngine:
         _log_notification("Tesla Automation", body, "automation", bool(ok))
 
 
+def _redact_message(message: str) -> str:
+    """Truncate and redact PII (VINs, RNs) from a notification message."""
+    import re
+
+    msg = message[:100]
+    msg = re.sub(r"\b[A-HJ-NPR-Z0-9]{17}\b", "***VIN***", msg)
+    msg = re.sub(r"\bRN\d+\b", "***RN***", msg)
+    return msg
+
+
 def _log_notification(title: str, message: str, channel: str, success: bool) -> None:
     """Append a notification event to the JSONL history log."""
     import json
+    import os
 
     entry = {
         "timestamp": datetime.now().isoformat(),
         "title": title,
-        "message": message,
+        "message": _redact_message(message),
         "channel": channel,
         "success": success,
     }
@@ -360,6 +371,7 @@ def _log_notification(title: str, message: str, channel: str, success: bool) -> 
     history_file.parent.mkdir(parents=True, exist_ok=True)
     with history_file.open("a") as f:
         f.write(json.dumps(entry) + "\n")
+    os.chmod(history_file, 0o600)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

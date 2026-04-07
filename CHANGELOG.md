@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-04-06
+
+### Dashboard
+- **Dedicated Order page** with 15-step financing/delivery tracker
+- **Energy page** — Powerwall controls, city tariff comparison, cost calculator
+- **Automations page** — CRUD rules, quick setup, test/toggle/delete
+- **Notification history** timeline in Settings
+- **Offline mode** — cached vehicle data when server is down
+- **Mobile responsive** — CSS breakpoints for phones/tablets
+- **Scene cards** on dashboard (Morning/Goodnight/Trip)
+- **Code-split routes** — lazy-loaded pages for faster initial load
+
+### API (30+ new endpoints)
+- Energy management: sites, status, backup, mode, storm
+- Automations: CRUD, enable/disable, test, status
+- Charge scheduling + analytics: sessions, cost, forecast
+- Service: history, appointments, reminders
+- Scenes: list + execute
+- ABRP, BLE, MQTT, Dashcam endpoints
+- Energy tariffs: by city/estrato + vehicle location
+- 429 rate-limit retry with Retry-After
+
+### CLI
+- BLE key management (enroll, list, remove, state reads)
+- Safety Score + Service scheduling (first-mover)
+- EV vs gas savings calculator
+- Location-based charge/precondition schedules
+- Country-aware sources (9 countries, 35+ sources)
+- Dashcam processing (list/process/export)
+- Webhook automations (IFTTT/HomeKit/Google Home)
+- Energy tariffs command
+
+### Quality
+- 17 UI bugs fixed (critical crashes, color errors, missing guards)
+- Error boundary + React.Suspense on all lazy routes
+- Flaky test fixed permanently
+- 1682 tests passing
+
 ## [4.8.0] - 2026-04-05
 
 ### New Features
