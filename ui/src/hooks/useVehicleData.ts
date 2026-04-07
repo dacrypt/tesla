@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, VehicleState, ChargeState, ClimateState } from '../api/client';
 
 const CACHE_KEY = 'tesla_vehicle_data_cache';
@@ -25,6 +25,7 @@ export function useVehicleData(): VehicleData {
   const [connected, setConnected] = useState(false);
   const [stale, setStale] = useState(false);
   const [preDelivery, setPreDelivery] = useState(false);
+  const preDeliveryRef = useRef(false);
 
   const loadFromCache = useCallback(() => {
     try {
@@ -69,6 +70,7 @@ export function useVehicleData(): VehicleData {
       if (String(e).includes('412')) {
         setError('Vehicle not accessible (pre-delivery)');
         setPreDelivery(true);
+        preDeliveryRef.current = true;
         loadFromCache();
         setConnected(false);
       } else {
@@ -82,9 +84,9 @@ export function useVehicleData(): VehicleData {
 
   useEffect(() => {
     fetchAll();
-    // Only set up polling interval if NOT pre-delivery
+    // Poll every 30s — skip if vehicle is pre-delivery (412)
     const interval = setInterval(() => {
-      if (!preDelivery) fetchAll();
+      if (!preDeliveryRef.current) fetchAll();
     }, 30000);
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -92,7 +94,7 @@ export function useVehicleData(): VehicleData {
   // SSE stream with exponential backoff reconnection
   // Skip SSE entirely when pre-delivery (vehicle not accessible)
   useEffect(() => {
-    if (preDelivery) return;
+    if (preDeliveryRef.current) return;
     let es: EventSource | null = null;
     let retryCount = 0;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -124,7 +126,7 @@ export function useVehicleData(): VehicleData {
           setConnected(false);
           es?.close();
           es = null;
-          if (!cancelled) {
+          if (!cancelled && !preDeliveryRef.current) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
             retryTimeout = setTimeout(() => {
               retryCount++;
