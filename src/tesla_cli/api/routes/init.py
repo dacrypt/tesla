@@ -38,6 +38,7 @@ def app_init(request: Request) -> dict:
             "specs": None,
         },
         "location": None,
+        "drivers": [],
         "auth": None,
         "automations": None,
         "vehicle": None,
@@ -167,6 +168,16 @@ def app_init(request: Request) -> dict:
         }
     except Exception as exc:
         log.debug("Init: automations check failed: %s", exc)
+
+    # ── Drivers for this vehicle ──
+
+    try:
+        from tesla_cli.core.db import get_vehicle_drivers
+
+        if vin:
+            result["drivers"] = get_vehicle_drivers(vin)
+    except Exception as exc:
+        log.debug("Init: drivers load failed: %s", exc)
 
     # ── Vehicle state from hub (no API call) ──
 
