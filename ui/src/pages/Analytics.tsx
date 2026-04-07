@@ -19,7 +19,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts';
-import { api, TripStat, ChargeStat, Stats } from '../api/client';
+import { api, TripStat, ChargeStat, Stats, ChargingSession, ChargeCostSummary, ChargeForecast } from '../api/client';
 import VehicleMap from '../components/VehicleMap';
 
 // ---- Icons ----
@@ -52,7 +52,7 @@ const tooltipStyle = {
   itemStyle: { color: CHART_COLORS.green },
 };
 
-type Tab = 'overview' | 'trips' | 'charges' | 'efficiency' | 'timeline' | 'energy' | 'cost' | 'vampire';
+type Tab = 'overview' | 'trips' | 'charges' | 'efficiency' | 'timeline' | 'energy' | 'cost' | 'vampire' | 'charge-analytics';
 
 function Spin() {
   return (
@@ -150,6 +150,9 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [vampire, setVampire] = useState<any>(null);
   const [tripStats, setTripStats] = useState<any>(null);
   const [heatmap, setHeatmap] = useState<any[]>([]);
+  const [chargeSessions, setChargeSessions] = useState<ChargingSession[]>([]);
+  const [chargeCostSummary, setChargeCostSummary] = useState<ChargeCostSummary | null>(null);
+  const [chargeForecast, setChargeForecast] = useState<ChargeForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
@@ -190,6 +193,15 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
       } else if (tab === 'vampire') {
         const data = await api.getVampire();
         setVampire(data);
+      } else if (tab === 'charge-analytics') {
+        const [sessData, summData, foreData] = await Promise.allSettled([
+          api.getChargeAnalyticsSessions(20),
+          api.getChargeCostSummary(),
+          api.getChargeForecast(),
+        ]);
+        if (sessData.status === 'fulfilled') setChargeSessions(sessData.value);
+        if (summData.status === 'fulfilled') setChargeCostSummary(summData.value);
+        if (foreData.status === 'fulfilled') setChargeForecast(foreData.value);
       }
       fetchedTabs.current.add(tab);
     } catch {
@@ -210,6 +222,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     { key: 'energy', label: 'Energy', icon: <EnergyIcon /> },
     { key: 'cost', label: 'Cost', icon: <CostIcon /> },
     { key: 'vampire', label: 'Vampire', icon: <BatDrainIcon /> },
+    { key: 'charge-analytics', label: 'Charge+', icon: <BoltIcon /> },
   ];
 
   // ---- Derived chart data ----
@@ -626,6 +639,134 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                     ) : <NotConfigured />}
                   </div>
                 )
+              )}
+
+              {/* ---- Charge Analytics ---- */}
+              {activeTab === 'charge-analytics' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                  {/* Forecast widget */}
+                  {chargeForecast && (
+                    <div className="tesla-card" style={{ padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 10 }}>Charge Forecast</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <StatCard
+                          label="Battery Level"
+                          value={chargeForecast.battery_level != null ? `${chargeForecast.battery_level}%` : '--'}
+                          color="#05C46B"
+                          icon={<BoltIcon />}
+                        />
+                        <StatCard
+                          label="Charge Limit"
+                          value={chargeForecast.charge_limit_soc != null ? `${chargeForecast.charge_limit_soc}%` : '--'}
+                          color="#0FBCF9"
+                          icon={<BoltIcon />}
+                        />
+                        <StatCard
+                          label="Time to Full"
+                          value={chargeForecast.minutes_to_full_charge != null ? formatDuration(chargeForecast.minutes_to_full_charge) : '--'}
+                          color="#F99716"
+                          icon={<TimeIcon />}
+                        />
+                        <StatCard
+                          label="Energy Added"
+                          value={chargeForecast.charge_energy_added_kwh != null ? `${chargeForecast.charge_energy_added_kwh.toFixed(1)} kWh` : '--'}
+                          color="#0BE881"
+                          icon={<EnergyIcon />}
+                        />
+                      </div>
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 11, padding: '3px 10px', borderRadius: 10, fontWeight: 600,
+                          background: chargeForecast.is_charging ? 'rgba(5,196,107,0.15)' : 'rgba(136,136,136,0.15)',
+                          color: chargeForecast.is_charging ? '#05C46B' : '#888',
+                          border: `1px solid ${chargeForecast.is_charging ? 'rgba(5,196,107,0.3)' : 'rgba(136,136,136,0.3)'}`,
+                        }}>
+                          {chargeForecast.charging_state ?? 'Unknown'}
+                        </span>
+                        {chargeForecast.charge_rate_mph != null && (
+                          <span style={{ color: '#86888f', fontSize: 12 }}>
+                            {chargeForecast.charge_rate_mph.toFixed(1)} mph added/hr
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cost summary */}
+                  {chargeCostSummary && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                        <StatCard label="Total kWh" value={`${chargeCostSummary.total_kwh.toFixed(1)} kWh`} color="#0FBCF9" icon={<BoltIcon />} />
+                        <StatCard label="Total Cost" value={`$${chargeCostSummary.total_cost.toFixed(2)}`} color="#05C46B" icon={<CostIcon />} />
+                      </div>
+
+                      {/* Monthly cost bar chart */}
+                      {chargeCostSummary.months.length > 0 && (
+                        <ChartCard title="Monthly Cost (last 12 months)">
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={[...chargeCostSummary.months].reverse().slice(0, 12).reverse()} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                              <XAxis dataKey="month" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
+                              <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="$" width={40} />
+                              <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
+                              <Bar dataKey="cost" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </ChartCard>
+                      )}
+
+                      {/* Monthly rows */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {chargeCostSummary.months.map(m => (
+                          <div key={m.month} className="tesla-card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <div style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{m.month}</div>
+                              <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>
+                                {m.sessions} session{m.sessions !== 1 ? 's' : ''} · {m.kwh.toFixed(1)} kWh
+                                {m.cost_estimated && <span style={{ color: '#F99716', marginLeft: 6 }}>est.</span>}
+                              </div>
+                            </div>
+                            <span style={{ color: '#05C46B', fontWeight: 700, fontSize: 16 }}>${m.cost.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Session history table */}
+                  {chargeSessions.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Recent Sessions</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {chargeSessions.map((s, i) => (
+                          <div key={i} className="tesla-card" style={{ padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                              <div>
+                                <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{s.location || 'Unknown location'}</div>
+                                <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{formatDate(s.date)}</div>
+                              </div>
+                              <span style={{ color: '#0BE881', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>+{s.kwh.toFixed(1)} kWh</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                              {s.battery_start != null && s.battery_end != null && (
+                                <span style={{ color: '#86888f', fontSize: 12 }}>{s.battery_start}% → {s.battery_end}%</span>
+                              )}
+                              {s.cost != null && (
+                                <span style={{ color: '#86888f', fontSize: 12 }}>
+                                  ${s.cost.toFixed(2)}{s.cost_estimated && <span style={{ color: '#F99716' }}> est.</span>}
+                                </span>
+                              )}
+                              <span style={{ color: '#555', fontSize: 11 }}>{s.source}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!chargeForecast && !chargeCostSummary && chargeSessions.length === 0 && <NotConfigured />}
+                </div>
               )}
 
               {/* ---- Vampire Drain ---- */}

@@ -194,6 +194,7 @@ def _register_middleware(app: FastAPI) -> None:
 def _register_routes(app: FastAPI) -> None:
     """Include all API routers."""
     from tesla_cli.api.routes.auth import router as auth_router
+    from tesla_cli.api.routes.automations import router as automations_router
     from tesla_cli.api.routes.charge import router as charge_router
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
@@ -222,6 +223,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(geofence_router, prefix="/api/geofences", tags=["Geofences"])
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
     app.include_router(fleet_router, prefix="/api/fleet", tags=["Fleet"])
+    app.include_router(automations_router, prefix="/api/automations", tags=["Automations"])
 
 
 def _register_system_endpoints(app: FastAPI) -> None:
