@@ -144,9 +144,28 @@ async def _lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for the API server."""
     import threading
 
+    from tesla_cli.api.vehicle_hub import VehicleStateHub
+
     threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
     threading.Thread(target=_auto_refresh_sources, daemon=True).start()
+
+    # Start the shared vehicle state hub
+    try:
+        cfg = load_config()
+        vin = resolve_vin(cfg, app.state.override_vin if hasattr(app.state, "override_vin") else None)
+        backend = get_vehicle_backend(cfg)
+        hub = VehicleStateHub(backend, vin)
+        hub.start()
+        app.state.vehicle_hub = hub
+    except Exception as exc:
+        logging.getLogger("tesla-cli.hub").warning("Hub init failed (will work without): %s", exc)
+        app.state.vehicle_hub = None
+
     yield
+
+    # Shutdown
+    if getattr(app.state, "vehicle_hub", None):
+        app.state.vehicle_hub.stop()
 
 
 def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
@@ -506,60 +525,51 @@ def _register_sse_stream(app: FastAPI) -> None:
     """Register the real-time SSE vehicle stream endpoint."""
 
     @app.get("/api/vehicle/stream", tags=["Vehicle"])
-    async def vehicle_stream(
-        request: Request,
-        interval: int = 10,
-        fanout: bool = False,
-        topics: str = "",
-    ) -> StreamingResponse:
+    async def vehicle_stream(request: Request) -> StreamingResponse:
         """Server-Sent Events stream of live vehicle data.
 
-        Query params:
-        - `interval` — polling interval in seconds (default 10)
-        - `fanout` — also push each tick to ABRP + Home Assistant
-        - `topics` — comma-separated filter: `geofence`, `battery`, `climate`, `drive`, `location`
+        Subscribes to the shared VehicleStateHub. The hub runs a single
+        background poller — all connected clients share the same data source.
 
         Event types:
-        - `vehicle`  — full vehicle state snapshot (always emitted)
-        - `battery`  — charge_state snapshot (when `topics` includes `battery`)
-        - `climate`  — climate_state snapshot (when `topics` includes `climate`)
-        - `drive`    — drive_state snapshot (when `topics` includes `drive`)
-        - `location` — {lat, lon, heading} (when `topics` includes `location`)
-        - `geofence` — enter/exit zone event (when `topics` includes `geofence`)
+        - `vehicle` — full vehicle state snapshot
+        - `error`   — error notification (pre_delivery, asleep, etc.)
         """
-        cfg = load_config()
-        v = resolve_vin(cfg, app.state.override_vin)
-        topic_set = {t.strip() for t in topics.split(",") if t.strip()}
-        geofence_state: dict[str, bool] = {}  # zone_name → was_inside
+        hub = getattr(app.state, "vehicle_hub", None)
+
+        if hub is None:
+            # Fallback: no hub available, return error
+            async def _error_gen():
+                yield f"event: error\ndata: {json.dumps({'error': 'hub_unavailable', 'message': 'Vehicle hub not initialized'})}\n\n"
+            return StreamingResponse(
+                _error_gen(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
+        q = hub.subscribe()
 
         async def _generate():
-            backend = get_vehicle_backend(cfg)
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    data = await asyncio.get_event_loop().run_in_executor(
-                        None, lambda: backend.get_vehicle_data(v)
-                    )
+            try:
+                # Send current state immediately if available
+                latest = hub.get_latest()
+                if latest:
                     ts = int(time.time())
-                    payload = json.dumps({"ts": ts, "data": _sanitize(data)})
+                    payload = json.dumps({"ts": ts, "data": latest})
                     yield f"event: vehicle\ndata: {payload}\n\n"
 
-                    for ev in _sse_topic_events(data, ts, topic_set):
-                        yield ev
-
-                    if fanout:
-                        await asyncio.get_event_loop().run_in_executor(
-                            None, _fanout_telemetry, data, v, cfg
-                        )
-
-                    if "geofence" in topic_set:
-                        for ev in _sse_geofence_events(data, ts, geofence_state):
-                            yield ev
-
-                except Exception as exc:  # noqa: BLE001
-                    yield f"event: vehicle\ndata: {json.dumps({'error': str(exc)})}\n\n"
-                await asyncio.sleep(interval)
+                # Stream updates from hub
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        event = await asyncio.wait_for(q.get(), timeout=60)
+                        yield event
+                    except asyncio.TimeoutError:
+                        # Send keepalive comment to prevent proxy/browser timeout
+                        yield ": keepalive\n\n"
+            finally:
+                hub.unsubscribe(q)
 
         return StreamingResponse(
             _generate(),

@@ -389,70 +389,59 @@ class TestMqttRegistered:
 # ── Tests: SSE topic filtering ────────────────────────────────────────────────
 
 
-class TestSSETopicFiltering:
-    """Test fine-grained topic filtering — tested via source code analysis and
-    direct async generator invocation (avoids infinite HTTP stream hang)."""
+class TestSSEHubArchitecture:
+    """Test SSE stream uses the VehicleStateHub for broadcasting.
+
+    The SSE endpoint subscribes to the shared hub instead of polling per-client.
+    Tested via source code analysis (avoids infinite HTTP stream hang)."""
 
     def _server_src(self) -> str:
         from pathlib import Path
 
         return (Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "app.py").read_text()
 
-    def test_battery_topic_in_source(self):
+    def _hub_src(self) -> str:
+        from pathlib import Path
+
+        return (Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "vehicle_hub.py").read_text()
+
+    def test_sse_uses_hub_subscribe(self):
         src = self._server_src()
-        assert "want_battery" in src
-        assert (
-            '"battery"  in topic_set' in src or '"battery" in topic_set' in src or "battery" in src
-        )
+        assert "hub.subscribe()" in src
 
-    def test_climate_topic_in_source(self):
-        assert "want_climate" in self._server_src()
-
-    def test_drive_topic_in_source(self):
-        assert "want_drive" in self._server_src()
-
-    def test_location_topic_in_source(self):
-        assert "want_location" in self._server_src()
-
-    def test_battery_event_emitted_in_source(self):
-        assert "event: battery" in self._server_src()
-
-    def test_climate_event_emitted_in_source(self):
-        assert "event: climate" in self._server_src()
-
-    def test_drive_event_emitted_in_source(self):
-        assert "event: drive" in self._server_src()
-
-    def test_location_event_emitted_in_source(self):
-        assert "event: location" in self._server_src()
-
-    def test_topic_set_parsed_from_comma_string(self):
-        # topic_set is built by splitting on comma
+    def test_sse_uses_hub_unsubscribe(self):
         src = self._server_src()
-        assert 'topics.split(",")' in src
+        assert "hub.unsubscribe(q)" in src
 
-    def test_docstring_lists_new_topics(self):
+    def test_hub_broadcasts_vehicle_event(self):
+        src = self._hub_src()
+        assert 'event: vehicle' in src
+
+    def test_hub_broadcasts_error_event(self):
+        src = self._hub_src()
+        assert 'event: error' in src
+
+    def test_hub_smart_interval_on_412(self):
+        src = self._hub_src()
+        assert "DEGRADED_INTERVAL" in src
+        assert '"412"' in src
+
+    def test_hub_invalidate_method(self):
+        src = self._hub_src()
+        assert "def invalidate(self)" in src
+
+    def test_hub_keepalive_comment(self):
+        """SSE sends keepalive to prevent proxy/browser timeout."""
         src = self._server_src()
-        assert "`battery`" in src
-        assert "`climate`" in src
-        assert "`location`" in src
+        assert "keepalive" in src
 
-    def test_battery_event_format(self):
-        """Verify the battery event string format matches SSE spec."""
-        # Simulate what the server would yield for a battery event
+    def test_vehicle_event_format(self):
+        """Verify the vehicle event string format matches SSE spec."""
         ts = 1000
-        cs = {"battery_level": 80}
-        battery_event = f"event: battery\ndata: {json.dumps({'ts': ts, 'data': cs})}\n\n"
-        assert battery_event.startswith("event: battery\n")
-        assert '"battery_level": 80' in battery_event
-
-    def test_location_payload_keys(self):
-        """Location payload includes lat/lon/heading/speed."""
-        src = self._server_src()
-        assert '"lat":' in src
-        assert '"lon":' in src
-        assert '"heading":' in src
-        assert '"speed":' in src
+        data = {"battery_level": 80}
+        event = f"event: vehicle\ndata: {json.dumps({'ts': ts, 'data': data})}\n\n"
+        assert event.startswith("event: vehicle\n")
+        assert '"battery_level": 80' in event
 
 
 # ── Tests: version 2.8.0 ─────────────────────────────────────────────────────

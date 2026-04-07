@@ -24,7 +24,6 @@ export function useVehicleData(): VehicleData {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [connected, setConnected] = useState(false);
   const [stale, setStale] = useState(false);
-  const [preDelivery, setPreDelivery] = useState(false);
   const preDeliveryRef = useRef(false);
 
   const loadFromCache = useCallback(() => {
@@ -42,37 +41,36 @@ export function useVehicleData(): VehicleData {
     }
   }, []);
 
-  const fetchAll = useCallback(async () => {
+  const applyData = useCallback((data: any) => {
+    const chargeState = data.charge_state || null;
+    const climateState = data.climate_state || null;
+
+    setState(data);
+    setCharge(chargeState);
+    setClimate(climateState);
+    setStale(false);
+    setLastUpdated(new Date());
+
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      state: data,
+      charge: chargeState,
+      climate: climateState,
+      timestamp: Date.now(),
+    }));
+  }, []);
+
+  // Initial fetch — single request for first paint
+  const fetchInitial = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Single API call — /api/vehicle/state returns full vehicle_data including sub-states
       const data = await api.getVehicleState();
-
-      // Extract sub-states from the full vehicle_data response
-      const chargeState = (data as any).charge_state || null;
-      const climateState = (data as any).climate_state || null;
-
-      setState(data);
-      setCharge(chargeState);
-      setClimate(climateState);
-      setStale(false);
-      setLastUpdated(new Date());
-
-      // Cache successful data
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        state: data,
-        charge: chargeState,
-        climate: climateState,
-        timestamp: Date.now(),
-      }));
+      applyData(data);
     } catch (e: any) {
       if (String(e).includes('412')) {
         setError('Vehicle not accessible (pre-delivery)');
-        setPreDelivery(true);
         preDeliveryRef.current = true;
         loadFromCache();
-        setConnected(false);
       } else {
         setError('Connection failed');
         loadFromCache();
@@ -80,49 +78,72 @@ export function useVehicleData(): VehicleData {
     } finally {
       setLoading(false);
     }
-  }, [loadFromCache]);
+  }, [applyData, loadFromCache]);
 
+  // Manual refresh — invalidates hub cache server-side then re-fetches
+  const refresh = useCallback(async () => {
+    try {
+      const data = await api.getVehicleState();
+      applyData(data);
+    } catch {
+      // silent — SSE will bring updates
+    }
+  }, [applyData]);
+
+  // Initial fetch on mount
   useEffect(() => {
-    fetchAll();
-    // Poll every 30s — skip if vehicle is pre-delivery (412)
-    const interval = setInterval(() => {
-      if (!preDeliveryRef.current) fetchAll();
-    }, 30000);
-    return () => clearInterval(interval);
+    fetchInitial();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SSE stream with exponential backoff reconnection
-  // Skip SSE entirely when pre-delivery (vehicle not accessible)
+  // SSE stream — receives push updates from backend hub
   useEffect(() => {
     if (preDeliveryRef.current) return;
+
     let es: EventSource | null = null;
     let retryCount = 0;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
     const connect = () => {
-      if (cancelled) return;
+      if (cancelled || preDeliveryRef.current) return;
       try {
         es = new EventSource(api.getStreamUrl());
         es.onopen = () => {
           setConnected(true);
           retryCount = 0;
         };
-        es.onmessage = (evt) => {
+
+        // Vehicle state updates from hub
+        es.addEventListener('vehicle', (evt) => {
           try {
-            const data = JSON.parse(evt.data);
-            if (data.battery_level !== undefined) {
-              setState(prev => prev ? { ...prev, ...data } : data);
-              if (data.charge_limit_soc !== undefined) {
-                setCharge(prev => prev ? { ...prev, ...data } : data);
-              }
+            const parsed = JSON.parse(evt.data);
+            const data = parsed.data || parsed;
+            if (data.battery_level !== undefined || data.charge_state) {
+              applyData(data);
             }
-            setLastUpdated(new Date());
           } catch {
             // ignore parse errors
           }
-        };
-        es.onerror = () => {
+        });
+
+        // Error events (pre-delivery, asleep, etc.)
+        es.addEventListener('error', (evt) => {
+          try {
+            // SSE spec fires generic error on disconnect — check if it's our custom event
+            if (evt instanceof MessageEvent && evt.data) {
+              const parsed = JSON.parse(evt.data);
+              if (parsed.error === 'pre_delivery') {
+                preDeliveryRef.current = true;
+                setError('Vehicle not accessible (pre-delivery)');
+                setConnected(false);
+                es?.close();
+                return;
+              }
+            }
+          } catch {
+            // Not a JSON error event — it's a connection error
+          }
+
           setConnected(false);
           es?.close();
           es = null;
@@ -133,7 +154,7 @@ export function useVehicleData(): VehicleData {
               connect();
             }, delay);
           }
-        };
+        });
       } catch {
         // SSE not available
       }
@@ -147,7 +168,7 @@ export function useVehicleData(): VehicleData {
       if (es) es.close();
       setConnected(false);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { state, charge, climate, loading, error, refresh: fetchAll, lastUpdated, connected, stale };
+  return { state, charge, climate, loading, error, refresh, lastUpdated, connected, stale };
 }
