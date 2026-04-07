@@ -183,3 +183,178 @@ def charge_weekly(weeks: int = 4) -> dict:
             for w, d in sorted_weeks
         ],
     }
+
+
+# ── Charge Schedules ───────────────────────────────────────────────────────────
+
+_SCHEDULES_FILE_NAME = ".tesla-cli/charge_schedules.json"
+
+
+def _load_schedules() -> list[dict]:
+    import json
+    from pathlib import Path
+
+    path = Path.home() / _SCHEDULES_FILE_NAME
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text())
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _save_schedules(schedules: list[dict]) -> None:
+    import json
+    from pathlib import Path
+
+    path = Path.home() / _SCHEDULES_FILE_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(schedules, indent=2))
+
+
+@router.get("/schedules")
+def list_charge_schedules() -> list[dict]:
+    """List configured location-based charging schedules."""
+    return _load_schedules()
+
+
+class ChargeScheduleBody(BaseModel):
+    name: str
+    location: str = ""
+    latitude: float | None = None
+    longitude: float | None = None
+    radius_km: float = 0.5
+    start_time: str = ""  # HH:MM
+    end_time: str = ""  # HH:MM
+    limit_percent: int = 80
+    days: list[str] = []  # ["Mon", "Tue", ...] — empty means every day
+    enabled: bool = True
+
+
+@router.post("/schedules")
+def add_charge_schedule(body: ChargeScheduleBody) -> dict:
+    """Add a location-based charging schedule."""
+    schedules = _load_schedules()
+    new_id = max((s.get("id", 0) for s in schedules), default=0) + 1
+    entry = {**body.model_dump(), "id": new_id}
+    schedules.append(entry)
+    _save_schedules(schedules)
+    return {"ok": True, "id": new_id}
+
+
+@router.delete("/schedules/{schedule_id}")
+def remove_charge_schedule(schedule_id: int) -> dict:
+    """Remove a charging schedule by ID."""
+    schedules = _load_schedules()
+    before = len(schedules)
+    schedules = [s for s in schedules if s.get("id") != schedule_id]
+    if len(schedules) == before:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    _save_schedules(schedules)
+    return {"ok": True}
+
+
+# ── Charge Analytics ───────────────────────────────────────────────────────────
+
+
+@router.get("/analytics/sessions")
+def charge_sessions_api(limit: int = 20) -> list[dict]:
+    """Recent charging sessions from the best available source."""
+    from tesla_cli.cli.commands.charge import _fetch_sessions
+
+    sessions, _source = _fetch_sessions(limit=limit)
+    if not sessions:
+        raise HTTPException(
+            status_code=404,
+            detail="No charging sessions. Connect TeslaMate or use Fleet API backend.",
+        )
+    return [s.model_dump() for s in sessions]
+
+
+@router.get("/analytics/cost-summary")
+def charge_cost_summary_api() -> dict:
+    """Monthly cost breakdown across all charging sessions."""
+    from collections import defaultdict
+    from datetime import datetime
+
+    from tesla_cli.cli.commands.charge import _fetch_sessions
+
+    sessions, source = _fetch_sessions(limit=1000)
+    if not sessions:
+        raise HTTPException(status_code=404, detail="No charging sessions found.")
+
+    monthly: dict[str, dict] = defaultdict(
+        lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0, "cost_estimated": False}
+    )
+    total_kwh = 0.0
+    total_cost = 0.0
+
+    for s in sessions:
+        try:
+            dt = datetime.strptime(s.date[:10], "%Y-%m-%d")
+            month_key = dt.strftime("%Y-%m")
+            monthly[month_key]["kwh"] += s.kwh
+            monthly[month_key]["sessions"] += 1
+            total_kwh += s.kwh
+            if s.cost is not None:
+                monthly[month_key]["cost"] += s.cost
+                total_cost += s.cost
+            if s.cost_estimated:
+                monthly[month_key]["cost_estimated"] = True
+        except (ValueError, TypeError):
+            continue
+
+    sorted_months = sorted(monthly.items(), reverse=True)[:12]
+
+    return {
+        "source": source,
+        "total_kwh": round(total_kwh, 2),
+        "total_cost": round(total_cost, 2),
+        "months": [
+            {
+                "month": m,
+                "kwh": round(d["kwh"], 2),
+                "cost": round(d["cost"], 2),
+                "sessions": d["sessions"],
+                "cost_estimated": d["cost_estimated"],
+            }
+            for m, d in sorted_months
+        ],
+    }
+
+
+@router.get("/analytics/forecast")
+def charge_forecast_api(request: Request) -> dict:
+    """Forecast: time to reach charge limit given current charge rate."""
+    backend, v = _bv(request)
+    try:
+        state = backend.get_charge_state(v)
+    except VehicleAsleepError:
+        raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    battery_level = state.get("battery_level") or state.get("charge_state", {}).get("battery_level")
+    charge_limit = state.get("charge_limit_soc") or state.get("charge_state", {}).get(
+        "charge_limit_soc"
+    )
+    minutes_to_full = state.get("minutes_to_full_charge") or state.get("charge_state", {}).get(
+        "minutes_to_full_charge"
+    )
+    charging_state = state.get("charging_state") or state.get("charge_state", {}).get(
+        "charging_state", "Unknown"
+    )
+    charge_rate = state.get("charge_rate") or state.get("charge_state", {}).get("charge_rate")
+    energy_added = state.get("charge_energy_added") or state.get("charge_state", {}).get(
+        "charge_energy_added"
+    )
+
+    return {
+        "battery_level": battery_level,
+        "charge_limit_soc": charge_limit,
+        "charging_state": charging_state,
+        "minutes_to_full_charge": minutes_to_full,
+        "charge_rate_mph": charge_rate,
+        "charge_energy_added_kwh": energy_added,
+        "is_charging": charging_state == "Charging",
+    }

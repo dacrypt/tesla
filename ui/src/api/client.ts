@@ -575,11 +575,86 @@ export interface GeofenceZone {
   inside?: boolean;
 }
 
+export interface AutomationTrigger {
+  type: string;
+  threshold?: number | null;
+  field?: string | null;
+  from_value?: string | null;
+  to_value?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  radius_km?: number;
+  time?: string | null;
+}
+
+export interface AutomationAction {
+  type: string;
+  message?: string;
+  command?: string;
+  webhook_url?: string;
+  webhook_payload?: string;
+}
+
+export interface AutomationCondition {
+  field: string;
+  operator: string;
+  value: string;
+}
+
 export interface AutomationRule {
   name: string;
   enabled: boolean;
-  trigger?: string;
-  description?: string;
+  trigger: AutomationTrigger;
+  action: AutomationAction;
+  conditions?: AutomationCondition[];
+  last_fired?: string | null;
+  cooldown_minutes?: number;
+  delay_seconds?: number;
+  retry_count?: number;
+  retry_delay_seconds?: number;
+}
+
+export interface AutomationsStatus {
+  total: number;
+  enabled: number;
+  disabled: number;
+}
+
+export interface ChargeSchedule {
+  id: number;
+  name: string;
+  location?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  radius_km?: number;
+  start_time?: string;
+  end_time?: string;
+  limit_percent?: number;
+  days?: string[];
+  enabled?: boolean;
+}
+
+export interface ChargeCostSummary {
+  source: string;
+  total_kwh: number;
+  total_cost: number;
+  months: Array<{
+    month: string;
+    kwh: number;
+    cost: number;
+    sessions: number;
+    cost_estimated: boolean;
+  }>;
+}
+
+export interface ChargeForecast {
+  battery_level?: number | null;
+  charge_limit_soc?: number | null;
+  charging_state?: string;
+  minutes_to_full_charge?: number | null;
+  charge_rate_mph?: number | null;
+  charge_energy_added_kwh?: number | null;
+  is_charging?: boolean;
 }
 
 export interface CommandPayload {
@@ -796,9 +871,41 @@ export const api = {
 
   // Automations
   getAutomations: () =>
-    client().get<AutomationRule[]>('/api/automations').then(r => r.data),
+    client().get<AutomationRule[]>('/api/automations/').then(r => r.data),
+  getAutomationsStatus: () =>
+    client().get<AutomationsStatus>('/api/automations/status').then(r => r.data),
+  getAutomationRule: (name: string) =>
+    client().get<AutomationRule>(`/api/automations/${encodeURIComponent(name)}`).then(r => r.data),
+  createAutomation: (rule: Omit<AutomationRule, 'last_fired'>) =>
+    client().post<{ ok: boolean; name: string }>('/api/automations/', rule).then(r => r.data),
+  deleteAutomation: (name: string) =>
+    client().delete<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}`).then(r => r.data),
+  enableAutomation: (name: string) =>
+    client().post<{ ok: boolean; name: string; enabled: boolean }>(`/api/automations/${encodeURIComponent(name)}/enable`).then(r => r.data),
+  disableAutomation: (name: string) =>
+    client().post<{ ok: boolean; name: string; enabled: boolean }>(`/api/automations/${encodeURIComponent(name)}/disable`).then(r => r.data),
+  testAutomation: (name: string) =>
+    client().post<{ name: string; fired: boolean; message: string; dry_run: boolean }>(`/api/automations/${encodeURIComponent(name)}/test`).then(r => r.data),
   toggleAutomation: (name: string, enabled: boolean) =>
-    client().post<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}/toggle`, { enabled }).then(r => r.data),
+    enabled
+      ? client().post<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}/enable`).then(r => r.data)
+      : client().post<{ ok: boolean }>(`/api/automations/${encodeURIComponent(name)}/disable`).then(r => r.data),
+
+  // Charge schedules
+  getChargeSchedules: () =>
+    client().get<ChargeSchedule[]>('/api/charge/schedules').then(r => r.data),
+  addChargeSchedule: (body: Omit<ChargeSchedule, 'id'>) =>
+    client().post<{ ok: boolean; id: number }>('/api/charge/schedules', body).then(r => r.data),
+  removeChargeSchedule: (scheduleId: number) =>
+    client().delete<{ ok: boolean }>(`/api/charge/schedules/${scheduleId}`).then(r => r.data),
+
+  // Charge analytics
+  getChargeAnalyticsSessions: (limit = 20) =>
+    client().get<ChargingSession[]>(`/api/charge/analytics/sessions?limit=${limit}`).then(r => r.data),
+  getChargeCostSummary: () =>
+    client().get<ChargeCostSummary>('/api/charge/analytics/cost-summary').then(r => r.data),
+  getChargeForecast: () =>
+    client().get<ChargeForecast>('/api/charge/analytics/forecast').then(r => r.data),
 
   // Fleet
   getFleetSummary: () =>

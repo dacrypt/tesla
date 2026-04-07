@@ -847,6 +847,10 @@ class TestDefaultSources:
     ]
 
     def test_all_default_source_ids_present(self):
+        # Re-register defaults in case another test changed the country
+        from tesla_cli.core.sources import _register_defaults
+
+        _register_defaults()
         registered = {s["id"] for s in list_sources()}
         for sid in self.EXPECTED_IDS:
             assert sid in registered, f"Missing default source: {sid}"

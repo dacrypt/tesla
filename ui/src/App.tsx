@@ -25,6 +25,7 @@ const Action = React.lazy(() => import('./pages/Action'));
 const Dossier = React.lazy(() => import('./pages/Dossier'));
 const Order = React.lazy(() => import('./pages/Order'));
 const Energy = React.lazy(() => import('./pages/Energy'));
+const Automations = React.lazy(() => import('./pages/Automations'));
 
 /* Core CSS required for Ionic components */
 import '@ionic/react/css/core.css';
@@ -90,6 +91,12 @@ const GearTabIcon = () => (
 const EnergyTabIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
     <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+  </svg>
+);
+
+const AutomationsTabIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+    <path d="M12 2a2 2 0 012 2c0 .74-.4 1.38-1 1.73V7h3a3 3 0 013 3v1a2 2 0 012 2v2a2 2 0 01-2 2v1a3 3 0 01-3 3H8a3 3 0 01-3-3v-1a2 2 0 01-2-2v-2a2 2 0 012-2v-1a3 3 0 013-3h3V5.73A2 2 0 0112 2zm-4 9a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2zm-4 3.5c-1.5 0-2.5.67-2.5.67v.83s1 .5 2.5.5 2.5-.5 2.5-.5v-.83S13.5 14.5 12 14.5z"/>
   </svg>
 );
 
@@ -167,6 +174,13 @@ const App: React.FC = () => {
               </React.Suspense>
             </ErrorBoundary>
           </Route>
+          <Route exact path="/automations">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Automations />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
           <Route exact path="/"><Redirect to="/dashboard" /></Route>
         </IonRouterOutlet>
 
@@ -190,6 +204,10 @@ const App: React.FC = () => {
           <IonTabButton tab="energy" href="/energy">
             <EnergyTabIcon />
             <IonLabel>Energy</IonLabel>
+          </IonTabButton>
+          <IonTabButton tab="automations" href="/automations">
+            <AutomationsTabIcon />
+            <IonLabel>Auto</IonLabel>
           </IonTabButton>
           <IonTabButton tab="settings" href="/settings">
             <GearTabIcon />
