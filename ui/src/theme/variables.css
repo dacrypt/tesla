@@ -803,3 +803,29 @@ ion-tab-button ion-label {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
+
+/* ---- RESPONSIVE BREAKPOINTS ---- */
+
+/* Mobile: < 768px */
+@media (max-width: 768px) {
+  .page-pad {
+    padding: 8px 8px 60px !important;
+  }
+  .tesla-card {
+    padding: 12px !important;
+    margin-bottom: 8px !important;
+  }
+  .stat-row {
+    font-size: 13px !important;
+  }
+}
+
+/* Small mobile: < 480px */
+@media (max-width: 480px) {
+  ion-tab-bar {
+    --background: #0a0a0a;
+  }
+  ion-tab-button {
+    font-size: 9px !important;
+  }
+}

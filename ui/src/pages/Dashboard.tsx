@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   IonContent,
   IonHeader,
@@ -17,7 +17,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
-import { api, FleetVehicle } from '../api/client';
+import { api, FleetVehicle, AutomationsStatus } from '../api/client';
 
 // ---- SVG Icons ----
 const LockIcon = () => (
@@ -283,7 +283,7 @@ const TeslaIcon = () => (
 );
 
 const Dashboard: React.FC = () => {
-  const { state, charge, climate, loading, error, refresh, lastUpdated, connected } = useVehicleData();
+  const { state, charge, climate, loading, error, refresh, lastUpdated, connected, stale } = useVehicleData();
   // Post-delivery: vehicle data is available (charge_state present)
   const isPostDelivery = charge !== null || state !== null;
   const { tiles: enabledTiles } = useDashboardTiles();
@@ -300,6 +300,7 @@ const Dashboard: React.FC = () => {
   const [loginMfa, setLoginMfa] = useState('');
   const [mfaRequired, setMfaRequired] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [autoStatus, setAutoStatus] = useState<AutomationsStatus | null>(null);
   const history = useHistory();
 
   // Check auth status on mount
@@ -308,6 +309,11 @@ const Dashboard: React.FC = () => {
       setAuthenticated(s.authenticated);
       setAuthChecked(true);
     }).catch(() => setAuthChecked(true));
+  }, []);
+
+  // Fetch automation status for dashboard indicator
+  useEffect(() => {
+    api.getAutomationsStatus().then(setAutoStatus).catch(() => {});
   }, []);
 
   // Fetch fleet summary when fleet tile is enabled
@@ -492,6 +498,12 @@ const Dashboard: React.FC = () => {
           <IonRefresherContent />
         </IonRefresher>
 
+        {stale && (
+          <div style={{ background: '#F99716', color: '#000', padding: '8px 16px', textAlign: 'center', fontSize: 13 }}>
+            Showing cached data. Server connection lost.
+          </div>
+        )}
+
         {/* ---- Onboarding: not authenticated ---- */}
         {authChecked && !authenticated ? (
           <div className="empty-state" style={{ minHeight: 'calc(100vh - 56px)', justifyContent: 'center' }}>
@@ -569,7 +581,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* ---- Hero stats row (battery tile) ---- */}
-            {isTileEnabled('battery') && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {isTileEnabled('battery') && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
               {/* Battery */}
               <div className="tesla-card" style={{ textAlign: 'center', padding: '16px 4px' }}>
                 <div style={{ fontSize: 44, fontWeight: 700, color: batteryColor, lineHeight: 1, letterSpacing: '-2px', fontVariantNumeric: 'tabular-nums' }}>
@@ -791,6 +803,35 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </>
+            )}
+
+            {/* ---- Automation status indicator ---- */}
+            {autoStatus && autoStatus.enabled > 0 && (
+              <div
+                className="tesla-card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+                onClick={() => history.push('/automations')}
+              >
+                <span style={{ fontSize: 16 }}>⚡</span>
+                <div style={{ flex: 1 }}>
+                  <span style={{ color: '#05C46B', fontWeight: 600, fontSize: 13 }}>
+                    {autoStatus.enabled} automation rule{autoStatus.enabled !== 1 ? 's' : ''} active
+                  </span>
+                  {autoStatus.total > autoStatus.enabled && (
+                    <span style={{ color: '#86888f', fontSize: 11, marginLeft: 6 }}>
+                      ({autoStatus.total - autoStatus.enabled} disabled)
+                    </span>
+                  )}
+                </div>
+                <span style={{ color: '#86888f', fontSize: 16 }}>›</span>
+              </div>
             )}
 
             {/* ---- Last updated ---- */}

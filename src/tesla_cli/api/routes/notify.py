@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -134,6 +137,7 @@ def send_notification(body: SendNotificationRequest) -> dict:
             body=body.message,
             notify_type=apprise.NotifyType.INFO,
         )
+        _log_notification(body.title, body.message, "send", bool(ok))
         return {"status": "ok" if ok else "failed", "channels": len(urls)}
     except ImportError:
         raise HTTPException(
@@ -142,3 +146,36 @@ def send_notification(body: SendNotificationRequest) -> dict:
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/history")
+def notification_history(limit: int = 50) -> list:
+    """Get notification history (most recent first)."""
+    history_file = Path.home() / ".tesla-cli" / "notification_history.jsonl"
+    if not history_file.exists():
+        return []
+    lines = history_file.read_text().strip().split("\n")
+    entries = []
+    for line in reversed(lines[-limit:]):
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return entries
+
+
+def _log_notification(title: str, message: str, channel: str, success: bool) -> None:
+    """Append a notification event to the JSONL history log."""
+    from datetime import datetime
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "title": title,
+        "message": message,
+        "channel": channel,
+        "success": success,
+    }
+    history_file = Path.home() / ".tesla-cli" / "notification_history.jsonl"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    with history_file.open("a") as f:
+        f.write(json.dumps(entry) + "\n")

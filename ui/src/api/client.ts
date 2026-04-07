@@ -766,6 +766,7 @@ export const api = {
   sendNotifyTest: () => client().post<CommandResult>('/api/notify/test').then(r => r.data),
   addNotifyChannel: (url: string) => client().post<CommandResult>('/api/notify/add', { url }).then(r => r.data),
   removeNotifyChannel: (index: number) => client().post<CommandResult>('/api/notify/remove', { index }).then(r => r.data),
+  getNotificationHistory: (limit = 20) => client().get<any[]>(`/api/notify/history?limit=${limit}`).then(r => r.data),
 
   // Vehicle alerts
   getVehicleAlerts: () => client().get<any>('/api/vehicle/alerts').then(r => r.data),

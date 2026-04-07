@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, VehicleState, ChargeState, ClimateState } from '../api/client';
 
+const CACHE_KEY = 'tesla_vehicle_data_cache';
+
 export interface VehicleData {
   state: VehicleState | null;
   charge: ChargeState | null;
@@ -10,6 +12,7 @@ export interface VehicleData {
   refresh: () => void;
   lastUpdated: Date | null;
   connected: boolean;
+  stale: boolean;
 }
 
 export function useVehicleData(): VehicleData {
@@ -20,6 +23,22 @@ export function useVehicleData(): VehicleData {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [connected, setConnected] = useState(false);
+  const [stale, setStale] = useState(false);
+
+  const loadFromCache = useCallback(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        if (data.state) setState(data.state);
+        if (data.charge) setCharge(data.charge);
+        if (data.climate) setClimate(data.climate);
+        setStale(true);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -30,23 +49,39 @@ export function useVehicleData(): VehicleData {
         api.getChargeState(),
         api.getClimateState(),
       ]);
+      const anyFulfilled = s.status === 'fulfilled' || ch.status === 'fulfilled' || cl.status === 'fulfilled';
       if (s.status === 'fulfilled') setState(s.value);
       if (ch.status === 'fulfilled') setCharge(ch.value);
       if (cl.status === 'fulfilled') setClimate(cl.value);
       if (s.status === 'rejected' && ch.status === 'rejected' && cl.status === 'rejected') {
         setError('Vehicle not connected');
+        loadFromCache();
       } else if (s.status === 'rejected' || ch.status === 'rejected' || cl.status === 'rejected') {
         // Partial failure — some sources unavailable, show warning but don't block
         const failed = [s, ch, cl].filter(r => r.status === 'rejected').length;
         setError(`${failed} data source(s) unavailable`);
       }
+      if (anyFulfilled) {
+        setStale(false);
+        // Cache successful data
+        const newState = s.status === 'fulfilled' ? s.value : state;
+        const newCharge = ch.status === 'fulfilled' ? ch.value : charge;
+        const newClimate = cl.status === 'fulfilled' ? cl.value : climate;
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          state: newState,
+          charge: newCharge,
+          climate: newClimate,
+          timestamp: Date.now(),
+        }));
+      }
       setLastUpdated(new Date());
     } catch (e) {
       setError('Connection failed');
+      loadFromCache();
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchAll();
@@ -110,5 +145,5 @@ export function useVehicleData(): VehicleData {
     };
   }, []);
 
-  return { state, charge, climate, loading, error, refresh: fetchAll, lastUpdated, connected };
+  return { state, charge, climate, loading, error, refresh: fetchAll, lastUpdated, connected, stale };
 }
