@@ -20,6 +20,8 @@ const DEFAULT_TILES: TileConfig[] = [
   { id: 'schedule', label: 'Charge Schedule', enabled: true, order: 7 },
   { id: 'map', label: 'Map', enabled: true, order: 8 },
   { id: 'fleet', label: 'Fleet Health', enabled: true, order: 9 },
+  { id: 'documents', label: 'Documentos', enabled: true, order: 10 },
+  { id: 'infractions', label: 'Infracciones', enabled: true, order: 11 },
 ];
 
 function loadTiles(): TileConfig[] {

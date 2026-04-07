@@ -112,15 +112,17 @@ function PreDeliveryDashboard() {
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
 
+  const runt = sources['co.runt'];
+  const order = sources['tesla.order'];
+
   React.useEffect(() => {
-    const placa = sources.runt?.placa;
+    const placa = runt?.placa;
     if (placa) {
       api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
     }
-  }, [sources.runt?.placa]);
+  }, [runt?.placa]);
 
   const status = computed.real_status;
-  const order = sources.order;
   const specs = computed.specs;
   const phase = status?.phase || 'ordered';
   const phaseLabels: Record<string, string> = {
@@ -200,6 +202,72 @@ function PreDeliveryDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── SIMIT — Infracciones ── */}
+      {sources['co.simit'] && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 10,
+          borderRadius: 10,
+          border: `1px solid ${sources['co.simit'].paz_y_salvo ? 'rgba(11,232,129,0.15)' : 'rgba(255,107,107,0.2)'}`,
+          background: sources['co.simit'].paz_y_salvo ? 'rgba(11,232,129,0.04)' : 'rgba(255,107,107,0.06)',
+        }}>
+          <span style={{ fontSize: 18 }}>{sources['co.simit'].paz_y_salvo ? '✅' : '⚠️'}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: sources['co.simit'].paz_y_salvo ? '#0BE881' : '#FF6B6B' }}>
+              {sources['co.simit'].paz_y_salvo ? 'SIMIT — Paz y Salvo' : `SIMIT — ${sources['co.simit'].comparendos || 0} comparendos`}
+            </div>
+            <div style={{ fontSize: 10, color: '#86888f' }}>
+              {sources['co.simit'].paz_y_salvo
+                ? 'Sin multas ni comparendos pendientes'
+                : `Multas: ${sources['co.simit'].multas || 0} · Deuda: $${(sources['co.simit'].total_deuda || 0).toLocaleString()}`
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Documents — SOAT + RTM ── */}
+      {(sources['co.runt_soat'] || sources['co.runt_rtm']) && (() => {
+        const soat = sources['co.runt_soat'];
+        const rtm = sources['co.runt_rtm'];
+        const soatExp = soat?.vencimiento || soat?.soat_vencimiento || '';
+        const rtmExp = rtm?.vencimiento || rtm?.tecnomecanica_vencimiento || '';
+        const daysUntil = (dateStr: string) => {
+          if (!dateStr) return null;
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return null;
+          return Math.ceil((d.getTime() - Date.now()) / 86400000);
+        };
+        const soatDays = daysUntil(soatExp);
+        const rtmDays = daysUntil(rtmExp);
+        const urgentColor = (days: number | null) => days === null ? '#86888f' : days < 0 ? '#FF6B6B' : days < 30 ? '#F99716' : '#0BE881';
+        const urgentLabel = (days: number | null) => days === null ? 'Sin datos' : days < 0 ? 'Vencido' : days < 30 ? `${days}d` : `${days}d`;
+
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <div style={{ fontSize: 10, color: '#86888f', marginBottom: 4 }}>SOAT</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: urgentColor(soatDays) }}>
+                {urgentLabel(soatDays)}
+              </div>
+              {soatExp && <div style={{ fontSize: 9, color: '#86888f' }}>Vence: {soatExp}</div>}
+            </div>
+            <div style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <div style={{ fontSize: 10, color: '#86888f', marginBottom: 4 }}>Técnico-Mecánica</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: urgentColor(rtmDays) }}>
+                {urgentLabel(rtmDays)}
+              </div>
+              {rtmExp && <div style={{ fontSize: 9, color: '#86888f' }}>Vence: {rtmExp}</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Checklist summary ── */}
       {status && (

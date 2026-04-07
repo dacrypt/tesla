@@ -1,9 +1,9 @@
 /**
  * useAppInit — single request for all initial app data.
  *
- * Fetches /api/init once per session. Returns source data (order, runt),
- * computed fields (real_status, specs), auth, automations, and vehicle.
- * Falls back to individual requests if /api/init is unavailable.
+ * Fetches /api/init once per session. Returns all source data for the
+ * configured country, computed fields, geolocation, auth, automations,
+ * and vehicle state. Falls back to individual requests if unavailable.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
@@ -44,15 +44,23 @@ export interface VehicleSpecs {
   [key: string]: unknown;
 }
 
+export interface GeoLocation {
+  lat: number;
+  lon: number;
+  city: string;
+  source: 'vehicle_gps' | 'delivery_cache' | 'config' | 'default';
+}
+
+/** All source data keyed by source ID (e.g., "tesla.order", "co.runt", "co.simit") */
+export type SourcesMap = Record<string, any>;
+
 export interface AppInitData {
-  sources: {
-    order: Record<string, any> | null;
-    runt: Record<string, any> | null;
-  };
+  sources: SourcesMap;
   computed: {
     real_status: RealStatus | null;
     specs: VehicleSpecs | null;
   };
+  location: GeoLocation | null;
   auth: {
     authenticated: boolean;
     backend: string;
@@ -69,6 +77,11 @@ export interface AppInitData {
   error: string | null;
 }
 
+// Convenience accessors for common sources
+export function getSource(init: AppInitData, sourceId: string): any {
+  return init.sources[sourceId] ?? null;
+}
+
 // Module-level cache — one fetch per session
 let _initData: Omit<AppInitData, 'loading' | 'error'> | null = null;
 let _initPromise: Promise<void> | null = null;
@@ -76,7 +89,7 @@ let _initLoaded = false;
 
 const _initListeners: Set<() => void> = new Set();
 
-const EMPTY_SOURCES = { order: null, runt: null };
+const EMPTY_SOURCES: SourcesMap = {};
 const EMPTY_COMPUTED = { real_status: null, specs: null };
 
 export function useAppInit(): AppInitData {
@@ -106,6 +119,7 @@ export function useAppInit(): AppInitData {
         _initData = {
           sources: result.sources || EMPTY_SOURCES,
           computed: result.computed || EMPTY_COMPUTED,
+          location: result.location || null,
           auth: result.auth || null,
           automations: result.automations || null,
           vehicle: result.vehicle || null,
@@ -124,13 +138,14 @@ export function useAppInit(): AppInitData {
         // Map dossier fields to new shape for backwards compatibility
         _initData = {
           sources: {
-            order: dossier?.order || null,
-            runt: dossier?.runt || null,
+            'tesla.order': dossier?.order || null,
+            'co.runt': dossier?.runt || null,
           },
           computed: {
             real_status: (dossier?.real_status as any) || null,
             specs: (dossier?.specs as any) || null,
           },
+          location: null,
           auth,
           automations,
           vehicle: null,
@@ -151,12 +166,12 @@ export function useAppInit(): AppInitData {
 
     // Re-fetch init when sources update via SSE
     const unsub = subscribe('source', () => {
-      // Source changed — re-fetch init to get updated computed fields
       api.getInit()
         .then(result => {
           _initData = {
             sources: result.sources || EMPTY_SOURCES,
             computed: result.computed || EMPTY_COMPUTED,
+            location: result.location || _initData?.location || null,
             auth: _initData?.auth || result.auth || null,
             automations: _initData?.automations || result.automations || null,
             vehicle: _initData?.vehicle || result.vehicle || null,
@@ -178,6 +193,7 @@ export function useAppInit(): AppInitData {
   return {
     sources: data?.sources ?? EMPTY_SOURCES,
     computed: data?.computed ?? EMPTY_COMPUTED,
+    location: data?.location ?? null,
     auth: data?.auth ?? null,
     automations: data?.automations ?? null,
     vehicle: data?.vehicle ?? null,
