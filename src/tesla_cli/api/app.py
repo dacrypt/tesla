@@ -234,6 +234,71 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(dashcam_router, prefix="/api/dashcam", tags=["Dashcam"])
 
 
+def _build_health_deep(result: dict) -> dict:
+    """Extend health result with deep diagnostics."""
+    from tesla_cli.core.auth import tokens
+
+    cfg = load_config()
+    result["backend"] = cfg.general.backend
+    result["vin_configured"] = bool(cfg.general.default_vin)
+    result["has_auth_token"] = tokens.has_token(tokens.ORDER_REFRESH_TOKEN)
+    result["telemetry_enabled"] = cfg.telemetry.enabled
+    result["teslamate_managed"] = cfg.teslaMate.managed
+    return result
+
+
+def _build_vehicles_list(cfg) -> list:
+    """Build the vehicles list from config (default VIN + aliases)."""
+    vehicles = []
+    default = cfg.general.default_vin
+    if default:
+        vehicles.append({"vin": default, "alias": "default", "is_default": True})
+    for alias, vin in cfg.vehicles.aliases.items():
+        if vin != default:
+            vehicles.append({"vin": vin, "alias": alias, "is_default": False})
+    return vehicles
+
+
+def _build_config_response(cfg) -> dict:
+    """Serialize public config fields for /api/config."""
+    return {
+        "backend": cfg.general.backend,
+        "default_vin": cfg.general.default_vin,
+        "cost_per_kwh": cfg.general.cost_per_kwh,
+        "teslaMate_url": bool(cfg.teslaMate.database_url),
+        "ha_url": cfg.home_assistant.url,
+        "abrp_configured": bool(cfg.abrp.user_token),
+        "geofences": list(cfg.geofences.zones.keys()),
+        "notifications": cfg.notifications.enabled,
+        "vehicles": cfg.vehicles.aliases,
+        "auth_enabled": bool(cfg.server.api_key),
+    }
+
+
+def _build_provider_capabilities() -> dict:
+    """Build capability map from the provider registry."""
+    from tesla_cli.core.providers import get_registry
+    from tesla_cli.core.providers.base import Capability
+
+    registry = get_registry()
+    out = {}
+    for cap in sorted(Capability.all()):
+        available = [p.name for p in registry.for_capability(cap)]
+        all_p = [p.name for p in registry.for_capability(cap, available_only=False)]
+        out[cap] = {"available": available, "all": all_p}
+    return out
+
+
+def _build_config_validation(cfg) -> dict:
+    """Run config checks and return a structured validation result."""
+    from tesla_cli.cli.commands.config_cmd import _run_config_checks
+
+    checks = _run_config_checks(cfg)
+    errors = sum(1 for c in checks if c["status"] == "error")
+    warnings = sum(1 for c in checks if c["status"] == "warn")
+    return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
+
+
 def _register_system_endpoints(app: FastAPI) -> None:
     """Register /api/health, /api/status, /api/vehicles, /api/config, and provider endpoints."""
 
@@ -247,14 +312,7 @@ def _register_system_endpoints(app: FastAPI) -> None:
         """
         result: dict = {"status": "ok", "version": __version__}
         if deep:
-            from tesla_cli.core.auth import tokens
-
-            cfg = load_config()
-            result["backend"] = cfg.general.backend
-            result["vin_configured"] = bool(cfg.general.default_vin)
-            result["has_auth_token"] = tokens.has_token(tokens.ORDER_REFRESH_TOKEN)
-            result["telemetry_enabled"] = cfg.telemetry.enabled
-            result["teslamate_managed"] = cfg.teslaMate.managed
+            _build_health_deep(result)
         return result
 
     @app.get("/api/status", tags=["System"])
@@ -270,33 +328,11 @@ def _register_system_endpoints(app: FastAPI) -> None:
     @app.get("/api/vehicles", tags=["System"])
     def api_vehicles() -> list:
         """List all configured vehicles (aliases + default VIN)."""
-        cfg = load_config()
-        vehicles = []
-        # Always include the default VIN first
-        default = cfg.general.default_vin
-        if default:
-            vehicles.append({"vin": default, "alias": "default", "is_default": True})
-        # Add any aliases that are different from the default
-        for alias, vin in cfg.vehicles.aliases.items():
-            if vin != default:
-                vehicles.append({"vin": vin, "alias": alias, "is_default": False})
-        return vehicles
+        return _build_vehicles_list(load_config())
 
     @app.get("/api/config", tags=["System"])
     def api_config() -> dict:
-        cfg = load_config()
-        return {
-            "backend": cfg.general.backend,
-            "default_vin": cfg.general.default_vin,
-            "cost_per_kwh": cfg.general.cost_per_kwh,
-            "teslaMate_url": bool(cfg.teslaMate.database_url),
-            "ha_url": cfg.home_assistant.url,
-            "abrp_configured": bool(cfg.abrp.user_token),
-            "geofences": list(cfg.geofences.zones.keys()),
-            "notifications": cfg.notifications.enabled,
-            "vehicles": cfg.vehicles.aliases,
-            "auth_enabled": bool(cfg.server.api_key),
-        }
+        return _build_config_response(load_config())
 
     @app.get("/api/providers", tags=["System"])
     def api_providers() -> list:
@@ -308,16 +344,7 @@ def _register_system_endpoints(app: FastAPI) -> None:
     @app.get("/api/providers/capabilities", tags=["System"])
     def api_provider_capabilities() -> dict:
         """Capability map — which providers serve which capabilities."""
-        from tesla_cli.core.providers import get_registry
-        from tesla_cli.core.providers.base import Capability
-
-        registry = get_registry()
-        out = {}
-        for cap in sorted(Capability.all()):
-            available = [p.name for p in registry.for_capability(cap)]
-            all_p = [p.name for p in registry.for_capability(cap, available_only=False)]
-            out[cap] = {"available": available, "all": all_p}
-        return out
+        return _build_provider_capabilities()
 
     @app.get("/api/config/validate", tags=["System"])
     def api_config_validate() -> dict:
@@ -325,13 +352,7 @@ def _register_system_endpoints(app: FastAPI) -> None:
 
         Returns {valid, errors, warnings, checks[]} suitable for a dashboard health widget.
         """
-        from tesla_cli.cli.commands.config_cmd import _run_config_checks
-
-        cfg = load_config()
-        checks = _run_config_checks(cfg)
-        errors = sum(1 for c in checks if c["status"] == "error")
-        warnings = sum(1 for c in checks if c["status"] == "warn")
-        return {"valid": errors == 0, "errors": errors, "warnings": warnings, "checks": checks}
+        return _build_config_validation(load_config())
 
 
 def _register_metrics(app: FastAPI) -> None:
@@ -419,6 +440,68 @@ def _register_metrics(app: FastAPI) -> None:
         return PlainTextResponse("".join(lines), media_type="text/plain; version=0.0.4")
 
 
+def _sse_topic_events(data: dict, ts: int, topic_set: set) -> list[str]:
+    """Build optional per-topic SSE event strings for battery/climate/drive/location."""
+    want_battery = "battery" in topic_set
+    want_climate = "climate" in topic_set
+    want_drive = "drive" in topic_set
+    want_location = "location" in topic_set
+
+    events = []
+    if want_battery:
+        cs = data.get("charge_state") or {}
+        events.append(f"event: battery\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cs)})}\n\n")
+    if want_climate:
+        cl = data.get("climate_state") or {}
+        events.append(f"event: climate\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cl)})}\n\n")
+    if want_drive:
+        ds = data.get("drive_state") or {}
+        events.append(f"event: drive\ndata: {json.dumps({'ts': ts, 'data': _sanitize(ds)})}\n\n")
+    if want_location:
+        ds = data.get("drive_state") or {}
+        loc = {
+            "lat": ds.get("latitude"),
+            "lon": ds.get("longitude"),
+            "heading": ds.get("heading"),
+            "speed": ds.get("speed"),
+        }
+        events.append(f"event: location\ndata: {json.dumps({'ts': ts, 'data': loc})}\n\n")
+    return events
+
+
+def _sse_geofence_events(data: dict, ts: int, geofence_state: dict[str, bool]) -> list[str]:
+    """Compute geofence enter/exit SSE events from current vehicle position."""
+    drive = data.get("drive_state") or data.get("response", {}).get("drive_state", {})
+    lat = drive.get("latitude") if isinstance(drive, dict) else None
+    lon = drive.get("longitude") if isinstance(drive, dict) else None
+    if lat is None or lon is None:
+        return []
+
+    events = []
+    reload_cfg = load_config()
+    for name, zone in reload_cfg.geofences.zones.items():
+        dist = _haversine_km(lat, lon, zone["lat"], zone["lon"])
+        inside = dist <= zone.get("radius_km", 0.5)
+        was_inside = geofence_state.get(name)
+        if was_inside is None:
+            geofence_state[name] = inside
+        elif inside != was_inside:
+            geofence_state[name] = inside
+            event = "enter" if inside else "exit"
+            gf_payload = json.dumps(
+                {
+                    "ts": ts,
+                    "zone": name,
+                    "event": event,
+                    "lat": lat,
+                    "lon": lon,
+                    "dist_km": round(dist, 3),
+                }
+            )
+            events.append(f"event: geofence\ndata: {gf_payload}\n\n")
+    return events
+
+
 def _register_sse_stream(app: FastAPI) -> None:
     """Register the real-time SSE vehicle stream endpoint."""
 
@@ -447,15 +530,9 @@ def _register_sse_stream(app: FastAPI) -> None:
         cfg = load_config()
         v = resolve_vin(cfg, app.state.override_vin)
         topic_set = {t.strip() for t in topics.split(",") if t.strip()}
-        want_geofence = "geofence" in topic_set
-        want_battery = "battery" in topic_set
-        want_climate = "climate" in topic_set
-        want_drive = "drive" in topic_set
-        want_location = "location" in topic_set
         geofence_state: dict[str, bool] = {}  # zone_name → was_inside
 
         async def _generate():
-            nonlocal geofence_state
             backend = get_vehicle_backend(cfg)
             while True:
                 if await request.is_disconnected():
@@ -465,69 +542,20 @@ def _register_sse_stream(app: FastAPI) -> None:
                         None, lambda: backend.get_vehicle_data(v)
                     )
                     ts = int(time.time())
-                    payload = json.dumps(
-                        {
-                            "ts": ts,
-                            "data": _sanitize(data),
-                        }
-                    )
+                    payload = json.dumps({"ts": ts, "data": _sanitize(data)})
                     yield f"event: vehicle\ndata: {payload}\n\n"
 
-                    if want_battery:
-                        cs = data.get("charge_state") or {}
-                        yield f"event: battery\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cs)})}\n\n"
-
-                    if want_climate:
-                        cl = data.get("climate_state") or {}
-                        yield f"event: climate\ndata: {json.dumps({'ts': ts, 'data': _sanitize(cl)})}\n\n"
-
-                    if want_drive:
-                        ds = data.get("drive_state") or {}
-                        yield f"event: drive\ndata: {json.dumps({'ts': ts, 'data': _sanitize(ds)})}\n\n"
-
-                    if want_location:
-                        ds = data.get("drive_state") or {}
-                        loc = {
-                            "lat": ds.get("latitude"),
-                            "lon": ds.get("longitude"),
-                            "heading": ds.get("heading"),
-                            "speed": ds.get("speed"),
-                        }
-                        yield f"event: location\ndata: {json.dumps({'ts': ts, 'data': loc})}\n\n"
+                    for ev in _sse_topic_events(data, ts, topic_set):
+                        yield ev
 
                     if fanout:
                         await asyncio.get_event_loop().run_in_executor(
                             None, _fanout_telemetry, data, v, cfg
                         )
 
-                    if want_geofence:
-                        drive = data.get("drive_state") or data.get("response", {}).get(
-                            "drive_state", {}
-                        )
-                        lat = drive.get("latitude") if isinstance(drive, dict) else None
-                        lon = drive.get("longitude") if isinstance(drive, dict) else None
-                        if lat is not None and lon is not None:
-                            reload_cfg = load_config()
-                            for name, zone in reload_cfg.geofences.zones.items():
-                                dist = _haversine_km(lat, lon, zone["lat"], zone["lon"])
-                                inside = dist <= zone.get("radius_km", 0.5)
-                                was_inside = geofence_state.get(name)
-                                if was_inside is None:
-                                    geofence_state[name] = inside
-                                elif inside != was_inside:
-                                    geofence_state[name] = inside
-                                    event = "enter" if inside else "exit"
-                                    gf_payload = json.dumps(
-                                        {
-                                            "ts": ts,
-                                            "zone": name,
-                                            "event": event,
-                                            "lat": lat,
-                                            "lon": lon,
-                                            "dist_km": round(dist, 3),
-                                        }
-                                    )
-                                    yield f"event: geofence\ndata: {gf_payload}\n\n"
+                    if "geofence" in topic_set:
+                        for ev in _sse_geofence_events(data, ts, geofence_state):
+                            yield ev
 
                 except Exception as exc:  # noqa: BLE001
                     yield f"event: vehicle\ndata: {json.dumps({'error': str(exc)})}\n\n"

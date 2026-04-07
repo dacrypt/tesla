@@ -25,7 +25,7 @@ tesla order delivery             # delivery appointment (date, time, location)
 
 ```bash
 tesla order eta                  # delivery ETA (best/typical/worst estimates)
-tesla order gates                # 13-gate delivery journey tracker
+tesla order gates                # 15-step financing/delivery journey tracker (gates 1–15)
 tesla order estimate             # community-based delivery date estimation
 tesla order stores               # nearby Tesla stores/Service Centers
 tesla order stores --near 4.6,-74.1  # stores near coordinates
@@ -73,7 +73,7 @@ tesla order documents --download # download all to ~/.tesla-cli/documents/
 
 - If the CLI is not configured, **stop and tell the user to run `/tesla:setup`** — never auto-configure
 - Start with the **current order status** and **delivery date** if available
-- Show the gate progress (which of 13 gates have been passed)
+- Show the gate progress (which of the 15 financing/delivery steps have been passed)
 - If the car hasn't been delivered yet, include ETA estimates
 - If delivery is upcoming, suggest the checklist
 - For `$ARGUMENTS`:
