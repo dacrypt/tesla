@@ -117,19 +117,31 @@ def _find_free_ports(stack) -> dict:
     return ports
 
 
-def _auto_refresh_sources() -> None:
-    """Periodically refresh stale data sources."""
+def _auto_refresh_sources(hub_ref: list | None = None) -> None:
+    """Periodically refresh stale data sources and broadcast updates via hub."""
     import time as _t
 
     log = logging.getLogger("tesla-cli.sources-refresh")
     _t.sleep(60)  # Wait for server to be fully ready
     while True:
         try:
-            from tesla_cli.core.sources import refresh_stale
+            from tesla_cli.core.sources import get_cached, refresh_source, _SOURCES, _is_stale
 
-            result = refresh_stale()
-            refreshed = result.get("refreshed", [])
-            failed = result.get("failed", [])
+            refreshed = []
+            failed = []
+            for sid in _SOURCES:
+                if _is_stale(sid):
+                    result = refresh_source(sid)
+                    if result.get("error"):
+                        failed.append({"id": sid, "error": result["error"]})
+                    else:
+                        refreshed.append(sid)
+                        # Broadcast update to SSE clients
+                        hub = hub_ref[0] if hub_ref else None
+                        if hub:
+                            cached = get_cached(sid)
+                            hub.broadcast_source(sid, cached)
+
             if refreshed:
                 log.info("Sources refreshed: %s", ", ".join(refreshed))
             if failed:
@@ -146,8 +158,11 @@ async def _lifespan(app: FastAPI):
 
     from tesla_cli.api.vehicle_hub import VehicleStateHub
 
+    # Mutable ref so the refresh thread can access the hub after it's created
+    hub_ref: list = [None]
+
     threading.Thread(target=_auto_provision_teslamate, daemon=True).start()
-    threading.Thread(target=_auto_refresh_sources, daemon=True).start()
+    threading.Thread(target=_auto_refresh_sources, args=(hub_ref,), daemon=True).start()
 
     # Start the shared vehicle state hub
     try:
@@ -157,6 +172,7 @@ async def _lifespan(app: FastAPI):
         hub = VehicleStateHub(backend, vin)
         hub.start()
         app.state.vehicle_hub = hub
+        hub_ref[0] = hub
     except Exception as exc:
         logging.getLogger("tesla-cli.hub").warning("Hub init failed (will work without): %s", exc)
         app.state.vehicle_hub = None
