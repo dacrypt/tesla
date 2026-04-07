@@ -28,7 +28,10 @@ def climate_status(request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
         if "412" in str(exc):
-            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+            raise HTTPException(
+                status_code=412,
+                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
+            )
         if "429" in str(exc):
             raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
         raise HTTPException(status_code=502, detail=str(exc))
@@ -45,7 +48,10 @@ def climate_on(request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
         if "412" in str(exc):
-            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+            raise HTTPException(
+                status_code=412,
+                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
+            )
         if "429" in str(exc):
             raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
         raise HTTPException(status_code=502, detail=str(exc))
@@ -62,7 +68,10 @@ def climate_off(request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
         if "412" in str(exc):
-            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+            raise HTTPException(
+                status_code=412,
+                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
+            )
         if "429" in str(exc):
             raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
         raise HTTPException(status_code=502, detail=str(exc))
@@ -87,7 +96,10 @@ def set_temp(body: SetTempRequest, request: Request) -> dict:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
         if "412" in str(exc):
-            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+            raise HTTPException(
+                status_code=412,
+                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
+            )
         if "429" in str(exc):
             raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
         raise HTTPException(status_code=502, detail=str(exc))

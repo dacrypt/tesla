@@ -135,10 +135,17 @@ class VehicleStateHub:
                     self._interval = DEGRADED_INTERVAL
                     log.warning(
                         "Hub: %d consecutive errors — slowing to %ds: %s",
-                        self._consecutive_errors, self._interval, err_str,
+                        self._consecutive_errors,
+                        self._interval,
+                        err_str,
                     )
                 else:
-                    log.debug("Hub poll error (%d/%d): %s", self._consecutive_errors, MAX_CONSECUTIVE_ERRORS, err_str)
+                    log.debug(
+                        "Hub poll error (%d/%d): %s",
+                        self._consecutive_errors,
+                        MAX_CONSECUTIVE_ERRORS,
+                        err_str,
+                    )
 
             # Sleep with wake support (invalidate() can interrupt)
             self._wake_event.wait(timeout=self._interval)
@@ -198,6 +205,7 @@ def _sanitize(data: Any) -> Any:
         return [_sanitize(v) for v in data]
     if isinstance(data, float):
         import math
+
         if math.isnan(data) or math.isinf(data):
             return None
     return data

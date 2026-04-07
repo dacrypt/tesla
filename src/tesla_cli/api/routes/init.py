@@ -93,7 +93,9 @@ def app_init(request: Request) -> dict:
         if order_data:
             mkt = order_data.get("mktOptions") or order_data.get("optionCodes") or ""
             if isinstance(mkt, list):
-                option_codes_raw = ",".join(str(o.get("code", o) if isinstance(o, dict) else o) for o in mkt)
+                option_codes_raw = ",".join(
+                    str(o.get("code", o) if isinstance(o, dict) else o) for o in mkt
+                )
             elif isinstance(mkt, str):
                 option_codes_raw = mkt
 

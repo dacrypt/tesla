@@ -569,6 +569,19 @@ def _register_universal() -> None:
         )
     )
 
+    # ── INTL: Electricity Carbon Intensity ──
+    register_source(
+        SourceDef(
+            id="intl.electricity_maps",
+            name="Electricity Carbon Intensity",
+            category="servicios",
+            ttl=3600,
+            country="",
+            openquery_source="intl.electricity_maps",
+            openquery_params={"doc_type": "custom", "doc_number": ""},
+        )
+    )
+
     # ── US: NHTSA VIN Decode — universal (VIN decode works for any Tesla) ──
     register_source(
         SourceDef(
@@ -802,6 +815,62 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             country="CO",
             openquery_source="co.tarifas_energia",
             openquery_params={"doc_type": "custom", "doc_number": ""},
+        ),
+        # ── Vehicle Sources (EV-specific) ──
+        SourceDef(
+            id="co.estaciones_ev_epm",
+            name="Estaciones EV (EPM)",
+            category="servicios",
+            ttl=86400,
+            country="CO",
+            openquery_source="co.estaciones_ev_epm",
+            openquery_params={"doc_type": "custom", "doc_number": ""},
+        ),
+        SourceDef(
+            id="co.peajes_tarifas",
+            name="Tarifas Peajes (INVIAS)",
+            category="servicios",
+            ttl=604800,  # weekly
+            country="CO",
+            openquery_source="co.peajes_tarifas",
+            openquery_params={"doc_type": "custom", "doc_number": ""},
+        ),
+        SourceDef(
+            id="co.impuesto_vehicular",
+            name="Impuesto Vehicular",
+            category="financiero",
+            ttl=86400,
+            country="CO",
+            openquery_source="co.impuesto_vehicular",
+            openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
+        ),
+        # ── Driver Sources ──
+        SourceDef(
+            id="co.simit_historico",
+            name="SIMIT Histórico",
+            category="infracciones",
+            ttl=3600,
+            country="CO",
+            openquery_source="co.simit_historico",
+            openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
+        ),
+        SourceDef(
+            id="co.comparendos_transito",
+            name="Comparendos Tránsito",
+            category="infracciones",
+            ttl=3600,
+            country="CO",
+            openquery_source="co.comparendos_transito",
+            openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
+        ),
+        SourceDef(
+            id="co.estado_cedula",
+            name="Estado Cédula",
+            category="registro",
+            ttl=86400,
+            country="CO",
+            openquery_source="co.estado_cedula",
+            openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
         ),
     ],
     "AR": [

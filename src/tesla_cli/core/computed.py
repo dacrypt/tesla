@@ -39,7 +39,9 @@ def compute_real_status(
     # Tesla API signal
     if order_data:
         current = order_data.get("current") or order_data
-        rs.tesla_api_status = current.get("order_status", "") or order_data.get("orderStatus", "") or ""
+        rs.tesla_api_status = (
+            current.get("order_status", "") or order_data.get("orderStatus", "") or ""
+        )
 
     # VIN assigned?
     rs.vin_assigned = bool(vin)
@@ -74,7 +76,9 @@ def compute_real_status(
         if rs.delivery_appointment:
             rs.phase_description = rs.delivery_appointment
         elif rs.delivery_location:
-            rs.phase_description = f"Entrega programada: {rs.delivery_date} — {rs.delivery_location}"
+            rs.phase_description = (
+                f"Entrega programada: {rs.delivery_date} — {rs.delivery_location}"
+            )
         else:
             rs.phase_description = f"Entrega programada: {rs.delivery_date}"
     elif rs.is_registered:
