@@ -139,10 +139,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
     sessions, _source = _fetch_sessions(limit=limit)
 
     if not sessions:
-        raise HTTPException(
-            status_code=404,
-            detail="No charging sessions. Connect TeslaMate or use Fleet API backend.",
-        )
+        return []
 
     return [s.model_dump() for s in sessions]
 
@@ -154,7 +151,7 @@ def charge_last() -> dict:
 
     sessions, source = _fetch_sessions(limit=1)
     if not sessions:
-        raise HTTPException(status_code=404, detail="No charging sessions found.")
+        return []
 
     s = sessions[0]
     return {**s.model_dump(), "source_name": source}
@@ -170,7 +167,7 @@ def charge_weekly(weeks: int = 4) -> dict:
 
     sessions, source = _fetch_sessions(limit=500)
     if not sessions:
-        raise HTTPException(status_code=404, detail="No charging sessions found.")
+        return []
 
     weekly: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0})
     for s in sessions:
@@ -280,10 +277,7 @@ def charge_sessions_api(limit: int = 20) -> list[dict]:
 
     sessions, _source = _fetch_sessions(limit=limit)
     if not sessions:
-        raise HTTPException(
-            status_code=404,
-            detail="No charging sessions. Connect TeslaMate or use Fleet API backend.",
-        )
+        return []
     return [s.model_dump() for s in sessions]
 
 
@@ -297,7 +291,7 @@ def charge_cost_summary_api() -> dict:
 
     sessions, source = _fetch_sessions(limit=1000)
     if not sessions:
-        raise HTTPException(status_code=404, detail="No charging sessions found.")
+        return []
 
     monthly: dict[str, dict] = defaultdict(
         lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0, "cost_estimated": False}
