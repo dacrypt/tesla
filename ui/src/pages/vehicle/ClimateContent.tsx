@@ -15,6 +15,7 @@ const PawIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="curr
 const TentIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M23.7 16.15L14 2.49a2 2 0 00-3.27-.05l-9.9 13.71A1.53 1.53 0 002 18h20a1.53 1.53 0 001.7-1.85zM11 10.5l-3.41 5.5H7l4-6.5L9.38 8 12 4.31 14.62 8 13 9.5z"/></svg>;
 const ShieldAirIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>;
 const SteeringIcon = () => <svg width={20} height={20} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c1.75 0 3.36.57 4.67 1.52L4.52 16.67C3.57 15.36 3 13.75 3 12c0-4.97 4.03-9 9-9zm0 16c-1.75 0-3.36-.57-4.67-1.52l12.15-12.15C20.43 7.64 21 9.25 21 11c0 4.97-4.03 9-9 9z"/></svg>;
+const DepartIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/></svg>;
 
 function Spin() {
   return (
@@ -42,6 +43,7 @@ export default function ClimateContent() {
   const [passengerTemp, setPassengerTemp] = useState<number>(21);
   const [tempDirty, setTempDirty] = useState(false);
   const [seatLoading, setSeatLoading] = useState<string | null>(null);
+  const [departTime, setDepartTime] = useState('07:00');
 
   const climateOn = state?.is_climate_on ?? climate?.is_climate_on ?? false;
   const insideTemp = state?.inside_temp ?? climate?.inside_temp;
@@ -297,6 +299,56 @@ export default function ClimateContent() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* ---- Departure / Preconditioning ---- */}
+          <div className="tesla-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(33,150,243,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0FBCF9' }}>
+                <DepartIcon />
+              </div>
+              <div>
+                <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Departure Time</div>
+                <div style={{ color: '#86888f', fontSize: 12 }}>Set when you plan to leave</div>
+              </div>
+            </div>
+            <input
+              type="time"
+              value={departTime}
+              onChange={(e) => setDepartTime(e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontSize: 22,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                width: '100%',
+                outline: 'none',
+                colorScheme: 'dark',
+                marginBottom: 14,
+              }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                onClick={() => runCmd(() => api.sendCommand({ command: 'set_preconditioning_max', params: { on: true } }), 'precond_max', 'Max preconditioning on')}
+                disabled={!!cmdLoading}
+                className="tesla-btn blue"
+                style={{ fontSize: 13 }}
+              >
+                Max Precondition
+              </button>
+              <button
+                onClick={() => runCmd(() => api.sendCommand({ command: 'set_preconditioning_max', params: { on: false } }), 'precond_off', 'Preconditioning off')}
+                disabled={!!cmdLoading}
+                className="tesla-btn secondary"
+                style={{ fontSize: 13 }}
+              >
+                Stop Precond.
+              </button>
             </div>
           </div>
         </div>

@@ -12,7 +12,6 @@ import ErrorBoundary from '../components/ErrorBoundary';
 const ControlsContent = React.lazy(() => import('./vehicle/ControlsContent'));
 const ChargeContent = React.lazy(() => import('./vehicle/ChargeContent'));
 const ClimateContent = React.lazy(() => import('./vehicle/ClimateContent'));
-const ScheduleContent = React.lazy(() => import('./vehicle/ScheduleContent'));
 
 /* ── Sub-tab icons ── */
 const ControlsIcon = () => (
@@ -30,19 +29,12 @@ const ClimateIcon = () => (
     <path d="M22 11h-4.17l3.24-3.24-1.41-1.42L15 11h-2V9l4.66-4.66-1.42-1.41L13 6.17V2h-2v4.17L7.76 2.93 6.34 4.34 11 9v2H9L4.34 6.34 2.93 7.76 6.17 11H2v2h4.17l-3.24 3.24 1.41 1.42L9 13h2v2l-4.66 4.66 1.42 1.41L11 17.83V22h2v-4.17l3.24 3.24 1.42-1.41L13 15v-2h2l4.66 4.66 1.41-1.42L17.83 13H22z" />
   </svg>
 );
-const ScheduleIcon = () => (
-  <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z" />
-  </svg>
-);
-
-type Tab = 'controls' | 'charge' | 'climate' | 'schedule';
+type Tab = 'controls' | 'charge' | 'climate';
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'controls', label: 'Controls', icon: <ControlsIcon /> },
   { key: 'charge', label: 'Charge', icon: <ChargeIcon /> },
   { key: 'climate', label: 'Climate', icon: <ClimateIcon /> },
-  { key: 'schedule', label: 'Schedule', icon: <ScheduleIcon /> },
 ];
 
 const Vehicle: React.FC = () => {
@@ -87,7 +79,6 @@ const Vehicle: React.FC = () => {
             {activeTab === 'controls' && <ControlsContent />}
             {activeTab === 'charge' && <ChargeContent />}
             {activeTab === 'climate' && <ClimateContent />}
-            {activeTab === 'schedule' && <ScheduleContent />}
           </React.Suspense>
         </ErrorBoundary>
       </IonContent>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   IonRange,
+  IonToggle,
   IonToast,
 } from '@ionic/react';
 import BatteryGauge from '../../components/BatteryGauge';
@@ -8,6 +9,19 @@ import { api } from '../../api/client';
 import { useVehicleData } from '../../hooks/useVehicleData';
 import Spinner from '../../components/icons/Spinner';
 import { BoltIcon, StopIcon, PortOpenIcon, PortCloseIcon } from '../../components/icons/Icons';
+
+const ClockIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>;
+
+function minutesToTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
 
 function chargingColor(state: string): string {
   if (state === 'Charging') return '#0BE881';
@@ -32,6 +46,9 @@ export default function ChargeContent() {
   const [ampsValue, setAmpsValue] = useState<number>(16);
   const [limitDirty, setLimitDirty] = useState(false);
   const [ampsDirty, setAmpsDirty] = useState(false);
+  const [schedEnabled, setSchedEnabled] = useState(false);
+  const [schedTime, setSchedTime] = useState('22:00');
+  const [schedDirty, setSchedDirty] = useState(false);
 
   const batteryPct = state?.battery_level ?? charge?.battery_level ?? 0;
   const chargeLimit = state?.charge_limit_soc ?? charge?.charge_limit_soc ?? 80;
@@ -46,6 +63,8 @@ export default function ChargeContent() {
   const portOpen = state?.charge_port_door_open ?? charge?.charge_port_door_open ?? false;
   const range = state?.battery_range;
   const stateColor = chargingColor(chargingState);
+  const scheduledMode = state?.scheduled_charging_mode ?? charge?.scheduled_charging_mode ?? 'Off';
+  const scheduledStart = state?.scheduled_charging_start_time ?? charge?.scheduled_charging_start_time;
 
   useEffect(() => {
     if (!limitDirty) setLimitValue(chargeLimit);
@@ -54,6 +73,13 @@ export default function ChargeContent() {
   useEffect(() => {
     if (!ampsDirty) setAmpsValue(amps || 16);
   }, [amps, ampsDirty]);
+
+  useEffect(() => {
+    if (!schedDirty) {
+      setSchedEnabled(scheduledMode !== 'Off');
+      if (scheduledStart) setSchedTime(minutesToTime(scheduledStart));
+    }
+  }, [scheduledMode, scheduledStart, schedDirty]);
 
   const runCmd = async (fn: () => Promise<unknown>, key: string, successMsg: string) => {
     setCmdLoading(key);
@@ -252,6 +278,69 @@ export default function ChargeContent() {
                 >
                   {cmdLoading === 'port' ? <Spinner size={16} color="#0FBCF9" /> : (portOpen ? <PortCloseIcon /> : <PortOpenIcon />)}
                   <span>{portOpen ? 'Close Port' : 'Open Port'}</span>
+                </button>
+              </div>
+
+              {/* Scheduled charging */}
+              <div className="tesla-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: schedEnabled ? 16 : 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: schedEnabled ? 'rgba(5,196,107,0.2)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: schedEnabled ? '#05C46B' : '#86888f' }}>
+                    <ClockIcon />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Scheduled Charging</div>
+                    <div style={{ color: '#86888f', fontSize: 12 }}>
+                      {scheduledMode === 'Off' ? 'Disabled' : `Active — ${scheduledMode}`}
+                    </div>
+                  </div>
+                  <IonToggle
+                    checked={schedEnabled}
+                    onIonChange={(e) => { setSchedEnabled(e.detail.checked); setSchedDirty(true); }}
+                  />
+                </div>
+
+                {schedEnabled && (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 16 }}>
+                    <div className="label-xs" style={{ marginBottom: 8 }}>START CHARGING AT</div>
+                    <input
+                      type="time"
+                      value={schedTime}
+                      onChange={(e) => { setSchedTime(e.target.value); setSchedDirty(true); }}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#ffffff',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 10,
+                        padding: '12px 14px',
+                        fontSize: 22,
+                        fontWeight: 700,
+                        fontFamily: 'inherit',
+                        width: '100%',
+                        outline: 'none',
+                        colorScheme: 'dark',
+                        marginBottom: 12,
+                      }}
+                    />
+                    <div className="info-box" style={{ marginBottom: 12 }}>
+                      Vehicle must be plugged in for scheduled charging to activate.
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setSchedDirty(false);
+                    runCmd(
+                      () => api.sendCommand({ command: 'set_scheduled_charging', params: { enable: schedEnabled, time: schedEnabled ? timeToMinutes(schedTime) : 0 } }),
+                      'save_sched',
+                      schedEnabled ? `Scheduled at ${schedTime}` : 'Scheduling disabled'
+                    );
+                  }}
+                  disabled={cmdLoading === 'save_sched'}
+                  className={`tesla-btn${schedDirty ? '' : ' secondary'}`}
+                >
+                  {cmdLoading === 'save_sched' ? <Spinner size={16} /> : null}
+                  {schedDirty ? 'Save Schedule' : 'Saved'}
                 </button>
               </div>
             </>
