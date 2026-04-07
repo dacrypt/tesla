@@ -85,9 +85,25 @@ def app_init(request: Request) -> dict:
 
             if DELIVERY_CACHE_FILE.exists():
                 dc = json.loads(DELIVERY_CACHE_FILE.read_text())
-                delivery_date = dc.get("date_utc", "")[:10] if dc.get("date_utc") else ""
-                delivery_location = dc.get("location_name", "")
-                delivery_appointment = dc.get("appointment_text", "")
+                # Try top-level fields first, then nested delivery_details
+                dd = dc.get("delivery_details", {})
+                dt = dd.get("deliveryTiming", {})
+                raw_date = (
+                    dc.get("date_utc")
+                    or dd.get("deliveryAppointmentDateUtc")
+                    or ""
+                )
+                delivery_date = raw_date[:10] if raw_date else ""
+                delivery_location = (
+                    dc.get("location_name")
+                    or dt.get("pickupLocationTitle")
+                    or ""
+                )
+                delivery_appointment = (
+                    dc.get("appointment_text")
+                    or dt.get("appointment")
+                    or ""
+                )
         except Exception:
             pass
 
@@ -195,7 +211,9 @@ def _resolve_location(request: Request, cfg) -> dict:
 
         if DELIVERY_CACHE_FILE.exists():
             dc = json.loads(DELIVERY_CACHE_FILE.read_text())
-            loc_name = dc.get("location_name", "")
+            dd = dc.get("delivery_details", {})
+            dt = dd.get("deliveryTiming", {})
+            loc_name = dc.get("location_name") or dt.get("pickupLocationTitle") or ""
             # Parse city from location name (e.g., "Tesla Medellin Centro de Entrega")
             for city_key in CITY_COORDS:
                 if city_key in loc_name.lower():
