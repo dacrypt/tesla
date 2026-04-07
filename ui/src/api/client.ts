@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 
 export function getBaseUrl(): string {
   return localStorage.getItem('tesla_api_url') || '';
@@ -8,12 +8,61 @@ export function setBaseUrl(url: string): void {
   localStorage.setItem('tesla_api_url', url);
 }
 
+// ── Rate-limit toast event ────────────────────────────────────────────────────
+// Components can subscribe to this to show a user-visible notification.
+
+type RateLimitListener = (retryAfterSeconds: number) => void;
+const rateLimitListeners = new Set<RateLimitListener>();
+
+export function onRateLimit(fn: RateLimitListener): () => void {
+  rateLimitListeners.add(fn);
+  return () => rateLimitListeners.delete(fn);
+}
+
+function emitRateLimit(retryAfterSeconds: number): void {
+  rateLimitListeners.forEach(fn => fn(retryAfterSeconds));
+}
+
+// ── Axios client with 429 retry ───────────────────────────────────────────────
+
+const MAX_RETRIES = 2;
+
 function createClient(): AxiosInstance {
-  return axios.create({
+  const instance = axios.create({
     baseURL: getBaseUrl(),
     timeout: 15000,
     headers: { 'Content-Type': 'application/json' },
   });
+
+  // Attach retry metadata and response interceptor once
+  instance.interceptors.response.use(
+    response => response,
+    async (error: AxiosError) => {
+      const config = error.config as typeof error.config & { _retryCount?: number };
+      if (!config) return Promise.reject(error);
+
+      const status = error.response?.status;
+      if (status !== 429) return Promise.reject(error);
+
+      config._retryCount = (config._retryCount ?? 0) + 1;
+      if (config._retryCount > MAX_RETRIES) return Promise.reject(error);
+
+      const retryAfter = parseInt(
+        (error.response?.headers as Record<string, string>)?.['retry-after'] || '5',
+        10,
+      );
+
+      // Notify UI on first retry
+      if (config._retryCount === 1) {
+        emitRateLimit(retryAfter);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      return instance(config);
+    },
+  );
+
+  return instance;
 }
 
 function client(): AxiosInstance {

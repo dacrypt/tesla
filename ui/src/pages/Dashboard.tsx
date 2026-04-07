@@ -14,11 +14,10 @@ import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
 import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
-import OrderProcessTracker from '../components/OrderProcessTracker';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
-import { api, FleetVehicle, OrderTask } from '../api/client';
+import { api, FleetVehicle } from '../api/client';
 
 // ---- SVG Icons ----
 const LockIcon = () => (
@@ -112,10 +111,6 @@ function PreDeliveryDashboard() {
   const { dossier } = useDossierData();
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
-  const [orderTasks, setOrderTasks] = React.useState<OrderTask[]>([]);
-  const [orderFinancing, setOrderFinancing] = React.useState<Record<string, unknown> | null>(null);
-  const [orderStatus, setOrderStatus] = React.useState<Record<string, unknown> | null>(null);
-  const [orderLoading, setOrderLoading] = React.useState(false);
 
   React.useEffect(() => {
     const placa = dossier?.runt?.placa;
@@ -123,23 +118,6 @@ function PreDeliveryDashboard() {
       api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
     }
   }, [dossier?.runt?.placa]);
-
-  React.useEffect(() => {
-    setOrderLoading(true);
-    api.getOrderDetails()
-      .then(details => {
-        setOrderTasks(details.tasks || []);
-        setOrderFinancing(details.financing || null);
-        setOrderStatus(details.status as unknown as Record<string, unknown> || null);
-      })
-      .catch(() => {
-        // Fallback: try basic order status
-        api.getOrderStatus().then(s => {
-          setOrderStatus(s as unknown as Record<string, unknown>);
-        }).catch(() => {});
-      })
-      .finally(() => setOrderLoading(false));
-  }, []);
 
   const status = dossier?.real_status;
   const order = dossier?.order;
@@ -247,25 +225,45 @@ function PreDeliveryDashboard() {
         </div>
       )}
 
-      {/* ── Order Process Tracker ── */}
-      <OrderProcessTracker
-        orderStatus={orderStatus}
-        tasks={orderTasks}
-        financing={orderFinancing}
-        realStatus={status}
-        logistics={dossier?.logistics}
-        runt={dossier?.runt}
-        financial={dossier?.financial}
-        loading={orderLoading}
-      />
+      {/* ── Order Summary (slim) ── */}
+      <div
+        className="tesla-card"
+        style={{ padding: 14, marginBottom: 12, cursor: 'pointer' }}
+        onClick={() => history.push('/order')}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#86888f', fontSize: 10, marginBottom: 4 }}>Order Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: phaseColor,
+                background: `${phaseColor}18`, padding: '3px 10px', borderRadius: 100,
+              }}>
+                {phaseLabels[phase] || phase}
+              </span>
+            </div>
+            {status?.delivery_date && (
+              <div style={{ color: '#05C46B', fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                Delivery: {status.delivery_date}
+              </div>
+            )}
+            {!status?.delivery_date && order?.current?.delivery_window_start && (
+              <div style={{ color: '#F99716', fontSize: 12, marginTop: 6 }}>
+                Window: {order.current.delivery_window_start}{order.current.delivery_window_end ? ` — ${order.current.delivery_window_end}` : ''}
+              </div>
+            )}
+          </div>
+          <div style={{ color: '#86888f', fontSize: 20, paddingLeft: 8 }}>›</div>
+        </div>
+      </div>
 
-      {/* ── CTA: View full detail ── */}
+      {/* ── CTA: View full order ── */}
       <button
-        onClick={() => history.push('/info')}
+        onClick={() => history.push('/order')}
         className="tesla-btn"
         style={{ width: '100%', fontSize: 14, padding: '14px 20px', borderRadius: 12, marginBottom: 8 }}
       >
-        Ver detalle completo →
+        View Full Order →
       </button>
 
       {/* Last updated */}

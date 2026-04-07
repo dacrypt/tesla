@@ -8,17 +8,22 @@ import {
   IonTabBar,
   IonTabButton,
   IonTabs,
+  IonSpinner,
+  IonToast,
   setupIonicReact,
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
+import { onRateLimit } from './api/client';
 
 import Dashboard from './pages/Dashboard';
 import Vehicle from './pages/Vehicle';
-import Navigation from './pages/Navigation';
-import Dossier from './pages/Dossier';
-import Analytics from './pages/Analytics';
-import Settings from './pages/Settings';
-import Action from './pages/Action';
+
+const Navigation = React.lazy(() => import('./pages/Navigation'));
+const Analytics = React.lazy(() => import('./pages/Analytics'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const Action = React.lazy(() => import('./pages/Action'));
+const Dossier = React.lazy(() => import('./pages/Dossier'));
+const Order = React.lazy(() => import('./pages/Order'));
 
 /* Core CSS required for Ionic components */
 import '@ionic/react/css/core.css';
@@ -36,6 +41,13 @@ import '@ionic/react/css/display.css';
 import './theme/variables.css';
 
 setupIonicReact({ mode: 'ios' });
+
+// ---- Page loading fallback ----
+const PageLoader = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+    <IonSpinner name="dots" style={{ '--color': '#05C46B' } as React.CSSProperties} />
+  </div>
+);
 
 // ---- Inline SVG Tab Icons (no ionicons dependency) ----
 const HomeTabIcon = () => (
@@ -56,7 +68,6 @@ const NavTabIcon = () => (
   </svg>
 );
 
-
 const OrderTabIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
@@ -75,19 +86,73 @@ const GearTabIcon = () => (
   </svg>
 );
 
-const App: React.FC = () => (
+const App: React.FC = () => {
+  const [rateLimitMsg, setRateLimitMsg] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    return onRateLimit((retryAfterSeconds: number) => {
+      setRateLimitMsg(`Rate limited — retrying in ${retryAfterSeconds}s`);
+    });
+  }, []);
+
+  return (
   <ErrorBoundary>
   <IonApp>
+    <IonToast
+      isOpen={rateLimitMsg !== null}
+      message={rateLimitMsg ?? ''}
+      duration={4000}
+      position="top"
+      onDidDismiss={() => setRateLimitMsg(null)}
+      style={{ '--background': '#1a1a1a', '--color': '#F99716', '--border-radius': '10px' } as React.CSSProperties}
+    />
     <IonReactRouter>
       <IonTabs>
         <IonRouterOutlet>
           <Route exact path="/dashboard"><Dashboard /></Route>
           <Route exact path="/vehicle"><Vehicle /></Route>
-          <Route exact path="/nav"><Navigation /></Route>
-          <Route exact path="/info"><Dossier /></Route>
-          <Route exact path="/analytics"><Analytics /></Route>
-          <Route exact path="/settings"><Settings /></Route>
-          <Route exact path="/action"><Action /></Route>
+          <Route exact path="/nav">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Navigation />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/info">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Dossier />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/order">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Order />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/analytics">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Analytics />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/settings">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Settings />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/action">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Action />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
           <Route exact path="/"><Redirect to="/dashboard" /></Route>
         </IonRouterOutlet>
 
@@ -104,9 +169,9 @@ const App: React.FC = () => (
             <NavTabIcon />
             <IonLabel>Nav</IonLabel>
           </IonTabButton>
-          <IonTabButton tab="info" href="/info">
+          <IonTabButton tab="order" href="/order">
             <OrderTabIcon />
-            <IonLabel>Info</IonLabel>
+            <IonLabel>Order</IonLabel>
           </IonTabButton>
           <IonTabButton tab="settings" href="/settings">
             <GearTabIcon />
@@ -117,6 +182,7 @@ const App: React.FC = () => (
     </IonReactRouter>
   </IonApp>
   </ErrorBoundary>
-);
+  );
+};
 
 export default App;
