@@ -341,7 +341,25 @@ class AutomationEngine:
         apobj = apprise.Apprise()
         for url in cfg.notifications.apprise_urls:
             apobj.add(url)
-        apobj.notify(title="Tesla Automation", body=body)
+        ok = apobj.notify(title="Tesla Automation", body=body)
+        _log_notification("Tesla Automation", body, "automation", bool(ok))
+
+
+def _log_notification(title: str, message: str, channel: str, success: bool) -> None:
+    """Append a notification event to the JSONL history log."""
+    import json
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "title": title,
+        "message": message,
+        "channel": channel,
+        "success": success,
+    }
+    history_file = Path.home() / ".tesla-cli" / "notification_history.jsonl"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    with history_file.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

@@ -349,6 +349,37 @@ const Automations: React.FC = () => {
     }
   };
 
+  const handleQuickSetup = async () => {
+    const defaults: Array<{ name: string; trigger: AutomationTrigger; action: AutomationAction }> = [
+      {
+        name: 'Low Battery Alert',
+        trigger: { type: 'battery_below', threshold: 20 },
+        action: { type: 'notify', message: 'Battery low: {battery_level}%' },
+      },
+      {
+        name: 'Charging Complete',
+        trigger: { type: 'charging_complete' },
+        action: { type: 'notify', message: 'Charging complete — {battery_level}%' },
+      },
+      {
+        name: 'Sentry Event',
+        trigger: { type: 'sentry_event' },
+        action: { type: 'notify', message: 'Sentry alert detected' },
+      },
+    ];
+    let created = 0;
+    for (const rule of defaults) {
+      try {
+        await api.createAutomation({ ...rule, enabled: true });
+        created++;
+      } catch {
+        // skip duplicates
+      }
+    }
+    setToast({ message: `${created} default rule${created !== 1 ? 's' : ''} created`, color: 'success' });
+    await fetchAll();
+  };
+
   const handleTest = async (name: string) => {
     setTesting(name);
     try {
@@ -419,7 +450,18 @@ const Automations: React.FC = () => {
             <div style={{ ...card, textAlign: 'center', color: '#555', padding: 40 }}>
               <BotIcon />
               <div style={{ marginTop: 12, fontSize: 14 }}>No automation rules yet.</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>Tap "Add Rule" to create one.</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Tap "Add Rule" to create one, or use Quick Setup.</div>
+              <button
+                onClick={handleQuickSetup}
+                style={{
+                  marginTop: 16, padding: '10px 20px',
+                  background: 'rgba(5,196,107,0.12)', border: '1px solid rgba(5,196,107,0.3)',
+                  borderRadius: 10, color: '#05C46B', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 600,
+                }}
+              >
+                ⚡ Quick Setup (3 default rules)
+              </button>
             </div>
           ) : (
             rules.map(rule => (
