@@ -13,6 +13,9 @@ Guides the user from zero to a fully configured CLI with their first data built:
 
 from __future__ import annotations
 
+import os
+import threading
+
 import typer
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -29,27 +32,46 @@ def setup_wizard(
         False, "--force", "-f", help="Re-run all steps even if already configured"
     ),
     skip_build: bool = typer.Option(False, "--skip-build", help="Skip the final data build"),
+    headless: bool = typer.Option(
+        False,
+        "--headless",
+        help="Non-interactive mode (uses TESLA_EMAIL/TESLA_PASSWORD env vars)",
+    ),
 ) -> None:
     """Interactive onboarding wizard. Connects your Tesla account and builds your first data build."""
-    # ── Welcome ────────────────────────────────────────────────────────────────
-    console.print()
-    console.print(
-        Panel.fit(
-            "[bold cyan]Tesla CLI — Setup Wizard[/bold cyan]\n\n"
-            "This wizard will:\n"
-            "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
-            "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
-            "  [dim]3.[/dim] Choose your tier (Basic works immediately — no registration needed)\n"
-            "  [dim]4.[/dim] Optionally install fleet-telemetry for real-time streaming (Advanced only)\n"
-            "  [dim]5.[/dim] Optionally install TeslaMate for deep analytics\n"
-            "  [dim]6.[/dim] Optionally set up push notifications\n"
-            "  [dim]7.[/dim] Optionally configure smart automation rules\n"
-            "  [dim]8.[/dim] Build your first data dossier from all sources\n\n"
-            "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
-            border_style="cyan",
+    # ── Headless env var auth ──────────────────────────────────────────────────
+    tesla_email = os.environ.get("TESLA_EMAIL")
+    tesla_password = os.environ.get("TESLA_PASSWORD")
+
+    if headless and (not tesla_email or not tesla_password):
+        console.print(
+            "[red]--headless requires TESLA_EMAIL and TESLA_PASSWORD environment variables.[/red]"
         )
-    )
-    console.print()
+        raise typer.Exit(1)
+
+    # ── Welcome ────────────────────────────────────────────────────────────────
+    if not headless:
+        console.print()
+        console.print(
+            Panel.fit(
+                "[bold cyan]Tesla CLI — Setup Wizard[/bold cyan]\n\n"
+                "This wizard will:\n"
+                "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
+                "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
+                "  [dim]3.[/dim] Choose your tier (Basic works immediately — no registration needed)\n"
+                "  [dim]4.[/dim] Optionally install fleet-telemetry for real-time streaming (Advanced only)\n"
+                "  [dim]5.[/dim] Optionally install TeslaMate for deep analytics\n"
+                "  [dim]6.[/dim] Optionally set up push notifications\n"
+                "  [dim]7.[/dim] Optionally configure smart automation rules\n"
+                "  [dim]8.[/dim] Build your first data dossier from all sources\n\n"
+                "[dim]Run [bold]tesla setup --force[/bold] to re-run all steps at any time.[/dim]",
+                border_style="cyan",
+            )
+        )
+        console.print()
+    else:
+        console.print("[bold cyan]Tesla CLI — Headless Setup[/bold cyan]")
+        console.print()
 
     # ── Check existing state ────────────────────────────────────────────────────
     cfg = load_config()
@@ -62,6 +84,9 @@ def setup_wizard(
         console.print(f"  VIN: [bold]{cfg.general.default_vin}[/bold]")
         console.print(f"  Order: [bold]{cfg.order.reservation_number}[/bold]")
         console.print()
+        if headless:
+            console.print("[dim]Already configured. Use --force to re-run.[/dim]")
+            raise typer.Exit()
         answer = Prompt.ask("Re-run setup?", choices=["y", "n"], default="n")
         if answer == "n":
             console.print(
@@ -71,13 +96,27 @@ def setup_wizard(
         console.print()
 
     # ── Step 1: Auth ────────────────────────────────────────────────────────────
-    console.print(
-        Panel.fit("[bold]Step 1 / 8[/bold] — Tesla Account Authentication", border_style="blue")
-    )
+    if not headless:
+        console.print(
+            Panel.fit("[bold]Step 1 / 8[/bold] — Tesla Account Authentication", border_style="blue")
+        )
     console.print()
 
     if already_authed and not force:
         console.print("[green]✓ Already authenticated — skipping.[/green]")
+    elif headless:
+        # Non-interactive: use credentials from env vars via browser_login
+        try:
+            from tesla_cli.core.auth.browser_login import browser_login
+
+            browser_login(email=tesla_email, password=tesla_password)
+            console.print("[green]✓ Authenticated via TESLA_EMAIL/TESLA_PASSWORD.[/green]")
+        except AuthenticationError as e:
+            console.print(f"\n[red]Authentication failed:[/red] {e}")
+            raise typer.Exit(1)
+        except Exception as e:
+            console.print(f"\n[red]Authentication error:[/red] {e}")
+            raise typer.Exit(1)
     else:
         try:
             from tesla_cli.cli.commands.config_cmd import _auth_order
@@ -94,9 +133,10 @@ def setup_wizard(
     console.print()
 
     # ── Step 2: Auto-discover VIN + RN ─────────────────────────────────────────
-    console.print(
-        Panel.fit("[bold]Step 2 / 8[/bold] — Discovering your order", border_style="blue")
-    )
+    if not headless:
+        console.print(
+            Panel.fit("[bold]Step 2 / 8[/bold] — Discovering your order", border_style="blue")
+        )
     console.print()
 
     orders = []
@@ -109,7 +149,25 @@ def setup_wizard(
 
             from tesla_cli.core.backends.order import OrderBackend
 
-            orders = OrderBackend().get_orders()
+            # Use a timeout via threading.Timer (cross-platform; signal.alarm is Unix-only)
+            _order_result: list = []
+            _order_error: list[Exception] = []
+
+            def _fetch_orders() -> None:
+                try:
+                    _order_result.extend(OrderBackend().get_orders())
+                except Exception as exc:  # noqa: BLE001
+                    _order_error.append(exc)
+
+            _t = threading.Thread(target=_fetch_orders, daemon=True)
+            _t.start()
+            _t.join(timeout=30)
+            if _t.is_alive():
+                console.print("[yellow]Order discovery timed out.[/yellow]")
+            elif _order_error:
+                raise _order_error[0]
+            else:
+                orders = _order_result
         except AuthenticationError as e:
             console.print(f"[red]Auth error:[/red] {e}")
             raise typer.Exit(1)
@@ -122,10 +180,15 @@ def setup_wizard(
     selected_rn = ""
 
     if not orders:
-        # Fallback to manual entry
-        console.print("[yellow]No orders found — enter your details manually:[/yellow]")
-        selected_vin = Prompt.ask("VIN (leave blank to skip)", default="")
-        selected_rn = Prompt.ask("Reservation number (e.g. RNXXXXXXXXX)", default="")
+        if headless:
+            console.print(
+                "[yellow]No orders found in headless mode — skipping manual entry.[/yellow]"
+            )
+        else:
+            # Fallback to manual entry
+            console.print("[yellow]No orders found — enter your details manually:[/yellow]")
+            selected_vin = Prompt.ask("VIN (leave blank to skip)", default="")
+            selected_rn = Prompt.ask("Reservation number (e.g. RNXXXXXXXXX)", default="")
     elif len(orders) == 1:
         order = orders[0]
         selected_rn = order.get("referenceNumber", order.get("rn", ""))
@@ -140,7 +203,7 @@ def setup_wizard(
                 "  [yellow]VIN not yet assigned by Tesla — will be auto-updated on next data build.[/yellow]"
             )
     else:
-        # Multiple orders — let user pick
+        # Multiple orders — let user pick (headless: auto-select first)
         console.print(f"Found [bold]{len(orders)}[/bold] orders on your account:\n")
         for i, order in enumerate(orders, 1):
             rn = order.get("referenceNumber", order.get("rn", "—"))
@@ -149,9 +212,13 @@ def setup_wizard(
             vin = order.get("vin", "(no VIN yet)")
             console.print(f"  [bold]{i}.[/bold]  {rn}  {model}  [{status}]  {vin}")
         console.print()
-        choices = [str(i) for i in range(1, len(orders) + 1)]
-        pick = Prompt.ask("Select order", choices=choices, default="1")
-        order = orders[int(pick) - 1]
+        if headless:
+            order = orders[0]
+            console.print("[dim]Headless mode — auto-selecting first order.[/dim]")
+        else:
+            choices = [str(i) for i in range(1, len(orders) + 1)]
+            pick = Prompt.ask("Select order", choices=choices, default="1")
+            order = orders[int(pick) - 1]
         selected_rn = order.get("referenceNumber", order.get("rn", ""))
         selected_vin = order.get("vin", "")
         if not selected_vin:
@@ -184,21 +251,22 @@ def setup_wizard(
     #   basic    → Owner API, uses the token from Step 1, no extra registration
     #   advanced → Fleet API (free, requires developer.tesla.com app)
     #   tessie   → Paid third-party proxy (~$12/month)
-    console.print(
-        Panel.fit(
-            "[bold]Step 3 / 8[/bold] — Vehicle Control\n\n"
-            "Tesla CLI works in three tiers. Start with Basic — upgrade later if needed.\n\n"
-            "  [bold green]basic[/bold green]     Email + password only. Order tracking, vehicle data & commands.\n"
-            "            No registration needed. Works immediately.\n"
-            "            (Some newer VINs may need the Advanced tier)\n\n"
-            "  [dim]advanced  Tesla Developer API. Required for newer vehicles (2024+),\n"
-            "            signed commands, real-time telemetry, Powerwall/Solar.\n"
-            "            Free — requires registering an app at developer.tesla.com[/dim]\n\n"
-            "  [dim]tessie    Third-party proxy service (~$12/month).\n"
-            "            Alternative if you prefer a managed service.[/dim]",
-            border_style="blue",
+    if not headless:
+        console.print(
+            Panel.fit(
+                "[bold]Step 3 / 8[/bold] — Vehicle Control\n\n"
+                "Tesla CLI works in three tiers. Start with Basic — upgrade later if needed.\n\n"
+                "  [bold green]basic[/bold green]     Email + password only. Order tracking, vehicle data & commands.\n"
+                "            No registration needed. Works immediately.\n"
+                "            (Some newer VINs may need the Advanced tier)\n\n"
+                "  [dim]advanced  Tesla Developer API. Required for newer vehicles (2024+),\n"
+                "            signed commands, real-time telemetry, Powerwall/Solar.\n"
+                "            Free — requires registering an app at developer.tesla.com[/dim]\n\n"
+                "  [dim]tessie    Third-party proxy service (~$12/month).\n"
+                "            Alternative if you prefer a managed service.[/dim]",
+                border_style="blue",
+            )
         )
-    )
     console.print()
 
     cfg = load_config()
@@ -223,6 +291,12 @@ def setup_wizard(
         console.print(
             f"[green]✓ Vehicle backend already configured ({backend_name}) — skipping.[/green]"
         )
+    elif headless:
+        # Headless defaults to basic tier
+        cfg.general.backend = "owner"
+        save_config(cfg)
+        tier_selected = "basic"
+        console.print("[green]✓ Headless mode — using basic (Owner API) tier.[/green]")
     else:
         choice = Prompt.ask(
             "Choose tier",
@@ -286,18 +360,23 @@ def setup_wizard(
     # ── Step 4: Fleet Telemetry ─────────────────────────────────────────────────
     # Fleet Telemetry is only meaningful with the Advanced tier (Fleet API).
     # Skip it with an informative message for Basic/Tessie users.
-    console.print(
-        Panel.fit(
-            "[bold]Step 4 / 8[/bold] — Fleet Telemetry [dim](real-time streaming)[/dim]\n\n"
-            "Fleet Telemetry streams live data directly from your vehicle — speed,\n"
-            "location, battery state — without polling the Tesla API.\n\n"
-            "[dim]Requires: Advanced tier + Docker + a publicly reachable hostname[/dim]",
-            border_style="blue",
+    if headless:
+        console.print("[dim]Step 4 — Fleet Telemetry: skipped (headless mode).[/dim]")
+    else:
+        console.print(
+            Panel.fit(
+                "[bold]Step 4 / 8[/bold] — Fleet Telemetry [dim](real-time streaming)[/dim]\n\n"
+                "Fleet Telemetry streams live data directly from your vehicle — speed,\n"
+                "location, battery state — without polling the Tesla API.\n\n"
+                "[dim]Requires: Advanced tier + Docker + a publicly reachable hostname[/dim]",
+                border_style="blue",
+            )
         )
-    )
     console.print()
 
-    if tier_selected != "advanced":
+    if headless:
+        pass  # already printed skip message above
+    elif tier_selected != "advanced":
         # Not on Fleet API — telemetry is unavailable
         console.print(
             "[dim]Fleet Telemetry requires the Advanced tier — skipping.[/dim]\n"
@@ -344,91 +423,101 @@ def setup_wizard(
 
     # ── Step 5: TeslaMate ───────────────────────────────────────────────────────
     # TeslaMate works with any tier — always offered.
-    console.print(
-        Panel.fit(
-            "[bold]Step 5 / 8[/bold] — TeslaMate Analytics [dim](optional)[/dim]\n\n"
-            "TeslaMate logs every drive, charge, and sleep — giving you beautiful\n"
-            "Grafana dashboards with historical efficiency, range, and cost data.\n\n"
-            "[dim]Requires: Docker[/dim]",
-            border_style="blue",
-        )
-    )
-    console.print()
-
-    docker_available = _check_docker_available()
-
-    if not docker_available:
-        console.print(
-            "[yellow]Docker not found — skipping TeslaMate.[/yellow]\n"
-            "[dim]Install Docker then run: tesla teslaMate install[/dim]"
-        )
+    if headless:
+        console.print("[dim]Step 5 — TeslaMate: skipped (headless mode).[/dim]")
     else:
-        try:
-            from tesla_cli.infra.teslamate_stack import TeslaMateStack
+        console.print(
+            Panel.fit(
+                "[bold]Step 5 / 8[/bold] — TeslaMate Analytics [dim](optional)[/dim]\n\n"
+                "TeslaMate logs every drive, charge, and sleep — giving you beautiful\n"
+                "Grafana dashboards with historical efficiency, range, and cost data.\n\n"
+                "[dim]Requires: Docker[/dim]",
+                border_style="blue",
+            )
+        )
+        console.print()
 
-            tm_stack = TeslaMateStack()
-            if tm_stack.is_installed() and not force:
-                running = tm_stack.is_running()
-                status_str = "[green]running[/green]" if running else "[yellow]stopped[/yellow]"
-                console.print(f"[green]✓ TeslaMate already installed[/green] — {status_str}")
-                if not running:
-                    console.print("[dim]Start it with: tesla teslaMate start[/dim]")
-            else:
-                install_tm = Confirm.ask(
-                    "Install TeslaMate for deep analytics and Grafana dashboards?", default=False
-                )
-                if install_tm:
-                    _run_teslamate_install(tm_stack)
+        docker_available = _check_docker_available()
+
+        if not docker_available:
+            console.print(
+                "[yellow]Docker not found — skipping TeslaMate.[/yellow]\n"
+                "[dim]Install Docker then run: tesla teslaMate install[/dim]"
+            )
+        else:
+            try:
+                from tesla_cli.infra.teslamate_stack import TeslaMateStack
+
+                tm_stack = TeslaMateStack()
+                if tm_stack.is_installed() and not force:
+                    running = tm_stack.is_running()
+                    status_str = "[green]running[/green]" if running else "[yellow]stopped[/yellow]"
+                    console.print(f"[green]✓ TeslaMate already installed[/green] — {status_str}")
+                    if not running:
+                        console.print("[dim]Start it with: tesla teslaMate start[/dim]")
                 else:
-                    console.print(
-                        "[dim]Skipped — install later with: tesla teslaMate install[/dim]"
+                    install_tm = Confirm.ask(
+                        "Install TeslaMate for deep analytics and Grafana dashboards?",
+                        default=False,
                     )
-        except Exception as e:
-            console.print(f"[yellow]TeslaMate setup skipped:[/yellow] {e}")
+                    if install_tm:
+                        _run_teslamate_install(tm_stack)
+                    else:
+                        console.print(
+                            "[dim]Skipped — install later with: tesla teslaMate install[/dim]"
+                        )
+            except Exception as e:
+                console.print(f"[yellow]TeslaMate setup skipped:[/yellow] {e}")
 
     console.print()
 
     # ── Step 6: Notifications ───────────────────────────────────────────────────
-    console.print(
-        Panel.fit(
-            "[bold]Step 6 / 8[/bold] — Notifications [dim](optional)[/dim]\n\n"
-            "Get push notifications when your vehicle finishes charging,\n"
-            "a software update is ready, or automations fire.\n\n"
-            "Supported: Telegram, Discord, Slack, email, Pushover, and 80+ more\n"
-            "[dim]Powered by Apprise — format: tgram://bot_token/chat_id[/dim]",
-            border_style="blue",
-        )
-    )
-    console.print()
-
-    cfg = load_config()
-    already_has_notifications = bool(cfg.notifications.apprise_urls)
-
-    if already_has_notifications and not force:
-        urls_preview = ", ".join(
-            u.split("://")[0] + "://***" for u in cfg.notifications.apprise_urls
-        )
-        console.print(f"[green]✓ Notifications already configured:[/green] {urls_preview}")
+    if headless:
+        console.print("[dim]Step 6 — Notifications: skipped (headless mode).[/dim]")
     else:
-        setup_notif = Confirm.ask("Set up push notifications?", default=False)
-        if setup_notif:
-            _run_notifications_setup(cfg)
-        else:
-            console.print(
-                "[dim]Skipped — configure later with: tesla config set notifications-enabled true[/dim]"
+        console.print(
+            Panel.fit(
+                "[bold]Step 6 / 8[/bold] — Notifications [dim](optional)[/dim]\n\n"
+                "Get push notifications when your vehicle finishes charging,\n"
+                "a software update is ready, or automations fire.\n\n"
+                "Supported: Telegram, Discord, Slack, email, Pushover, and 80+ more\n"
+                "[dim]Powered by Apprise — format: tgram://bot_token/chat_id[/dim]",
+                border_style="blue",
             )
+        )
+        console.print()
+
+        cfg = load_config()
+        already_has_notifications = bool(cfg.notifications.apprise_urls)
+
+        if already_has_notifications and not force:
+            urls_preview = ", ".join(
+                u.split("://")[0] + "://***" for u in cfg.notifications.apprise_urls
+            )
+            console.print(f"[green]✓ Notifications already configured:[/green] {urls_preview}")
+        else:
+            setup_notif = Confirm.ask("Set up push notifications?", default=False)
+            if setup_notif:
+                _run_notifications_setup(cfg)
+            else:
+                console.print(
+                    "[dim]Skipped — configure later with: tesla config set notifications-enabled true[/dim]"
+                )
 
     console.print()
 
     # ── Step 7: Automations ─────────────────────────────────────────────────────
-    setup_automations = Confirm.ask(
-        "Set up smart automation rules? These fire automatically when conditions are met.",
-        default=False,
-    )
-    if setup_automations:
-        _run_automations_setup()
+    if headless:
+        console.print("[dim]Step 7 — Automations: skipped (headless mode).[/dim]")
     else:
-        console.print("[dim]Skipped — configure later with: tesla automations add[/dim]")
+        setup_automations = Confirm.ask(
+            "Set up smart automation rules? These fire automatically when conditions are met.",
+            default=False,
+        )
+        if setup_automations:
+            _run_automations_setup()
+        else:
+            console.print("[dim]Skipped — configure later with: tesla automations add[/dim]")
 
     console.print()
 
