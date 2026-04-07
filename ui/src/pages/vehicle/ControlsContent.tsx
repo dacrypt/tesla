@@ -22,6 +22,9 @@ import {
   GuestIcon,
 } from '../../components/icons/Icons';
 
+const SpeedIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/></svg>;
+const PadlockIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>;
+
 type ColorKey = 'default' | 'red' | 'green' | 'blue' | 'orange';
 const iconBgMap: Record<ColorKey, string> = { default: 'rgba(255,255,255,0.12)', red: '#05C46B', green: '#0BE881', blue: '#0FBCF9', orange: '#F99716' };
 const activeBgMap: Record<ColorKey, string> = { default: 'rgba(255,255,255,0.18)', red: 'rgba(5,196,107,0.15)', green: 'rgba(11,232,129,0.15)', blue: 'rgba(15,188,249,0.15)', orange: 'rgba(249,151,22,0.15)' };
@@ -35,6 +38,7 @@ export default function ControlsContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; color: string } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [speedPin, setSpeedPin] = useState('');
 
   const cmd = async (command: string, params?: Record<string, unknown>, key?: string, successMsg?: string) => {
     const k = key || command;
@@ -111,6 +115,73 @@ export default function ControlsContent() {
             </div>
           </div>
         ))}
+        {/* Speed limit */}
+        <div className="tesla-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,152,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F99716' }}>
+              <SpeedIcon />
+            </div>
+            <div>
+              <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Speed Limit Mode</div>
+              <div style={{ color: '#86888f', fontSize: 12 }}>Restrict maximum vehicle speed</div>
+            </div>
+          </div>
+          <div className="label-xs" style={{ marginBottom: 6 }}>PIN</div>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={speedPin}
+            onChange={(e) => setSpeedPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="4-digit PIN"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              fontSize: 18,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              width: '100%',
+              outline: 'none',
+              colorScheme: 'dark',
+              marginBottom: 12,
+              letterSpacing: '0.3em',
+              textAlign: 'center',
+            }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <button
+              onClick={() => cmd('speed_limit_activate', { pin: speedPin }, 'spd_on', 'Speed limit on')}
+              disabled={!!loading || speedPin.length !== 4}
+              style={{ background: 'rgba(255,152,0,0.1)', color: '#F99716', border: '1px solid rgba(255,152,0,0.3)', borderRadius: 10, padding: '12px 8px', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', cursor: speedPin.length === 4 ? 'pointer' : 'not-allowed', transition: 'all 0.15s', opacity: speedPin.length !== 4 ? 0.5 : 1 }}
+            >
+              Activate
+            </button>
+            <button
+              onClick={() => cmd('speed_limit_deactivate', { pin: speedPin }, 'spd_off', 'Speed limit off')}
+              disabled={!!loading || speedPin.length !== 4}
+              className="tesla-btn secondary"
+              style={{ fontSize: 13 }}
+            >
+              Deactivate
+            </button>
+          </div>
+        </div>
+
+        {/* PIN to Drive info */}
+        <div className="tesla-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#86888f' }}>
+              <PadlockIcon />
+            </div>
+            <div>
+              <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>PIN to Drive</div>
+              <div style={{ color: '#86888f', fontSize: 12 }}>Manage via Tesla app or touchscreen</div>
+            </div>
+          </div>
+        </div>
       </div>
       <IonToast isOpen={!!toast} message={toast?.message} duration={2000} color={toast?.color} onDidDismiss={() => setToast(null)} position="bottom" />
     </>
