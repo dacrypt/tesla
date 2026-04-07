@@ -23,6 +23,15 @@ let _cacheError: string | null = null;
 let _cacheLoaded = false;
 let _cachePromise: Promise<void> | null = null;
 
+/** Seed the dossier cache from the init bundle (avoids a separate request). */
+export function seedDossierCache(dossier: VehicleDossier | null): void {
+  if (dossier && !_cacheLoaded) {
+    _cachedDossier = dossier;
+    _cacheError = null;
+    _cacheLoaded = true;
+  }
+}
+
 // Listeners to notify all mounted hooks when dossier updates
 const _dossierListeners: Set<() => void> = new Set();
 

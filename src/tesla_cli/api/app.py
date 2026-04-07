@@ -246,8 +246,10 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
+    from tesla_cli.api.routes.init import router as init_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
+    app.include_router(init_router, prefix="/api/init", tags=["Init"])
     app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
     app.include_router(sources_router, prefix="/api/sources", tags=["Sources"])
     app.include_router(colombia_router, prefix="/api/co", tags=["Colombia"])
