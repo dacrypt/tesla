@@ -316,16 +316,14 @@ const Dashboard: React.FC = () => {
     api.getAutomationsStatus().then(setAutoStatus).catch(() => {});
   }, []);
 
-  // Fetch fleet summary when fleet tile is enabled
+  // Fetch fleet summary once on mount
   React.useEffect(() => {
-    if (!isTileEnabled('fleet')) return;
-    setFleetLoading(true);
     api.getFleetSummary().then(data => {
       setFleetData(data);
     }).catch(() => {
       setFleetData([]);
-    }).finally(() => setFleetLoading(false));
-  }, [enabledTiles]);
+    });
+  }, []);
 
   const doLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) return;
