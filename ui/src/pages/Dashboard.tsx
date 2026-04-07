@@ -17,6 +17,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
+import { useAppInit } from '../hooks/useAppInit';
 import { api, FleetVehicle, AutomationsStatus } from '../api/client';
 
 // ---- SVG Icons ----
@@ -108,7 +109,7 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 function PreDeliveryDashboard() {
-  const { dossier } = useDossierData();
+  const { dossier } = useAppInit();
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
 
@@ -284,14 +285,13 @@ const TeslaIcon = () => (
 
 const Dashboard: React.FC = () => {
   const { state, charge, climate, loading, error, refresh, lastUpdated, connected, stale } = useVehicleData();
+  const appInit = useAppInit();
   // Post-delivery: vehicle data is available (charge_state present)
   const isPostDelivery = charge !== null || state !== null;
   const { tiles: enabledTiles } = useDashboardTiles();
   const isTileEnabled = (id: string) => enabledTiles.some((t) => t.id === id);
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
   const [cmdError, setCmdError] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authenticated, setAuthenticated] = useState(true); // Assume true initially
   const [authLoading, setAuthLoading] = useState(false);
   const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
   const [fleetLoading, setFleetLoading] = useState(false);
@@ -303,20 +303,18 @@ const Dashboard: React.FC = () => {
   const [autoStatus, setAutoStatus] = useState<AutomationsStatus | null>(null);
   const history = useHistory();
 
-  // Check auth status on mount
+  // Derive auth and automations from init bundle (no separate requests)
+  const authChecked = !appInit.loading;
+  const [authOverride, setAuthOverride] = useState<boolean | null>(null);
+  const authenticated = authOverride ?? appInit.auth?.authenticated ?? true;
+
   React.useEffect(() => {
-    api.getAuthStatus().then(s => {
-      setAuthenticated(s.authenticated);
-      setAuthChecked(true);
-    }).catch(() => setAuthChecked(true));
-  }, []);
+    if (appInit.automations) {
+      setAutoStatus(appInit.automations as AutomationsStatus);
+    }
+  }, [appInit.automations]);
 
-  // Fetch automation status for dashboard indicator
-  useEffect(() => {
-    api.getAutomationsStatus().then(setAutoStatus).catch(() => {});
-  }, []);
-
-  // Fetch fleet summary once on mount
+  // Fetch fleet summary once on mount (not in init bundle — it's slow and calls Tesla API)
   React.useEffect(() => {
     api.getFleetSummary().then(data => {
       setFleetData(data);
@@ -332,7 +330,7 @@ const Dashboard: React.FC = () => {
     try {
       const result = await api.browserLogin(loginEmail.trim(), loginPassword.trim(), loginMfa || undefined);
       if (result.ok) {
-        setAuthenticated(true);
+        setAuthOverride(true);
         setMfaRequired(false);
         refresh();
       } else if (result.mfa_required) {

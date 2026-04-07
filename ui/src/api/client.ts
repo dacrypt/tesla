@@ -780,6 +780,9 @@ export const api = {
   getOrderStatus: () => client().get<OrderStatus>('/api/order/status').then(r => r.data),
   getOrderDetails: () => client().get<OrderDetails>('/api/order/details', { timeout: 10000 }).then(r => r.data),
 
+  // App init (single request for all startup data)
+  getInit: () => client().get<{ dossier: VehicleDossier | null; auth: any; automations: any; vehicle: any }>('/api/init', { timeout: 10000 }).then(r => r.data),
+
   // Dossier
   getDossier: () => client().get<VehicleDossier>('/api/dossier', { timeout: 5000 }).then(r => r.data),
   refreshDossier: () => client().get<VehicleDossier>('/api/dossier/refresh', { timeout: 30000 }).then(r => r.data),
