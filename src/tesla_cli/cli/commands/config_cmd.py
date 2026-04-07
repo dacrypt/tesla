@@ -59,6 +59,7 @@ def config_set(
         "client-id": ("fleet", "client_id"),
         "notifications-enabled": ("notifications", "enabled"),
         "cost-per-kwh": ("general", "cost_per_kwh"),
+        "cedula": ("general", "cedula"),
         "telemetry-enabled": ("telemetry", "enabled"),
         "telemetry-hostname": ("telemetry", "hostname"),
         "telemetry-port": ("telemetry", "port"),

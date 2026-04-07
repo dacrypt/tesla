@@ -439,6 +439,58 @@ def query_peajes(
     _run("co.peajes", q)
 
 
+@data_app.command("impuesto")
+def query_impuesto(
+    placa: str | None = PlacaOption,
+) -> None:
+    """Vehicle tax debt lookup (Colombia)."""
+    _require_openquery()
+    if not placa:
+        from tesla_cli.core.sources import _load_cache
+
+        runt_cache = _load_cache("co.runt")
+        placa = (runt_cache or {}).get("data", {}).get("placa", "") if runt_cache else ""
+        if not placa:
+            console.print(
+                "[red]No placa available.[/red] Pass --placa or refresh the co.runt source."
+            )
+            raise typer.Exit(1)
+    q = _build_input(None, placa, None)
+    _run("co.impuesto_vehicular", q)
+
+
+@data_app.command("comparendos")
+def query_comparendos(
+    cedula: str | None = CedulaOption,
+    placa: str | None = PlacaOption,
+) -> None:
+    """Detailed traffic violation records (Colombia)."""
+    _require_openquery()
+    q = _build_input(cedula, placa, None)
+    _run("co.comparendos_transito", q)
+
+
+@data_app.command("cedula")
+def query_cedula(
+    cedula: str | None = CedulaOption,
+) -> None:
+    """Verify ID document status (Colombia)."""
+    _require_openquery()
+    if not cedula:
+        from tesla_cli.core.config import load_config
+
+        cfg = load_config()
+        cedula = cfg.general.cedula
+        if not cedula:
+            console.print(
+                "[red]No cédula configured.[/red] Pass --cedula or run: "
+                "tesla config set cedula <NUMBER>"
+            )
+            raise typer.Exit(1)
+    q = _build_input(cedula, None, None)
+    _run("co.estado_cedula", q)
+
+
 @data_app.command("fasecolda")
 def query_fasecolda(
     marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),

@@ -167,7 +167,9 @@ async def _lifespan(app: FastAPI):
     # Start the shared vehicle state hub
     try:
         cfg = load_config()
-        vin = resolve_vin(cfg, app.state.override_vin if hasattr(app.state, "override_vin") else None)
+        vin = resolve_vin(
+            cfg, app.state.override_vin if hasattr(app.state, "override_vin") else None
+        )
         backend = get_vehicle_backend(cfg)
         hub = VehicleStateHub(backend, vin)
         hub.start()
@@ -559,6 +561,7 @@ def _register_sse_stream(app: FastAPI) -> None:
             # Fallback: no hub available, return error
             async def _error_gen():
                 yield f"event: error\ndata: {json.dumps({'error': 'hub_unavailable', 'message': 'Vehicle hub not initialized'})}\n\n"
+
             return StreamingResponse(
                 _error_gen(),
                 media_type="text/event-stream",

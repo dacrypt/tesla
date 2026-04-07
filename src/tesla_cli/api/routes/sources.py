@@ -86,6 +86,19 @@ def sources_refresh_stale() -> dict:
     return sources.refresh_stale()
 
 
+@router.get("/by-profile")
+def sources_by_profile() -> dict:
+    """Sources grouped by vehicle and driver profile."""
+    all_sources = sources.list_sources()
+    return {
+        "vehicle": [
+            s for s in all_sources if s["category"] in ("vehiculo", "registro", "servicios")
+        ],
+        "driver": [s for s in all_sources if s["category"] in ("infracciones", "registro")],
+        "financial": [s for s in all_sources if s["category"] == "financiero"],
+    }
+
+
 # ── Wildcard routes LAST ──
 
 
