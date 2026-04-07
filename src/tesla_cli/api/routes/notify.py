@@ -84,3 +84,61 @@ def notify_remove(body: RemoveChannelRequest) -> dict:
         cfg.notifications.enabled = False
     save_config(cfg)
     return {"status": "ok", "removed": removed, "remaining": len(urls)}
+
+
+@router.get("/channels")
+def list_channels() -> dict:
+    """List all configured notification channels with status."""
+    cfg = load_config()
+    urls = cfg.notifications.apprise_urls
+    channels = []
+    for i, url in enumerate(urls):
+        # Mask credentials in URLs for display
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            display = f"{parsed.scheme}://{parsed.netloc}{parsed.path}" if parsed.scheme else url
+        except Exception:  # noqa: BLE001
+            display = url
+        channels.append({"index": i, "url": display})
+    return {
+        "enabled": cfg.notifications.enabled,
+        "count": len(urls),
+        "channels": channels,
+        "template": cfg.notifications.message_template,
+    }
+
+
+class SendNotificationRequest(BaseModel):
+    message: str
+    title: str = "Tesla CLI"
+
+
+@router.post("/send")
+def send_notification(body: SendNotificationRequest) -> dict:
+    """Send a custom notification to all configured channels."""
+    cfg = load_config()
+    urls = cfg.notifications.apprise_urls
+    if not urls:
+        raise HTTPException(status_code=404, detail="No notification channels configured.")
+
+    try:
+        import apprise
+
+        apobj = apprise.Apprise()
+        for url in urls:
+            apobj.add(url)
+        ok = apobj.notify(
+            title=body.title,
+            body=body.message,
+            notify_type=apprise.NotifyType.INFO,
+        )
+        return {"status": "ok" if ok else "failed", "channels": len(urls)}
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="apprise not installed. Run: pip install apprise",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
