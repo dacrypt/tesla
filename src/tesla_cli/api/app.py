@@ -193,15 +193,19 @@ def _register_middleware(app: FastAPI) -> None:
 
 def _register_routes(app: FastAPI) -> None:
     """Include all API routers."""
+    from tesla_cli.api.routes.abrp import router as abrp_router
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.automations import router as automations_router
+    from tesla_cli.api.routes.ble import router as ble_router
     from tesla_cli.api.routes.charge import router as charge_router
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
+    from tesla_cli.api.routes.dashcam import router as dashcam_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.energy_prices import router as energy_prices_router
     from tesla_cli.api.routes.fleet import router as fleet_router
     from tesla_cli.api.routes.geofence import router as geofence_router
+    from tesla_cli.api.routes.mqtt import router as mqtt_router
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.security import router as security_router
@@ -224,6 +228,10 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(teslaMate_router, prefix="/api/teslaMate", tags=["TeslaMate"])
     app.include_router(fleet_router, prefix="/api/fleet", tags=["Fleet"])
     app.include_router(automations_router, prefix="/api/automations", tags=["Automations"])
+    app.include_router(abrp_router, prefix="/api/abrp", tags=["ABRP"])
+    app.include_router(ble_router, prefix="/api/ble", tags=["BLE"])
+    app.include_router(mqtt_router, prefix="/api/mqtt", tags=["MQTT"])
+    app.include_router(dashcam_router, prefix="/api/dashcam", tags=["Dashcam"])
 
 
 def _register_system_endpoints(app: FastAPI) -> None:
