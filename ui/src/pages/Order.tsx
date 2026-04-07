@@ -11,7 +11,7 @@ import {
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import OrderProcessTracker from '../components/OrderProcessTracker';
-import { useDossierData } from '../hooks/useDossierData';
+import { useAppInit } from '../hooks/useAppInit';
 import { api, OrderTask } from '../api/client';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ function TasksCard({ tasks }: { tasks: OrderTask[] }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 const Order: React.FC = () => {
-  const { dossier } = useDossierData();
+  const { sources, computed } = useAppInit();
   const history = useHistory();
 
   const [orderTasks, setOrderTasks] = React.useState<OrderTask[]>([]);
@@ -272,9 +272,9 @@ const Order: React.FC = () => {
     (event.target as HTMLIonRefresherElement).complete();
   };
 
-  const status = dossier?.real_status;
-  const order = dossier?.order;
-  const specs = dossier?.specs;
+  const status = computed.real_status;
+  const order = sources.order;
+  const specs = computed.specs;
   const phase = status?.phase || 'ordered';
 
   const phaseLabels: Record<string, string> = {
@@ -331,9 +331,9 @@ const Order: React.FC = () => {
             tasks={orderTasks}
             financing={orderFinancing}
             realStatus={status}
-            logistics={dossier?.logistics}
-            runt={dossier?.runt}
-            financial={dossier?.financial}
+            logistics={null}
+            runt={sources.runt}
+            financial={null}
             loading={orderLoading}
           />
 
@@ -359,9 +359,9 @@ const Order: React.FC = () => {
             ← Back to Dashboard
           </button>
 
-          {dossier?.last_updated && (
+          {order?.lastActivityDate && (
             <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingBottom: 8 }}>
-              Updated: {new Date(dossier.last_updated).toLocaleString()}
+              Updated: {new Date(order.lastActivityDate).toLocaleString()}
             </div>
           )}
         </div>

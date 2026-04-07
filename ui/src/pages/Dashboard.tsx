@@ -15,7 +15,6 @@ import ModelYSilhouette from '../components/ModelYSilhouette';
 import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
 import { useVehicleData } from '../hooks/useVehicleData';
-import { useDossierData } from '../hooks/useDossierData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
 import { useAppInit } from '../hooks/useAppInit';
 import { api, FleetVehicle, AutomationsStatus } from '../api/client';
@@ -109,20 +108,20 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 function PreDeliveryDashboard() {
-  const { dossier } = useAppInit();
+  const { sources, computed } = useAppInit();
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
 
   React.useEffect(() => {
-    const placa = dossier?.runt?.placa;
+    const placa = sources.runt?.placa;
     if (placa) {
       api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
     }
-  }, [dossier?.runt?.placa]);
+  }, [sources.runt?.placa]);
 
-  const status = dossier?.real_status;
-  const order = dossier?.order;
-  const specs = dossier?.specs;
+  const status = computed.real_status;
+  const order = sources.order;
+  const specs = computed.specs;
   const phase = status?.phase || 'ordered';
   const phaseLabels: Record<string, string> = {
     ordered: 'Ordenado', produced: 'Producido', shipped: 'En Tránsito',
@@ -268,9 +267,9 @@ function PreDeliveryDashboard() {
       </button>
 
       {/* Last updated */}
-      {dossier?.last_updated && (
+      {order?.lastActivityDate && (
         <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingBottom: 8 }}>
-          Actualizado: {new Date(dossier.last_updated).toLocaleString()}
+          Actualizado: {new Date(order.lastActivityDate).toLocaleString()}
         </div>
       )}
     </div>
