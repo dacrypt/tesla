@@ -119,8 +119,22 @@ def refresh_source(source_id: str) -> dict:
     params = src.openquery_params
     if params.get("doc_number") == "$CEDULA":
         cfg = load_config()
-        cedula = cfg.general.cedula
-        # Auto-detect from RUNT cache if not configured
+        cedula = ""
+        # 1. Try database (driver profiles)
+        try:
+            from tesla_cli.core.db import get_primary_driver
+
+            vin = cfg.general.default_vin
+            if vin:
+                driver = get_primary_driver(vin)
+                if driver:
+                    cedula = driver.get("doc_number", "")
+        except Exception:
+            pass
+        # 2. Fallback to config
+        if not cedula:
+            cedula = cfg.general.cedula
+        # 3. Auto-detect from RUNT cache
         if not cedula:
             runt_cache = _load_cache("co.runt")
             if runt_cache and runt_cache.get("data"):
