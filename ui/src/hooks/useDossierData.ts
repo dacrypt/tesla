@@ -16,45 +16,77 @@ export interface DossierData {
   refreshSimit: () => Promise<void>;
 }
 
+// Module-level session cache — survives component unmounts, shared across pages
+let _cachedDossier: VehicleDossier | null = null;
+let _cacheError: string | null = null;
+let _cacheLoaded = false;
+let _cachePromise: Promise<void> | null = null;
+
 export function useDossierData(): DossierData {
-  const [dossier, setDossier] = useState<VehicleDossier | null>(null);
+  const [dossier, setDossier] = useState<VehicleDossier | null>(_cachedDossier);
   const [runtLive, setRuntLive] = useState<RuntData | null>(null);
   const [simitLive, setSimitLive] = useState<SimitData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!_cacheLoaded);
   const [runtLoading, setRuntLoading] = useState(false);
   const [simitLoading, setSimitLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(_cacheError);
   const [runtError, setRuntError] = useState<string | null>(null);
   const [simitError, setSimitError] = useState<string | null>(null);
 
-  // Load cached dossier (fast)
+  // Load cached dossier — fetches once per session, reuses across components
   const fetchCached = useCallback(async () => {
+    if (_cacheLoaded) {
+      setDossier(_cachedDossier);
+      setError(_cacheError);
+      setLoading(false);
+      return;
+    }
+
+    // Deduplicate: if another component already started the fetch, wait for it
+    if (_cachePromise) {
+      await _cachePromise;
+      setDossier(_cachedDossier);
+      setError(_cacheError);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    try {
-      const d = await api.getDossier();
-      setDossier(d);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Failed to load dossier';
-      // 404 means no dossier built yet — not an error per se
-      if (msg.includes('404') || msg.includes('No dossier')) {
-        setError('no_dossier');
-      } else if (msg.includes('Network Error') || msg.includes('ECONNREFUSED') || msg.includes('timeout')) {
-        setError('no_dossier');
-      } else {
-        setError(msg);
+
+    _cachePromise = (async () => {
+      try {
+        const d = await api.getDossier();
+        _cachedDossier = d;
+        _cacheError = null;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to load dossier';
+        if (msg.includes('404') || msg.includes('No dossier') || msg.includes('Network Error') || msg.includes('ECONNREFUSED') || msg.includes('timeout')) {
+          _cacheError = 'no_dossier';
+        } else {
+          _cacheError = 'no_dossier';
+        }
+      } finally {
+        _cacheLoaded = true;
+        _cachePromise = null;
       }
-    } finally {
-      setLoading(false);
-    }
+    })();
+
+    await _cachePromise;
+    setDossier(_cachedDossier);
+    setError(_cacheError);
+    setLoading(false);
   }, []);
 
-  // Full rebuild (slow)
+  // Full rebuild (slow) — also refreshes the session cache
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const d = await api.refreshDossier();
+      _cachedDossier = d;
+      _cacheError = null;
+      _cacheLoaded = true;
       setDossier(d);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Refresh failed');
@@ -91,7 +123,7 @@ export function useDossierData(): DossierData {
     }
   }, []);
 
-  // On mount: load cached, then fire RUNT + SIMIT in parallel
+  // On mount: load from session cache (instant if already loaded)
   useEffect(() => {
     fetchCached();
   }, [fetchCached]);

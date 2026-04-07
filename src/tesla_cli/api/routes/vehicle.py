@@ -19,12 +19,29 @@ def _backend_and_vin(request: Request):
     return get_vehicle_backend(cfg), v
 
 
+def _get_hub(request: Request):
+    """Get the shared VehicleStateHub if available."""
+    return getattr(request.app.state, "vehicle_hub", None)
+
+
 # ── Read endpoints ────────────────────────────────────────────────────────────
 
 
 @router.get("/state")
 def vehicle_state(request: Request) -> dict:
-    """Full vehicle data (all states)."""
+    """Full vehicle data (all states). Reads from hub cache if available."""
+    hub = _get_hub(request)
+    if hub:
+        if hub.is_pre_delivery():
+            raise HTTPException(
+                status_code=412,
+                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
+            )
+        latest = hub.get_latest()
+        if latest:
+            return latest
+
+    # Fallback: direct fetch (hub not ready or not available)
     backend, v = _backend_and_vin(request)
     try:
         return backend.get_vehicle_data(v)
@@ -130,6 +147,10 @@ def vehicle_command(body: CommandRequest, request: Request) -> dict:
     backend, v = _backend_and_vin(request)
     try:
         result = backend.command(v, body.command, **body.params)
+        # Invalidate hub cache so next poll fetches fresh state
+        hub = _get_hub(request)
+        if hub:
+            hub.invalidate()
         return {"status": "ok", "command": body.command, "result": result}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
