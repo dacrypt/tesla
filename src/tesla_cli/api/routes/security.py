@@ -26,6 +26,12 @@ def security_lock(request: Request) -> dict:
         return {"status": "ok", "action": "locked"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/unlock")
@@ -37,6 +43,12 @@ def security_unlock(request: Request) -> dict:
         return {"status": "ok", "action": "unlocked"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.get("/sentry")
@@ -51,6 +63,12 @@ def security_sentry_status(request: Request) -> dict:
         }
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/sentry/on")
@@ -62,6 +80,12 @@ def security_sentry_on(request: Request) -> dict:
         return {"status": "ok", "sentry_mode": True}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/sentry/off")
@@ -73,6 +97,12 @@ def security_sentry_off(request: Request) -> dict:
         return {"status": "ok", "sentry_mode": False}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/trunk/front")
@@ -84,6 +114,12 @@ def security_frunk(request: Request) -> dict:
         return {"status": "ok", "action": "frunk_opened"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/trunk/rear")
@@ -95,6 +131,12 @@ def security_trunk(request: Request) -> dict:
         return {"status": "ok", "action": "trunk_toggled"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/horn")
@@ -106,6 +148,12 @@ def security_horn(request: Request) -> dict:
         return {"status": "ok", "action": "horn_honked"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/flash")
@@ -117,3 +165,9 @@ def security_flash(request: Request) -> dict:
         return {"status": "ok", "action": "lights_flashed"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))

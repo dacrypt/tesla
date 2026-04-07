@@ -50,6 +50,10 @@ def set_charge_limit(body: SetLimitRequest, request: Request) -> dict:
         return {"status": "ok", "charge_limit_soc": body.percent}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 class SetAmpsRequest(BaseModel):
@@ -67,6 +71,10 @@ def set_charge_amps(body: SetAmpsRequest, request: Request) -> dict:
         return {"status": "ok", "charging_amps": body.amps}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/start")
@@ -78,6 +86,10 @@ def charge_start(request: Request) -> dict:
         return {"status": "ok"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/stop")
@@ -89,6 +101,10 @@ def charge_stop(request: Request) -> dict:
         return {"status": "ok"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.get("/history")

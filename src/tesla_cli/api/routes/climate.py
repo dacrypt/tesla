@@ -26,6 +26,12 @@ def climate_status(request: Request) -> dict:
         return backend.get_climate_state(v)
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/on")
@@ -37,6 +43,12 @@ def climate_on(request: Request) -> dict:
         return {"status": "ok", "climate": "on"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("/off")
@@ -48,6 +60,12 @@ def climate_off(request: Request) -> dict:
         return {"status": "ok", "climate": "off"}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 class SetTempRequest(BaseModel):
@@ -67,3 +85,9 @@ def set_temp(body: SetTempRequest, request: Request) -> dict:
         return {"status": "ok", "driver_temp": body.driver_temp, "passenger_temp": passenger}
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
+    except Exception as exc:
+        if "412" in str(exc):
+            raise HTTPException(status_code=412, detail="Vehicle not accessible. May be pre-delivery or require Fleet API.")
+        if "429" in str(exc):
+            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
+        raise HTTPException(status_code=502, detail=str(exc))
