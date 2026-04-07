@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, VehicleDossier, RuntData, SimitData } from '../api/client';
+import { subscribe } from './sseHub';
 
 export interface DossierData {
   dossier: VehicleDossier | null;
@@ -22,46 +23,8 @@ let _cacheError: string | null = null;
 let _cacheLoaded = false;
 let _cachePromise: Promise<void> | null = null;
 
-// Source update tracking — maps source_id to latest data
-const _sourceUpdates: Record<string, unknown> = {};
-// Listeners to notify all mounted hooks when sources update
-const _sourceListeners: Set<() => void> = new Set();
-
-// Shared SSE listener for source events (one per app, not per component)
-let _sseListening = false;
-
-function _startSourceSSE() {
-  if (_sseListening) return;
-  _sseListening = true;
-
-  const es = new EventSource(api.getStreamUrl());
-
-  es.addEventListener('source', (evt) => {
-    try {
-      const parsed = JSON.parse((evt as MessageEvent).data);
-      if (parsed.id && parsed.data !== undefined) {
-        _sourceUpdates[parsed.id] = parsed.data;
-        // Re-fetch the dossier (fast disk read) to get updated aggregate
-        api.getDossier()
-          .then(d => {
-            _cachedDossier = d;
-            _cacheError = null;
-            // Notify all mounted hooks
-            _sourceListeners.forEach(fn => fn());
-          })
-          .catch(() => {}); // ignore — dossier might not be built yet
-      }
-    } catch {
-      // ignore parse errors
-    }
-  });
-
-  es.onerror = () => {
-    // SSE closed — allow reconnect on next mount
-    _sseListening = false;
-    es.close();
-  };
-}
+// Listeners to notify all mounted hooks when dossier updates
+const _dossierListeners: Set<() => void> = new Set();
 
 export function useDossierData(): DossierData {
   const [dossier, setDossier] = useState<VehicleDossier | null>(_cachedDossier);
@@ -161,18 +124,32 @@ export function useDossierData(): DossierData {
     }
   }, []);
 
-  // On mount: load from session cache + start SSE listener
+  // On mount: load from session cache + subscribe to source updates via shared SSE
   useEffect(() => {
     fetchCached();
-    _startSourceSSE();
 
-    // Subscribe to source updates
+    // Listen for source updates — re-fetch dossier on any source change
+    const unsub = subscribe('source', () => {
+      api.getDossier()
+        .then(d => {
+          _cachedDossier = d;
+          _cacheError = null;
+          _dossierListeners.forEach(fn => fn());
+        })
+        .catch(() => {});
+    });
+
+    // Register this component for dossier updates
     const onUpdate = () => {
       setDossier(_cachedDossier);
       setError(_cacheError);
     };
-    _sourceListeners.add(onUpdate);
-    return () => { _sourceListeners.delete(onUpdate); };
+    _dossierListeners.add(onUpdate);
+
+    return () => {
+      unsub();
+      _dossierListeners.delete(onUpdate);
+    };
   }, [fetchCached]);
 
   return {
