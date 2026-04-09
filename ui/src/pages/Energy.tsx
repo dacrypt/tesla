@@ -50,7 +50,7 @@ const Energy: React.FC = () => {
               className={`sub-tab${activeTab === tab.key ? ' active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
             >
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="flex-center">
                 {tab.icon}
               </span>
               <span>{tab.label}</span>
