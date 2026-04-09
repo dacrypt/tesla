@@ -8,11 +8,39 @@
   --tesla-card-border: rgba(255, 255, 255, 0.07);
   --tesla-card-border-hover: rgba(255, 255, 255, 0.13);
 
-  /* ── Brand (Moody palette) ── */
-  --tesla-red: #05C46B;
-  --tesla-red-hover: #04a85c;
-  --tesla-red-dim: rgba(5, 196, 107, 0.14);
-  --tesla-red-glow: rgba(5, 196, 107, 0.35);
+  /* ── Brand / Accent ── */
+  --tesla-accent: #05C46B;
+  --tesla-accent-hover: #04a85c;
+  --tesla-accent-dim: rgba(5, 196, 107, 0.14);
+  --tesla-accent-glow: rgba(5, 196, 107, 0.35);
+  /* Legacy alias (do not use in new code) */
+  --tesla-red: var(--tesla-accent);
+  --tesla-red-hover: var(--tesla-accent-hover);
+  --tesla-red-dim: var(--tesla-accent-dim);
+  --tesla-red-glow: var(--tesla-accent-glow);
+
+  /* ── Spacing Scale ── */
+  --tesla-sp-xs: 4px;
+  --tesla-sp-sm: 8px;
+  --tesla-sp-md: 12px;
+  --tesla-sp-lg: 16px;
+  --tesla-sp-xl: 20px;
+  --tesla-sp-2xl: 24px;
+  --tesla-sp-3xl: 32px;
+
+  /* ── Type Scale ── */
+  --tesla-fs-2xs: 9px;
+  --tesla-fs-xs: 10px;
+  --tesla-fs-sm: 11px;
+  --tesla-fs-base: 13px;
+  --tesla-fs-lg: 14px;
+  --tesla-fs-xl: 18px;
+  --tesla-fs-2xl: 24px;
+  --tesla-fs-hero: 36px;
+  --tesla-fw-normal: 400;
+  --tesla-fw-medium: 500;
+  --tesla-fw-semi: 600;
+  --tesla-fw-bold: 700;
 
   /* ── Semantic ── */
   --tesla-green: #0BE881;
@@ -32,7 +60,7 @@
   /* ── Text ── */
   --tesla-text: #f5f5f7;
   --tesla-text-secondary: #86888f;
-  --tesla-text-dim: rgba(255, 255, 255, 0.35);
+  --tesla-text-dim: rgba(255, 255, 255, 0.42);
 
   /* ── Borders ── */
   --tesla-border: rgba(255, 255, 255, 0.08);
@@ -454,12 +482,12 @@ ion-spinner {
 }
 
 /* ---- GLOW EFFECTS ---- */
-.glow-red   { filter: drop-shadow(0 0 8px rgba(5,196,107,0.6)); }
+.glow-accent, .glow-red { filter: drop-shadow(0 0 8px rgba(5,196,107,0.6)); }
 .glow-green { filter: drop-shadow(0 0 8px rgba(11,232,129,0.6)); }
 .glow-blue  { filter: drop-shadow(0 0 8px rgba(15,188,249,0.6)); }
 .glow-orange{ filter: drop-shadow(0 0 8px rgba(249,151,22,0.6)); }
 
-.ring-red    { box-shadow: 0 0 0 1px rgba(5,196,107,0.4), 0 0 20px rgba(5,196,107,0.2); }
+.ring-accent, .ring-red { box-shadow: 0 0 0 1px rgba(5,196,107,0.4), 0 0 20px rgba(5,196,107,0.2); }
 .ring-green  { box-shadow: 0 0 0 1px rgba(11,232,129,0.4), 0 0 20px rgba(11,232,129,0.2); }
 .ring-blue   { box-shadow: 0 0 0 1px rgba(15,188,249,0.4), 0 0 20px rgba(15,188,249,0.2); }
 .ring-orange { box-shadow: 0 0 0 1px rgba(249,151,22,0.4), 0 0 20px rgba(249,151,22,0.2); }
@@ -827,5 +855,217 @@ ion-tab-button ion-label {
   }
   ion-tab-button {
     font-size: 9px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES (Phase 1)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Layout ── */
+.flex-center   { display: flex; align-items: center; justify-content: center; }
+.flex-between  { display: flex; align-items: center; justify-content: space-between; }
+.flex-start    { display: flex; align-items: flex-start; }
+.flex-col      { display: flex; flex-direction: column; }
+.flex-1        { flex: 1; min-width: 0; }
+
+/* ── Gap ── */
+.gap-xs  { gap: var(--tesla-sp-xs); }
+.gap-sm  { gap: var(--tesla-sp-sm); }
+.gap-md  { gap: var(--tesla-sp-md); }
+.gap-lg  { gap: var(--tesla-sp-lg); }
+.gap-xl  { gap: var(--tesla-sp-xl); }
+
+/* ── Padding ── */
+.p-sm  { padding: var(--tesla-sp-sm); }
+.p-md  { padding: var(--tesla-sp-md); }
+.p-lg  { padding: var(--tesla-sp-lg); }
+.p-xl  { padding: var(--tesla-sp-xl); }
+.px-md { padding-left: var(--tesla-sp-md); padding-right: var(--tesla-sp-md); }
+.px-lg { padding-left: var(--tesla-sp-lg); padding-right: var(--tesla-sp-lg); }
+.py-sm { padding-top: var(--tesla-sp-sm); padding-bottom: var(--tesla-sp-sm); }
+.py-md { padding-top: var(--tesla-sp-md); padding-bottom: var(--tesla-sp-md); }
+
+/* ── Margin ── */
+.mb-xs { margin-bottom: var(--tesla-sp-xs); }
+.mb-sm { margin-bottom: var(--tesla-sp-sm); }
+.mb-md { margin-bottom: var(--tesla-sp-md); }
+.mb-lg { margin-bottom: var(--tesla-sp-lg); }
+.mt-md { margin-top: var(--tesla-sp-md); }
+.mt-lg { margin-top: var(--tesla-sp-lg); }
+
+/* ── Typography ── */
+.text-2xs      { font-size: var(--tesla-fs-2xs); }
+.text-xs       { font-size: var(--tesla-fs-xs); }
+.text-sm       { font-size: var(--tesla-fs-sm); }
+.text-base     { font-size: var(--tesla-fs-base); }
+.text-lg       { font-size: var(--tesla-fs-lg); }
+.text-xl       { font-size: var(--tesla-fs-xl); }
+.text-hero     { font-size: var(--tesla-fs-hero); }
+.fw-normal     { font-weight: var(--tesla-fw-normal); }
+.fw-medium     { font-weight: var(--tesla-fw-medium); }
+.fw-semi       { font-weight: var(--tesla-fw-semi); }
+.fw-bold       { font-weight: var(--tesla-fw-bold); }
+.uppercase     { text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── Text Color ── */
+.text-primary   { color: var(--tesla-text); }
+.text-secondary { color: var(--tesla-text-secondary); }
+.text-dim       { color: var(--tesla-text-dim); }
+.text-accent    { color: var(--tesla-accent); }
+.text-green     { color: var(--tesla-green); }
+.text-blue      { color: var(--tesla-blue); }
+.text-orange    { color: var(--tesla-orange); }
+.text-danger    { color: var(--tesla-danger); }
+
+/* ── Borders / Dividers ── */
+.border-subtle   { border: 1px solid var(--tesla-border); }
+.divider         { border-top: 1px solid rgba(255,255,255,0.04); }
+.divider-section { border-top: 1px solid rgba(255,255,255,0.06); }
+
+/* ── Section Label (reusable category header) ── */
+.section-label {
+  font-size: var(--tesla-fs-xs);
+  font-weight: var(--tesla-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tesla-text-secondary);
+}
+
+/* ── Badge / Pill (generic) ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--tesla-fs-2xs);
+  font-weight: var(--tesla-fw-bold);
+  padding: 2px 8px;
+  border-radius: 100px;
+}
+.badge-accent {
+  color: var(--tesla-accent);
+  background: var(--tesla-accent-dim);
+  border: 1px solid rgba(5,196,107,0.25);
+}
+.badge-blue {
+  color: var(--tesla-blue);
+  background: var(--tesla-blue-dim);
+  border: 1px solid rgba(15,188,249,0.25);
+}
+.badge-orange {
+  color: var(--tesla-orange);
+  background: var(--tesla-orange-dim);
+  border: 1px solid rgba(249,151,22,0.25);
+}
+.badge-dim {
+  color: var(--tesla-text-secondary);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── Grid helpers ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--tesla-sp-md); }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--tesla-sp-md); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTERACTION STATES (Phase 2)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Focus ring for accessibility ── */
+:focus-visible {
+  outline: 2px solid var(--tesla-accent);
+  outline-offset: 2px;
+}
+/* Remove default focus ring for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Tesla button hover lift ── */
+.tesla-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--tesla-shadow-sm);
+}
+.tesla-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── Tesla card hover (for clickable cards) ── */
+.tesla-card-interactive {
+  cursor: pointer;
+  transition: var(--tesla-transition);
+}
+.tesla-card-interactive:hover {
+  border-color: var(--tesla-card-border-hover);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+/* ── Sub-tab hover/active ── */
+.sub-tab {
+  transition: var(--tesla-transition-fast);
+}
+.sub-tab:hover {
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--tesla-radius-xs);
+}
+
+/* ── Source card button hover (Dossier) ── */
+.source-action-btn {
+  transition: var(--tesla-transition-fast);
+  cursor: pointer;
+}
+.source-action-btn:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+
+/* ── Icon button (generic) ── */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--tesla-text-secondary);
+  cursor: pointer;
+  padding: var(--tesla-sp-xs);
+  border-radius: var(--tesla-radius-xs);
+  transition: var(--tesla-transition-fast);
+}
+.icon-btn:hover {
+  color: var(--tesla-text);
+  background: rgba(255,255,255,0.06);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SKELETON LOADERS (Phase 4)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.06; }
+  50% { opacity: 0.14; }
+}
+.skeleton {
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--tesla-radius-xs);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+.skeleton-line      { height: 14px; margin-bottom: 8px; }
+.skeleton-line-sm   { height: 10px; margin-bottom: 6px; width: 40%; }
+.skeleton-line-lg   { height: 20px; margin-bottom: 10px; width: 70%; }
+.skeleton-circle    { border-radius: 50%; }
+.skeleton-card {
+  padding: var(--tesla-sp-lg);
+  margin-bottom: var(--tesla-sp-md);
+  border: 1px solid var(--tesla-border);
+  border-radius: var(--tesla-radius-card);
+  background: var(--tesla-card);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

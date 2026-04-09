@@ -56,6 +56,7 @@ const CommandButton: React.FC<CommandButtonProps> = ({
       className={`action-btn${active ? ' active' : ''}`}
       onClick={onClick}
       disabled={loading || disabled}
+      aria-label={label}
       style={{ opacity: disabled ? 0.45 : 1 }}
     >
       <div
