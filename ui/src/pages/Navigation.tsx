@@ -156,7 +156,7 @@ const Navigation: React.FC = () => {
                 geofences={geofences}
               />
               <div className="stat-row" style={{ marginTop: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="flex-center" style={{ gap: 6 }}>
                   <MapPinIcon />
                   <span className="label-sm">Coordinates</span>
                 </div>
@@ -166,7 +166,7 @@ const Navigation: React.FC = () => {
               </div>
               {state.speed != null && (
                 <div className="stat-row">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="flex-center" style={{ gap: 6 }}>
                     <SpeedIcon />
                     <span className="label-sm">Speed</span>
                   </div>
@@ -188,9 +188,9 @@ const Navigation: React.FC = () => {
           {/* ---- Lifetime Map ---- */}
           {geoPoints.length > 0 && (
             <div className="tesla-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div className="flex-between" style={{ marginBottom: 10 }}>
                 <p className="section-title" style={{ paddingTop: 0, margin: 0 }}>Lifetime Driving Map</p>
-                <span style={{ color: '#86888f', fontSize: 11 }}>{geoPoints.length.toLocaleString()} pts</span>
+                <span className="text-secondary text-sm">{geoPoints.length.toLocaleString()} pts</span>
               </div>
               <VehicleMap
                 latitude={0}
@@ -203,7 +203,7 @@ const Navigation: React.FC = () => {
 
           {/* ---- Geofences ---- */}
           <div className="tesla-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
               <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
                 <MapPinIcon />
               </div>
@@ -217,8 +217,7 @@ const Navigation: React.FC = () => {
             {geofences.length > 0 ? (
               <div style={{ marginBottom: 14 }}>
                 {geofences.map((g) => (
-                  <div key={g.name} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
+                  <div key={g.name} className="flex-center gap-sm" style={{
                     background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.2)',
                     borderRadius: 8, padding: '8px 12px', marginBottom: 6,
                   }}>
@@ -341,8 +340,8 @@ const Navigation: React.FC = () => {
 
             {/* Volume */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#86888f' }}>
+              <div className="flex-between" style={{ marginBottom: 4 }}>
+                <div className="flex-center" style={{ gap: 6, color: '#86888f' }}>
                   <VolumeIcon />
                   <span style={{ fontSize: 13 }}>Volume</span>
                 </div>
@@ -353,7 +352,7 @@ const Navigation: React.FC = () => {
                 onIonChange={(e) => handleVolumeChange(e.detail.value as unknown as number)}
               />
               {/* Volume quick buttons */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <div className="flex-center gap-xs" style={{ marginTop: 10 }}>
                 <button
                   onClick={() => handleVolumeChange(Math.max(0, volume - 1))}
                   style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, height: 40, cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 20, fontFamily: 'inherit', transition: 'all 0.15s' }}

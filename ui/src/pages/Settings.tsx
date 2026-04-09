@@ -11,6 +11,7 @@ import {
 } from '@ionic/react';
 import { api, ProviderStatus, TeslaConfig, ServerStatus, StackStatus, VehicleInvitation } from '../api/client';
 import { getBaseUrl, setBaseUrl } from '../api/client';
+import Spinner from '../components/icons/Spinner';
 
 // ---- Notification Icons ----
 const BellIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>;
@@ -24,17 +25,6 @@ const PlugIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="cur
 const InfoIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>;
 const DockerIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M13 3h2v2h-2V3zm-2 0h2v2h-2V3zM9 3h2v2H9V3zM5 7h2v2H5V7zm4 0h2v2H9V7zm4 0h2v2h-2V7zm-8 4h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm1-4h2v2h-2V7zm4 3c-.55 0-1.22.15-1.72.42-.22-1.3-1.38-2.42-2.78-2.42h-.5V3h-2v2h-2V3H9v2H7V3H5v4H3v2H1v2h2.05c-.03.17-.05.33-.05.5C3 14.53 5.47 17 8.5 17c1.7 0 3.2-.76 4.2-1.96C13.61 16.29 14.97 17 16.5 17c2.48 0 4.5-2.02 4.5-4.5 0-.66-.16-1.28-.43-1.83.58-.31 1.43-.67 1.43-1.67 0-.72-.67-1-1-1z"/></svg>;
 const LogIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>;
-
-function Spin() {
-  return (
-    <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-      <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
-      <path d="M12 3a9 9 0 019 9" stroke="#05C46B" strokeWidth={3} strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-}
 
 function providerColor(s: string): string {
   if (['ok', 'connected', 'active'].includes(s)) return '#0BE881';
@@ -86,8 +76,8 @@ const NotificationHistoryCard: React.FC = () => {
 
   return (
     <div className="tesla-card">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="flex-between" style={{ marginBottom: 14 }}>
+        <div className="flex-center gap-sm">
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
             <BellIcon />
           </div>
@@ -108,23 +98,22 @@ const NotificationHistoryCard: React.FC = () => {
       </div>
 
       {historyLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><Spin /></div>
+        <div className="flex-center" style={{ padding: '12px 0' }}><Spinner /></div>
       ) : history.length === 0 ? (
         <div style={{ color: '#86888f', fontSize: 13, textAlign: 'center', padding: '8px 0' }}>
           No notifications sent yet
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="flex-col gap-xs">
           {history.map((entry, i) => (
-            <div key={i} style={{
+            <div key={i} className="flex-col" style={{
               background: 'rgba(255,255,255,0.03)',
               border: `1px solid ${entry.success ? 'rgba(16,185,129,0.2)' : 'rgba(255,107,107,0.2)'}`,
-              borderRadius: 8, padding: '8px 10px',
-              display: 'flex', flexDirection: 'column', gap: 2,
+              borderRadius: 8, padding: '8px 10px', gap: 2,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="flex-between">
                 <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 500 }}>{entry.title}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="flex-center gap-xs">
                   <span style={{
                     fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
                     background: entry.success ? 'rgba(16,185,129,0.15)' : 'rgba(255,107,107,0.15)',
@@ -386,7 +375,7 @@ const Settings: React.FC = () => {
         <div className="page-pad">
           {/* ---- API URL ---- */}
           <div className="tesla-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
               <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(15,188,249,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0FBCF9' }}>
                 <ServerIcon />
               </div>
@@ -395,7 +384,7 @@ const Settings: React.FC = () => {
                 <div style={{ color: '#86888f', fontSize: 12 }}>Backend server URL</div>
               </div>
               {/* Connection status dot */}
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="flex-center gap-xs" style={{ marginLeft: 'auto' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: status ? '#0BE881' : '#FF6B6B', boxShadow: `0 0 6px ${status ? '#0BE881' : '#FF6B6B'}` }} />
                 <span style={{ color: status ? '#0BE881' : '#FF6B6B', fontSize: 12, fontWeight: 600 }}>
                   {status ? 'Connected' : 'Offline'}
@@ -430,7 +419,7 @@ const Settings: React.FC = () => {
                 className="tesla-btn blue"
                 style={{ fontSize: 13 }}
               >
-                {testing ? <Spin /> : null}
+                {testing ? <Spinner /> : null}
                 Test
               </button>
             </div>
@@ -438,7 +427,7 @@ const Settings: React.FC = () => {
 
           {/* ---- Tesla Account ---- */}
           <div className="tesla-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
               <div style={{ width: 34, height: 34, borderRadius: '50%', background: authStatus?.authenticated ? 'rgba(11,232,129,0.15)' : 'rgba(255,107,107,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: authStatus?.authenticated ? '#0BE881' : '#FF6B6B' }}>
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
               </div>
@@ -449,7 +438,7 @@ const Settings: React.FC = () => {
                 </div>
               </div>
               {authStatus?.authenticated && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="flex-center gap-xs">
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0BE881', boxShadow: '0 0 6px #0BE881' }} />
                   <span style={{ color: '#0BE881', fontSize: 12, fontWeight: 600 }}>Connected</span>
                 </div>
@@ -463,7 +452,7 @@ const Settings: React.FC = () => {
                 className="tesla-btn"
                 style={{ width: '100%', fontSize: 14, padding: '12px 16px' }}
               >
-                {authLoading ? <Spin /> : 'Login with Tesla'}
+                {authLoading ? <Spinner /> : 'Login with Tesla'}
               </button>
             )}
 
@@ -487,13 +476,13 @@ const Settings: React.FC = () => {
                   className="tesla-btn"
                   style={{ width: '100%', fontSize: 13 }}
                 >
-                  {authLoading ? <Spin /> : 'Connect'}
+                  {authLoading ? <Spinner /> : 'Connect'}
                 </button>
               </div>
             )}
 
             {authStatus?.authenticated && (
-              <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+              <div className="flex-center gap-sm" style={{ fontSize: 12 }}>
                 {authStatus.has_fleet && <span style={{ color: '#0BE881' }}>Fleet API</span>}
                 {authStatus.has_tessie && <span style={{ color: '#0FBCF9' }}>Tessie</span>}
               </div>
@@ -501,13 +490,13 @@ const Settings: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="loading-center"><Spin /></div>
+            <div className="loading-center"><Spinner /></div>
           ) : (
             <>
               {/* ---- Server info ---- */}
               {status && (
                 <div className="tesla-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(11,232,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0BE881' }}>
                       <InfoIcon />
                     </div>
@@ -531,7 +520,7 @@ const Settings: React.FC = () => {
               {/* ---- Configuration ---- */}
               {config && (
                 <div className="tesla-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(249,151,22,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F99716' }}>
                       <GearIcon />
                     </div>
@@ -556,7 +545,7 @@ const Settings: React.FC = () => {
               {/* ---- TeslaMate Stack ---- */}
               {(stack || !loading) && (
                 <div className="tesla-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(5,196,107,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#05C46B' }}>
                       <DockerIcon />
                     </div>
@@ -565,7 +554,7 @@ const Settings: React.FC = () => {
                       <div style={{ color: '#86888f', fontSize: 12 }}>Docker Compose managed services</div>
                     </div>
                     {stack?.managed && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div className="flex-center gap-xs">
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: stack.running ? '#0BE881' : '#FF6B6B', boxShadow: `0 0 6px ${stack.running ? '#0BE881' : '#FF6B6B'}` }} />
                         <span style={{ color: stack.running ? '#0BE881' : '#FF6B6B', fontSize: 12, fontWeight: 600 }}>
                           {stack.running ? 'Running' : 'Stopped'}
@@ -619,7 +608,7 @@ const Settings: React.FC = () => {
                               className={`tesla-btn${action === 'start' ? '' : ' secondary'}`}
                               style={{ fontSize: 12, padding: '8px 4px' }}
                             >
-                              {stackCmd === action ? <Spin /> : label}
+                              {stackCmd === action ? <Spinner /> : label}
                             </button>
                           );
                         })}
@@ -627,7 +616,7 @@ const Settings: React.FC = () => {
 
                       {/* Quick links */}
                       {stack.ports && (
-                        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                        <div className="flex-center gap-md" style={{ marginBottom: 12 }}>
                           <a href={`http://localhost:${stack.ports.teslamate}`} target="_blank" rel="noreferrer"
                             style={{ color: '#0FBCF9', fontSize: 13, textDecoration: 'none' }}>
                             TeslaMate UI ↗
@@ -640,9 +629,9 @@ const Settings: React.FC = () => {
                       )}
 
                       {/* Logs */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div className="flex-center gap-xs">
                         <LogIcon />
-                        <span style={{ fontSize: 12, color: '#86888f' }}>Logs</span>
+                        <span className="text-secondary text-base">Logs</span>
                         <select
                           value={logsService}
                           onChange={(e) => setLogsService(e.target.value)}
@@ -681,7 +670,7 @@ const Settings: React.FC = () => {
               {/* ---- Providers ---- */}
               {providers.length > 0 && (
                 <div className="tesla-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(15,188,249,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0FBCF9' }}>
                       <PlugIcon />
                     </div>
@@ -695,7 +684,7 @@ const Settings: React.FC = () => {
                           <div style={{ color: '#ffffff', fontSize: 14 }}>{p.name}</div>
                           {p.message && <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{p.message}</div>}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div className="flex-center gap-xs">
                           <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 5px ${color}` }} />
                           <span style={{ color, fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{p.status}</span>
                         </div>
@@ -707,7 +696,7 @@ const Settings: React.FC = () => {
 
               {/* ---- Notifications ---- */}
               <div className="tesla-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div className="flex-center gap-sm" style={{ marginBottom: 14 }}>
                   <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
                     <BellIcon />
                   </div>
@@ -721,8 +710,7 @@ const Settings: React.FC = () => {
                 {notifyChannels.length > 0 ? (
                   <div style={{ marginBottom: 14 }}>
                     {notifyChannels.map((ch, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
+                      <div key={i} className="flex-center gap-sm" style={{
                         background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
                         borderRadius: 8, padding: '8px 10px', marginBottom: 6,
                       }}>
@@ -735,7 +723,7 @@ const Settings: React.FC = () => {
                           className="tesla-btn blue"
                           style={{ fontSize: 11, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
                         >
-                          {testingChannel === i ? <Spin /> : <SendIcon />}
+                          {testingChannel === i ? <Spinner /> : <SendIcon />}
                           Test
                         </button>
                         <button
@@ -774,7 +762,7 @@ const Settings: React.FC = () => {
                     className="tesla-btn"
                     style={{ width: '100%', fontSize: 13 }}
                   >
-                    {notifyLoading ? <Spin /> : '+ Add Channel'}
+                    {notifyLoading ? <Spinner /> : '+ Add Channel'}
                   </button>
                 </div>
 
@@ -879,7 +867,7 @@ const Settings: React.FC = () => {
                 </p>
 
                 {/* Invite form */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <div className="flex-center gap-sm" style={{ marginBottom: 12 }}>
                   <input
                     type="email"
                     value={inviteEmail}
@@ -906,15 +894,14 @@ const Settings: React.FC = () => {
                     No active invitations
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="flex-col gap-xs">
                     {invitations.map(inv => (
-                      <div key={inv.id} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      <div key={inv.id} className="flex-between" style={{
                         padding: '8px 10px', borderRadius: 8,
                         background: 'rgba(255,255,255,0.03)',
                         border: '1px solid rgba(255,255,255,0.06)',
                       }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div className="flex-col" style={{ gap: 2 }}>
                           <span style={{ fontSize: 13, color: '#f5f5f7' }}>
                             {inv.name || inv.email || inv.id}
                           </span>

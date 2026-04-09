@@ -14,6 +14,7 @@ import {
   AutomationAction,
   AutomationsStatus,
 } from '../api/client';
+import Spinner from '../components/icons/Spinner';
 
 // ---- Icons ----
 const BotIcon = () => (
@@ -41,17 +42,6 @@ const CloseIcon = () => (
     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
   </svg>
 );
-
-function Spin() {
-  return (
-    <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-      <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
-      <path d="M12 3a9 9 0 019 9" stroke="#05C46B" strokeWidth={3} strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-}
 
 function formatLastFired(ts?: string | null): string {
   if (!ts) return 'Never';
@@ -158,17 +148,16 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({ onClose, onCreated, setToas
   const needsTime = trigger.type === 'time_of_day';
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    <div className="flex-center" style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000,
     }}>
       <div style={{ background: '#111', border: '1px solid #333', borderRadius: 12, padding: 24, width: '90%', maxWidth: 460 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div className="flex-between" style={{ marginBottom: 20 }}>
           <span style={{ color: '#e5e5e5', fontSize: 16, fontWeight: 600 }}>New Automation Rule</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><CloseIcon /></button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="flex-col gap-md">
           {/* Name */}
           <div>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Rule Name</label>
@@ -274,7 +263,7 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({ onClose, onCreated, setToas
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+        <div className="flex-center gap-sm" style={{ marginTop: 20 }}>
           <button
             onClick={onClose}
             style={{ flex: 1, padding: '10px 0', background: '#222', border: '1px solid #333', borderRadius: 8, color: '#888', cursor: 'pointer', fontSize: 14 }}
@@ -417,7 +406,7 @@ const Automations: React.FC = () => {
         <div style={{ padding: '12px 16px', maxWidth: 700, margin: '0 auto' }}>
 
           {/* Status bar */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <div className="flex-start gap-sm mb-lg" style={{ alignItems: 'stretch' }}>
             {[
               { label: 'Total', value: status?.total ?? '--', color: '#e5e5e5' },
               { label: 'Enabled', value: status?.enabled ?? '--', color: '#05C46B' },
@@ -433,8 +422,8 @@ const Automations: React.FC = () => {
           {/* Add rule button */}
           <button
             onClick={() => setShowAdd(true)}
+            className="flex-center gap-sm"
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
               background: '#05C46B', border: 'none', borderRadius: 10,
               color: '#000', cursor: 'pointer', fontSize: 14, fontWeight: 600,
               padding: '10px 18px', marginBottom: 16,
@@ -445,7 +434,7 @@ const Automations: React.FC = () => {
 
           {/* Rules list */}
           {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>
+            <div className="flex-center" style={{ padding: 40 }}><Spinner /></div>
           ) : rules.length === 0 ? (
             <div style={{ ...card, textAlign: 'center', color: '#555', padding: 40 }}>
               <BotIcon />
@@ -466,10 +455,10 @@ const Automations: React.FC = () => {
           ) : (
             rules.map(rule => (
               <div key={rule.name} style={card}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div className="flex-between gap-sm" style={{ alignItems: 'flex-start' }}>
                   {/* Left: name + labels */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div className="flex-center gap-sm" style={{ flexWrap: 'wrap' }}>
                       <span style={{ color: '#e5e5e5', fontSize: 15, fontWeight: 600 }}>{rule.name}</span>
                       <span style={{
                         fontSize: 10, padding: '2px 7px', borderRadius: 10, fontWeight: 600,
@@ -500,7 +489,7 @@ const Automations: React.FC = () => {
                   </div>
 
                   {/* Right: toggle + actions */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+                  <div className="flex-col gap-sm" style={{ alignItems: 'flex-end', flexShrink: 0 }}>
                     {/* Toggle switch */}
                     <button
                       onClick={() => handleToggle(rule)}
@@ -520,7 +509,7 @@ const Automations: React.FC = () => {
                       }} />
                     </button>
                     {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div className="flex-center gap-xs">
                       <button
                         onClick={() => handleTest(rule.name)}
                         disabled={testing === rule.name}
@@ -531,7 +520,7 @@ const Automations: React.FC = () => {
                           display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
                         }}
                       >
-                        {testing === rule.name ? <Spin /> : <PlayIcon />}
+                        {testing === rule.name ? <Spinner /> : <PlayIcon />}
                         Test
                       </button>
                       <button
@@ -544,7 +533,7 @@ const Automations: React.FC = () => {
                           display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
                         }}
                       >
-                        {deleting === rule.name ? <Spin /> : <TrashIcon />}
+                        {deleting === rule.name ? <Spinner /> : <TrashIcon />}
                         Delete
                       </button>
                     </div>
