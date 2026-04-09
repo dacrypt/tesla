@@ -65,6 +65,88 @@ def order_status(
     render_model(status, title=f"Order {rn}")
 
 
+@order_app.command("summary")
+def order_summary(
+    oneline: bool = typer.Option(False, "--oneline", "-1", help="Single-line output"),
+) -> None:
+    """Human-readable order status summary."""
+    from tesla_cli.core.backends.order import generate_summary
+
+    rn = _get_rn()
+    backend = OrderBackend()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode() or oneline,
+    ) as progress:
+        progress.add_task(f"Fetching order {rn}...", total=None)
+        status = backend.get_order_status(rn)
+
+    summary = generate_summary(status)
+
+    if is_json_mode():
+        import json as _json
+
+        console.print(_json.dumps({"summary": summary, "reservation_number": rn}))
+        return
+
+    if oneline:
+        console.print(summary)
+        return
+
+    console.print(f"\n[bold]Order Summary[/bold] — {rn}\n")
+    console.print(f"  {summary}\n")
+
+
+@order_app.command("share")
+def order_share(
+    include_vin: bool = typer.Option(False, "--include-vin", help="Include VIN in shared text"),
+    copy: bool = typer.Option(True, "--copy/--no-copy", help="Copy to clipboard"),
+) -> None:
+    """Generate shareable order status text and copy to clipboard."""
+    from tesla_cli.core.backends.order import format_share_text, generate_summary
+
+    rn = _get_rn()
+    backend = OrderBackend()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        disable=is_json_mode(),
+    ) as progress:
+        progress.add_task(f"Fetching order {rn}...", total=None)
+        status = backend.get_order_status(rn)
+
+    summary = generate_summary(status)
+    text = format_share_text(status, summary, include_vin=include_vin)
+
+    if is_json_mode():
+        import json as _json
+
+        console.print(_json.dumps({"text": text, "summary": summary}))
+        return
+
+    console.print(f"\n{text}\n")
+
+    if copy:
+        import subprocess
+        import sys
+
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["pbcopy"], input=text.encode(), check=True)
+            elif sys.platform == "linux":
+                subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=True)
+            else:
+                subprocess.run(["clip"], input=text.encode(), check=True)
+            console.print("[dim]Copied to clipboard.[/dim]")
+        except Exception:
+            console.print("[dim]Could not copy to clipboard (install xclip on Linux).[/dim]")
+
+
 @order_app.command("details")
 def order_details() -> None:
     """Show full order details including tasks and configuration."""

@@ -14,9 +14,11 @@ import { useHistory } from 'react-router-dom';
 import ModelYSilhouette from '../components/ModelYSilhouette';
 import RecentCharges from '../components/RecentCharges';
 import StatusBadge from '../components/StatusBadge';
+import Spinner from '../components/icons/Spinner';
 import { useVehicleData } from '../hooks/useVehicleData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
 import { useAppInit } from '../hooks/useAppInit';
+import { useMissionControl, MissionControlState } from '../hooks/useMissionControl';
 import { api, FleetVehicle, AutomationsStatus } from '../api/client';
 
 // ---- SVG Icons ----
@@ -56,18 +58,6 @@ const BoltIcon = () => (
   </svg>
 );
 
-// Inline spinner
-function Spin({ color = '#05C46B' }: { color?: string }) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <circle cx={12} cy={12} r={9} stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
-      <path d="M12 3a9 9 0 019 9" stroke={color} strokeWidth={3} strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-}
-
 function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
   const [, setTick] = React.useState(0);
   React.useEffect(() => {
@@ -76,7 +66,7 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
   }, []);
 
   if (!deliveryDate) {
-    return <div style={{ color: '#86888f', fontSize: 14, fontWeight: 500, marginTop: 4 }}>Delivery date pending</div>;
+    return <div className="text-secondary text-lg fw-semi mt-xs">Delivery date pending</div>;
   }
 
   const now = new Date();
@@ -88,15 +78,15 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
     return <div style={{ color: '#0BE881', fontWeight: 700, fontSize: 18 }}>Delivery Day! 🎉</div>;
   }
   return (
-    <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+    <div className="flex-center gap-lg">
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#05C46B', fontWeight: 700, fontSize: 36, lineHeight: 1, letterSpacing: '-1px' }}>{days}</div>
-        <div style={{ color: '#86888f', fontSize: 11, marginTop: 3 }}>days</div>
+        <div className="text-secondary text-sm mt-xs">days</div>
       </div>
       <div style={{ color: '#86888f', fontSize: 28, lineHeight: 1.3, alignSelf: 'flex-start', marginTop: 4 }}>:</div>
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#05C46B', fontWeight: 700, fontSize: 36, lineHeight: 1, letterSpacing: '-1px' }}>{String(hours).padStart(2, '0')}</div>
-        <div style={{ color: '#86888f', fontSize: 11, marginTop: 3 }}>hours</div>
+        <div className="text-secondary text-sm mt-xs">hours</div>
       </div>
     </div>
   );
@@ -107,43 +97,133 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
 /* For the anxious customer obsessing over every detail of their order         */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-function PreDeliveryDashboard() {
-  const { sources, computed } = useAppInit();
+function PreDeliveryDashboard({ missionControl, loading }: { missionControl: MissionControlState; loading: boolean }) {
   const history = useHistory();
   const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
+  const [refreshingSources, setRefreshingSources] = React.useState(false);
+  const [refreshNote, setRefreshNote] = React.useState<string | null>(null);
+  const [portalSyncing, setPortalSyncing] = React.useState(false);
+  const sourceMap = React.useMemo(
+    () => Object.fromEntries((missionControl.data?.sources || []).map((source) => [source.id, source])),
+    [missionControl.data?.sources],
+  );
+  const domainMap = React.useMemo(
+    () => Object.fromEntries((missionControl.data?.domains || []).map((domain) => [domain.domain_id, domain])),
+    [missionControl.data?.domains],
+  );
 
-  const runt = sources['co.runt'];
-  const order = sources['tesla.order'];
+  const runt = sourceMap['co.runt'];
+  const simit = sourceMap['co.simit'];
+  const delivery = domainMap['delivery'];
+  const financial = domainMap['financial'];
+  const identity = domainMap['identity'];
+  const legal = domainMap['legal'];
+  const safety = domainMap['safety'];
+  const sourceHealth = domainMap['source_health'];
+  const plate = legal?.state?.plate || runt?.data?.placa;
+  const deliveryDate = delivery?.state?.delivery_date || delivery?.state?.estimated_delivery || '';
+  const deliveryLocation = delivery?.state?.delivery_location || '';
+  const orderStatus = delivery?.state?.order_status || 'pending';
+  const summaryLine = delivery?.summary || missionControl.data?.executive?.delivery_readiness?.summary || 'Procesando orden';
 
   React.useEffect(() => {
-    const placa = runt?.placa;
+    const placa = plate;
     if (placa) {
       api.getPicoYPlaca(placa).then(setPicoYPlaca).catch(() => {});
     }
-  }, [runt?.placa]);
+  }, [plate]);
 
-  const status = computed.real_status;
-  const specs = computed.specs;
-  const phase = status?.phase || 'ordered';
+  const refreshSourcesNow = React.useCallback(async () => {
+    setRefreshingSources(true);
+    setRefreshNote(null);
+    try {
+      const result = await api.refreshStaleSources();
+      await missionControl.refresh();
+      if (result.refreshed.length > 0) {
+        setRefreshNote(`Refreshed ${result.refreshed.length} source(s)`);
+      } else if (result.failed.length > 0) {
+        setRefreshNote(`No source refreshed (${result.failed.length} failed)`);
+      } else {
+        setRefreshNote('No stale sources to refresh');
+      }
+    } catch (e: any) {
+      setRefreshNote(e?.message || 'Failed to refresh sources');
+    } finally {
+      setRefreshingSources(false);
+    }
+  }, [missionControl]);
+
+  const phase = delivery?.derived_flags?.delivery_scheduled
+    ? 'delivery_scheduled'
+    : legal?.derived_flags?.plate_assigned
+      ? 'registered'
+      : delivery?.derived_flags?.vin_assigned
+        ? 'vin_assigned'
+        : 'ordered';
   const phaseLabels: Record<string, string> = {
-    ordered: 'Ordenado', produced: 'Producido', shipped: 'En Tránsito',
+    ordered: 'Ordenado', vin_assigned: 'VIN asignado', shipped: 'En Tránsito',
     in_country: 'En País', registered: 'Registrado', delivery_scheduled: 'Cita Programada', delivered: 'Entregado',
   };
   const phaseColors: Record<string, string> = {
-    ordered: '#0FBCF9', produced: '#F99716', shipped: '#F99716',
+    ordered: '#0FBCF9', vin_assigned: '#F99716', shipped: '#F99716',
     in_country: '#0BE881', registered: '#0BE881', delivery_scheduled: '#05C46B', delivered: '#05C46B',
   };
   const phaseColor = phaseColors[phase] || '#0FBCF9';
+  const statusColor = (status?: string) =>
+    status === 'ok' ? '#0BE881' : status === 'degraded' ? '#F99716' : status === 'missing' ? '#86888f' : '#FF6B6B';
+  const activeAlerts = missionControl.data?.active_alerts || [];
+  const timeline = missionControl.data?.timeline || [];
+  const timeAgo = (iso?: string | null) => {
+    if (!iso) return 'never';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+  const lastUpdatedFor = (...sourceIds: string[]) => {
+    const timestamps = sourceIds
+      .map((id) => sourceMap[id]?.refreshed_at)
+      .filter(Boolean)
+      .sort()
+      .reverse();
+    return timestamps[0] as string | undefined;
+  };
+  const openSourceHistory = (sourceId?: string, mode: 'history' | 'queries' = 'history') => {
+    if (!sourceId) {
+      history.push('/info');
+      return;
+    }
+    history.push(`/info?source=${encodeURIComponent(sourceId)}&${mode}=1`);
+  };
 
-  // Build summary line from current state
-  const summaryParts: string[] = [];
-  if (status?.is_in_country && !status?.in_runt) summaryParts.push('Registro RUNT pendiente');
-  else if (status?.in_runt && !status?.has_placa) summaryParts.push('Asignación de placa pendiente');
-  else if (status?.has_placa && !status?.has_soat) summaryParts.push('SOAT pendiente');
-  else if (status?.is_shipped && !status?.is_in_country) summaryParts.push('Vehículo en tránsito marítimo');
-  else if (status?.is_produced && !status?.is_shipped) summaryParts.push('Listo para envío');
-  else if (order?.current?.order_substatus) summaryParts.push(order.current.order_substatus);
-  const summaryLine = summaryParts.join(' · ') || order?.current?.order_status || 'Procesando orden';
+  const syncPortalDetails = React.useCallback(async () => {
+    setPortalSyncing(true);
+    setRefreshNote(null);
+    try {
+      const result = await api.portalScrape();
+      if (!result?.ok) {
+        setRefreshNote(result?.error || 'Portal sync failed');
+        return;
+      }
+      await missionControl.refresh();
+      setRefreshNote('Tesla portal synced');
+    } catch (e: any) {
+      setRefreshNote(e?.response?.data?.detail || e?.message || 'Portal sync failed');
+    } finally {
+      setPortalSyncing(false);
+    }
+  }, [missionControl]);
+
+  if (loading && !missionControl.data) {
+    return (
+      <div className="page-pad" style={{ paddingTop: 24, textAlign: 'center' }}>
+        <IonSpinner name="dots" style={{ '--color': '#05C46B' } as React.CSSProperties} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-pad" style={{ paddingTop: 8 }}>
@@ -152,37 +232,151 @@ function PreDeliveryDashboard() {
         <div style={{ maxWidth: 240, margin: '0 auto', filter: 'drop-shadow(0 0 30px rgba(5,196,107,0.1))' }}>
           <ModelYSilhouette locked={true} />
         </div>
-        <DeliveryCountdown deliveryDate={status?.delivery_date ? new Date(status.delivery_date) : null} />
-        <div style={{ color: '#86888f', fontSize: 11, marginTop: 6 }}>
-          {order?.reservation_number ? `RN ${order.reservation_number}` : ''}
-          {specs?.exterior_color ? ` · ${specs.exterior_color}` : ''}
-          {specs?.variant ? ` · ${specs.variant}` : ''}
+        <DeliveryCountdown deliveryDate={deliveryDate ? new Date(deliveryDate) : null} />
+        <div className="text-secondary text-sm" style={{ marginTop: 6 }}>
+          {delivery?.state?.vin ? `VIN …${String(delivery.state.vin).slice(-6)}` : ''}
+          {deliveryLocation ? ` · ${deliveryLocation}` : ''}
         </div>
       </div>
 
       {/* ── Status Card ── */}
-      <div className="tesla-card" style={{ padding: 16, marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div className="tesla-card p-md mb-sm">
+        <div className="flex-start gap-sm mb-sm">
           <span style={{ fontSize: 12, fontWeight: 700, color: phaseColor, background: `${phaseColor}18`, padding: '4px 12px', borderRadius: 100 }}>
             {phaseLabels[phase] || phase}
           </span>
-          {order?.current?.order_status && order.current.order_status !== phaseLabels[phase] && (
-            <span style={{ fontSize: 11, color: '#86888f' }}>{order.current.order_status}</span>
+          {orderStatus && orderStatus !== phaseLabels[phase] && (
+            <span className="text-secondary text-sm">{orderStatus}</span>
           )}
         </div>
         <div style={{ color: '#fff', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{summaryLine}</div>
-        {order?.current?.delivery_window_start && (
-          <div style={{ color: '#86888f', fontSize: 12, marginTop: 6 }}>
-            Entrega estimada: <span style={{ color: '#05C46B', fontWeight: 600 }}>{order.current.delivery_window_start} — {order.current.delivery_window_end}</span>
+        {delivery?.state?.estimated_delivery && !delivery?.state?.delivery_date && (
+          <div className="text-secondary" style={{ fontSize: 12, marginTop: 6 }}>
+            Entrega estimada: <span className="text-accent fw-semi">{delivery.state.estimated_delivery}</span>
           </div>
         )}
-        {status?.delivery_date && (
-          <div style={{ color: '#05C46B', fontSize: 14, fontWeight: 700, marginTop: 8 }}>
-            Cita: {status.delivery_date}
-            {status.delivery_location && <span style={{ fontWeight: 400, fontSize: 12, color: '#86888f' }}> · {status.delivery_location}</span>}
+        {delivery?.state?.delivery_date && (
+          <div className="text-accent fw-bold text-lg" style={{ marginTop: 8 }}>
+            Cita: {delivery.state.delivery_date}
+            {delivery.state.delivery_location && <span style={{ fontWeight: 400, fontSize: 12, color: '#86888f' }}> · {delivery.state.delivery_location}</span>}
           </div>
         )}
+        <div
+          className="text-secondary text-xs"
+          style={{ marginTop: 8, cursor: 'pointer' }}
+          onClick={() => openSourceHistory('tesla.order', 'queries')}
+        >
+          Updated {timeAgo(lastUpdatedFor('tesla.order', 'tesla.portal', 'intl.ship_tracking'))} · tap for query audit
+        </div>
+        <div className="flex-between gap-sm mt-md">
+          <div className="text-secondary text-xs">
+            {refreshNote || 'If data looks old, refresh stale sources now'}
+          </div>
+          <button
+            className="tesla-btn secondary"
+            style={{ padding: '8px 12px', fontSize: 12, whiteSpace: 'nowrap' }}
+            onClick={refreshSourcesNow}
+            disabled={refreshingSources}
+          >
+            {refreshingSources ? 'Refreshing…' : 'Refresh Sources'}
+          </button>
+        </div>
       </div>
+
+      {/* ── Executive Strip ── */}
+      {missionControl.data?.executive && (
+        <div className="grid-2" style={{ gap: 8, marginBottom: 12 }}>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Delivery</div>
+            <div className="text-base fw-bold" style={{ color: phaseColor }}>{missionControl.data.executive.delivery_readiness.status}</div>
+          </div>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Legal</div>
+            <div className="text-base fw-bold" style={{ color: statusColor(legal?.health?.status) }}>
+              {missionControl.data.executive.legal_readiness.status}
+            </div>
+          </div>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Financial</div>
+            <div className="text-base fw-bold" style={{ color: statusColor(financial?.health?.status) }}>
+              {missionControl.data.executive.financial_state.status}
+            </div>
+          </div>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Safety</div>
+            <div className="text-base fw-bold" style={{ color: statusColor(safety?.health?.status) }}>
+              {missionControl.data.executive.safety_posture.status}
+            </div>
+          </div>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Sources</div>
+            <div className="text-base fw-bold" style={{ color: '#fff' }}>
+              {missionControl.data.executive.source_health.ok_sources}/{missionControl.data.executive.source_health.total_sources}
+            </div>
+          </div>
+          <div className="tesla-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Alerts</div>
+            <div
+              className="text-base fw-bold"
+              style={{ color: activeAlerts.length ? '#FF6B6B' : '#0BE881', cursor: 'pointer' }}
+              onClick={() => history.push('/alerts')}
+            >
+              {activeAlerts.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Domain Summary Cards ── */}
+      {(financial || safety || identity || sourceHealth) && (
+        <div className="grid-2" style={{ gap: 8, marginBottom: 12 }}>
+          {financial && (
+            <div className="tesla-card" style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => openSourceHistory('co.fasecolda')}>
+              <div className="text-secondary mb-sm" style={{ fontSize: 10 }}>Financial</div>
+              <div className="text-base fw-semi mb-xs" style={{ color: '#fff' }}>{financial.summary}</div>
+              <div style={{ fontSize: 10, color: statusColor(financial.health?.status) }}>{financial.health?.status || 'missing'} · updated {timeAgo(lastUpdatedFor('tesla.portal', 'tesla.order', 'co.fasecolda', 'co.simit'))}</div>
+              {financial.derived_flags?.portal_refresh_required && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    className="tesla-btn secondary"
+                    style={{ padding: '8px 10px', fontSize: 11 }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      syncPortalDetails();
+                    }}
+                    disabled={portalSyncing}
+                  >
+                    {portalSyncing ? 'Waiting for Tesla portal…' : 'Open Tesla Portal Login'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {safety && (
+            <div className="tesla-card" style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => openSourceHistory('us.nhtsa_recalls')}>
+              <div className="text-secondary mb-sm" style={{ fontSize: 10 }}>Safety</div>
+              <div className="text-base fw-semi mb-xs" style={{ color: '#fff' }}>{safety.summary}</div>
+              <div style={{ fontSize: 10, color: statusColor(safety.health?.status) }}>{safety.health?.status || 'missing'} · updated {timeAgo(lastUpdatedFor('us.nhtsa_recalls', 'us.nhtsa_complaints', 'us.nhtsa_investigations', 'co.recalls'))}</div>
+            </div>
+          )}
+          {identity && (
+            <div className="tesla-card" style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => openSourceHistory('vin.decode')}>
+              <div className="text-secondary mb-sm" style={{ fontSize: 10 }}>Identity</div>
+              <div className="text-base fw-semi mb-xs" style={{ color: '#fff' }}>{identity.summary}</div>
+              <div style={{ fontSize: 10, color: statusColor(identity.health?.status) }}>{identity.health?.status || 'missing'} · updated {timeAgo(lastUpdatedFor('tesla.order', 'vin.decode', 'us.nhtsa_vin', 'tesla.portal'))}</div>
+            </div>
+          )}
+          {sourceHealth && (
+            <div className="tesla-card" style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => history.push('/info')}>
+              <div className="text-secondary mb-sm" style={{ fontSize: 10 }}>Source Health</div>
+              <div className="text-base fw-semi mb-xs" style={{ color: '#fff' }}>{sourceHealth.summary}</div>
+              <div style={{ fontSize: 10, color: statusColor(sourceHealth.health?.status) }}>
+                {sourceHealth.state?.ok_sources}/{sourceHealth.state?.total_sources} healthy · updated {timeAgo(missionControl.data?.executive?.last_successful_refresh)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Pico y Placa ── */}
       {picoYPlaca && picoYPlaca.placa && (
@@ -193,10 +387,10 @@ function PreDeliveryDashboard() {
         }}>
           <span style={{ fontSize: 18 }}>{picoYPlaca.restringido ? '🚫' : '✅'}</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: picoYPlaca.restringido ? '#FF6B6B' : '#0BE881' }}>
+            <div className="text-base fw-semi" style={{ color: picoYPlaca.restringido ? '#FF6B6B' : '#0BE881' }}>
               {picoYPlaca.restringido ? 'Pico y Placa hoy — No puedes circular' : 'Sin restricción hoy'}
             </div>
-            <div style={{ fontSize: 10, color: '#86888f' }}>
+            <div className="text-secondary text-xs">
               {picoYPlaca.motivo || `Placa ${picoYPlaca.placa} · ${picoYPlaca.ciudad || ''}`}
             </div>
           </div>
@@ -204,22 +398,22 @@ function PreDeliveryDashboard() {
       )}
 
       {/* ── SIMIT — Infracciones ── */}
-      {sources['co.simit'] && (
+      {simit?.data && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 10,
           borderRadius: 10,
-          border: `1px solid ${sources['co.simit'].paz_y_salvo ? 'rgba(11,232,129,0.15)' : 'rgba(255,107,107,0.2)'}`,
-          background: sources['co.simit'].paz_y_salvo ? 'rgba(11,232,129,0.04)' : 'rgba(255,107,107,0.06)',
+          border: `1px solid ${simit.data.paz_y_salvo ? 'rgba(11,232,129,0.15)' : 'rgba(255,107,107,0.2)'}`,
+          background: simit.data.paz_y_salvo ? 'rgba(11,232,129,0.04)' : 'rgba(255,107,107,0.06)',
         }}>
-          <span style={{ fontSize: 18 }}>{sources['co.simit'].paz_y_salvo ? '✅' : '⚠️'}</span>
+          <span style={{ fontSize: 18 }}>{simit.data.paz_y_salvo ? '✅' : '⚠️'}</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: sources['co.simit'].paz_y_salvo ? '#0BE881' : '#FF6B6B' }}>
-              {sources['co.simit'].paz_y_salvo ? 'SIMIT — Paz y Salvo' : `SIMIT — ${sources['co.simit'].comparendos || 0} comparendos`}
+            <div className="text-base fw-semi" style={{ color: simit.data.paz_y_salvo ? '#0BE881' : '#FF6B6B' }}>
+              {simit.data.paz_y_salvo ? 'SIMIT — Paz y Salvo' : `SIMIT — ${simit.data.comparendos || 0} comparendos`}
             </div>
-            <div style={{ fontSize: 10, color: '#86888f' }}>
-              {sources['co.simit'].paz_y_salvo
+            <div className="text-secondary text-xs">
+              {simit.data.paz_y_salvo
                 ? 'Sin multas ni comparendos pendientes'
-                : `Multas: ${sources['co.simit'].multas || 0} · Deuda: $${(sources['co.simit'].total_deuda || 0).toLocaleString()}`
+                : `Multas: ${simit.data.multas || 0} · Deuda: $${(simit.data.total_deuda || 0).toLocaleString()}`
               }
             </div>
           </div>
@@ -228,8 +422,8 @@ function PreDeliveryDashboard() {
 
       {/* ── Documents — SOAT + RTM ── */}
       {runt && (() => {
-        const soatExp = runt?.soat_vencimiento || sources['co.runt_soat']?.vencimiento || '';
-        const rtmExp = runt?.tecnomecanica_vencimiento || sources['co.runt_rtm']?.vencimiento || '';
+        const soatExp = runt?.data?.soat_vencimiento || sourceMap['co.runt_soat']?.data?.vencimiento || '';
+        const rtmExp = runt?.data?.tecnomecanica_vencimiento || sourceMap['co.runt_rtm']?.data?.vencimiento || '';
         const daysUntil = (dateStr: string) => {
           if (!dateStr) return null;
           const d = new Date(dateStr);
@@ -239,47 +433,45 @@ function PreDeliveryDashboard() {
         const soatDays = daysUntil(soatExp);
         const rtmDays = daysUntil(rtmExp);
         const urgentColor = (days: number | null) => days === null ? '#86888f' : days < 0 ? '#FF6B6B' : days < 30 ? '#F99716' : '#0BE881';
-        const urgentLabel = (days: number | null) => days === null ? 'Sin datos' : days < 0 ? 'Vencido' : days < 30 ? `${days}d` : `${days}d`;
+        const urgentLabel = (days: number | null) => days === null ? 'No data' : days < 0 ? 'Expired' : days < 30 ? `${days}d` : `${days}d`;
 
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+          <div className="grid-2" style={{ gap: 8, marginBottom: 10 }}>
             <div style={{
               padding: '10px 12px', borderRadius: 10,
               background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
             }}>
-              <div style={{ fontSize: 10, color: '#86888f', marginBottom: 4 }}>SOAT</div>
+              <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>SOAT</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: urgentColor(soatDays) }}>
                 {urgentLabel(soatDays)}
               </div>
-              {soatExp && <div style={{ fontSize: 9, color: '#86888f' }}>Vence: {soatExp}</div>}
+              {soatExp && <div className="text-secondary" style={{ fontSize: 9 }}>Vence: {soatExp}</div>}
             </div>
             <div style={{
               padding: '10px 12px', borderRadius: 10,
               background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
             }}>
-              <div style={{ fontSize: 10, color: '#86888f', marginBottom: 4 }}>Técnico-Mecánica</div>
+              <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Técnico-Mecánica</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: urgentColor(rtmDays) }}>
                 {urgentLabel(rtmDays)}
               </div>
-              {rtmExp && <div style={{ fontSize: 9, color: '#86888f' }}>Vence: {rtmExp}</div>}
+              {rtmExp && <div className="text-secondary" style={{ fontSize: 9 }}>Vence: {rtmExp}</div>}
             </div>
           </div>
         );
       })()}
 
       {/* ── Checklist summary ── */}
-      {status && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12, justifyContent: 'center' }}>
+      {(delivery || legal) && (
+        <div className="flex-center" style={{ flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
           {[
-            { flag: status.vin_assigned, label: 'VIN' },
-            { flag: status.is_produced, label: 'Producido' },
-            { flag: status.is_shipped, label: 'Enviado' },
-            { flag: status.is_in_country, label: 'En País' },
-            { flag: status.is_customs_cleared, label: 'Aduana' },
-            { flag: status.in_runt, label: 'RUNT' },
-            { flag: status.has_placa, label: 'Placa' },
-            { flag: status.has_soat, label: 'SOAT' },
-            { flag: status.is_delivery_scheduled, label: 'Cita' },
+            { flag: delivery?.derived_flags?.vin_assigned, label: 'VIN' },
+            { flag: sourceMap['intl.ship_tracking']?.data, label: 'Enviado' },
+            { flag: legal?.derived_flags?.runt_registered, label: 'RUNT' },
+            { flag: legal?.derived_flags?.plate_assigned, label: 'Placa' },
+            { flag: legal?.derived_flags?.has_soat, label: 'SOAT' },
+            { flag: legal?.derived_flags?.has_rtm, label: 'RTM' },
+            { flag: delivery?.derived_flags?.delivery_scheduled, label: 'Cita' },
           ].filter(f => f.flag != null).map(f => (
             <span key={f.label} style={{
               fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 100,
@@ -297,29 +489,30 @@ function PreDeliveryDashboard() {
         style={{ padding: 14, marginBottom: 12, cursor: 'pointer' }}
         onClick={() => history.push('/order')}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="flex-between">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#86888f', fontSize: 10, marginBottom: 4 }}>Order Status</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>Order Status</div>
+            <div className="flex-start gap-sm">
               <span style={{
                 fontSize: 11, fontWeight: 700, color: phaseColor,
                 background: `${phaseColor}18`, padding: '3px 10px', borderRadius: 100,
               }}>
                 {phaseLabels[phase] || phase}
               </span>
+              <span className="text-secondary text-sm">{orderStatus}</span>
             </div>
-            {status?.delivery_date && (
-              <div style={{ color: '#05C46B', fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-                Delivery: {status.delivery_date}
+            {delivery?.state?.delivery_date && (
+              <div className="text-accent fw-semi" style={{ fontSize: 12, marginTop: 6 }}>
+                Delivery: {delivery.state.delivery_date}
               </div>
             )}
-            {!status?.delivery_date && order?.current?.delivery_window_start && (
+            {!delivery?.state?.delivery_date && delivery?.state?.estimated_delivery && (
               <div style={{ color: '#F99716', fontSize: 12, marginTop: 6 }}>
-                Window: {order.current.delivery_window_start}{order.current.delivery_window_end ? ` — ${order.current.delivery_window_end}` : ''}
+                Window: {delivery.state.estimated_delivery}
               </div>
             )}
           </div>
-          <div style={{ color: '#86888f', fontSize: 20, paddingLeft: 8 }}>›</div>
+          <div className="text-secondary" style={{ fontSize: 20, paddingLeft: 8 }}>›</div>
         </div>
       </div>
 
@@ -332,10 +525,51 @@ function PreDeliveryDashboard() {
         View Full Order →
       </button>
 
+      {/* ── Active Alerts ── */}
+      {activeAlerts.length > 0 && (
+        <div className="tesla-card" style={{ padding: '14px 16px', marginBottom: 12, cursor: 'pointer' }} onClick={() => history.push('/alerts')}>
+          <div className="uppercase fw-bold mb-md" style={{ fontSize: 11, letterSpacing: '0.08em', color: '#FF6B6B' }}>
+            Active Alerts
+          </div>
+          <div className="flex-col gap-sm">
+            {activeAlerts.slice(0, 4).map((alert) => (
+              <div key={alert.alert_id} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,107,107,0.06)', border: '1px solid rgba(255,107,107,0.18)' }}>
+                <div className="flex-between gap-sm mb-xs">
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FF6B6B' }}>{alert.title}</span>
+                  <span className="text-secondary text-xs">{alert.severity}</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#f5f5f7' }}>{alert.message}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Timeline ── */}
+      {timeline.length > 0 && (
+        <div className="tesla-card" style={{ padding: '14px 16px', marginBottom: 12, cursor: 'pointer' }} onClick={() => history.push('/timeline')}>
+          <div className="uppercase fw-bold mb-md" style={{ fontSize: 11, letterSpacing: '0.08em', color: '#86888f' }}>
+            Timeline
+          </div>
+          <div className="flex-col gap-md">
+            {timeline.slice(0, 5).map((event, index) => (
+              <div key={`${event.kind}-${event.timestamp}-${index}`} className="flex-start gap-md" style={{ alignItems: 'flex-start' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: event.kind === 'domain_change' ? '#0FBCF9' : event.kind === 'source_change' ? '#F99716' : '#86888f', marginTop: 5, flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{event.title}</div>
+                  <div className="text-secondary" style={{ fontSize: 11 }}>{event.message}</div>
+                  {event.timestamp && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{new Date(event.timestamp).toLocaleString()}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Last updated */}
-      {order?.lastActivityDate && (
+      {missionControl.data?.executive?.last_successful_refresh && (
         <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingBottom: 8 }}>
-          Actualizado: {new Date(order.lastActivityDate).toLocaleString()}
+          Actualizado: {new Date(missionControl.data.executive.last_successful_refresh).toLocaleString()}
         </div>
       )}
     </div>
@@ -353,6 +587,7 @@ const Dashboard: React.FC = () => {
   const appInit = useAppInit();
   // Post-delivery: vehicle data is available (charge_state present)
   const isPostDelivery = charge !== null || state !== null;
+  const missionControl = useMissionControl(!isPostDelivery);
   const { tiles: enabledTiles } = useDashboardTiles();
   const isTileEnabled = (id: string) => enabledTiles.some((t) => t.id === id);
   const [cmdLoading, setCmdLoading] = useState<string | null>(null);
@@ -360,10 +595,7 @@ const Dashboard: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(false);
   const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
   const [fleetLoading, setFleetLoading] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
   const [loginMfa, setLoginMfa] = useState('');
-  const [mfaRequired, setMfaRequired] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [autoStatus, setAutoStatus] = useState<AutomationsStatus | null>(null);
   const history = useHistory();
@@ -389,27 +621,19 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const doLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) return;
     setAuthLoading(true);
     setLoginError('');
     try {
-      const result = await api.browserLogin(loginEmail.trim(), loginPassword.trim(), loginMfa || undefined);
+      const result = await api.browserLogin(undefined, undefined, loginMfa || undefined);
       if (result.ok) {
         setAuthOverride(true);
-        setMfaRequired(false);
         refresh();
-      } else if (result.mfa_required) {
-        setMfaRequired(true);
       } else {
         setLoginError(result.error || 'Login failed');
       }
     } catch (e: any) {
       const msg = e?.response?.data?.detail || e.message || 'Login failed';
-      if (msg.includes('MFA') || msg.includes('mfa')) {
-        setMfaRequired(true);
-      } else {
-        setLoginError(msg);
-      }
+      setLoginError(msg);
     } finally {
       setAuthLoading(false);
     }
@@ -443,7 +667,11 @@ const Dashboard: React.FC = () => {
   };
 
   const doRefresh = async (event: CustomEvent) => {
-    refresh();
+    if (isPostDelivery) {
+      refresh();
+    } else {
+      await missionControl.refresh();
+    }
     await new Promise<void>((r) => setTimeout(r, 1000));
     (event.target as HTMLIonRefresherElement).complete();
   };
@@ -521,7 +749,7 @@ const Dashboard: React.FC = () => {
           <IonTitle style={{ fontWeight: 700, letterSpacing: '-0.3px' }}>
             {displayName}
           </IonTitle>
-          <div slot="end" style={{ paddingRight: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div slot="end" className="flex-center gap-sm" style={{ paddingRight: 4 }}>
             <span
               title={connected ? 'SSE connected' : 'SSE disconnected'}
               style={{
@@ -568,67 +796,45 @@ const Dashboard: React.FC = () => {
         {/* ---- Onboarding: not authenticated ---- */}
         {authChecked && !authenticated ? (
           <div className="empty-state" style={{ minHeight: 'calc(100vh - 56px)', justifyContent: 'center' }}>
-            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(5,196,107,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+            <div className="flex-center" style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(5,196,107,0.12)', marginBottom: 20 }}>
               <TeslaIcon />
             </div>
             <div style={{ color: '#ffffff', fontWeight: 700, fontSize: 22, letterSpacing: '-0.5px' }}>Welcome to Tesla Control</div>
-            <div style={{ color: '#86888f', fontSize: 14, lineHeight: 1.6, maxWidth: 280, textAlign: 'center', margin: '8px 0 24px' }}>
+            <div className="text-secondary" style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 280, textAlign: 'center', margin: '8px 0 24px' }}>
               Connect your Tesla account to monitor your vehicle, track deliveries, and access all features.
             </div>
 
             <div style={{ width: '100%', maxWidth: 320 }}>
               <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="Tesla email"
+                type="text"
+                value={loginMfa}
+                onChange={(e) => setLoginMfa(e.target.value)}
+                placeholder="Optional MFA code"
                 className="tesla-input"
-                style={{ marginBottom: 8, fontSize: 14 }}
-                disabled={authLoading}
-              />
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Password"
-                className="tesla-input"
-                style={{ marginBottom: 8, fontSize: 14 }}
-                disabled={authLoading}
+                style={{ marginBottom: 8, fontSize: 14, textAlign: 'center', letterSpacing: '0.1em' }}
+                autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && doLogin()}
               />
-              {mfaRequired && (
-                <input
-                  type="text"
-                  value={loginMfa}
-                  onChange={(e) => setLoginMfa(e.target.value)}
-                  placeholder="MFA code"
-                  className="tesla-input"
-                  style={{ marginBottom: 8, fontSize: 14, textAlign: 'center', letterSpacing: '0.2em' }}
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && doLogin()}
-                />
-              )}
               {loginError && (
                 <div style={{ color: '#FF6B6B', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{loginError}</div>
               )}
               <button
                 onClick={doLogin}
-                disabled={authLoading || !loginEmail.trim() || !loginPassword.trim()}
+                disabled={authLoading}
                 className="tesla-btn"
                 style={{ width: '100%', fontSize: 16, padding: '14px 24px', borderRadius: 12 }}
               >
-                {authLoading ? 'Connecting...' : mfaRequired ? 'Verify MFA' : 'Login with Tesla'}
+                {authLoading ? 'Waiting for Tesla login…' : 'Open Tesla Login'}
               </button>
             </div>
 
-            <div style={{ color: '#86888f', fontSize: 11, marginTop: 24, opacity: 0.5 }}>
-              Your credentials are sent directly to Tesla — we never see your password.
+            <div className="text-secondary text-xs" style={{ marginTop: 24, opacity: 0.5 }}>
+              Tesla auth opens in a visible browser. Complete login, MFA, or captcha there; only tokens and portal session state are captured.
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : !isPostDelivery && error ? (
           /* ---- PRE-DELIVERY DASHBOARD ---- */
-          <PreDeliveryDashboard />
+          <PreDeliveryDashboard missionControl={missionControl} loading={missionControl.loading} />
         ) : (
           <div className="page-pad">
             {/* ---- Car silhouette card (always visible) ---- */}
@@ -649,7 +855,7 @@ const Dashboard: React.FC = () => {
                   {batteryPct ?? '--'}
                 </div>
                 <div style={{ color: '#f5f5f7', fontSize: 11, fontWeight: 600, marginTop: 2 }}>%</div>
-                <div style={{ color: '#86888f', fontSize: 10, marginTop: 3 }}>
+                <div className="text-secondary" style={{ fontSize: 10, marginTop: 3 }}>
                   {range ? `${Math.round(range)} mi` : 'Battery'}
                 </div>
               </div>
@@ -660,7 +866,7 @@ const Dashboard: React.FC = () => {
                   {insideTemp != null ? Math.round(insideTemp) : '--'}
                 </div>
                 <div style={{ color: climateOn ? '#0FBCF9' : '#f5f5f7', fontSize: 11, fontWeight: 600, marginTop: 2 }}>°C</div>
-                <div style={{ color: '#86888f', fontSize: 10, marginTop: 3 }}>
+                <div className="text-secondary" style={{ fontSize: 10, marginTop: 3 }}>
                   {outsideTemp != null ? `Out ${Math.round(outsideTemp)}°` : 'Interior'}
                 </div>
               </div>
@@ -673,7 +879,7 @@ const Dashboard: React.FC = () => {
                 <div style={{ color: isCharging ? '#0BE881' : '#f5f5f7', fontSize: 11, fontWeight: 600, marginTop: 2 }}>
                   {isCharging ? 'kW' : '···'}
                 </div>
-                <div style={{ color: '#86888f', fontSize: 10, marginTop: 3 }}>
+                <div className="text-secondary" style={{ fontSize: 10, marginTop: 3 }}>
                   {isCharging ? `${state?.minutes_to_full_charge ?? charge?.minutes_to_full_charge ?? 0}m left` : 'Charging'}
                 </div>
               </div>
@@ -683,14 +889,7 @@ const Dashboard: React.FC = () => {
             {isTileEnabled('quickActions') && (
               <>
                 <p className="section-title">Quick Actions</p>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: 8,
-                    marginBottom: 10,
-                  }}
-                >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
                   {actions.map((a) => (
                     <button
                       key={a.key}
@@ -724,7 +923,7 @@ const Dashboard: React.FC = () => {
                           boxShadow: a.key === 'climate' && climateOn ? '0 0 14px rgba(15,188,249,0.5)' : a.key === 'lock' && !isLocked ? '0 0 14px rgba(5,196,107,0.5)' : 'none',
                         }}
                       >
-                        {cmdLoading === a.key ? <Spin color="#fff" /> : a.icon}
+                        {cmdLoading === a.key ? <Spinner size={18} color="#fff" /> : a.icon}
                       </div>
                       <span style={{ color: '#f5f5f7', fontSize: 10, fontWeight: 600, textAlign: 'center' }}>
                         {a.label}
@@ -743,7 +942,7 @@ const Dashboard: React.FC = () => {
                 className="tesla-btn"
                 style={{ marginBottom: 10 }}
               >
-                {cmdLoading === 'wake' ? <Spin color="#fff" /> : <WakeIcon />}
+                {cmdLoading === 'wake' ? <Spinner size={18} color="#fff" /> : <WakeIcon />}
                 {cmdLoading === 'wake' ? 'Waking...' : 'Wake Vehicle'}
               </button>
             )}
@@ -751,27 +950,27 @@ const Dashboard: React.FC = () => {
             {/* ---- Charging progress card (schedule tile) ---- */}
             {isTileEnabled('schedule') && isCharging && (
               <div className="tesla-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0BE881', fontWeight: 600, fontSize: 14 }}>
+                <div className="flex-between mb-sm">
+                  <div className="flex-start gap-sm fw-semi text-lg" style={{ color: '#0BE881' }}>
                     <BoltIcon />
                     Charging
                   </div>
-                  <span style={{ color: '#86888f', fontSize: 12 }}>
+                  <span className="text-secondary" style={{ fontSize: 12 }}>
                     Limit: {state?.charge_limit_soc ?? charge?.charge_limit_soc ?? '--'}%
                   </span>
                 </div>
                 {/* Progress bar */}
-                <div className="progress-track" style={{ marginBottom: 8 }}>
+                <div className="progress-track mb-sm">
                   <div
                     className="progress-fill charging"
                     style={{ width: `${batteryPct ?? 0}%` }}
                   />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                  <span style={{ color: '#86888f' }}>
+                <div className="flex-between" style={{ fontSize: 12 }}>
+                  <span className="text-secondary">
                     {state?.charger_power ?? charge?.charger_power ?? 0} kW
                   </span>
-                  <span style={{ color: '#86888f' }}>
+                  <span className="text-secondary">
                     +{(state?.charge_energy_added ?? charge?.charge_energy_added ?? 0).toFixed(1)} kWh added
                   </span>
                   <span style={{ color: '#0BE881' }}>
@@ -786,14 +985,7 @@ const Dashboard: React.FC = () => {
 
             {/* ---- Vehicle info footer (vehicle tile) ---- */}
             {isTileEnabled('vehicle') && state && !isAsleep && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: 16,
-                padding: '8px 0',
-                fontSize: 11,
-                color: '#86888f',
-              }}>
+              <div className="flex-center gap-lg" style={{ padding: '8px 0', fontSize: 11, color: '#86888f' }}>
                 {state.car_version && (
                   <span>🚗 {state.car_version}</span>
                 )}
@@ -808,37 +1000,34 @@ const Dashboard: React.FC = () => {
             {isTileEnabled('fleet') && fleetData.length > 1 && (
               <>
                 <p className="section-title">Fleet Health</p>
-                <div className="tesla-card" style={{ padding: 12, marginBottom: 10 }}>
+                <div className="tesla-card p-md mb-sm">
                   {fleetLoading ? (
                     <div style={{ textAlign: 'center', padding: 12 }}>
                       <IonSpinner name="dots" style={{ '--color': '#86888f' } as React.CSSProperties} />
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="flex-col gap-sm">
                       {fleetData.map(v => {
                         const battColor = v.battery_level == null ? '#86888f'
                           : v.battery_level > 50 ? '#0BE881'
                           : v.battery_level > 20 ? '#F99716'
                           : '#FF6B6B';
                         return (
-                          <div key={v.vin} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
+                          <div key={v.vin} className="flex-between" style={{
                             padding: '8px 10px',
                             borderRadius: 8,
                             background: 'rgba(255,255,255,0.03)',
                             border: '1px solid rgba(255,255,255,0.06)',
                           }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div className="flex-col" style={{ gap: 2 }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: '#f5f5f7' }}>
                                 {v.alias}
                               </span>
-                              <span style={{ fontSize: 10, color: '#86888f' }}>
+                              <span className="text-secondary text-xs">
                                 ...{v.vin.slice(-6)}
                               </span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div className="flex-start gap-md">
                               {v.battery_level != null && (
                                 <span style={{ fontSize: 13, fontWeight: 700, color: battColor }}>
                                   {v.battery_level}%
@@ -869,36 +1058,29 @@ const Dashboard: React.FC = () => {
             {/* ---- Automation status indicator ---- */}
             {autoStatus && autoStatus.enabled > 0 && (
               <div
-                className="tesla-card"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 14px',
-                  marginBottom: 8,
-                  cursor: 'pointer',
-                }}
+                className="tesla-card flex-start gap-sm"
+                style={{ padding: '10px 14px', marginBottom: 8, cursor: 'pointer' }}
                 onClick={() => history.push('/automations')}
               >
                 <span style={{ fontSize: 16 }}>⚡</span>
-                <div style={{ flex: 1 }}>
-                  <span style={{ color: '#05C46B', fontWeight: 600, fontSize: 13 }}>
+                <div className="flex-1">
+                  <span className="text-accent fw-semi text-base">
                     {autoStatus.enabled} automation rule{autoStatus.enabled !== 1 ? 's' : ''} active
                   </span>
                   {autoStatus.total > autoStatus.enabled && (
-                    <span style={{ color: '#86888f', fontSize: 11, marginLeft: 6 }}>
+                    <span className="text-secondary text-sm" style={{ marginLeft: 6 }}>
                       ({autoStatus.total - autoStatus.enabled} disabled)
                     </span>
                   )}
                 </div>
-                <span style={{ color: '#86888f', fontSize: 16 }}>›</span>
+                <span className="text-secondary" style={{ fontSize: 16 }}>›</span>
               </div>
             )}
 
             {/* ---- Last updated ---- */}
             {lastUpdated && (
               <div style={{ textAlign: 'center', paddingTop: 8 }}>
-                <span style={{ color: '#86888f', fontSize: 11, opacity: 0.7 }}>
+                <span className="text-secondary text-sm" style={{ opacity: 0.7 }}>
                   Updated {lastUpdated.toLocaleTimeString()}
                 </span>
               </div>

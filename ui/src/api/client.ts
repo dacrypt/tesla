@@ -1,6 +1,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 export function getBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_TESLA_API_URL || '').trim();
+  if (envUrl) return envUrl;
+  if (import.meta.env.DEV) return '';
   return localStorage.getItem('tesla_api_url') || '';
 }
 
@@ -223,6 +226,82 @@ export interface ProviderStatus {
   name: string;
   status: string;
   message?: string;
+}
+
+export interface AlertEvent {
+  alert_id: string;
+  kind: string;
+  source_id?: string | null;
+  domain_id?: string | null;
+  severity: string;
+  title: string;
+  message: string;
+  created_at: string;
+  acked_at?: string | null;
+  resolved_at?: string | null;
+}
+
+export interface TimelineEvent {
+  event_id?: string;
+  kind: string;
+  severity?: string;
+  title: string;
+  message: string;
+  created_at?: string;
+  timestamp?: string;
+  source_id?: string;
+  domain_id?: string;
+}
+
+export interface MissionControlExecutive {
+  delivery_readiness: { status: string; summary: string };
+  financial_state: { status: string; summary: string };
+  legal_readiness: { status: string; summary: string };
+  safety_posture: { status: string; summary: string };
+  source_health: {
+    status: string;
+    ok_sources: number;
+    total_sources: number;
+    degraded_sources: string[];
+  };
+  active_alerts_count: number;
+  last_successful_refresh: string | null;
+}
+
+export interface MissionControlDomain {
+  domain_id: string;
+  computed_at: string;
+  state: Record<string, any>;
+  derived_flags: Record<string, any>;
+  summary: string;
+  health: { status: string; ok_sources?: number; total_sources?: number; degraded_sources?: string[] };
+}
+
+export interface MissionControlSource {
+  id: string;
+  name: string;
+  category?: string;
+  refreshed_at?: string | null;
+  stale?: boolean;
+  error?: string | null;
+  data?: Record<string, any> | null;
+  changes?: Array<{ field: string; old?: string | null; new?: string | null }>;
+}
+
+export interface MissionControlData {
+  generated_at: string;
+  executive: MissionControlExecutive;
+  domains: MissionControlDomain[];
+  sources: MissionControlSource[];
+  critical_diffs: Array<{
+    source_id: string;
+    source_name: string;
+    changes_count: number;
+    changes: Array<{ field: string; old?: string | null; new?: string | null }>;
+    refreshed_at?: string | null;
+  }>;
+  timeline: TimelineEvent[];
+  active_alerts: AlertEvent[];
 }
 
 export interface TripStat {
@@ -779,9 +858,16 @@ export const api = {
   // Order
   getOrderStatus: () => client().get<OrderStatus>('/api/order/status').then(r => r.data),
   getOrderDetails: () => client().get<OrderDetails>('/api/order/details', { timeout: 10000 }).then(r => r.data),
+  getOrderSummary: () => client().get<{ summary: string; reservation_number: string }>('/api/order/summary').then(r => r.data),
+  getOrderShareText: (includeVin = false) => client().get<{ text: string; summary: string }>('/api/order/share', { params: { include_vin: includeVin } }).then(r => r.data),
 
   // App init (single request for all startup data)
   getInit: () => client().get<{ sources: any; computed: any; location: any; auth: any; automations: any; vehicle: any }>('/api/init', { timeout: 10000 }).then(r => r.data),
+  getMissionControl: () => client().get<MissionControlData>('/api/mission-control', { timeout: 10000 }).then(r => r.data),
+  getDashboardSummary: () => client().get<Pick<MissionControlData, 'generated_at'> & Record<string, any>>('/api/mission-control/dashboard-summary', { timeout: 10000 }).then(r => r.data),
+  getEvents: (limit = 50) => client().get<TimelineEvent[]>(`/api/events?limit=${limit}`, { timeout: 10000 }).then(r => r.data),
+  getAlerts: (limit = 50, activeOnly = true) => client().get<AlertEvent[]>(`/api/alerts?limit=${limit}&active_only=${activeOnly}`, { timeout: 10000 }).then(r => r.data),
+  ackAlert: (alertId: string) => client().post<AlertEvent>(`/api/alerts/${encodeURIComponent(alertId)}/ack`).then(r => r.data),
 
   // Dossier
   getDossier: () => client().get<VehicleDossier>('/api/dossier', { timeout: 5000 }).then(r => r.data),
@@ -828,12 +914,12 @@ export const api = {
     client().post<{ ok: boolean; expires_in?: number }>('/api/auth/callback', { code, state }).then(r => r.data),
   postAuthTessie: (token: string) =>
     client().post<{ ok: boolean }>('/api/auth/tessie', { token }).then(r => r.data),
-  browserLogin: (email: string, password: string, mfa_code?: string) =>
-    client().post<any>('/api/auth/browser-login', { email, password, mfa_code }, { timeout: 120000 }).then(r => r.data),
-  portalScrape: (email: string, password: string, mfa_code?: string) =>
-    client().post<any>('/api/auth/portal-scrape', { email, password, mfa_code }, { timeout: 180000 }).then(r => r.data),
+  browserLogin: (email?: string, password?: string, mfa_code?: string) =>
+    client().post<any>('/api/auth/browser-login', { email, password, mfa_code }, { timeout: 300000 }).then(r => r.data),
+  portalScrape: (mfa_code?: string) =>
+    client().post<any>('/api/auth/portal-scrape', { mfa_code }, { timeout: 420000 }).then(r => r.data),
   getAuthStatus: () =>
-    client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_order: boolean; has_tessie: boolean }>('/api/auth/status').then(r => r.data),
+    client().get<{ authenticated: boolean; backend: string; has_fleet: boolean; has_order: boolean; has_tessie: boolean; has_portal_session?: boolean }>('/api/auth/status').then(r => r.data),
 
   // Data Sources
   getSources: () =>
@@ -842,10 +928,14 @@ export const api = {
     client().get<any>(`/api/sources/${id}`).then(r => r.data),
   refreshSource: (id: string) =>
     client().post<any>(`/api/sources/${id}/refresh`).then(r => r.data),
+  refreshStaleSources: () =>
+    client().post<{ refreshed: string[]; failed: Array<{ id: string; error: string }> }>('/api/sources/refresh-stale').then(r => r.data),
   getMissingAuth: () =>
     client().get<any[]>('/api/sources/missing-auth').then(r => r.data),
   getSourceHistory: (id: string, limit = 10) =>
     client().get<any[]>(`/api/sources/${id}/history?limit=${limit}`).then(r => r.data),
+  getSourceQueries: (id: string, limit = 10) =>
+    client().get<any[]>(`/api/sources/${id}/queries?limit=${limit}`).then(r => r.data),
   getSourceAudits: (id: string) =>
     client().get<any[]>(`/api/sources/${id}/audits`).then(r => r.data),
   getSourceConfig: () =>

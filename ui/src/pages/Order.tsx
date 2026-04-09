@@ -11,6 +11,9 @@ import {
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import OrderProcessTracker from '../components/OrderProcessTracker';
+import CopyButton from '../components/CopyButton';
+import SkeletonCard from '../components/SkeletonCard';
+import EmptyState from '../components/EmptyState';
 import { useAppInit } from '../hooks/useAppInit';
 import { api, OrderTask } from '../api/client';
 
@@ -64,15 +67,15 @@ function OrderHeader({
   variant?: string;
 }) {
   return (
-    <div className="tesla-card" style={{ padding: 16, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+    <div className="tesla-card p-lg mb-md">
+      <div className="flex-between mb-sm">
         <div>
           {reservationNumber && (
-            <div style={{ color: '#86888f', fontSize: 11, marginBottom: 4 }}>
+            <div className="text-secondary text-sm mb-xs">
               RN {reservationNumber}
             </div>
           )}
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>
+          <div className="fw-bold text-xl" style={{ color: '#fff' }}>
             {model || 'Tesla'}{variant ? ` ${variant}` : ''}
           </div>
         </div>
@@ -92,44 +95,136 @@ function OrderHeader({
   );
 }
 
+const MapIcon = () => (
+  <svg width={12} height={12} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+  </svg>
+);
+
+const CreditIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+  </svg>
+);
+
+const PlateIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+  </svg>
+);
+
 function DeliveryCard({
   deliveryDate,
   deliveryLocation,
   deliveryAddress,
   deliveryWindow,
+  deliveryType,
+  creditBalance,
+  licensePlate,
+  mapUrl,
+  statusMessage,
 }: {
   deliveryDate?: string;
   deliveryLocation?: string;
   deliveryAddress?: string;
   deliveryWindow?: string;
+  deliveryType?: string;
+  creditBalance?: number | string;
+  licensePlate?: string;
+  mapUrl?: string;
+  statusMessage?: string;
 }) {
   if (!deliveryDate && !deliveryWindow && !deliveryLocation) return null;
 
   return (
-    <div className="tesla-card" style={{ padding: 16, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ color: '#05C46B' }}><CalendarIcon /></span>
-        <span style={{ color: '#f5f5f7', fontWeight: 600, fontSize: 14 }}>Delivery Appointment</span>
+    <div className="tesla-card p-lg mb-md">
+      {/* Header */}
+      <div className="flex-between mb-md">
+        <div className="flex-center gap-sm">
+          <span style={{ color: '#05C46B' }}><CalendarIcon /></span>
+          <span className="fw-semi text-lg" style={{ color: '#f5f5f7' }}>Delivery</span>
+        </div>
+        {deliveryDate && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: '#05C46B',
+            background: '#05C46B18', padding: '3px 10px',
+            borderRadius: 100, border: '1px solid #05C46B30',
+          }}>SCHEDULED</span>
+        )}
       </div>
-      {deliveryDate && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ color: '#05C46B', fontWeight: 700, fontSize: 20 }}>{deliveryDate}</div>
+
+      {/* Date + type row */}
+      <div style={{ display: 'grid', gridTemplateColumns: deliveryType ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 10 }}>
+        <div>
+          <div className="text-secondary fw-semi uppercase mb-xs" style={{ fontSize: 10, letterSpacing: '0.05em' }}>Appointment</div>
+          {deliveryDate ? (
+            <div className="fw-bold text-accent" style={{ fontSize: 16 }}>{deliveryDate}</div>
+          ) : deliveryWindow ? (
+            <div className="fw-semi text-base" style={{ color: '#F99716' }}>{deliveryWindow}</div>
+          ) : (
+            <div className="text-secondary text-base">Pending</div>
+          )}
         </div>
-      )}
-      {deliveryWindow && !deliveryDate && (
-        <div style={{ color: '#F99716', fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-          Window: {deliveryWindow}
-        </div>
-      )}
-      {deliveryLocation && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 6 }}>
-          <span style={{ color: '#86888f', marginTop: 1 }}><LocationIcon /></span>
+        {deliveryType && (
           <div>
-            <div style={{ color: '#f5f5f7', fontSize: 13 }}>{deliveryLocation}</div>
+            <div className="text-secondary fw-semi uppercase mb-xs" style={{ fontSize: 10, letterSpacing: '0.05em' }}>Type</div>
+            <div className="text-base" style={{ color: '#f5f5f7' }}>{deliveryType}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Location */}
+      {deliveryLocation && (
+        <div className="mb-md" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <span className="text-secondary" style={{ marginTop: 1 }}><LocationIcon /></span>
+          <div className="flex-1">
+            <div className="text-base" style={{ color: '#f5f5f7' }}>{deliveryLocation}</div>
             {deliveryAddress && (
-              <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{deliveryAddress}</div>
+              <div className="text-secondary text-sm" style={{ marginTop: 2 }}>{deliveryAddress}</div>
             )}
           </div>
+          {mapUrl && (
+            <a href={mapUrl} target="_blank" rel="noopener noreferrer" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              color: '#0FBCF9', fontSize: 11, fontWeight: 600, textDecoration: 'none',
+              flexShrink: 0,
+            }}>
+              <MapIcon /> Map
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Credit balance + License plate row */}
+      {(creditBalance != null || licensePlate != null) && (
+        <div className="grid-2 gap-md" style={{ padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          {creditBalance != null && (
+            <div className="flex-center gap-sm" style={{ gap: 6 }}>
+              <span className="text-secondary"><CreditIcon /></span>
+              <div>
+                <div className="text-secondary fw-semi uppercase" style={{ fontSize: 10 }}>Credit Balance</div>
+                <div className="fw-semi text-base" style={{ color: '#f5f5f7' }}>
+                  {typeof creditBalance === 'number' ? `$ ${Math.abs(creditBalance).toLocaleString()}` : creditBalance}
+                </div>
+              </div>
+            </div>
+          )}
+          {licensePlate != null && (
+            <div className="flex-center gap-sm" style={{ gap: 6 }}>
+              <span className="text-secondary"><PlateIcon /></span>
+              <div>
+                <div className="text-secondary fw-semi uppercase" style={{ fontSize: 10 }}>License Plate</div>
+                <div className="fw-semi text-base" style={{ color: licensePlate === 'Pending' ? '#F99716' : '#f5f5f7' }}>{licensePlate}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Status message */}
+      {statusMessage && (
+        <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(15,188,249,0.06)', borderRadius: 6, border: '1px solid rgba(15,188,249,0.12)' }}>
+          <div className="text-sm" style={{ color: '#0FBCF9' }}>{statusMessage}</div>
         </div>
       )}
     </div>
@@ -153,16 +248,16 @@ function FinancingCard({ financing }: { financing: Record<string, unknown> | nul
   };
 
   return (
-    <div className="tesla-card" style={{ padding: 16, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+    <div className="tesla-card p-lg mb-md">
+      <div className="flex-center gap-sm mb-md">
         <span style={{ color: '#9B59B6' }}><FinanceIcon /></span>
-        <span style={{ color: '#f5f5f7', fontWeight: 600, fontSize: 14 }}>Financing</span>
+        <span className="fw-semi text-lg" style={{ color: '#f5f5f7' }}>Financing</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+      <div className="grid-2" style={{ gap: '6px 12px' }}>
         {entries.map(([k, v]) => (
           <div key={k}>
-            <div style={{ color: '#86888f', fontSize: 10, marginBottom: 2 }}>{formatKey(k)}</div>
-            <div style={{ color: '#f5f5f7', fontSize: 13, fontWeight: 500 }}>{formatVal(v)}</div>
+            <div className="text-secondary mb-xs" style={{ fontSize: 10 }}>{formatKey(k)}</div>
+            <div className="fw-medium text-base" style={{ color: '#f5f5f7' }}>{formatVal(v)}</div>
           </div>
         ))}
       </div>
@@ -171,65 +266,196 @@ function FinancingCard({ financing }: { financing: Record<string, unknown> | nul
 }
 
 function TasksCard({ tasks }: { tasks: OrderTask[] }) {
-  if (!tasks || tasks.length === 0) return null;
+  if (!tasks || tasks.length === 0) return (
+    <EmptyState title="No delivery tasks" message="Task details will appear once available from the Tesla API." />
+  );
+
+  const completedCount = tasks.filter(t =>
+    t.completed || t.task_status?.toLowerCase() === 'complete' || t.task_status?.toLowerCase() === 'completed'
+  ).length;
+
+  // Build subtitle from task details
+  const getSubtitle = (task: OrderTask): string | null => {
+    const d = task.details || {};
+    const parts: string[] = [];
+    if (d.cardMessageTitle) parts.push(String(d.cardMessageTitle));
+    if (d.registrationStatus) parts.push(String(d.registrationStatus));
+    if (d.financialProductType) {
+      parts.push(String(d.financialProductType).replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
+    }
+    if (d.cardSubtitle) parts.push(String(d.cardSubtitle));
+    if (d.deliveryAddressTitle) parts.push(String(d.deliveryAddressTitle));
+    if (d.completedPackets && Array.isArray(d.completedPackets)) {
+      parts.push(d.completedPackets.join(', '));
+    }
+    if (d.eSignStatus) parts.push(`eSign: ${d.eSignStatus}`);
+    return parts.length > 0 ? parts.join(' \u2022 ') : null;
+  };
+
+  // Status badge text and color
+  const getBadge = (task: OrderTask): { text: string; color: string } | null => {
+    const d = task.details || {};
+    const s = String(d.status || task.task_status || '').toUpperCase();
+    if (s === 'COMPLETE' || s === 'COMPLETED') return { text: 'Complete', color: '#05C46B' };
+    if (s === 'DEFAULT') return { text: 'Default', color: '#86888f' };
+    if (s === 'SELF_ARRANGED' || s === 'SELF-ARRANGED') return { text: 'Self-Arranged', color: '#F99716' };
+    if (s === 'IGNORE') return null;
+    if (s && !task.completed) return { text: s.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()), color: '#86888f' };
+    return null;
+  };
 
   return (
-    <div className="tesla-card" style={{ padding: 16, marginBottom: 12 }}>
-      <div style={{ color: '#f5f5f7', fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
-        Order Tasks
+    <div className="tesla-card p-lg mb-md">
+      {/* Header with progress counter */}
+      <div className="flex-between mb-md">
+        <div className="fw-semi text-lg" style={{ color: '#f5f5f7' }}>Delivery Progress</div>
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: '#05C46B',
+          background: '#05C46B18', padding: '2px 10px',
+          borderRadius: 100, border: '1px solid #05C46B30',
+        }}>
+          {completedCount}/{tasks.length}
+        </span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="flex-col" style={{ gap: 6 }}>
         {tasks.map((task, i) => {
           const done = task.completed || task.task_status?.toLowerCase() === 'complete' || task.task_status?.toLowerCase() === 'completed';
           const active = task.active && !done;
+          const subtitle = getSubtitle(task);
+          const badge = getBadge(task);
+
           return (
             <div key={i} style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               gap: 10,
-              padding: '8px 10px',
+              padding: '10px 10px',
               borderRadius: 8,
               background: active
                 ? 'rgba(5,196,107,0.06)'
                 : done
-                  ? 'rgba(11,232,129,0.04)'
+                  ? 'rgba(11,232,129,0.03)'
                   : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${active ? 'rgba(5,196,107,0.2)' : done ? 'rgba(11,232,129,0.1)' : 'rgba(255,255,255,0.04)'}`,
+              border: `1px solid ${active ? 'rgba(5,196,107,0.2)' : done ? 'rgba(11,232,129,0.08)' : 'rgba(255,255,255,0.04)'}`,
             }}>
-              <span style={{ color: done ? '#0BE881' : active ? '#05C46B' : '#86888f', flexShrink: 0 }}>
+              <span style={{ color: done ? '#0BE881' : active ? '#05C46B' : '#86888f', flexShrink: 0, marginTop: 1 }}>
                 {done ? <CheckIcon /> : <PendingIcon />}
               </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  color: done ? '#86888f' : active ? '#f5f5f7' : '#86888f',
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  textDecoration: done ? 'line-through' : 'none',
+              <div className="flex-1" style={{ minWidth: 0 }}>
+                <div className={`text-base${(active || done) ? ' fw-semi' : ''}`} style={{
+                  color: done ? (subtitle ? '#c8c9cc' : '#86888f') : active ? '#f5f5f7' : '#86888f',
                 }}>
-                  {task.task_name}
+                  {task.task_name || task.task_type}
                 </div>
-                {task.task_status && (
-                  <div style={{ color: '#86888f', fontSize: 10, marginTop: 2 }}>
-                    {task.task_status}
+                {subtitle && (
+                  <div className="text-secondary" style={{ fontSize: 10, marginTop: 3, lineHeight: '1.4' }}>
+                    {subtitle}
                   </div>
                 )}
               </div>
-              {active && (
+              {badge && (
                 <span style={{
                   fontSize: 9,
                   fontWeight: 700,
-                  color: '#05C46B',
-                  background: 'rgba(5,196,107,0.12)',
+                  color: badge.color,
+                  background: `${badge.color}14`,
                   padding: '2px 7px',
                   borderRadius: 100,
-                  border: '1px solid rgba(5,196,107,0.2)',
+                  border: `1px solid ${badge.color}28`,
+                  flexShrink: 0,
+                  marginTop: 1,
                 }}>
-                  Active
+                  {badge.text}
                 </span>
               )}
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+const HistoryIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+  </svg>
+);
+
+function SnapshotHistoryCard({ snapshots, reservationNumber }: {
+  snapshots: Record<string, unknown>[];
+  reservationNumber?: string;
+}) {
+  if (!snapshots || snapshots.length === 0) return (
+    <EmptyState title="No snapshots yet" message="Order snapshots will accumulate as status changes are detected." />
+  );
+
+  // Sort newest first
+  const sorted = [...snapshots].reverse();
+
+  const formatTs = (ts?: unknown): string => {
+    if (!ts || typeof ts !== 'string') return '—';
+    try {
+      return new Date(ts).toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      });
+    } catch { return String(ts); }
+  };
+
+  return (
+    <div className="tesla-card p-lg mb-md">
+      <div className="flex-between mb-md">
+        <div className="flex-center gap-sm">
+          <span style={{ color: '#0FBCF9' }}><HistoryIcon /></span>
+          <span className="fw-semi text-lg" style={{ color: '#f5f5f7' }}>Order Snapshot History</span>
+        </div>
+        {reservationNumber && (
+          <span className="text-secondary" style={{ fontSize: 10 }}>{reservationNumber}</span>
+        )}
+      </div>
+      <div className="flex-col" style={{ gap: 4 }}>
+        {sorted.map((snap, i) => {
+          const data = (snap.data || snap) as Record<string, unknown>;
+          const changes = (snap.changes || []) as { field: string; old?: string; new?: string }[];
+          const status = String(data.order_status || data.orderStatus || '—');
+          const substatus = String(data.order_substatus || data.orderSubstatus || '');
+          const hasChanges = changes.length > 0;
+
+          return (
+            <div key={i} style={{
+              padding: '8px 10px', borderRadius: 6,
+              background: hasChanges ? 'rgba(249,151,22,0.04)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${hasChanges ? 'rgba(249,151,22,0.12)' : 'rgba(255,255,255,0.04)'}`,
+            }}>
+              <div className="flex-between">
+                <div className="text-secondary text-sm">{formatTs(snap.timestamp)}</div>
+                <div className="flex-center" style={{ gap: 6 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: '#f5f5f7',
+                    background: 'rgba(255,255,255,0.06)', padding: '1px 6px',
+                    borderRadius: 4,
+                  }}>{status}</span>
+                  {substatus && (
+                    <span className="text-secondary" style={{ fontSize: 10 }}>{substatus}</span>
+                  )}
+                </div>
+              </div>
+              {hasChanges && (
+                <div className="mt-xs">
+                  {changes.map((c, j) => (
+                    <div key={j} style={{ fontSize: 10, color: '#F99716' }}>
+                      {c.field}: {c.old || '—'} → {c.new || '—'}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-md" style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>
+        {sorted.length} snapshot{sorted.length !== 1 ? 's' : ''}
       </div>
     </div>
   );
@@ -244,14 +470,23 @@ const Order: React.FC = () => {
   const [orderTasks, setOrderTasks] = React.useState<OrderTask[]>([]);
   const [orderFinancing, setOrderFinancing] = React.useState<Record<string, unknown> | null>(null);
   const [orderStatus, setOrderStatus] = React.useState<Record<string, unknown> | null>(null);
+  const [orderDelivery, setOrderDelivery] = React.useState<Record<string, unknown> | null>(null);
   const [orderLoading, setOrderLoading] = React.useState(false);
+  const [orderSummary, setOrderSummary] = React.useState<string>('');
+  const [shareText, setShareText] = React.useState<string>('');
+  const [snapshots, setSnapshots] = React.useState<Record<string, unknown>[]>([]);
 
   const fetchOrder = React.useCallback(() => {
     setOrderLoading(true);
+    // Fetch summary + share text + snapshots in parallel
+    api.getOrderSummary().then(r => setOrderSummary(r?.summary || '')).catch(() => {});
+    api.getOrderShareText().then(r => setShareText(r?.text || '')).catch(() => {});
+    api.getSourceHistory('tesla_orders', 10).then(h => setSnapshots(h || [])).catch(() => {});
     api.getOrderDetails()
       .then(details => {
         setOrderTasks(details.tasks || []);
         setOrderFinancing(details.financing || null);
+        setOrderDelivery(details.delivery || null);
         setOrderStatus(details.status as unknown as Record<string, unknown> || null);
       })
       .catch(() => {
@@ -325,6 +560,31 @@ const Order: React.FC = () => {
             variant={specs?.variant}
           />
 
+          {/* ── Skeleton while loading ── */}
+          {orderLoading && !orderSummary && (
+            <>
+              <SkeletonCard rows={2} showHeader={false} />
+              <SkeletonCard rows={4} showHeader />
+            </>
+          )}
+
+          {/* ── Summary Card ── */}
+          {orderSummary && (
+            <div className="tesla-card mb-md" style={{ padding: 14 }}>
+              <div className="flex-between" style={{ alignItems: 'flex-start', gap: 10 }}>
+                <div className="flex-1" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: '#0FBCF9', marginTop: 1, flexShrink: 0 }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2zm1 13C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z"/>
+                    </svg>
+                  </span>
+                  <span className="text-base" style={{ color: '#c8c9cc', lineHeight: '1.4' }}>{orderSummary}</span>
+                </div>
+                {shareText && <CopyButton text={shareText} label="Share" />}
+              </div>
+            </div>
+          )}
+
           {/* ── OrderProcessTracker (15-step timeline) ── */}
           <OrderProcessTracker
             orderStatus={orderStatus}
@@ -337,11 +597,27 @@ const Order: React.FC = () => {
             loading={orderLoading}
           />
 
-          {/* ── Delivery Appointment ── */}
+          {/* ── Delivery ── */}
           <DeliveryCard
-            deliveryDate={status?.delivery_date}
-            deliveryLocation={status?.delivery_location}
+            deliveryDate={status?.delivery_date || (orderDelivery?.appointmentDateUtc as string)}
+            deliveryLocation={status?.delivery_location || (orderDelivery?.location as string)}
+            deliveryAddress={orderDelivery?.address as string}
             deliveryWindow={deliveryWindow}
+            deliveryType={
+              orderDelivery?.deliveryType === 'PICKUP_SERVICE_CENTER' ? 'Pickup at Service Center'
+                : orderDelivery?.deliveryType === 'DELIVERY' ? 'Home Delivery'
+                : (orderDelivery?.deliveryType as string)
+            }
+            creditBalance={orderDelivery?.amountDue != null ? orderDelivery.amountDue as number : undefined}
+            licensePlate={sources['co.runt']?.current?.placa || 'Pending'}
+            mapUrl={orderDelivery?.mapUrl as string}
+            statusMessage={
+              orderDelivery?.vehicleIsReady && !orderDelivery?.withinAppointmentWindow
+                ? 'Vehicle ready. Waiting for appointment window.'
+                : orderDelivery?.readyToAccept
+                  ? 'Your order is ready for scheduling once Tesla opens appointment booking.'
+                  : undefined
+            }
           />
 
           {/* ── Financing ── */}
@@ -349,6 +625,12 @@ const Order: React.FC = () => {
 
           {/* ── Order Tasks ── */}
           <TasksCard tasks={orderTasks} />
+
+          {/* ── Snapshot History ── */}
+          <SnapshotHistoryCard
+            snapshots={snapshots}
+            reservationNumber={order?.reservation_number}
+          />
 
           {/* ── Back to Dashboard ── */}
           <button
@@ -360,7 +642,7 @@ const Order: React.FC = () => {
           </button>
 
           {order?.lastActivityDate && (
-            <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingBottom: 8 }}>
+            <div className="text-dim" style={{ textAlign: 'center', fontSize: 10, paddingBottom: 8 }}>
               Updated: {new Date(order.lastActivityDate).toLocaleString()}
             </div>
           )}

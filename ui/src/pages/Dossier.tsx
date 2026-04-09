@@ -4,8 +4,9 @@ import {
   IonRefresher, IonRefresherContent,
 } from '@ionic/react';
 import { api } from '../api/client';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import Analytics from './Analytics';
+import VinDecoder from '../components/dossier/VinDecoder';
 
 /* ── Icons ── */
 const RefreshIcon = () => (
@@ -21,6 +22,16 @@ const AlertIcon = () => (
 const HistoryIcon = () => (
   <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor">
     <path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+  </svg>
+);
+const QueryIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M9.5 3a6.5 6.5 0 014.98 10.68l4.42 4.42-1.4 1.4-4.42-4.42A6.5 6.5 0 119.5 3zm0 2a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>
+  </svg>
+);
+const InfoIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2zm1 13C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z"/>
   </svg>
 );
 const CloseIcon = () => (
@@ -82,6 +93,139 @@ interface HistoryEntry {
   changes?: { field: string; old?: string; new?: string }[];
 }
 
+interface QueryEntry {
+  queried_at?: string;
+  status?: string;
+  request?: {
+    mode?: string;
+    source_name?: string;
+    url?: string;
+    method?: string;
+    status_code?: number | null;
+    openquery_source?: string;
+  };
+  response?: {
+    error?: string | null;
+    normalized_data?: any;
+    response_text_excerpt?: string;
+    raw_output_excerpt?: string;
+    raw_error_excerpt?: string;
+  };
+}
+
+type SourceDetailTab = 'current' | 'history' | 'queries';
+
+/* ── Shared modal overlay + sheet styles ── */
+const modalOverlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 999,
+  background: 'rgba(0,0,0,0.7)',
+};
+const modalSheetStyle: React.CSSProperties = {
+  width: '100%', maxHeight: '75vh', overflowY: 'auto',
+  background: '#18191f', borderRadius: '16px 16px 0 0',
+  padding: '20px 16px 32px',
+};
+
+/* ── Shared history timeline renderer ── */
+function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
+  return (
+    <>
+      {entries.map((entry, i) => {
+        const hasChanges = entry.changes && entry.changes.length > 0;
+        return (
+          <div key={i} className="flex-start gap-md" style={{ marginBottom: 14 }}>
+            {/* Dot + line */}
+            <div className="flex-col" style={{ alignItems: 'center', flexShrink: 0 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', marginTop: 3,
+                background: hasChanges ? '#F99716' : '#86888f',
+                flexShrink: 0,
+              }} />
+              {i < entries.length - 1 && (
+                <div style={{ width: 1, flex: 1, background: 'rgba(255,255,255,0.06)', marginTop: 4 }} />
+              )}
+            </div>
+            {/* Content */}
+            <div className="flex-1" style={{ paddingBottom: 4 }}>
+              <div className="text-sm text-secondary mb-xs">{formatDateTime(entry.timestamp)}</div>
+              {hasChanges ? (
+                <div>
+                  <div className="text-sm fw-semi mb-xs" style={{ color: '#F99716' }}>
+                    {entry.changes!.length} change{entry.changes!.length !== 1 ? 's' : ''}
+                  </div>
+                  {entry.changes!.map((ch, ci) => (
+                    <div key={ci} className="text-sm text-secondary" style={{ marginBottom: 2 }}>
+                      <span style={{ color: '#fff' }}>{ch.field.replace(/_/g, ' ')}</span>
+                      {': '}
+                      <span style={{ color: 'rgba(255,255,255,0.35)' }}>{ch.old || '—'}</span>
+                      {' → '}
+                      <span style={{ color: '#0BE881' }}>{ch.new || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-secondary" style={{ fontStyle: 'italic' }}>No changes</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/* ── Shared query list renderer ── */
+function QueryList({ entries }: { entries: QueryEntry[] }) {
+  return (
+    <>
+      {entries.map((entry, i) => (
+        <div key={i} className="tesla-card" style={{ padding: 12, marginBottom: 10 }}>
+          <div className="text-sm text-secondary" style={{ marginBottom: 8 }}>{formatDateTime(entry.queried_at)}</div>
+          <div className="text-base fw-semi" style={{ color: '#fff', marginBottom: 6 }}>
+            {(entry.request?.method || entry.request?.mode || 'query')} {entry.request?.url || entry.request?.openquery_source || ''}
+          </div>
+          <div className="text-sm" style={{ color: entry.status === 'ok' ? '#0BE881' : '#FF6B6B', marginBottom: 6 }}>
+            {entry.status?.toUpperCase()} {entry.request?.status_code != null ? `· HTTP ${entry.request.status_code}` : ''}
+          </div>
+          {entry.response?.error && (
+            <div className="text-sm" style={{ color: '#FF6B6B', marginBottom: 6, wordBreak: 'break-word' }}>
+              {entry.response.error}
+            </div>
+          )}
+          {entry.response?.response_text_excerpt && (
+            <pre className="text-xs text-secondary" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+              {entry.response.response_text_excerpt.slice(0, 500)}
+            </pre>
+          )}
+          {!entry.response?.response_text_excerpt && entry.response?.raw_output_excerpt && (
+            <pre className="text-xs text-secondary" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+              {entry.response.raw_output_excerpt.slice(0, 500)}
+            </pre>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/* ── Modal header ── */
+function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle: string; onClose: () => void }) {
+  return (
+    <div className="flex-between" style={{ alignItems: 'center', marginBottom: 16 }}>
+      <div>
+        <div className="text-lg fw-bold" style={{ color: '#fff' }}>{title}</div>
+        <div className="text-sm text-secondary" style={{ marginTop: 2 }}>{subtitle}</div>
+      </div>
+      <button
+        onClick={onClose}
+        className="icon-btn"
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  );
+}
+
 function HistoryModal({ sourceId, sourceName, onClose }: {
   sourceId: string;
   sourceName: string;
@@ -99,88 +243,163 @@ function HistoryModal({ sourceId, sourceName, onClose }: {
   }, [sourceId]);
 
   return (
-    <div
+    <div className="flex-center" style={{ ...modalOverlayStyle, alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={modalSheetStyle} onClick={e => e.stopPropagation()}>
+        <ModalHeader title="History" subtitle={sourceName} onClose={onClose} />
+
+        {loading && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
+        {error && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{error}</div>}
+        {!loading && !error && entries.length === 0 && (
+          <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No history yet</div>
+        )}
+        <HistoryTimeline entries={entries} />
+      </div>
+    </div>
+  );
+}
+
+function QueriesModal({ sourceId, sourceName, onClose }: {
+  sourceId: string;
+  sourceName: string;
+  onClose: () => void;
+}) {
+  const [entries, setEntries] = useState<QueryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getSourceQueries(sourceId, 10)
+      .then(data => setEntries([...data].reverse()))
+      .catch(e => setError(e?.message || 'Failed to load query audit'))
+      .finally(() => setLoading(false));
+  }, [sourceId]);
+
+  return (
+    <div className="flex-center" style={{ ...modalOverlayStyle, alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={modalSheetStyle} onClick={e => e.stopPropagation()}>
+        <ModalHeader title="Query Audit" subtitle={sourceName} onClose={onClose} />
+
+        {loading && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
+        {error && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{error}</div>}
+        {!loading && !error && entries.length === 0 && (
+          <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No query audit yet</div>
+        )}
+        <QueryList entries={entries} />
+      </div>
+    </div>
+  );
+}
+
+function SourceDetailModal({
+  sourceId,
+  sourceName,
+  sourceData,
+  initialTab,
+  onClose,
+}: {
+  sourceId: string;
+  sourceName: string;
+  sourceData: any;
+  initialTab: SourceDetailTab;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<SourceDetailTab>(initialTab);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [queryEntries, setQueryEntries] = useState<QueryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadingQueries, setLoadingQueries] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getSourceHistory(sourceId, 10)
+      .then(data => setHistoryEntries([...data].reverse()))
+      .catch(e => setHistoryError(e?.message || 'Failed to load history'))
+      .finally(() => setLoadingHistory(false));
+    api.getSourceQueries(sourceId, 10)
+      .then(data => setQueryEntries([...data].reverse()))
+      .catch(e => setQueryError(e?.message || 'Failed to load query audit'))
+      .finally(() => setLoadingQueries(false));
+  }, [sourceId]);
+
+  const tabButton = (key: SourceDetailTab, label: string) => (
+    <button
+      type="button"
+      onClick={() => setTab(key)}
       style={{
-        position: 'fixed', inset: 0, zIndex: 999,
-        background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end',
+        flex: 1,
+        background: tab === key ? 'rgba(5,196,107,0.18)' : 'rgba(255,255,255,0.06)',
+        border: `1px solid ${tab === key ? 'rgba(5,196,107,0.45)' : 'rgba(255,255,255,0.12)'}`,
+        borderRadius: 10,
+        padding: '12px 14px',
+        color: tab === key ? '#05C46B' : '#86888f',
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: 'pointer',
       }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      className="flex-center"
+      style={{ ...modalOverlayStyle, alignItems: 'flex-end' }}
       onClick={onClose}
     >
       <div
         style={{
-          width: '100%', maxHeight: '75vh', overflowY: 'auto',
-          background: '#18191f', borderRadius: '16px 16px 0 0',
+          width: '100%', maxHeight: '80vh', overflowY: 'auto',
+          background: '#20242d', borderRadius: '18px 18px 0 0',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 -20px 60px rgba(0,0,0,0.45)',
           padding: '20px 16px 32px',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>History</div>
-            <div style={{ fontSize: 11, color: '#86888f', marginTop: 2 }}>{sourceName}</div>
+        <div style={{ position: 'sticky', top: 0, zIndex: 2, background: '#20242d', paddingBottom: 12 }}>
+          <ModalHeader title={sourceName} subtitle={sourceId} onClose={onClose} />
+          <div className="flex-start gap-sm" style={{ marginBottom: 16 }}>
+            {tabButton('current', 'Current')}
+            {tabButton('history', 'History')}
+            {tabButton('queries', 'Query Audit')}
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#86888f', cursor: 'pointer', padding: 4 }}
-          >
-            <CloseIcon />
-          </button>
         </div>
 
-        {loading && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Spin /></div>
-        )}
-        {error && (
-          <div style={{ color: '#FF6B6B', fontSize: 12, textAlign: 'center', padding: 16 }}>{error}</div>
-        )}
-        {!loading && !error && entries.length === 0 && (
-          <div style={{ color: '#86888f', fontSize: 12, textAlign: 'center', padding: 16 }}>No history yet</div>
+        {tab === 'current' && (
+          <div className="tesla-card" style={{ padding: 16, background: 'rgba(255,255,255,0.04)' }}>
+            {sourceData?.error ? (
+              <div className="text-base" style={{ color: '#FF6B6B', wordBreak: 'break-word' }}>{sourceData.error}</div>
+            ) : sourceData?.data ? (
+              <SourceData data={sourceData.data} />
+            ) : (
+              <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No current data</div>
+            )}
+          </div>
         )}
 
-        {/* Timeline */}
-        {entries.map((entry, i) => {
-          const hasChanges = entry.changes && entry.changes.length > 0;
-          return (
-            <div key={i} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-              {/* Dot + line */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', marginTop: 3,
-                  background: hasChanges ? '#F99716' : '#86888f',
-                  flexShrink: 0,
-                }} />
-                {i < entries.length - 1 && (
-                  <div style={{ width: 1, flex: 1, background: 'rgba(255,255,255,0.06)', marginTop: 4 }} />
-                )}
-              </div>
-              {/* Content */}
-              <div style={{ flex: 1, paddingBottom: 4 }}>
-                <div style={{ fontSize: 11, color: '#86888f', marginBottom: 4 }}>
-                  {formatDateTime(entry.timestamp)}
-                </div>
-                {hasChanges ? (
-                  <div>
-                    <div style={{ fontSize: 11, color: '#F99716', fontWeight: 600, marginBottom: 4 }}>
-                      {entry.changes!.length} change{entry.changes!.length !== 1 ? 's' : ''}
-                    </div>
-                    {entry.changes!.map((ch, ci) => (
-                      <div key={ci} style={{ fontSize: 11, color: '#86888f', marginBottom: 2 }}>
-                        <span style={{ color: '#fff' }}>{ch.field.replace(/_/g, ' ')}</span>
-                        {': '}
-                        <span style={{ color: 'rgba(255,255,255,0.35)' }}>{ch.old || '—'}</span>
-                        {' → '}
-                        <span style={{ color: '#0BE881' }}>{ch.new || '—'}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: '#86888f', fontStyle: 'italic' }}>No changes</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {tab === 'history' && (
+          <>
+            {loadingHistory && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
+            {historyError && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{historyError}</div>}
+            {!loadingHistory && !historyError && historyEntries.length === 0 && (
+              <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No history yet</div>
+            )}
+            <HistoryTimeline entries={historyEntries} />
+          </>
+        )}
+
+        {tab === 'queries' && (
+          <>
+            {loadingQueries && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
+            {queryError && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{queryError}</div>}
+            {!loadingQueries && !queryError && queryEntries.length === 0 && (
+              <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No query audit yet</div>
+            )}
+            <QueryList entries={queryEntries} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -189,22 +408,22 @@ function HistoryModal({ sourceId, sourceName, onClose }: {
 /* ── Source data renderer ── */
 function SourceData({ data }: { data: any }) {
   if (!data) return (
-    <div style={{ color: '#86888f', fontSize: 12, textAlign: 'center', padding: 8 }}>Sin datos</div>
+    <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 8 }}>No data</div>
   );
-  if (typeof data === 'string') return <div style={{ color: '#fff', fontSize: 12 }}>{data}</div>;
+  if (typeof data === 'string') return <div className="text-base" style={{ color: '#fff' }}>{data}</div>;
 
   // Special: recalls array
   if (Array.isArray(data.recalls)) {
     return (
       <>
-        <div style={{ fontSize: 12, color: '#86888f', marginBottom: 6 }}>{data.recalls.length} recalls found</div>
+        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{data.recalls.length} recalls found</div>
         {data.recalls.slice(0, 5).map((r: any, i: number) => (
           <div key={i} style={{
             marginBottom: 8, paddingBottom: 8,
             borderBottom: i < Math.min(data.recalls.length, 5) - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
           }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>{r.component || r.summary?.slice(0, 60)}</div>
-            <div style={{ fontSize: 10, color: '#86888f', marginTop: 2 }}>
+            <div className="text-base fw-medium" style={{ color: '#fff' }}>{r.component || r.summary?.slice(0, 60)}</div>
+            <div className="text-xs text-secondary" style={{ marginTop: 2 }}>
               {typeof r.summary === 'string' ? r.summary.slice(0, 100) : ''}
             </div>
           </div>
@@ -217,11 +436,11 @@ function SourceData({ data }: { data: any }) {
   if (Array.isArray(data.estaciones)) {
     return (
       <>
-        <div style={{ fontSize: 12, color: '#86888f', marginBottom: 6 }}>{data.total || data.estaciones.length} estaciones</div>
+        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{data.total || data.estaciones.length} estaciones</div>
         {data.estaciones.slice(0, 8).map((s: any, i: number) => (
           <div key={i} style={{ marginBottom: 6, fontSize: 11 }}>
-            <div style={{ color: '#fff', fontWeight: 500 }}>{s.estaci_n || s.nombre || s.tipo_de_estacion}</div>
-            <div style={{ color: '#86888f' }}>{s.ciudad} · {s.tipo || ''} · {s.horario || ''}</div>
+            <div className="fw-medium" style={{ color: '#fff' }}>{s.estaci_n || s.nombre || s.tipo_de_estacion}</div>
+            <div className="text-secondary">{s.ciudad} · {s.tipo || ''} · {s.horario || ''}</div>
           </div>
         ))}
       </>
@@ -236,10 +455,10 @@ function SourceData({ data }: { data: any }) {
         if (typeof v === 'object' && v !== null) return null;
         const display = typeof v === 'boolean' ? (v ? '✓ Sí' : '✗ No') : String(v);
         return (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 11 }}>
-            <span style={{ color: '#86888f' }}>{k.replace(/_/g, ' ')}</span>
-            <span style={{
-              color: '#fff', fontWeight: 500, maxWidth: '55%',
+          <div key={k} className="flex-between text-sm" style={{ padding: '3px 0' }}>
+            <span className="text-secondary">{k.replace(/_/g, ' ')}</span>
+            <span className="fw-medium" style={{
+              color: '#fff', maxWidth: '55%',
               textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>{display}</span>
           </div>
@@ -250,12 +469,14 @@ function SourceData({ data }: { data: any }) {
 }
 
 /* ── Source Card ── */
-function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory }: {
+function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, onCurrent }: {
   src: any;
   sd: any;
   isRefreshing: boolean;
   onRefresh: () => void;
   onHistory: () => void;
+  onQueries: () => void;
+  onCurrent: () => void;
 }) {
   const hasError = sd?.error || src.error;
   const errorMsg = typeof hasError === 'string' ? hasError : 'Error';
@@ -265,66 +486,50 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory }: {
   return (
     <div className="tesla-card" style={{ padding: '12px 14px', marginBottom: 8 }}>
       {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+      <div className="flex-between" style={{ alignItems: 'flex-start', marginBottom: 6 }}>
         {/* Title + timestamp */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{src.name}</span>
+        <div className="flex-1" style={{ minWidth: 0 }}>
+          <div className="flex-start gap-sm" style={{ flexWrap: 'wrap' }}>
+            <span className="text-lg fw-semi" style={{ color: '#fff' }}>{src.name}</span>
             {/* Change badge */}
             {changeCount > 0 && (
-              <span style={{
-                background: 'rgba(249,151,22,0.15)', border: '1px solid rgba(249,151,22,0.3)',
-                borderRadius: 10, padding: '1px 7px', fontSize: 10, color: '#F99716', fontWeight: 600,
-              }}>
+              <span className="badge badge-orange">
                 {changeCount} change{changeCount !== 1 ? 's' : ''}
               </span>
             )}
           </div>
-          {/* Timestamp — prominently shown */}
+          {/* Timestamp */}
           {queriedAt ? (
             <div style={{ marginTop: 3 }}>
-              <div style={{ fontSize: 11, color: hasError ? '#FF6B6B' : src.stale ? '#F99716' : '#86888f' }}>
+              <div className="text-sm" style={{ color: hasError ? '#FF6B6B' : src.stale ? '#F99716' : '#86888f' }}>
                 {hasError ? errorMsg.slice(0, 80) : (
                   <>
-                    <span style={{ color: '#fff', fontWeight: 500 }}>{formatDateTime(queriedAt)}</span>
-                    <span style={{ color: '#86888f' }}> &middot; {timeAgo(queriedAt)}</span>
+                    <span className="fw-medium" style={{ color: '#fff' }}>{formatDateTime(queriedAt)}</span>
+                    <span className="text-secondary"> &middot; {timeAgo(queriedAt)}</span>
                   </>
                 )}
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: hasError ? '#FF6B6B' : '#86888f', marginTop: 3 }}>
+            <div className="text-sm" style={{ color: hasError ? '#FF6B6B' : '#86888f', marginTop: 3 }}>
               {hasError ? errorMsg.slice(0, 80) : 'Not loaded yet'}
             </div>
           )}
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
-          {/* History button */}
-          <button
-            onClick={onHistory}
-            title="View history"
-            style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
-              padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              color: '#86888f', fontSize: 10,
-            }}
-          >
-            <HistoryIcon />
+        <div className="flex-start gap-sm" style={{ flexShrink: 0, marginLeft: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCurrent} title="View current data" className="source-action-btn">
+            <InfoIcon /> Current
           </button>
-          {/* Refresh button */}
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            title="Refresh source"
-            style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
-              padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              color: '#86888f', fontSize: 10,
-            }}
-          >
-            {isRefreshing ? <Spin /> : <RefreshIcon />}
+          <button type="button" onClick={onQueries} title="View query audit" className="source-action-btn">
+            <QueryIcon /> Audit
+          </button>
+          <button type="button" onClick={onHistory} title="View history" className="source-action-btn">
+            <HistoryIcon /> History
+          </button>
+          <button type="button" onClick={onRefresh} disabled={isRefreshing} title="Refresh source" className="source-action-btn">
+            {isRefreshing ? <Spin /> : <RefreshIcon />} Refresh
           </button>
         </div>
       </div>
@@ -336,7 +541,7 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory }: {
           background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)',
           borderRadius: 8,
         }}>
-          <div style={{ fontSize: 11, color: '#FF6B6B', wordBreak: 'break-word' }}>
+          <div className="text-sm" style={{ color: '#FF6B6B', wordBreak: 'break-word' }}>
             {errorMsg.length > 200 ? errorMsg.slice(0, 200) + '…' : errorMsg}
           </div>
         </div>
@@ -355,9 +560,9 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory }: {
           marginTop: 8, padding: '8px 10px',
           background: 'rgba(249,151,22,0.08)', border: '1px solid rgba(249,151,22,0.15)', borderRadius: 8,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#F99716', marginBottom: 4 }}>Cambios detectados</div>
+          <div className="text-xs fw-semi" style={{ color: '#F99716', marginBottom: 4 }}>Cambios detectados</div>
           {sd.changes.map((ch: any, ci: number) => (
-            <div key={ci} style={{ fontSize: 10, color: '#86888f', marginBottom: 2 }}>
+            <div key={ci} className="text-xs text-secondary" style={{ marginBottom: 2 }}>
               <span style={{ color: '#fff' }}>{ch.field}</span>
               {': '}
               <span style={{ color: 'rgba(255,255,255,0.35)' }}>{ch.old || '—'}</span>
@@ -403,8 +608,9 @@ const Dossier: React.FC = () => {
   const [sourceConfig, setSourceConfig] = useState<any>({});
   const [cedula, setCedula] = useState('');
   const [cedulaDirty, setCedulaDirty] = useState(false);
-  const [historyModal, setHistoryModal] = useState<{ id: string; name: string } | null>(null);
+  const [sourceModal, setSourceModal] = useState<{ id: string; name: string; tab: SourceDetailTab } | null>(null);
   const history = useHistory();
+  const location = useLocation();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -438,6 +644,22 @@ const Dossier: React.FC = () => {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!sources.length) return;
+    const params = new URLSearchParams(location.search);
+    const sourceId = params.get('source');
+    const wantsHistory = params.get('history') === '1';
+    const wantsQueries = params.get('queries') === '1';
+    if (!sourceId) return;
+    const source = sources.find((item: any) => item.id === sourceId);
+    if (source && wantsHistory && !sourceModal) {
+      setSourceModal({ id: source.id, name: source.name, tab: 'history' });
+    }
+    if (source && wantsQueries && !sourceModal) {
+      setSourceModal({ id: source.id, name: source.name, tab: 'queries' });
+    }
+  }, [sources, sourceModal, location.search]);
 
   const refreshSource = async (sourceId: string) => {
     setRefreshing(sourceId);
@@ -487,12 +709,12 @@ const Dossier: React.FC = () => {
               background: 'rgba(249,151,22,0.08)', border: '1px solid rgba(249,151,22,0.2)',
               borderRadius: 12, padding: '12px 16px', marginBottom: 14,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div className="flex-start gap-sm mb-sm">
                 <div style={{ color: '#F99716' }}><AlertIcon /></div>
-                <span style={{ color: '#F99716', fontWeight: 600, fontSize: 13 }}>Authentication needed</span>
+                <span className="text-lg fw-semi" style={{ color: '#F99716' }}>Authentication needed</span>
               </div>
               {missingAuth.map((m, i) => (
-                <div key={i} style={{ color: '#86888f', fontSize: 12, marginBottom: 4 }}>
+                <div key={i} className="text-base text-secondary" style={{ marginBottom: 4 }}>
                   {m.message} <span style={{ color: 'rgba(255,255,255,0.3)' }}>({m.name})</span>
                 </div>
               ))}
@@ -509,18 +731,18 @@ const Dossier: React.FC = () => {
           {/* ── Owner Config (cedula) ── */}
           {!loading && !sourceConfig.cedula && (
             <div className="tesla-card" style={{ padding: '12px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Datos del propietario</div>
-              <div style={{ color: '#86888f', fontSize: 11, marginBottom: 8 }}>
+              <div className="text-lg fw-semi mb-sm" style={{ color: '#fff' }}>Datos del propietario</div>
+              <div className="text-sm text-secondary mb-sm">
                 Tu cédula es necesaria para consultar multas (SIMIT), antecedentes, y otros servicios.
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="flex-start gap-sm">
                 <input
                   type="text"
                   value={cedula}
                   onChange={(e) => { setCedula(e.target.value); setCedulaDirty(true); }}
                   placeholder="Número de cédula"
-                  className="tesla-input"
-                  style={{ flex: 1, fontSize: 13 }}
+                  className="tesla-input flex-1"
+                  style={{ fontSize: 13 }}
                 />
                 <button
                   onClick={async () => {
@@ -543,16 +765,18 @@ const Dossier: React.FC = () => {
             <div className="loading-center"><Spin /></div>
           ) : (
             <>
+              {/* ── VIN Decoder (visual) ── */}
+              {sourceData['vin.decode']?.data && (
+                <VinDecoder data={sourceData['vin.decode'].data} />
+              )}
+
               {/* ── Sources by category ── */}
               {CAT_ORDER.filter(cat => grouped[cat]).map(cat => (
                 <div key={cat}>
                   {/* Category header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 8px', padding: '0 2px' }}>
+                  <div className="flex-center gap-md" style={{ margin: '18px 0 8px', padding: '0 2px' }}>
                     <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                      letterSpacing: '0.12em', color: 'rgba(255,255,255,0.25)',
-                    }}>
+                    <span className="section-label">
                       {CATEGORIES[cat] || cat}
                     </span>
                     <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
@@ -566,21 +790,18 @@ const Dossier: React.FC = () => {
                       sd={sourceData[src.id]}
                       isRefreshing={refreshing === src.id}
                       onRefresh={() => refreshSource(src.id)}
-                      onHistory={() => setHistoryModal({ id: src.id, name: src.name })}
+                      onCurrent={() => setSourceModal({ id: src.id, name: src.name, tab: 'current' })}
+                      onHistory={() => setSourceModal({ id: src.id, name: src.name, tab: 'history' })}
+                      onQueries={() => setSourceModal({ id: src.id, name: src.name, tab: 'queries' })}
                     />
                   ))}
                 </div>
               ))}
 
               {/* ── Analytics (embedded) ── */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 8px' }}>
+              <div className="flex-center gap-md" style={{ margin: '18px 0 8px' }}>
                 <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
-                <span style={{
-                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: '0.12em', color: 'rgba(255,255,255,0.25)',
-                }}>
-                  Analytics
-                </span>
+                <span className="section-label">Analytics</span>
                 <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
               </div>
               <div style={{ margin: '0 -16px' }}>
@@ -590,12 +811,14 @@ const Dossier: React.FC = () => {
           )}
         </div>
 
-        {/* ── History Modal ── */}
-        {historyModal && (
-          <HistoryModal
-            sourceId={historyModal.id}
-            sourceName={historyModal.name}
-            onClose={() => setHistoryModal(null)}
+        {/* ── Source Detail Modal ── */}
+        {sourceModal && (
+          <SourceDetailModal
+            sourceId={sourceModal.id}
+            sourceName={sourceModal.name}
+            sourceData={sourceData[sourceModal.id]}
+            initialTab={sourceModal.tab}
+            onClose={() => setSourceModal(null)}
           />
         )}
       </IonContent>
