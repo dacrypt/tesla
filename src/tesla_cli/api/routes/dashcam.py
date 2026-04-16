@@ -9,6 +9,15 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter()
 
 _TESLACAM_SUBDIRS = ("SavedClips", "SentryClips", "RecentClips")
+_ALLOWED_USB_PREFIXES = ("/Volumes/", "/mnt/", "/media/")
+
+
+def _validate_usb_path(usb_path: str) -> Path:
+    """Validate USB path is within allowed mount prefixes."""
+    resolved = Path(usb_path).resolve()
+    if not any(str(resolved).startswith(p) for p in _ALLOWED_USB_PREFIXES):
+        raise HTTPException(400, "usb_path must be under /Volumes/, /mnt/, or /media/")
+    return resolved
 
 
 def _human_size(num_bytes: int) -> str:
@@ -22,8 +31,9 @@ def _human_size(num_bytes: int) -> str:
 @router.get("/status")
 def dashcam_status(usb_path: str = "/Volumes/TESLADRIVE") -> dict:
     """Check if USB drive with TeslaCam is connected."""
-    teslacam_root = Path(usb_path).expanduser() / "TeslaCam"
-    mounted = Path(usb_path).exists()
+    usb = _validate_usb_path(usb_path)
+    teslacam_root = usb / "TeslaCam"
+    mounted = usb.exists()
     teslacam_found = teslacam_root.exists()
 
     subdirs: dict[str, bool] = {}
@@ -46,7 +56,8 @@ def list_clips(usb_path: str = "/Volumes/TESLADRIVE") -> list[dict]:
     Scans TeslaCam/SavedClips, SentryClips, and RecentClips directories.
     Returns list of {type, date, file_count, size_bytes, size_human}.
     """
-    teslacam_root = Path(usb_path).expanduser() / "TeslaCam"
+    usb = _validate_usb_path(usb_path)
+    teslacam_root = usb / "TeslaCam"
     if not teslacam_root.exists():
         raise HTTPException(
             status_code=404,
