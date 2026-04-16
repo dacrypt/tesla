@@ -403,6 +403,4 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
     def remote_boombox(self, vin: str) -> dict[str, Any]:
         return self.command(vin, "remote_boombox")
 
-    # Defrost
-    def set_preconditioning_max(self, vin: str, on: bool) -> dict[str, Any]:  # noqa: F811 – intentional override
-        return self.command(vin, "set_preconditioning_max", on=on)
+    # Defrost (uses set_preconditioning_max defined above)

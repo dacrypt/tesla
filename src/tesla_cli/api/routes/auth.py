@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets
 import time
 import urllib.parse
@@ -276,7 +277,7 @@ except Exception as e:
                     cfg.general.default_vin = vin
                 save_config(cfg)
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("VIN/order auto-discover after browser login failed", exc_info=True)
 
     # Save portal data/session when captured
     if data.get("portal"):
@@ -362,7 +363,8 @@ except Exception as e:
             "status_code": None,
         }})
     except Exception:
-        pass
+        import logging as _logging
+        _logging.getLogger("tesla_cli.api.routes.auth").debug("Portal scrape audit save failed", exc_info=True)
     print(json.dumps({{
         "ok": False,
         "mfa_required": "MFA_REQUIRED" in msg,
@@ -431,5 +433,5 @@ def _sync_teslamate_tokens() -> None:
         if stack.is_running():
             stack.sync_tokens_from_keyring()
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("TeslaMate token sync failed", exc_info=True)
 
