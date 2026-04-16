@@ -6,6 +6,7 @@ Follows the same fixture pattern as test_server.py — all backends fully mocked
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -764,6 +765,42 @@ class TestSourcesRoutes:
             r = client.post("/api/sources/ghost.source/refresh")
         assert r.status_code == 404
 
+    def test_get_source_diffs(self, srv):
+        client, _, _ = srv
+        mock_diffs = [
+            {
+                "timestamp": "2025-01-01T00:00:00",
+                "source_id": "tesla.owner",
+                "changes_count": 1,
+                "changes": [{"field": "battery_level", "old": "79", "new": "80"}],
+            }
+        ]
+        with patch("tesla_cli.api.routes.sources.sources.get_diffs", return_value=mock_diffs):
+            r = client.get("/api/sources/tesla.owner/diffs?limit=10")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert data[0]["source_id"] == "tesla.owner"
+        assert data[0]["changes_count"] == 1
+
+    def test_get_source_queries(self, srv):
+        client, _, _ = srv
+        mock_queries = [
+            {
+                "source_id": "tesla.owner",
+                "request": {"mode": "fetch_fn", "url": "https://owner-api.teslamotors.com/api/1/users/orders"},
+                "response": {"normalized_data": {"battery_level": 80}, "response_text_excerpt": "{\"response\":[]}"},
+            }
+        ]
+        with patch("tesla_cli.api.routes.sources.sources.get_queries", return_value=mock_queries):
+            r = client.get("/api/sources/tesla.owner/queries?limit=10")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert data[0]["source_id"] == "tesla.owner"
+        assert data[0]["request"]["mode"] == "fetch_fn"
+        assert "owner-api" in data[0]["request"]["url"]
+
     def test_sources_config_get(self, srv):
         client, _, cfg = srv
         cfg.general.cedula = "12345678"
@@ -798,6 +835,133 @@ class TestSourcesRoutes:
         data = r.json()
         assert isinstance(data, list)
         assert data[0]["id"] == "tesla.fleet"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Domains Routes — /api/domains/*
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDomainsRoutes:
+    def test_list_domains(self, srv):
+        client, _, _ = srv
+        mock_domains = [
+            {"domain_id": "delivery", "summary": "VIN assigned", "health": {"status": "ok"}},
+            {"domain_id": "legal", "summary": "Plate assigned", "health": {"status": "degraded"}},
+        ]
+        with patch("tesla_cli.api.routes.domains.domains.list_domains", return_value=mock_domains):
+            r = client.get("/api/domains")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 2
+        assert data[0]["domain_id"] == "delivery"
+
+    def test_get_domain(self, srv):
+        client, _, _ = srv
+        mock_domain = {
+            "domain_id": "delivery",
+            "state": {"vin": "VIN123"},
+            "derived_flags": {"vin_assigned": True},
+        }
+        with patch("tesla_cli.api.routes.domains.domains.get_domain", return_value=mock_domain):
+            r = client.get("/api/domains/delivery")
+        assert r.status_code == 200
+        assert r.json()["domain_id"] == "delivery"
+
+    def test_get_unknown_domain_returns_404(self, srv):
+        client, _, _ = srv
+        with patch("tesla_cli.api.routes.domains.domains.get_domain", return_value=None):
+            r = client.get("/api/domains/ghost")
+        assert r.status_code == 404
+
+    def test_recompute_domain(self, srv):
+        client, _, _ = srv
+        mock_domain = {"domain_id": "legal", "summary": "SOAT valid"}
+        with (
+            patch("tesla_cli.api.routes.domains.domains.get_domain", return_value=mock_domain),
+            patch("tesla_cli.api.routes.domains.domains.recompute_domain", return_value=mock_domain),
+        ):
+            r = client.post("/api/domains/legal/recompute")
+        assert r.status_code == 200
+        assert r.json()["domain_id"] == "legal"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Mission Control Routes — /api/mission-control
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMissionControlRoutes:
+    def test_get_mission_control(self, srv):
+        client, _, _ = srv
+        payload = {
+            "executive": {"delivery_readiness": {"status": "ok"}},
+            "domains": [],
+            "sources": [],
+            "critical_diffs": [],
+            "timeline": [],
+            "active_alerts": [],
+        }
+        with patch(
+            "tesla_cli.api.routes.mission_control.mission_control.build_mission_control",
+            return_value=payload,
+        ):
+            r = client.get("/api/mission-control")
+        assert r.status_code == 200
+        assert r.json()["executive"]["delivery_readiness"]["status"] == "ok"
+
+    def test_get_dashboard_summary(self, srv):
+        client, _, _ = srv
+        payload = {
+            "delivery_readiness": {"status": "ok"},
+            "legal_readiness": {"status": "degraded"},
+            "source_health": {"status": "degraded"},
+            "critical_changes_count": 2,
+        }
+        with patch(
+            "tesla_cli.api.routes.mission_control.mission_control.build_dashboard_summary",
+            return_value=payload,
+        ):
+            r = client.get("/api/mission-control/dashboard-summary")
+        assert r.status_code == 200
+        assert r.json()["critical_changes_count"] == 2
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Events / Alerts Routes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEventRoutes:
+    def test_get_events(self, srv):
+        client, _, _ = srv
+        payload = [{"kind": "source_change", "source_id": "co.runt"}]
+        with patch("tesla_cli.api.routes.events.events.list_events", return_value=payload):
+            r = client.get("/api/events?limit=10")
+        assert r.status_code == 200
+        assert r.json()[0]["kind"] == "source_change"
+
+    def test_get_alerts(self, srv):
+        client, _, _ = srv
+        payload = [{"kind": "domain_change", "domain_id": "legal", "severity": "critical"}]
+        with patch("tesla_cli.api.routes.alerts.events.list_alerts", return_value=payload):
+            r = client.get("/api/alerts?limit=10&active_only=true")
+        assert r.status_code == 200
+        assert r.json()[0]["severity"] == "critical"
+
+    def test_ack_alert(self, srv):
+        client, _, _ = srv
+        payload = {"alert_id": "alt_123", "acked_at": "2026-04-07T12:00:00+00:00", "resolved_at": None}
+        with patch("tesla_cli.api.routes.alerts.events.ack_alert", return_value=payload):
+            r = client.post("/api/alerts/alt_123/ack")
+        assert r.status_code == 200
+        assert r.json()["alert_id"] == "alt_123"
+
+    def test_ack_unknown_alert_returns_404(self, srv):
+        client, _, _ = srv
+        with patch("tesla_cli.api.routes.alerts.events.ack_alert", return_value=None):
+            r = client.post("/api/alerts/ghost/ack")
+        assert r.status_code == 404
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -859,6 +1023,56 @@ class TestDossierRoutes:
         assert r.status_code == 200
         data = r.json()
         assert data["vin"] == MOCK_VIN
+
+    def test_dossier_simit_uses_config_cedula(self, srv):
+        client, _, cfg = srv
+        cfg.general.cedula = "123456789"
+        mock_simit = MagicMock()
+        mock_simit.model_dump.return_value = {"comparendos": 0, "total_deuda": "0"}
+        with (
+            patch("tesla_cli.core.backends.dossier.DossierBackend") as MockDB,
+            patch("tesla_cli.api.routes.dossier.load_config", return_value=cfg),
+            patch("tesla_cli.core.sources.get_cached", return_value=None),
+            patch("tesla_cli.core.backends.simit.SimitBackend") as MockSimit,
+        ):
+            MockDB.return_value._load_dossier.return_value = None
+            MockSimit.return_value.query_by_cedula.return_value = mock_simit
+            r = client.get("/api/dossier/simit")
+        assert r.status_code == 200
+        MockSimit.return_value.query_by_cedula.assert_called_once_with("123456789")
+
+    def test_dossier_simit_uses_runt_source_cache(self, srv):
+        client, _, cfg = srv
+        cfg.general.cedula = ""
+        mock_simit = MagicMock()
+        mock_simit.model_dump.return_value = {"comparendos": 1, "total_deuda": "50000"}
+        with (
+            patch("tesla_cli.core.backends.dossier.DossierBackend") as MockDB,
+            patch("tesla_cli.api.routes.dossier.load_config", return_value=cfg),
+            patch(
+                "tesla_cli.core.sources.get_cached",
+                return_value={"no_identificacion": "987654321"},
+            ),
+            patch("tesla_cli.core.backends.simit.SimitBackend") as MockSimit,
+        ):
+            MockDB.return_value._load_dossier.return_value = None
+            MockSimit.return_value.query_by_cedula.return_value = mock_simit
+            r = client.get("/api/dossier/simit")
+        assert r.status_code == 200
+        MockSimit.return_value.query_by_cedula.assert_called_once_with("987654321")
+
+    def test_dossier_simit_no_cedula_returns_404(self, srv):
+        client, _, cfg = srv
+        cfg.general.cedula = ""
+        with (
+            patch("tesla_cli.core.backends.dossier.DossierBackend") as MockDB,
+            patch("tesla_cli.api.routes.dossier.load_config", return_value=cfg),
+            patch("tesla_cli.core.sources.get_cached", return_value=None),
+        ):
+            MockDB.return_value._load_dossier.return_value = None
+            r = client.get("/api/dossier/simit")
+        assert r.status_code == 404
+        assert "general.cedula" in r.json()["detail"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -952,6 +1166,7 @@ class TestAuthRoutes:
         with (
             patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.auth.has_token", return_value=False),
+            patch("tesla_cli.core.auth.portal_scrape.has_portal_session", return_value=False),
         ):
             r = client.get("/api/auth/status")
         assert r.status_code == 200
@@ -961,6 +1176,7 @@ class TestAuthRoutes:
         assert "has_fleet" in data
         assert "has_order" in data
         assert "has_tessie" in data
+        assert "has_portal_session" in data
 
     def test_status_authenticated_fleet(self, srv):
         client, _, cfg = srv
@@ -974,12 +1190,49 @@ class TestAuthRoutes:
         with (
             patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
             patch("tesla_cli.api.routes.auth.has_token", side_effect=_has_token_side),
+            patch("tesla_cli.core.auth.portal_scrape.has_portal_session", return_value=False),
         ):
             r = client.get("/api/auth/status")
         assert r.status_code == 200
         data = r.json()
         assert data["authenticated"] is True
         assert data["has_fleet"] is True
+
+    def test_status_reports_portal_session(self, srv):
+        client, _, cfg = srv
+
+        with (
+            patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
+            patch("tesla_cli.api.routes.auth.has_token", return_value=False),
+            patch("tesla_cli.core.auth.portal_scrape.has_portal_session", return_value=True),
+        ):
+            r = client.get("/api/auth/status")
+
+        assert r.status_code == 200
+        assert r.json()["has_portal_session"] is True
+
+    def test_portal_scrape_uses_saved_session(self, srv):
+        client, _, cfg = srv
+        cfg.order.reservation_number = "RN123456789"
+
+        def _run(*args, **kwargs):
+            script = args[0][2]
+            assert "scrape_portal_with_session" in script
+            return subprocess.CompletedProcess(
+                args=args[0],
+                returncode=0,
+                stdout='{"ok": true, "keys": [], "sections": 0}',
+                stderr="",
+            )
+
+        with (
+            patch("tesla_cli.api.routes.auth.load_config", return_value=cfg),
+            patch("subprocess.run", side_effect=_run),
+        ):
+            r = client.post("/api/auth/portal-scrape", json={})
+
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
 
     def test_login_no_client_id_returns_400(self, srv):
         client, _, cfg = srv
@@ -1072,7 +1325,13 @@ class TestSystemEndpoints:
         assert "/api/climate/status" in paths
         assert "/api/security/lock" in paths
         assert "/api/auth/status" in paths
+        assert "/api/events" in paths
+        assert "/api/alerts" in paths
+        assert "/api/alerts/{alert_id}/ack" in paths
         assert "/api/sources" in paths
+        assert "/api/domains" in paths
+        assert "/api/mission-control" in paths
+        assert "/api/mission-control/dashboard-summary" in paths
 
     def test_root_redirects_or_serves_spa(self, srv):
         client, _, _ = srv

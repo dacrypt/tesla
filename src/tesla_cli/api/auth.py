@@ -41,7 +41,9 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         # Check header first, then query param
         provided = request.headers.get("X-API-Key") or request.query_params.get("api_key") or ""
 
-        if provided != self._key:
+        import hmac as _hmac
+
+        if not _hmac.compare_digest(provided, self._key):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing API key. Provide X-API-Key header."},

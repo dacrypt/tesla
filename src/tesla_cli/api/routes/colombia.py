@@ -124,12 +124,15 @@ def recalls_sic(marca: str = "TESLA") -> dict:
 def peajes(ruta: str = "") -> dict:
     """Toll booth tariffs from datos.gov.co."""
     try:
+        import re as _re
+
         import httpx
 
         params: dict = {"$limit": 100}
         if ruta:
+            safe = _re.sub(r"[^a-zA-Z0-9\s\-]", "", ruta.upper())
             params["$where"] = (
-                f"upper(nombre_estacion_peaje) like '%{ruta.upper()}%' OR upper(sector) like '%{ruta.upper()}%'"
+                f"upper(nombre_estacion_peaje) like '%{safe}%' OR upper(sector) like '%{safe}%'"
             )
         r = httpx.get("https://www.datos.gov.co/resource/7gj8-j6i3.json", params=params, timeout=10)
         r.raise_for_status()

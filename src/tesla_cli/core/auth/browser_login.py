@@ -1,8 +1,8 @@
-"""Automated Tesla login via headless browser (patchright).
+"""Interactive Tesla auth capture via visible browser.
 
-Uses patchright (undetectable Playwright fork) to automate Tesla OAuth.
-Tesla uses hCaptcha on the login page — patchright can sometimes bypass it
-due to its undetectable nature, but it may fail if hCaptcha triggers.
+This flow does not persist Tesla account credentials. It opens Tesla's real
+auth forms in a visible browser, the user completes login / MFA / captcha,
+and we capture the resulting tokens plus portal session state.
 """
 
 from __future__ import annotations
@@ -11,11 +11,13 @@ import base64
 import hashlib
 import logging
 import secrets
-import time
 import urllib.parse
 from typing import Any
 
 import httpx
+
+from tesla_cli.core.auth.portal_scrape import capture_portal_session_and_data
+from tesla_cli.core.auth.tesla_web_auth import wait_for_manual_tesla_interaction
 
 log = logging.getLogger("tesla-cli.browser-login")
 
@@ -24,27 +26,12 @@ TESLA_TOKEN_URL = "https://auth.tesla.com/oauth2/v3/token"
 VOID_CALLBACK = "https://auth.tesla.com/void/callback"
 
 
-def browser_login(
-    email: str,
-    password: str,
-    mfa_code: str | None = None,
-    client_id: str = "ownerapi",
-    scopes: str = "openid email offline_access",
-    timeout: int = 90,
-) -> dict[str, Any]:
-    """Automate Tesla login in browser via patchright.
-
-    Returns: {access_token, refresh_token, token_type, expires_in}
-    """
-    from patchright.sync_api import sync_playwright
-
-    # PKCE
+def _build_auth_url(client_id: str, scopes: str) -> tuple[str, str]:
     verifier = secrets.token_urlsafe(64)
     challenge = (
         base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     )
     state = secrets.token_urlsafe(32)
-
     auth_url = f"{TESLA_AUTH_URL}?" + urllib.parse.urlencode(
         {
             "client_id": client_id,
@@ -56,127 +43,10 @@ def browser_login(
             "code_challenge_method": "S256",
         }
     )
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 800},
-        )
-        page = context.new_page()
-
-        try:
-            log.info("Opening Tesla login...")
-            page.goto(auth_url, timeout=timeout * 1000)
-
-            # Wait for email input
-            log.info("Waiting for email field...")
-            email_input = page.wait_for_selector(
-                'input#identity, input[name="identity"]', timeout=20000
-            )
-            if not email_input:
-                raise Exception("Email input not found")
-
-            # Fill email
-            email_input.fill(email)
-            page.wait_for_timeout(500)
-
-            # Click Next
-            next_btn = page.query_selector('button:has-text("Next")')
-            if next_btn and next_btn.is_visible():
-                next_btn.click()
-            else:
-                page.keyboard.press("Enter")
-
-            page.wait_for_timeout(3000)
-
-            # Wait for password field
-            log.info("Waiting for password field...")
-            password_input = page.wait_for_selector(
-                'input#credential, input[name="credential"], input[type="password"]',
-                timeout=15000,
-            )
-            if not password_input:
-                raise Exception("Password input not found")
-
-            password_input.fill(password)
-            page.wait_for_timeout(500)
-
-            # Submit
-            submit_btn = page.query_selector(
-                'button:has-text("Sign In"), button:has-text("Submit"), button[type="submit"]'
-            )
-            if submit_btn and submit_btn.is_visible():
-                submit_btn.click()
-            else:
-                page.keyboard.press("Enter")
-
-            # Wait for result
-            log.info("Waiting for auth result...")
-            deadline = time.monotonic() + timeout
-
-            while time.monotonic() < deadline:
-                url = page.url
-
-                # Success
-                if "void/callback" in url and "code=" in url:
-                    parsed = urllib.parse.urlparse(url)
-                    qs = urllib.parse.parse_qs(parsed.query)
-                    code = qs.get("code", [""])[0]
-                    if code:
-                        log.info("Auth code captured!")
-                        browser.close()
-                        return _exchange_code(code, client_id, verifier)
-
-                # MFA
-                mfa_el = page.query_selector('input#credential, input[name="credential"]')
-                page_text = page.text_content("body") or ""
-                if (
-                    mfa_el
-                    and mfa_el.is_visible()
-                    and ("passcode" in page_text.lower() or "verification" in page_text.lower())
-                ):
-                    if mfa_code:
-                        log.info("Filling MFA...")
-                        mfa_el.fill(mfa_code)
-                        btn = page.query_selector(
-                            'button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]'
-                        )
-                        if btn:
-                            btn.click()
-                        page.wait_for_timeout(3000)
-                    else:
-                        browser.close()
-                        raise Exception("MFA_REQUIRED")
-
-                # Check for error messages
-                for sel in [
-                    ".error-message",
-                    ".form-error",
-                    '[class*="error"]',
-                    '[class*="Error"]',
-                ]:
-                    err_el = page.query_selector(sel)
-                    if err_el and err_el.is_visible():
-                        txt = err_el.inner_text().strip()
-                        if txt and len(txt) > 5 and "captcha" not in txt.lower():
-                            browser.close()
-                            raise Exception(f"Tesla: {txt}")
-
-                page.wait_for_timeout(2000)
-
-            browser.close()
-            raise Exception("Login timed out. Tesla may require manual captcha completion.")
-
-        except Exception:
-            try:
-                browser.close()
-            except Exception:
-                pass
-            raise
+    return auth_url, verifier
 
 
 def _exchange_code(code: str, client_id: str, verifier: str) -> dict[str, Any]:
-    """Exchange auth code for tokens."""
     r = httpx.post(
         TESLA_TOKEN_URL,
         data={
@@ -192,42 +62,114 @@ def _exchange_code(code: str, client_id: str, verifier: str) -> dict[str, Any]:
     return r.json()
 
 
+def _capture_auth_code(page: Any, auth_url: str, context_label: str, timeout: int = 300) -> str:
+    page.goto(auth_url, timeout=timeout * 1000)
+    if wait_for_manual_tesla_interaction(
+        page=page,
+        success_check=lambda: "void/callback" in page.url and "code=" in page.url,
+        timeout_seconds=timeout,
+        log=log,
+        context=context_label,
+    ):
+        parsed = urllib.parse.urlparse(page.url)
+        code = urllib.parse.parse_qs(parsed.query).get("code", [""])[0]
+        if code:
+            return code
+    raise RuntimeError(
+        f"{context_label} timed out. Complete Tesla login / MFA / captcha in the visible browser window and retry."
+    )
+
+
+def interactive_login_and_capture(
+    *,
+    fleet_client_id: str | None = None,
+    reservation_number: str = "",
+    timeout: int = 420,
+) -> dict[str, Any]:
+    """Capture owner tokens, optional fleet tokens, and portal session interactively."""
+    from patchright.sync_api import sync_playwright
+
+    result: dict[str, Any] = {}
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context(viewport={"width": 1280, "height": 900})
+        page = context.new_page()
+
+        try:
+            owner_url, owner_verifier = _build_auth_url("ownerapi", "openid email offline_access")
+            owner_code = _capture_auth_code(page, owner_url, "Tesla owner login", timeout=timeout)
+            result["order"] = _exchange_code(owner_code, "ownerapi", owner_verifier)
+
+            if fleet_client_id:
+                fleet_url, fleet_verifier = _build_auth_url(
+                    fleet_client_id,
+                    "openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds",
+                )
+                fleet_code = _capture_auth_code(page, fleet_url, "Tesla fleet login", timeout=timeout)
+                result["fleet"] = _exchange_code(fleet_code, fleet_client_id, fleet_verifier)
+            else:
+                result["fleet"] = None
+
+            portal_data, storage_state = capture_portal_session_and_data(
+                context=context,
+                page=page,
+                reservation_number=reservation_number,
+                timeout=timeout,
+            )
+            result["portal"] = portal_data
+            result["portal_storage_state"] = storage_state
+            result["portal_sections"] = len(portal_data)
+            result["portal_keys"] = list(portal_data.keys())
+
+            return result
+        finally:
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+
+def browser_login(
+    email: str | None = None,
+    password: str | None = None,
+    mfa_code: str | None = None,
+    client_id: str = "ownerapi",
+    scopes: str = "openid email offline_access",
+    timeout: int = 90,
+) -> dict[str, Any]:
+    """Backward-compatible wrapper kept for old integration tests.
+
+    It now opens the browser and lets the user complete Tesla auth manually.
+    """
+    del email, password, mfa_code
+    from patchright.sync_api import sync_playwright
+
+    auth_url, verifier = _build_auth_url(client_id, scopes)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context(viewport={"width": 1280, "height": 900})
+        page = context.new_page()
+        try:
+            code = _capture_auth_code(page, auth_url, "Tesla auth", timeout=timeout)
+            return _exchange_code(code, client_id, verifier)
+        finally:
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+
 def full_login(
-    email: str,
-    password: str,
+    email: str | None = None,
+    password: str | None = None,
     mfa_code: str | None = None,
     fleet_client_id: str | None = None,
+    reservation_number: str = "",
 ) -> dict[str, Any]:
-    """Get both Owner API and Fleet API tokens in one flow."""
-    result: dict[str, Any] = {"email": email}
-
-    # Owner API token (for orders)
-    log.info("Getting Owner API token...")
-    order_tokens = browser_login(
-        email,
-        password,
-        mfa_code,
-        client_id="ownerapi",
-        scopes="openid email offline_access",
+    """Backward-compatible entrypoint for existing callers."""
+    del email, password, mfa_code
+    return interactive_login_and_capture(
+        fleet_client_id=fleet_client_id,
+        reservation_number=reservation_number,
     )
-    result["order"] = order_tokens
-
-    # Fleet API token (for vehicle data)
-    if fleet_client_id:
-        log.info("Getting Fleet API token...")
-        try:
-            fleet_tokens = browser_login(
-                email,
-                password,
-                mfa_code,
-                client_id=fleet_client_id,
-                scopes="openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds",
-            )
-            result["fleet"] = fleet_tokens
-        except Exception as exc:
-            log.warning("Fleet token failed: %s", exc)
-            result["fleet"] = None
-    else:
-        result["fleet"] = None
-
-    return result

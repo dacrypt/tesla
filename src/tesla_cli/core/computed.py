@@ -7,11 +7,8 @@ specs without requiring a full dossier build.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
-from pathlib import Path
-from typing import Any
 
 import httpx
 
@@ -102,7 +99,7 @@ def compute_real_status(
 
 def compute_specs(vin: str = "", option_codes_raw: str = "") -> dict:
     """Build vehicle specs from VIN decode and option codes."""
-    from tesla_cli.core.backends.dossier import decode_vin, decode_option_codes
+    from tesla_cli.core.backends.dossier import decode_option_codes, decode_vin
 
     vd = decode_vin(vin) if vin else None
     year = int(vd.model_year) if vd and vd.model_year.isdigit() else 0
@@ -116,7 +113,7 @@ def compute_specs(vin: str = "", option_codes_raw: str = "") -> dict:
     connectivity = ""
     if option_codes_raw:
         codes = decode_option_codes(option_codes_raw)
-        for oc in codes:
+        for oc in codes.codes:
             if oc.category == "paint":
                 ext_color = oc.description_es
             elif oc.category == "interior":
@@ -170,22 +167,15 @@ def compute_specs(vin: str = "", option_codes_raw: str = "") -> dict:
 
 
 def _get_epa_data() -> dict:
-    """Get EPA specs. Priority: mission-control-data.json → API → fallback."""
-    mc_paths = [
-        Path(__file__).parent.parent.parent / "mission-control-data.json",
-        Path.cwd() / "mission-control-data.json",
-    ]
-    for p in mc_paths:
-        if p.exists():
-            try:
-                mc = json.loads(p.read_text())
-                epa = mc.get("epa", {})
-                if isinstance(epa, dict) and "_meta" in epa:
-                    epa = epa.get("data", epa)
-                if epa and epa.get("ev_motor"):
-                    return epa
-            except Exception:
-                pass
+    """Get EPA specs. Priority: source cache → API → fallback."""
+    try:
+        from tesla_cli.core.sources import get_cached
+
+        epa = get_cached("us.epa_fuel_economy") or {}
+        if epa and epa.get("ev_motor"):
+            return epa
+    except Exception:
+        pass
 
     try:
         with httpx.Client(timeout=10) as client:

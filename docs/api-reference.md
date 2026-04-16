@@ -194,8 +194,46 @@ Data source cache management — mirrors `tesla data data-sources` and related c
 | GET | `/api/sources/{source_id}` | Single source detail + cached value |
 | POST | `/api/sources/{source_id}/refresh` | Force refresh a specific source |
 | GET | `/api/sources/{source_id}/history` | Cache history for a source |
+| GET | `/api/sources/{source_id}/diffs` | Structured diff log for a source |
+| GET | `/api/sources/{source_id}/queries` | Query audit trail: consulted source/mode plus normalized response/error |
 | GET | `/api/sources/{source_id}/audits` | Audit log entries for a source |
 | GET | `/api/sources/{source_id}/audit/{filename}` | Single audit file content |
+
+### Domains
+
+Derived semantic views computed from cached sources:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/domains` | List all computed domain projections |
+| GET | `/api/domains/{domain_id}` | Single domain projection |
+| POST | `/api/domains/{domain_id}/recompute` | Recompute and persist a domain |
+
+### Mission Control
+
+Derived executive read model built from sources + domains:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/mission-control` | Executive Mission Control payload with domains, sources, critical diffs, and timeline |
+| GET | `/api/mission-control/dashboard-summary` | Compact Mission Control executive summary |
+
+### Events
+
+Persistent source/domain event stream:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/events` | List recent source/domain events |
+
+### Alerts
+
+Persistent alert stream derived from source/domain events:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/alerts` | List recent alerts (`active_only=true` by default) |
+| POST | `/api/alerts/{alert_id}/ack` | Acknowledge an alert without resolving it |
 
 ### Auth
 
@@ -277,5 +315,12 @@ Navigate to `http://localhost:8000` for a mobile-friendly dashboard:
 ```bash
 make ui          # start Vite dev server (proxies to FastAPI)
 make api         # start FastAPI with --reload
+make dev         # run both together (:8080 API + :5173 UI)
 make serve       # build UI + run production server
 ```
+
+During local UI development:
+
+- Open `http://localhost:5173`
+- API requests to `/api/*` are proxied automatically to `http://localhost:8080`
+- No `localStorage` API URL override is needed in dev

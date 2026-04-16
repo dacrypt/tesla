@@ -46,6 +46,17 @@ def create_rule(rule: dict) -> dict:
         raise HTTPException(status_code=422, detail="trigger is required")
     if not isinstance(new_rule.action, AutomationAction):
         raise HTTPException(status_code=422, detail="action is required")
+    # Block shell command actions via API unless explicitly allowed
+    if new_rule.action.type in ("command", "exec"):
+        from tesla_cli.core.config import load_config
+
+        cfg = load_config()
+        if not getattr(cfg.server, "allow_shell_automations", False):
+            raise HTTPException(
+                status_code=403,
+                detail="Shell command automations disabled via API. "
+                "Create them via CLI or set server.allow_shell_automations = true.",
+            )
     # Reject duplicate names
     if any(r.name == new_rule.name for r in engine.rules):
         raise HTTPException(status_code=409, detail=f"Rule '{new_rule.name}' already exists")

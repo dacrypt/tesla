@@ -107,6 +107,8 @@ tesla/
 |----------|-------------|
 | **[User Guide](docs/user-guide.md)** | Complete command reference (13 command groups) |
 | **[Architecture](docs/architecture.md)** | System design, provider layers, data flow, design decisions |
+| **[Target Architecture](docs/TARGET-ARCHITECTURE.md)** | Source-first system design for Mission Control, domains, alerts, and storage |
+| **[Migration Plan](docs/MIGRATION-PLAN-SOURCE-FIRST.md)** | Phased path from legacy Mission Control blob to source/domain/event architecture |
 | **[Configuration](docs/configuration.md)** | Config keys, auth, tokens, environment variables |
 | **[API Reference](docs/api-reference.md)** | REST endpoints, SSE stream, Prometheus metrics, web dashboard |
 | **[Data Sources](docs/data-sources.md)** | Tesla API catalog, third-party services, registered sources |
@@ -126,6 +128,35 @@ docker compose up -d
 ```
 
 Dashboard at `http://localhost:8080`.
+
+## Development
+
+Fastest local setup:
+
+```bash
+make install   # one-time: Python + Node deps
+make dev       # backend on :8080 + Vite UI on :5173
+```
+
+Open:
+
+- UI dev: `http://localhost:5173`
+- API/docs: `http://localhost:8080/api/docs`
+
+Useful commands:
+
+```bash
+make api       # backend only, with --reload
+make ui        # frontend only, Vite dev server with proxy to :8080
+make build     # compile UI into src/tesla_cli/api/ui_dist
+make serve     # production-style run (build + backend-served UI on :8080)
+```
+
+Notes:
+
+- In dev, the React app automatically uses Vite's `/api` proxy to `http://localhost:8080`.
+- You do not need to set `localStorage.tesla_api_url` for local dev.
+- For a non-default API target, set `VITE_TESLA_API_URL` before `make ui`.
 
 ### Full Stack (with TeslaMate + Grafana)
 

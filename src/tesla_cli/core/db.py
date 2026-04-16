@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from tesla_cli.core.config import CONFIG_DIR

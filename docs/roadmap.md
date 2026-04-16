@@ -27,6 +27,7 @@
 - ✅ **Nearby Chargers** — `vehicle nearby` (Superchargers + destination)
 - ✅ **Scheduled Charging/Departure** — `charge schedule`, `charge departure`, `charge schedule-preview`, `charge profile`
 - ✅ **CSV Export** — `charge sessions --csv`, `charge cost-summary --csv`
+- ✅ **Source-First Mission Control Core** — per-source cache/history/diffs, domain projections, persistent events/alerts, Mission Control read model
 - ✅ **TPMS Tires** — `vehicle tires`
 - ✅ **Actionable 412 Error** — `EndpointDeprecatedError` with Fleet/Tessie migration guidance
 - ✅ **Order Status --oneline** — compact emoji output for tmux/scripts

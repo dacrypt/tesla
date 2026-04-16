@@ -274,6 +274,34 @@ tesla data export-pdf                 # requires pdf extra
 
 ---
 
+## 4d. Source-First Domains & Event Streams
+
+Inspect the new derived model directly from the CLI:
+
+```bash
+tesla domain list                    # all derived domain projections
+tesla domain show delivery           # delivery projection
+tesla domain show legal              # legal/registration projection
+tesla domain show financial          # payment, lender, valuation, fines debt
+tesla domain show safety             # recalls, complaints, investigations
+tesla domain show identity           # VIN/model/manufacturer/plant summary
+tesla domain show source_health      # fleet-wide source freshness and errors
+
+tesla alerts                         # active alerts
+tesla alerts --all                   # include resolved alerts
+tesla alerts --ack alt_123           # acknowledge one alert
+tesla events                         # recent source/domain events
+tesla events --limit 100
+```
+
+These commands expose the same source-first architecture used by Mission Control:
+- per-source state
+- derived domains
+- persistent events
+- persistent alerts
+
+---
+
 ## 5. Fleet Telemetry
 
 Self-hosted real-time vehicle streaming — zero polling, zero vampire drain.
@@ -478,6 +506,24 @@ tesla serve install-service # generate systemd/launchd service file
 ```
 
 See [api-reference.md](api-reference.md) for full endpoint documentation.
+
+### Mission Control read models
+
+Once the server is running, the React UI and API expose the new source-first read models:
+
+```bash
+# API surfaces
+GET /api/mission-control
+GET /api/mission-control/dashboard-summary
+GET /api/domains
+GET /api/events
+GET /api/alerts
+
+# UI routes
+/dashboard   # executive Mission Control
+/alerts      # persisted alerts stream
+/timeline    # persisted event stream
+```
 
 ---
 
