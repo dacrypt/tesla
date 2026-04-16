@@ -51,7 +51,7 @@ def create_rule(rule: dict) -> dict:
         from tesla_cli.core.config import load_config
 
         cfg = load_config()
-        if not getattr(cfg.server, "allow_shell_automations", False):
+        if not cfg.server.allow_shell_automations:
             raise HTTPException(
                 status_code=403,
                 detail="Shell command automations disabled via API. "
