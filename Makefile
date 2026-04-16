@@ -5,15 +5,15 @@
 dev: ## Start backend + frontend in parallel
 	@echo "Starting API server and UI dev server..."
 	@trap 'kill 0' EXIT; \
-		uv run tesla serve --port 8080 --no-open & \
-		npm --prefix ui run dev & \
+		uv run tesla serve --port 8080 --reload --no-open & \
+		npm --prefix ui run dev -- --host 127.0.0.1 --port 5173 & \
 		wait
 
-api: ## Start backend API only
-	uv run tesla serve --port 8080
+api: ## Start backend API only (auto-reload)
+	uv run tesla serve --port 8080 --reload
 
 ui: ## Start frontend dev server only (with proxy to backend)
-	npm --prefix ui run dev
+	npm --prefix ui run dev -- --host 127.0.0.1 --port 5173
 
 # ── Build ────────────────────────────────────────────────────────────────────
 

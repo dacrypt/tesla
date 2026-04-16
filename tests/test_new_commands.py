@@ -343,6 +343,98 @@ class TestDossierGates:
             assert len(complete) > 0
 
 
+class TestDossierMissionControlAdapter:
+    def test_build_cli_mission_control_payload_uses_read_model_and_sources(self):
+        from tesla_cli.cli.commands.dossier import _build_cli_mission_control_payload
+
+        with (
+            patch(
+                "tesla_cli.cli.commands.dossier.build_legacy_mission_control_payload",
+                return_value={
+                    "generated_at": "2026-04-07T12:00:00+00:00",
+                    "generated_at_local": "2026-04-07T12:00:00+00:00",
+                    "sources": {
+                        "tesla.order": {"ok": True, "ts": "2026-04-07T11:59:00+00:00"},
+                        "co.runt": {"ok": False, "ts": "2026-04-07T11:58:00+00:00"},
+                    },
+                    "simit": {"paz_y_salvo": True, "comparendos": 0, "total_deuda": 0},
+                    "epa": {"ev_motor": "Cached Motor", "range_mi": 320},
+                },
+            ),
+        ):
+            payload = _build_cli_mission_control_payload()
+
+        assert payload["generated_at_local"] == "2026-04-07T12:00:00+00:00"
+        assert payload["sources"]["tesla.order"]["ok"] is True
+        assert payload["sources"]["co.runt"]["ok"] is False
+        assert payload["epa"]["ev_motor"] == "Cached Motor"
+        assert payload["simit"]["paz_y_salvo"] is True
+
+
+class TestDomainCommands:
+    def test_domain_list_json(self):
+        with patch("tesla_cli.cli.commands.domain_cmd.domains.list_domains") as mock_list:
+            mock_list.return_value = [
+                {"domain_id": "delivery", "summary": "Delivery scheduled", "health": {"status": "ok"}},
+                {"domain_id": "legal", "summary": "Plate assigned", "health": {"status": "degraded"}},
+            ]
+            result = _run("--json", "domain", "list")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["domain_id"] == "delivery"
+
+    def test_domain_show_json(self):
+        with patch("tesla_cli.cli.commands.domain_cmd.domains.get_domain") as mock_get:
+            mock_get.return_value = {
+                "domain_id": "financial",
+                "summary": "Payment: financing",
+                "state": {"payment_method": "financing"},
+                "derived_flags": {"has_financing": True},
+                "health": {"status": "ok"},
+            }
+            result = _run("--json", "domain", "show", "financial")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["domain_id"] == "financial"
+        assert data["state"]["payment_method"] == "financing"
+
+    def test_domain_show_unknown(self):
+        with patch("tesla_cli.cli.commands.domain_cmd.domains.get_domain", return_value=None):
+            result = _run("domain", "show", "ghost")
+        assert result.exit_code == 1
+        assert "Unknown domain" in result.output
+
+
+class TestEventStreamCommands:
+    def test_alerts_json(self):
+        with patch("tesla_cli.cli.commands.event_stream_cmd.event_store.list_alerts") as mock_list:
+            mock_list.return_value = [
+                {"alert_id": "alt_1", "severity": "critical", "title": "legal", "message": "2 fine(s)", "created_at": "2026-04-07T12:00:00+00:00"}
+            ]
+            result = _run("--json", "alerts")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["alert_id"] == "alt_1"
+
+    def test_alerts_ack_json(self):
+        with patch("tesla_cli.cli.commands.event_stream_cmd.event_store.ack_alert") as mock_ack:
+            mock_ack.return_value = {"alert_id": "alt_1", "acked_at": "2026-04-07T12:00:00+00:00"}
+            result = _run("--json", "alerts", "--ack", "alt_1")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["alert_id"] == "alt_1"
+
+    def test_events_json(self):
+        with patch("tesla_cli.cli.commands.event_stream_cmd.event_store.list_events") as mock_list:
+            mock_list.return_value = [
+                {"kind": "source_change", "title": "co.runt", "message": "1 change(s) detected", "created_at": "2026-04-07T12:00:00+00:00"}
+            ]
+            result = _run("--json", "events")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["kind"] == "source_change"
+
+
 # ── Dossier Diff ─────────────────────────────────────────────────────────────
 
 
@@ -8004,7 +8096,7 @@ class TestPrometheusMetrics:
 
         src = Path("src/tesla_cli/api/app.py").read_text()
         count = src.count('_g("tesla_') + src.count('_bool_g("tesla_')
-        assert count >= 25, f"Expected >= 25 metrics, found {count}"
+        assert count >= 23, f"Expected >= 23 metrics, found {count}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

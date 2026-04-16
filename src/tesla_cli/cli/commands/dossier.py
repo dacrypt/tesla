@@ -15,6 +15,7 @@ from rich.table import Table
 
 from tesla_cli.cli.output import console, is_json_mode
 from tesla_cli.core.backends.dossier import DossierBackend
+from tesla_cli.core.mission_control import build_legacy_mission_control_payload
 
 
 def dossier_build() -> None:
@@ -222,8 +223,6 @@ def dossier_build() -> None:
 
 def dossier_show() -> None:
     """Show the current saved dossier (without fetching new data)."""
-    from pathlib import Path
-
     from rich.panel import Panel
 
     backend = DossierBackend()
@@ -232,20 +231,8 @@ def dossier_show() -> None:
         console.print("[yellow]No dossier found. Run: tesla dossier build[/yellow]")
         raise typer.Exit(1)
 
-    # ── Load mission-control-data.json if available ──
-    mc_data: dict = {}
-    mc_path = Path(__file__).parent.parent.parent.parent / "mission-control-data.json"
-    for candidate in [
-        mc_path,
-        Path.cwd() / "mission-control-data.json",
-        Path.home() / ".tesla-cli" / "mission-control-data.json",
-    ]:
-        if candidate.exists():
-            try:
-                mc_data = json.loads(candidate.read_text())
-            except Exception:
-                pass
-            break
+    # ── Build derived Mission Control compatibility payload ──
+    mc_data = _build_cli_mission_control_payload()
 
     if is_json_mode():
         data = json.loads(dossier.model_dump_json(indent=2, exclude_none=True))
@@ -827,6 +814,14 @@ def _render_meta(con, dossier, mc_data: dict) -> None:
     )
     if mc_data.get("generated_at_local"):
         con.print(f"  [dim]Mission Control: {str(mc_data['generated_at_local'])[:19]}[/dim]")
+
+
+def _build_cli_mission_control_payload() -> dict:
+    """Build a compatibility payload for dossier render helpers from source/domain state."""
+    try:
+        return build_legacy_mission_control_payload()
+    except Exception:
+        return {}
 
 
 def dossier_history() -> None:

@@ -13,6 +13,37 @@ uv run ruff format src/ tests/          # format
 
 Python 3.12+ required. All dependencies managed with [uv](https://docs.astral.sh/uv/).
 
+## Local Dev
+
+For day-to-day UI + API work:
+
+```bash
+make install
+make dev
+```
+
+This runs:
+
+- FastAPI backend on `http://localhost:8080` with `--reload`
+- Vite frontend on `http://localhost:5173`
+
+The Vite dev server proxies `/api` to `http://localhost:8080`, so the UI works out of the box.
+
+Single-service commands:
+
+```bash
+make api   # backend only
+make ui    # frontend only
+make serve # production-style UI served by backend on :8080
+```
+
+If you need the frontend to call a different API during dev, set:
+
+```bash
+export VITE_TESLA_API_URL=http://127.0.0.1:9000
+make ui
+```
+
 ---
 
 ## Architecture Overview

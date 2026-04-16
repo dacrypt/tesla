@@ -95,10 +95,13 @@ def _register_commands() -> None:
     # Core vehicle commands
     from tesla_cli.cli.commands.charge import charge_app
     from tesla_cli.cli.commands.climate import climate_app
+    from tesla_cli.cli.commands.event_stream_cmd import alerts_command, events_command
     from tesla_cli.cli.commands.media import media_app
     from tesla_cli.cli.commands.notify import notify_app
     from tesla_cli.cli.commands.order import order_app
+    from tesla_cli.cli.commands.runt import runt_app
     from tesla_cli.cli.commands.security import security_app
+    from tesla_cli.cli.commands.simit import simit_app
     from tesla_cli.cli.commands.vehicle import vehicle_app
 
     app.add_typer(order_app, name="order")
@@ -106,8 +109,12 @@ def _register_commands() -> None:
     app.add_typer(charge_app, name="charge")
     app.add_typer(climate_app, name="climate")
     app.add_typer(security_app, name="security")
+    app.add_typer(simit_app, name="simit")
     app.add_typer(media_app, name="media")
     app.add_typer(notify_app, name="notify")
+    app.add_typer(runt_app, name="runt")
+    app.command("alerts")(alerts_command)
+    app.command("events")(events_command)
 
     # Service center management
     from tesla_cli.cli.commands.service import service_app
@@ -121,8 +128,10 @@ def _register_commands() -> None:
 
     # Data sources & exports
     from tesla_cli.cli.commands.data_cmd import data_app
+    from tesla_cli.cli.commands.domain_cmd import domain_app
 
     app.add_typer(data_app, name="data")
+    app.add_typer(domain_app, name="domain")
 
     # Automations
     from tesla_cli.cli.commands.automations import automations_app

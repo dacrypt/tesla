@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 import jwt
 
+from tesla_cli import __version__
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.auth.oauth import refresh_access_token
 from tesla_cli.core.exceptions import ApiError, AuthenticationError, OrderNotFoundError
@@ -42,9 +43,12 @@ ORDERS_URL = f"{OWNER_API_BASE}/api/1/users/orders"
 TASKS_API_BASE = "https://akamai-apigateway-vfx.tesla.com"
 
 # Local state files
-STATE_DIR = Path.home() / ".tesla-cli" / "state"
+TESLA_CLI_DIR = Path.home() / ".tesla-cli"
+STATE_DIR = TESLA_CLI_DIR / "state"
+SOURCES_DIR = TESLA_CLI_DIR / "sources"
 ORDER_STATE_FILE = STATE_DIR / "last_order.json"
 DELIVERY_CACHE_FILE = STATE_DIR / "delivery.json"
+PORTAL_CACHE_FILE = SOURCES_DIR / "tesla.portal.json"
 DELIVERY_CACHE_MAX_AGE_HOURS = 72
 
 
@@ -86,7 +90,7 @@ class OrderBackend:
         return {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
-            "User-Agent": "tesla-cli/0.1.0",
+            "User-Agent": f"tesla-cli/{__version__}",
         }
 
     # ── Order status (owner-api) ───────────────────────────────
@@ -118,57 +122,49 @@ class OrderBackend:
         raise OrderNotFoundError(f"Order {reservation_number} not found")
 
     def get_order_tasks(self, reservation_number: str) -> list[OrderTask]:
-        """Get order tasks/steps from the tasks API."""
+        """Get order tasks/steps from Tesla, falling back to cached portal data."""
         params = {
             "referenceNumber": reservation_number,
-            "deviceLanguage": "en",
-            "deviceCountry": "US",
-            "appVersion": "4.40.0",
+            "deviceLanguage": "es",
+            "deviceCountry": "CO",
+            "appVersion": "4.50.0",
         }
         resp = self._client.get(
             f"{TASKS_API_BASE}/tasks",
             params=params,
             headers=self._headers(),
         )
-        if resp.status_code != 200:
-            return []
-        data = resp.json()
-        tasks = []
-        for item in data if isinstance(data, list) else data.get("tasks", data.get("response", [])):
-            tasks.append(
-                OrderTask(
-                    task_type=item.get("taskType", item.get("type", "")),
-                    task_status=item.get("taskStatus", item.get("status", "")),
-                    task_name=item.get("taskName", item.get("name", "")),
-                    completed=item.get("completed", False),
-                    active=item.get("active", False),
-                    details=item,
-                )
+        self.last_query_meta = {
+            "url": str(resp.request.url),
+            "method": resp.request.method,
+            "status_code": resp.status_code,
+            "response_text_excerpt": resp.text[:2000],
+        }
+        if resp.status_code == 200:
+            data = resp.json()
+            parsed = self._parse_task_items(
+                data if isinstance(data, list) else data.get("tasks", data.get("response", []))
             )
-        return tasks
+            if parsed:
+                return parsed
+
+        portal_tasks = self._load_portal_tasks_for_order(reservation_number)
+        if portal_tasks:
+            return portal_tasks
+        return []
 
     def get_order_details(self, reservation_number: str) -> OrderDetails:
         """Get full order details including tasks and delivery data."""
         status = self.get_order_status(reservation_number)
         tasks = self.get_order_tasks(reservation_number)
+        if not tasks:
+            tasks = self._extract_tasks_from_order_payload(status.raw)
 
-        # Enrich with delivery cache data
-        delivery_data = status.raw.get("delivery", {})
-        cached = self._load_delivery_cache_for_order(
+        delivery_data = self._build_delivery_data(
             reservation_number=reservation_number,
             vin=status.vin,
+            raw_order=status.raw,
         )
-        if cached:
-            dd = cached.get("delivery_details", {})
-            timing = dd.get("deliveryTiming", {})
-            delivery_data = {
-                **delivery_data,
-                "appointment": timing.get("appointment", ""),
-                "appointmentDateUtc": dd.get("deliveryAppointmentDateUtc", ""),
-                "location": timing.get("pickupLocationTitle", ""),
-                "address": timing.get("formattedAddressSingleLine", ""),
-                "cachedAt": cached.get("fetched_at", ""),
-            }
 
         return OrderDetails(
             status=status,
@@ -469,7 +465,13 @@ class OrderBackend:
             return json.loads(DELIVERY_CACHE_FILE.read_text())
         return None
 
-    def _load_delivery_cache_for_order(self, reservation_number: str, vin: str = "") -> dict | None:
+    def _load_delivery_cache_for_order(
+        self,
+        reservation_number: str,
+        vin: str = "",
+        *,
+        allow_stale: bool = False,
+    ) -> dict | None:
         cached = self._load_delivery_cache()
         if not cached:
             return None
@@ -478,8 +480,11 @@ class OrderBackend:
             if fetched_at:
                 fetched = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
                 age_hours = (datetime.now(UTC) - fetched.astimezone(UTC)).total_seconds() / 3600
+                cached["_cache_age_hours"] = age_hours
                 if age_hours > DELIVERY_CACHE_MAX_AGE_HOURS:
-                    return None
+                    cached["_stale"] = True
+                    if not allow_stale:
+                        return None
         except Exception:
             logger.warning("Failed to validate delivery cache timestamp", exc_info=True)
             return None
@@ -496,6 +501,125 @@ class OrderBackend:
     def _save_delivery_cache(self, data: dict) -> None:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         DELIVERY_CACHE_FILE.write_text(json.dumps(data, default=str, indent=2))
+
+    def _build_delivery_data(self, reservation_number: str, vin: str, raw_order: dict[str, Any]) -> dict[str, Any]:
+        delivery_data = dict(raw_order.get("delivery", {}) or {})
+
+        portal_cached = self._load_portal_cache_for_order(reservation_number, vin)
+        if portal_cached:
+            delivery_data = self._merge_delivery_from_portal(delivery_data, portal_cached)
+
+        cached = self._load_delivery_cache_for_order(
+            reservation_number=reservation_number,
+            vin=vin,
+            allow_stale=not bool(delivery_data),
+        )
+        if cached:
+            dd = cached.get("delivery_details", {})
+            timing = dd.get("deliveryTiming", {})
+            delivery_data = {
+                **delivery_data,
+                "appointment": timing.get("appointment", delivery_data.get("appointment", "")),
+                "appointmentDateUtc": dd.get("deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")),
+                "location": timing.get("pickupLocationTitle", delivery_data.get("location", "")),
+                "address": timing.get("formattedAddressSingleLine", delivery_data.get("address", "")),
+                "cachedAt": cached.get("fetched_at", ""),
+                "cacheStale": bool(cached.get("_stale")),
+                "cacheAgeHours": round(float(cached.get("_cache_age_hours", 0)), 2) if cached.get("_cache_age_hours") is not None else None,
+            }
+        return delivery_data
+
+    def _load_portal_cache_for_order(self, reservation_number: str, vin: str = "") -> dict[str, Any] | None:
+        if not PORTAL_CACHE_FILE.exists():
+            return None
+        try:
+            cached = json.loads(PORTAL_CACHE_FILE.read_text())
+        except Exception:
+            return None
+        data = cached.get("data") if isinstance(cached, dict) else None
+        if not isinstance(data, dict) or not data:
+            return None
+        order = data.get("Order") or data.get("order") or data.get("Vehicle") or {}
+        if isinstance(order, dict):
+            cached_rn = str(order.get("referenceNumber") or order.get("rn") or "").strip()
+            cached_vin = str(order.get("vin") or "").strip()
+            if reservation_number and cached_rn and cached_rn != reservation_number:
+                return None
+            if vin and cached_vin and cached_vin != vin:
+                return None
+        return data
+
+    def _merge_delivery_from_portal(self, delivery_data: dict[str, Any], portal_data: dict[str, Any]) -> dict[str, Any]:
+        dd = portal_data.get("DeliveryDetails") or portal_data.get("delivery_details") or {}
+        timing = dd.get("deliveryTiming", {}) if isinstance(dd, dict) else {}
+        if not isinstance(dd, dict):
+            return delivery_data
+        return {
+            **delivery_data,
+            "appointment": timing.get("appointment", delivery_data.get("appointment", "")),
+            "appointmentDateUtc": dd.get("deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")),
+            "location": timing.get("pickupLocationTitle", delivery_data.get("location", "")),
+            "address": timing.get("formattedAddressSingleLine", delivery_data.get("address", "")),
+        }
+
+    def _load_portal_tasks_for_order(self, reservation_number: str) -> list[OrderTask]:
+        portal_data = self._load_portal_cache_for_order(reservation_number)
+        if not portal_data:
+            return []
+        for key in ("tasks", "Tasks", "tesla_tasks", "preDeliveryTasks"):
+            parsed = self._parse_task_items(portal_data.get(key))
+            if parsed:
+                return parsed
+        app_order = portal_data.get("Order") or portal_data.get("order") or {}
+        for key in ("tasks", "Tasks", "tesla_tasks", "preDeliveryTasks"):
+            parsed = self._parse_task_items(app_order.get(key) if isinstance(app_order, dict) else None)
+            if parsed:
+                return parsed
+        return []
+
+    def _extract_tasks_from_order_payload(self, raw_order: dict[str, Any]) -> list[OrderTask]:
+        details = raw_order.get("_details", raw_order.get("details", {}))
+        if not isinstance(details, dict):
+            return []
+        return self._parse_task_items(details.get("tasks"))
+
+    def _parse_task_items(self, raw_tasks: Any) -> list[OrderTask]:
+        if not raw_tasks:
+            return []
+        items: list[dict[str, Any]] = []
+        if isinstance(raw_tasks, list):
+            items = [item for item in raw_tasks if isinstance(item, dict)]
+        elif isinstance(raw_tasks, dict):
+            for key, value in raw_tasks.items():
+                if isinstance(value, dict):
+                    item = dict(value)
+                    item.setdefault("taskType", key)
+                    item.setdefault("taskName", key)
+                    if "completed" not in item:
+                        item["completed"] = bool(item.get("complete"))
+                    if "active" not in item:
+                        item["active"] = bool(item.get("enabled", True))
+                    if "taskStatus" not in item:
+                        if item.get("completed"):
+                            item["taskStatus"] = "COMPLETE"
+                        elif item.get("active"):
+                            item["taskStatus"] = "PENDING"
+                        else:
+                            item["taskStatus"] = "DISABLED"
+                    items.append(item)
+        parsed = []
+        for item in items:
+            parsed.append(
+                OrderTask(
+                    task_type=item.get("taskType", item.get("type", "")),
+                    task_status=item.get("taskStatus", item.get("status", "")),
+                    task_name=item.get("taskName", item.get("name", item.get("taskType", ""))),
+                    completed=item.get("completed", item.get("complete", False)),
+                    active=item.get("active", item.get("enabled", False)),
+                    details=item,
+                )
+            )
+        return [task for task in parsed if task.task_type]
 
 
 def generate_summary(

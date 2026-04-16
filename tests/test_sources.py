@@ -11,12 +11,16 @@ import pytest
 import tesla_cli.core.sources as sources_module
 from tesla_cli.core.sources import (
     SourceDef,
+    _current_query_context,
     _detect_changes,
     _is_stale,
+    _resolve_owner_cedula,
     get_audits,
     get_cached,
     get_cached_with_meta,
+    get_diffs,
     get_history,
+    get_queries,
     get_source_def,
     list_sources,
     missing_auth,
@@ -34,10 +38,14 @@ def _redirect_dirs(tmp_path, monkeypatch):
     sources_dir = tmp_path / "sources"
     history_dir = tmp_path / "source_history"
     audit_dir = tmp_path / "source_audits"
+    diffs_dir = tmp_path / "source_diffs"
+    queries_dir = tmp_path / "source_queries"
 
     monkeypatch.setattr(sources_module, "SOURCES_DIR", sources_dir)
     monkeypatch.setattr(sources_module, "HISTORY_DIR", history_dir)
     monkeypatch.setattr(sources_module, "AUDIT_DIR", audit_dir)
+    monkeypatch.setattr(sources_module, "DIFFS_DIR", diffs_dir)
+    monkeypatch.setattr(sources_module, "QUERIES_DIR", queries_dir)
 
 
 @pytest.fixture()
@@ -115,7 +123,129 @@ class TestGetSourceDef:
 # ── list_sources ───────────────────────────────────────────────────────────────
 
 
+class TestAutoRefreshBehavior:
+    def test_refresh_stale_skips_manual_sources(self, isolated_registry):
+        fetch = MagicMock(return_value={"value": 1})
+        src = SourceDef(id="test.manual", name="Manual Source", category="servicios", fetch_fn=fetch, ttl=0, auto_refresh=False)
+        register_source(src)
+        result = refresh_stale()
+        assert result == {"refreshed": [], "failed": []}
+        fetch.assert_not_called()
+
+    def test_list_sources_includes_auto_refresh_flag(self, isolated_registry, simple_source):
+        register_source(simple_source)
+        result = list_sources()
+        assert result[0]["auto_refresh"] is True
+
+    def test_is_stale_when_query_context_changes(self, isolated_registry, tmp_path, monkeypatch):
+        src = SourceDef(id="vin.decode", name="VIN Decode", category="vehiculo", ttl=86400)
+        register_source(src)
+
+        cfg = MagicMock()
+        cfg.general.default_vin = "VIN-NEW"
+        monkeypatch.setattr(sources_module, "load_config", lambda: cfg)
+
+        _write_cache(
+            tmp_path,
+            "vin.decode",
+            {
+                "data": {"vin": "VIN-OLD"},
+                "refreshed_at": _now_iso(),
+                "error": None,
+                "query_context": {"vin": "VIN-OLD"},
+            },
+        )
+
+        assert _is_stale("vin.decode") is True
+
+    def test_is_not_stale_when_query_context_matches(self, isolated_registry, tmp_path, monkeypatch):
+        src = SourceDef(id="vin.decode", name="VIN Decode", category="vehiculo", ttl=86400)
+        register_source(src)
+
+        cfg = MagicMock()
+        cfg.general.default_vin = "VIN-NEW"
+        monkeypatch.setattr(sources_module, "load_config", lambda: cfg)
+
+        _write_cache(
+            tmp_path,
+            "vin.decode",
+            {
+                "data": {"vin": "VIN-NEW"},
+                "refreshed_at": _now_iso(),
+                "error": None,
+                "query_context": {"vin": "VIN-NEW"},
+            },
+        )
+
+        assert _is_stale("vin.decode") is False
+
+    def test_resolve_owner_cedula_ignores_placeholder_driver(self, isolated_registry, tmp_path, monkeypatch):
+        cfg = MagicMock()
+        cfg.general.default_vin = "VIN-123"
+        cfg.general.cedula = ""
+        monkeypatch.setattr(sources_module, "load_config", lambda: cfg)
+
+        monkeypatch.setattr(
+            "tesla_cli.core.db.get_primary_driver",
+            lambda vin: {"doc_number": "1234567890"},
+        )
+
+        _write_cache(
+            tmp_path,
+            "co.runt",
+            {
+                "data": {"no_identificacion": "98669543"},
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
+
+        assert _resolve_owner_cedula() == "98669543"
+
+    def test_current_query_context_resolves_vehicle_placeholders(
+        self, isolated_registry, tmp_path, monkeypatch
+    ):
+        src = SourceDef(
+            id="us.epa_fuel_economy",
+            name="EPA Fuel Economy",
+            category="vehiculo",
+            openquery_source="us.epa_fuel_economy",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
+            },
+        )
+        register_source(src)
+
+        cfg = MagicMock()
+        cfg.general.default_vin = "LRWYGCEK3TC512197"
+        cfg.general.cedula = ""
+        monkeypatch.setattr(sources_module, "load_config", lambda: cfg)
+
+        _write_cache(
+            tmp_path,
+            "vin.decode",
+            {
+                "data": {
+                    "vin": "LRWYGCEK3TC512197",
+                    "manufacturer": "Tesla Inc. (Shanghai, China)",
+                    "model": "Model Y",
+                    "model_year": "2026",
+                },
+                "refreshed_at": _now_iso(),
+                "error": None,
+            },
+        )
+
+        ctx = _current_query_context("us.epa_fuel_economy", src)
+        assert ctx["doc_type"] == "custom"
+        assert ctx["doc_number"] == "LRWYGCEK3TC512197"
+        assert ctx["extra"] == {"make": "Tesla", "model": "Model Y", "year": "2026"}
+
+
 class TestListSources:
+
     def test_list_sources_includes_defaults(self):
         """Default sources are registered on import; must have 15+."""
         result = list_sources()
@@ -402,6 +532,42 @@ class TestRefreshSource:
         assert result["data"] == {"placa": "ABC123"}
         assert result["error"] is None
 
+    def test_refresh_source_writes_dedicated_diff_log(self, isolated_registry):
+        values = iter([{"value": 1}, {"value": 2}])
+        src = SourceDef(
+            id="test.diffed",
+            name="Diffed Source",
+            category="servicios",
+            fetch_fn=lambda: next(values),
+            ttl=3600,
+        )
+        register_source(src)
+
+        first = refresh_source("test.diffed")
+        second = refresh_source("test.diffed")
+
+        assert "changes" not in first
+        assert second["changes"][0]["field"] == "value"
+        diff_file = sources_module.DIFFS_DIR / "test.diffed.jsonl"
+        assert diff_file.exists()
+        diff_entries = get_diffs("test.diffed")
+        assert len(diff_entries) == 1
+        assert diff_entries[0]["source_id"] == "test.diffed"
+        assert diff_entries[0]["changes_count"] == 1
+        assert diff_entries[0]["changes"][0]["new"] == "2"
+
+    def test_refresh_source_writes_query_audit_log(self, isolated_registry, simple_source):
+        register_source(simple_source)
+
+        result = refresh_source("test.simple")
+
+        assert result["data"] == {"value": 42}
+        queries = get_queries("test.simple")
+        assert len(queries) == 1
+        assert queries[0]["source_id"] == "test.simple"
+        assert queries[0]["request"]["mode"] == "fetch_fn"
+        assert queries[0]["response"]["normalized_data"] == {"value": 42}
+
 
 # ── _detect_changes ───────────────────────────────────────────────────────────
 
@@ -526,6 +692,56 @@ class TestIsStale:
             },
         )
         assert _is_stale("test.simple") is False
+
+
+class TestGetDiffs:
+    def test_get_diffs_no_file(self, isolated_registry, simple_source):
+        register_source(simple_source)
+        assert get_diffs("test.simple") == []
+
+    def test_get_diffs_respects_limit(self, isolated_registry):
+        values = iter([{"value": 1}, {"value": 2}, {"value": 3}])
+        src = SourceDef(
+            id="test.diff.limit",
+            name="Diff Limit Source",
+            category="servicios",
+            fetch_fn=lambda: next(values),
+            ttl=3600,
+        )
+        register_source(src)
+
+        refresh_source("test.diff.limit")
+        refresh_source("test.diff.limit")
+        refresh_source("test.diff.limit")
+
+        diffs = get_diffs("test.diff.limit", limit=1)
+        assert len(diffs) == 1
+        assert diffs[0]["changes"][0]["new"] == "3"
+
+
+class TestGetQueries:
+    def test_get_queries_no_file(self, isolated_registry, simple_source):
+        register_source(simple_source)
+        assert get_queries("test.simple") == []
+
+    def test_get_queries_respects_limit(self, isolated_registry):
+        values = iter([{"value": 1}, {"value": 2}])
+        src = SourceDef(
+            id="test.query.limit",
+            name="Query Limit Source",
+            category="servicios",
+            fetch_fn=lambda: next(values),
+            ttl=3600,
+        )
+        register_source(src)
+
+        refresh_source("test.query.limit")
+        refresh_source("test.query.limit")
+
+        queries = get_queries("test.query.limit", limit=1)
+        assert len(queries) == 1
+        assert queries[0]["response"]["normalized_data"] == {"value": 2}
+        assert queries[0]["request"]["mode"] == "fetch_fn"
 
 
 # ── get_history ───────────────────────────────────────────────────────────────
@@ -826,12 +1042,14 @@ class TestRefreshStale:
 
 
 class TestDefaultSources:
-    """Verify all 15 expected default sources are registered on import."""
+    """Verify all expected default sources are registered on import."""
 
     EXPECTED_IDS = [
         "tesla.portal",
         "vin.decode",
         "tesla.order",
+        "tesla.delivery",
+        "tesla.tasks",
         "co.runt",
         "co.runt_soat",
         "co.runt_rtm",
@@ -879,6 +1097,12 @@ class TestDefaultSources:
         order_ids = {s["id"] for s in order_sources}
         assert "tesla.portal" in order_ids
         assert "tesla.order" in order_ids
+
+    def test_derived_tesla_sources_have_fetch_fn(self):
+        for sid in ("tesla.delivery", "tesla.tasks"):
+            src = get_source_def(sid)
+            assert src is not None
+            assert src.fetch_fn is not None
 
     def test_co_runt_is_playwright(self):
         src = get_source_def("co.runt")

@@ -1,113 +1,124 @@
-"""Tesla ownership portal scraper.
-
-Logs into tesla.com/teslaaccount via patchright, navigates to order details,
-and extracts window.Tesla.App.* data (delivery, registration, documents, etc.)
-
-This is the ONLY way to get detailed order data that the Tesla mobile app shows
-(documents, registration status, financing details, delivery specifics).
-"""
+"""Tesla ownership portal session capture and scrape helpers."""
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
+from tesla_cli.core.auth.tesla_web_auth import get_page_text, wait_for_manual_tesla_interaction
+from tesla_cli.core.config import CONFIG_DIR
+
 log = logging.getLogger("tesla-cli.portal-scrape")
 
+PORTAL_SESSION_FILE = CONFIG_DIR / "state" / "tesla_portal_storage.json"
 
-def scrape_portal(
-    email: str,
-    password: str,
-    mfa_code: str | None = None,
+
+def has_portal_session() -> bool:
+    return PORTAL_SESSION_FILE.exists()
+
+
+def save_portal_session(storage_state: dict[str, Any]) -> None:
+    PORTAL_SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PORTAL_SESSION_FILE.write_text(json.dumps(storage_state, default=str, indent=2))
+
+
+def load_portal_session() -> dict[str, Any] | None:
+    if not PORTAL_SESSION_FILE.exists():
+        return None
+    try:
+        return json.loads(PORTAL_SESSION_FILE.read_text())
+    except Exception:
+        return None
+
+
+def _extract_portal_data(page: Any) -> dict[str, Any]:
+    return page.evaluate("""() => {
+        const result = {};
+        if (window.Tesla && window.Tesla.App) {
+            for (const [key, value] of Object.entries(window.Tesla.App)) {
+                try { result[key] = JSON.parse(JSON.stringify(value)); } catch {}
+            }
+        }
+        if (window.__NEXT_DATA__) {
+            try { result.__NEXT_DATA__ = window.__NEXT_DATA__.props?.pageProps; } catch {}
+        }
+        return result;
+    }""")
+
+
+def capture_portal_session_and_data(
+    *,
+    context: Any,
+    page: Any,
+    reservation_number: str = "",
+    timeout: int = 420,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Capture Tesla portal session and scrape data using an authenticated context."""
+    portal_url = (
+        f"https://www.tesla.com/teslaaccount/order-details/{reservation_number}"
+        if reservation_number
+        else "https://www.tesla.com/teslaaccount"
+    )
+    page.goto(portal_url, timeout=30000)
+    if wait_for_manual_tesla_interaction(
+        page=page,
+        success_check=lambda: "auth.tesla.com" not in page.url,
+        timeout_seconds=timeout,
+        log=log,
+        context="Tesla portal",
+    ):
+        page.wait_for_timeout(5000)
+        data = _extract_portal_data(page)
+        if not data:
+            raise RuntimeError("Tesla portal loaded but no window.Tesla.App data was found.")
+        storage_state = context.storage_state()
+        return data, storage_state
+    raise RuntimeError(
+        "Tesla portal session capture timed out. Complete login/MFA/captcha in the visible browser window and retry."
+    )
+
+
+def scrape_portal_with_session(
+    *,
     reservation_number: str = "",
     timeout: int = 90,
 ) -> dict[str, Any]:
-    """Login to Tesla portal and extract all order/account data.
-
-    Returns dict with all window.Tesla.App.* data found.
-    """
+    """Use a persisted Tesla portal session to refresh portal data without credentials."""
     from patchright.sync_api import sync_playwright
+
+    storage_state = load_portal_session()
+    if not storage_state:
+        raise RuntimeError("No saved Tesla portal session. Start interactive Tesla auth first.")
+
+    portal_url = (
+        f"https://www.tesla.com/teslaaccount/order-details/{reservation_number}"
+        if reservation_number
+        else "https://www.tesla.com/teslaaccount"
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
-
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            storage_state=storage_state,
+        )
+        page = context.new_page()
         try:
-            # 1. Navigate to account
-            log.info("Opening Tesla account page...")
-            page.goto("https://www.tesla.com/teslaaccount", timeout=timeout * 1000)
-            page.wait_for_timeout(3000)
-
-            # 2. Login if needed
+            page.goto(portal_url, timeout=30000)
             if "auth.tesla.com" in page.url:
-                log.info("Logging in...")
-                email_el = page.wait_for_selector("input#identity", timeout=15000)
-                if email_el:
-                    email_el.fill(email)
-                next_btn = page.query_selector('button:has-text("Next")')
-                if next_btn:
-                    next_btn.click()
-                page.wait_for_timeout(3000)
-
-                pwd_el = page.wait_for_selector(
-                    'input#credential, input[type="password"]', timeout=10000
+                raise RuntimeError("Tesla portal session expired. Start interactive Tesla auth again.")
+            page.wait_for_timeout(min(timeout, 15) * 1000)
+            data = _extract_portal_data(page)
+            if not data:
+                page_text = get_page_text(page)
+                raise RuntimeError(
+                    f"Tesla portal session loaded but no portal data was exposed. Page says: {page_text[:200]}"
                 )
-                if pwd_el:
-                    pwd_el.fill(password)
-                submit = page.query_selector('button:has-text("Sign In"), button[type="submit"]')
-                if submit:
-                    submit.click()
-                page.wait_for_timeout(5000)
-
-                # MFA
-                page_text = page.text_content("body") or ""
-                if "auth.tesla.com" in page.url or "passcode" in page_text.lower():
-                    if mfa_code:
-                        log.info("Filling MFA code...")
-                        mfa_el = page.query_selector("input#credential, input[name='credential']")
-                        if mfa_el:
-                            mfa_el.fill(mfa_code)
-                            verify = page.query_selector(
-                                'button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]'
-                            )
-                            if verify:
-                                verify.click()
-                            page.wait_for_timeout(10000)
-                    else:
-                        browser.close()
-                        raise Exception("MFA_REQUIRED")
-
-            # 3. Navigate to order details
-            if reservation_number:
-                log.info("Navigating to order details...")
-                page.goto(
-                    f"https://www.tesla.com/teslaaccount/order-details/{reservation_number}",
-                    timeout=30000,
-                )
-                page.wait_for_timeout(8000)
-
-            # 4. Extract ALL Tesla.App data
-            log.info("Extracting portal data...")
-            data = page.evaluate("""() => {
-                const result = {};
-                if (window.Tesla && window.Tesla.App) {
-                    for (const [key, value] of Object.entries(window.Tesla.App)) {
-                        try { result[key] = JSON.parse(JSON.stringify(value)); } catch {}
-                    }
-                }
-                if (window.__NEXT_DATA__) {
-                    try { result.__NEXT_DATA__ = window.__NEXT_DATA__.props?.pageProps; } catch {}
-                }
-                return result;
-            }""")
-
-            log.info("Extracted %d data sections from portal.", len(data))
-            browser.close()
+            save_portal_session(context.storage_state())
             return data
-
-        except Exception:
+        finally:
             try:
                 browser.close()
             except Exception:
                 pass
-            raise

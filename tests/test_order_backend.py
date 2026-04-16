@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import jwt
@@ -27,6 +28,10 @@ from tesla_cli.core.models.order import (
 
 MOCK_RN = "RN126460939"
 MOCK_VIN = "7SAYGDEE4RF000001"
+
+
+def _fresh_iso(hours_ago: int = 1) -> str:
+    return (datetime.now(UTC) - timedelta(hours=hours_ago)).isoformat().replace("+00:00", "Z")
 
 
 def _make_jwt(exp_offset: int = 3600) -> str:
@@ -74,6 +79,9 @@ def backend(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "tesla_cli.core.backends.order.DELIVERY_CACHE_FILE", tmp_path / "delivery.json"
+    )
+    monkeypatch.setattr(
+        "tesla_cli.core.backends.order.PORTAL_CACHE_FILE", tmp_path / "tesla.portal.json"
     )
     return OrderBackend()
 
@@ -210,6 +218,23 @@ def test_get_order_tasks_empty_on_error(httpx_mock, backend, patched_tokens):
 
     tasks = backend.get_order_tasks(MOCK_RN)
     assert tasks == []
+
+
+def test_get_order_tasks_falls_back_to_portal_cache(httpx_mock, backend, patched_tokens, tmp_path):
+    httpx_mock.add_response(url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."})
+    (tmp_path / "tesla.portal.json").write_text(json.dumps({
+        "data": {
+            "tasks": {
+                "deliveryAcceptance": {"complete": False, "enabled": True},
+                "finalPayment": {"complete": True, "enabled": False},
+            }
+        }
+    }))
+
+    tasks = backend.get_order_tasks(MOCK_RN)
+
+    assert len(tasks) == 2
+    assert {t.task_type for t in tasks} == {"deliveryAcceptance", "finalPayment"}
 
 
 def test_get_order_tasks_wrapped_response(httpx_mock, backend, patched_tokens):
@@ -359,7 +384,8 @@ def test_detect_changes_no_diff(httpx_mock, backend, patched_tokens, tmp_path):
 
 def test_get_delivery_appointment_from_cache(backend, tmp_path):
     cache = {
-        "fetched_at": "2025-05-01T10:00:00Z",
+        "fetched_at": _fresh_iso(),
+        "order": {"referenceNumber": MOCK_RN},
         "delivery_details": {
             "deliveryAppointmentDateUtc": "2025-06-02T14:00:00Z",
             "deliveryTiming": {
@@ -382,6 +408,28 @@ def test_get_delivery_appointment_from_cache(backend, tmp_path):
     assert appt.address == "123 Main St, San Francisco, CA 94105"
     assert appt.disclaimer == "Please arrive 10 minutes early."
     assert appt.duration_minutes == 60
+
+
+def test_get_delivery_appointment_ignores_stale_cache(httpx_mock, backend, patched_tokens, tmp_path):
+    cache = {
+        "fetched_at": "2025-01-01T10:00:00Z",
+        "order": {"referenceNumber": MOCK_RN, "vin": MOCK_VIN},
+        "delivery_details": {
+            "deliveryAppointmentDateUtc": "2025-06-02T14:00:00Z",
+            "deliveryTiming": {
+                "appointment": "June 2, 2025 at 2:00 PM",
+                "pickupLocationTitle": "Tesla Delivery Hub - Downtown",
+                "formattedAddressSingleLine": "123 Main St, San Francisco, CA 94105",
+            },
+        },
+    }
+    (tmp_path / "delivery.json").write_text(json.dumps(cache))
+    httpx_mock.add_response(url=ORDERS_URL, json={"response": [_mock_order_raw()]})
+
+    appt = backend.get_delivery_appointment(MOCK_RN)
+
+    assert isinstance(appt, DeliveryAppointment)
+    assert appt.raw.get("source") == "owner-api-fallback"
 
 
 def test_get_delivery_appointment_no_cache_fallback_api(
@@ -409,6 +457,31 @@ def test_get_delivery_appointment_no_cache_no_api(backend, tmp_path):
 # ── import_delivery_data ───────────────────────────────────────────────────────
 
 
+def test_get_order_details_uses_stale_delivery_cache_when_no_live_delivery(httpx_mock, backend, patched_tokens, tmp_path):
+    raw = _mock_order_raw()
+    raw["delivery"] = {}
+    httpx_mock.add_response(url=ORDERS_URL, json={"response": [raw]})
+    httpx_mock.add_response(url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."})
+    (tmp_path / "delivery.json").write_text(json.dumps({
+        "fetched_at": "2025-01-01T10:00:00Z",
+        "order": {"referenceNumber": MOCK_RN, "vin": MOCK_VIN},
+        "delivery_details": {
+            "deliveryAppointmentDateUtc": "2025-06-02T14:00:00Z",
+            "deliveryTiming": {
+                "appointment": "June 2, 2025 at 2:00 PM",
+                "pickupLocationTitle": "Tesla Delivery Hub - Downtown",
+                "formattedAddressSingleLine": "123 Main St, San Francisco, CA 94105",
+            },
+        },
+    }))
+
+    details = backend.get_order_details(MOCK_RN)
+
+    assert details.delivery["appointmentDateUtc"] == "2025-06-02T14:00:00Z"
+    assert details.delivery["cacheStale"] is True
+    assert details.delivery["location"] == "Tesla Delivery Hub - Downtown"
+
+
 def test_import_delivery_data_first_import(backend, tmp_path):
     """First import: no previous cache, no changes detected."""
     delivery_file = tmp_path / "scraped.json"
@@ -422,7 +495,7 @@ def test_import_delivery_data_first_import(backend, tmp_path):
                 "formattedAddressSingleLine": "123 Main St",
             },
         },
-        "fetched_at": "2025-05-01T10:00:00Z",
+        "fetched_at": _fresh_iso(),
     }
     delivery_file.write_text(json.dumps(data))
 

@@ -89,10 +89,8 @@ def dossier_simit() -> dict:
     Attempts to find cedula from cached dossier or config.
     Returns SimitData JSON.
     """
-    import json
-    from pathlib import Path
-
     from tesla_cli.core.backends.simit import SimitBackend, SimitError
+    from tesla_cli.core.sources import get_cached
 
     # Try to get cedula from cached dossier
     cedula = None
@@ -103,21 +101,20 @@ def dossier_simit() -> dict:
     if dossier and dossier.runt.no_identificacion:
         cedula = dossier.runt.no_identificacion
 
-    # Fallback: mission-control-data.json
+    # Fallback: configured owner cédula
     if not cedula:
-        mc_file = Path(__file__).parent.parent.parent.parent / "mission-control-data.json"
-        if mc_file.exists():
-            try:
-                mc = json.loads(mc_file.read_text())
-                if mc.get("simit_cedula"):
-                    cedula = mc["simit_cedula"]
-            except Exception:
-                pass
+        cfg = load_config()
+        cedula = cfg.general.cedula or None
+
+    # Fallback: cached RUNT source state
+    if not cedula:
+        runt_cache = get_cached("co.runt") or {}
+        cedula = runt_cache.get("no_identificacion") or None
 
     if not cedula:
         raise HTTPException(
             status_code=404,
-            detail="No cédula found. Build dossier with RUNT first, or set simit_cedula in mission-control-data.json.",
+            detail="No cédula found. Build dossier with RUNT first, or configure general.cedula.",
         )
 
     try:

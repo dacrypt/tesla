@@ -579,4 +579,5 @@ class TeslaMateBacked:
                 cur.execute("SELECT 1")
             return True
         except Exception:
+            logger.warning("TeslaMate ping failed", exc_info=True)
             return False

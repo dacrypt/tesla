@@ -13,14 +13,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
 import httpx
 
+from tesla_cli import __version__
 from tesla_cli.core.config import load_config
-
-logger = logging.getLogger(__name__)
 from tesla_cli.core.models.dossier import (
     Logistics,
     OptionCode,
@@ -37,10 +37,27 @@ from tesla_cli.core.models.dossier import (
     VinDecode,
 )
 
+logger = logging.getLogger(__name__)
+
 # Archive location
 ARCHIVE_DIR = Path.home() / ".tesla-cli" / "dossier"
 DOSSIER_FILE = ARCHIVE_DIR / "dossier.json"
 SNAPSHOTS_DIR = ARCHIVE_DIR / "snapshots"
+MISSION_CONTROL_PATHS = [
+    Path.cwd() / "mission-control-data.json",
+    Path(__file__).resolve().parents[4] / "mission-control-data.json",
+    Path.home() / ".tesla-cli" / "mission-control-data.json",
+]
+EPA_FALLBACK = {
+    "ev_motor": "90 and 200 kW ACPM",
+    "range_mi": 373,
+    "range_city_mi": 380,
+    "range_hwy_mi": 365,
+    "mpge_combined": 117,
+    "mpge_city": 126,
+    "mpge_highway": 108,
+    "charge_240v_hrs": 10,
+}
 
 
 # ── VIN Decoder (built-in, works for all VINs) ─────────────────────────────
@@ -539,8 +556,11 @@ def fetch_nhtsa_recalls(make: str, model: str, year: str) -> list[dict]:
 def fetch_tesla_recalls(vin: str) -> list[Recall]:
     """Check Tesla's own recall search (web scraping fallback)."""
     recalls: list[Recall] = []
-    # Tesla's recall API requires browser context; we check NHTSA instead
-    nhtsa = fetch_nhtsa_recalls("TESLA", "Model Y", "2026")
+    # Derive model/year from VIN for accurate recall lookup
+    vd = decode_vin(vin)
+    model = vd.model if vd.model and not vd.model.startswith("Unknown") else "Model Y"
+    year = vd.model_year if vd.model_year and vd.model_year.isdigit() else "2026"
+    nhtsa = fetch_nhtsa_recalls("TESLA", model, str(year))
     for r in nhtsa:
         recalls.append(
             Recall(
@@ -631,7 +651,7 @@ def _known_tesla_carriers() -> list[ShipTracking]:
 
 def fetch_tesla_account(token: str) -> TeslaAccount:
     """Fetch all available account data from Tesla Owner API."""
-    headers = {"Authorization": f"Bearer {token}", "User-Agent": "tesla-cli/0.1.0"}
+    headers = {"Authorization": f"Bearer {token}", "User-Agent": f"tesla-cli/{__version__}"}
     account = TeslaAccount()
 
     try:
@@ -755,7 +775,7 @@ class DossierBackend:
             token = order_backend._get_access_token()
             dossier.account = fetch_tesla_account(token)
         except Exception:
-            pass
+            logger.warning("Failed to fetch Tesla account while building dossier", exc_info=True)
 
         # Vehicle specs (from decoded VIN + options)
         console.print("[dim]Building vehicle specs...[/dim]")
@@ -793,6 +813,7 @@ class DossierBackend:
             dossier.runt = runt_backend.query_by_vin(vin)
             dossier.runt.queried_at = datetime.now()
         except Exception as e:
+            logger.warning("RUNT query failed during dossier build: %s", e, exc_info=True)
             console.print(f"[yellow]RUNT query failed: {e}[/yellow]")
             # Keep existing data if query fails
 
@@ -810,6 +831,7 @@ class DossierBackend:
                     dossier.real_status.delivery_location = appt.location_name
                     dossier.real_status.delivery_appointment = appt.appointment_text
         except Exception as e:
+            logger.warning("Delivery cache load failed during dossier build: %s", e, exc_info=True)
             console.print(f"[dim]Delivery cache: {e}[/dim]")
 
         # Compute real status from all sources
@@ -892,25 +914,28 @@ class DossierBackend:
         return rs
 
     def _get_epa_data(self) -> dict:
-        """Get EPA specs dynamically. Priority: mission-control-data.json → API → fallback."""
-        # 1. Try mission-control-data.json (most recent, already cached)
-        mc_paths = [
-            Path(__file__).parent.parent.parent.parent / "mission-control-data.json",
-            Path.cwd() / "mission-control-data.json",
-        ]
-        for p in mc_paths:
-            if p.exists():
-                try:
-                    mc = json.loads(p.read_text())
-                    epa = mc.get("epa", {})
-                    if isinstance(epa, dict) and "_meta" in epa:
-                        epa = epa.get("data", epa)
-                    if epa and epa.get("ev_motor"):
-                        return epa
-                except Exception:
-                    pass
+        """Get EPA specs dynamically. Priority: source cache → mission-control cache → API → fallback."""
+        try:
+            from tesla_cli.core.sources import get_cached
 
-        # 2. Try EPA API directly
+            epa = get_cached("us.epa_fuel_economy") or {}
+            if epa:
+                return {**EPA_FALLBACK, **epa}
+        except Exception:
+            logger.warning("Failed to read cached EPA source data", exc_info=True)
+
+        for path in MISSION_CONTROL_PATHS:
+            try:
+                if not path.exists():
+                    continue
+                payload = json.loads(path.read_text())
+                epa = payload.get("epa") or {}
+                if epa:
+                    return {**EPA_FALLBACK, **epa}
+            except Exception:
+                logger.warning("Failed to read cached EPA data from %s", path, exc_info=True)
+
+        # 3. Try EPA API directly
         try:
             with httpx.Client(timeout=10) as client:
                 resp = client.get(
@@ -919,20 +944,22 @@ class DossierBackend:
                 )
                 if resp.status_code == 200:
                     raw = resp.json()
-                    return {
+                    epa = {
                         "ev_motor": raw.get("evMotor", ""),
                         "range_mi": raw.get("range"),
                         "range_city_mi": raw.get("rangeCity"),
                         "range_hwy_mi": raw.get("rangeHwy"),
                         "mpge_combined": raw.get("comb08"),
+                        "mpge_city": raw.get("city08"),
+                        "mpge_highway": raw.get("highway08"),
                         "charge_240v_hrs": raw.get("charge240"),
-                        "curb_weight_lbs": None,  # EPA doesn't have weight
                     }
+                    return {**EPA_FALLBACK, **{k: v for k, v in epa.items() if v not in ('', None)}}
         except Exception:
-            pass
+            logger.warning("Failed to fetch EPA data from fueleconomy.gov", exc_info=True)
 
-        # 3. Fallback
-        return {}
+        # 4. Fallback
+        return dict(EPA_FALLBACK)
 
     def _build_specs(self, d: VehicleDossier) -> VehicleSpecs:
         """Build vehicle specs from decoded VIN, options, and EPA data."""
@@ -961,22 +988,21 @@ class DossierBackend:
                 connectivity = oc.description_es
 
         # Motor config from EPA
-        ev_motor = epa.get("ev_motor", "")
+        ev_motor = str(epa.get("ev_motor") or "").strip()
         if ev_motor:
             motor_config = f"Dual Motor AWD ({ev_motor})"
-            # Parse HP from kW: "90 and 200 kW ACPM" → 290 kW → 389 hp
-            import re
-
-            kw_values = re.findall(r"(\d+)\s*kW", ev_motor)
-            total_kw = sum(int(k) for k in kw_values) if kw_values else 0
-            hp = int(total_kw * 1.341) if total_kw else 389  # fallback
+            kw_values = re.findall(r"(\d+(?:\.\d+)?)\s*kW", ev_motor)
+            total_kw = sum(float(k) for k in kw_values) if kw_values else 0
+            hp = int(round(total_kw * 1.341)) if total_kw else 389
         else:
-            motor_config = "Dual Motor AWD (90 kW front + 200 kW rear ACPM)"
+            motor_config = f"Dual Motor AWD ({EPA_FALLBACK['ev_motor']})"
             hp = 389
 
-        # Range from EPA (convert mi → km) or fallback to WLTP
+        # Range from EPA (convert mi → km) or fallback to WLTP-ish static value
         epa_range_mi = epa.get("range_mi")
-        range_km = int(float(epa_range_mi) * 1.60934) if epa_range_mi else 600  # WLTP fallback
+        range_km = int(round(float(epa_range_mi) * 1.60934)) if epa_range_mi else 600
+        mpge = epa.get("mpge_combined")
+        charge_240 = epa.get("charge_240v_hrs")
 
         return VehicleSpecs(
             model="Model Y",
@@ -989,8 +1015,8 @@ class DossierBackend:
             range_km=range_km,
             motor_config=motor_config,
             horsepower=hp,
-            zero_to_100_kmh=4.8,  # tesla.com/es_CO — not in EPA
-            top_speed_kmh=201,  # tesla.com/es_CO — not in EPA
+            zero_to_100_kmh=4.8,  # fallback, not available from EPA
+            top_speed_kmh=201,  # fallback, not available from EPA
             curb_weight_kg=2029,  # tesla.com US (4473 lbs) — not in EPA
             dimensions="4791 x 1981 x 1623 mm",  # tesla.com US — not in EPA
             seating=5,
@@ -999,8 +1025,10 @@ class DossierBackend:
             interior=interior or "Premium Black",
             autopilot_hardware="HW5 (AI5)",
             has_fsd=False,
-            supercharging=supercharging or "Pay Per Use",
-            connectivity=connectivity or "Standard",
+            supercharging=supercharging
+            or (f"Pay Per Use • 240V charge ~{charge_240}h" if charge_240 else "Pay Per Use"),
+            connectivity=connectivity
+            or (f"Standard • {mpge} MPGe combined" if mpge else "Standard"),
         )
 
     def _build_logistics(self, d: VehicleDossier) -> Logistics:
@@ -1036,6 +1064,7 @@ class DossierBackend:
                 data = json.loads(DOSSIER_FILE.read_text())
                 return VehicleDossier.model_validate(data)
             except Exception:
+                logger.warning("Failed to load dossier from %s", DOSSIER_FILE, exc_info=True)
                 return None
         return None
 
@@ -1069,5 +1098,6 @@ class DossierBackend:
                     }
                 )
             except Exception:
+                logger.warning("Failed to parse dossier snapshot %s", f, exc_info=True)
                 continue
         return snapshots

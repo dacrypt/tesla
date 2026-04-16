@@ -7,6 +7,7 @@ Playwright (CAPTCHA) run as subprocesses to avoid uvicorn conflicts.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import subprocess
@@ -14,6 +15,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from tesla_cli.core.config import CONFIG_DIR, load_config
@@ -34,6 +36,7 @@ class SourceDef:
     uses_playwright: bool = False  # True = refresh via subprocess
     ttl: int = 3600  # seconds before stale
     country: str = "CO"
+    auto_refresh: bool = True
     fetch_fn: Callable | None = None  # inline fetch (non-playwright)
     openquery_source: str = ""  # openquery source id (e.g. "co.runt")
     openquery_params: dict = field(default_factory=dict)
@@ -42,9 +45,13 @@ class SourceDef:
 # ── Source Registry ──────────────────────────────────────────────────────────
 
 _SOURCES: dict[str, SourceDef] = {}
+_OPENQUERY_AVAILABLE: set[str] | None = None
 
 
 def register_source(source: SourceDef) -> None:
+    if source.openquery_source and not _openquery_source_exists(source.openquery_source):
+        log.warning("Skipping source %s: openquery source %s is not available", source.id, source.openquery_source)
+        return
     _SOURCES[source.id] = source
 
 
@@ -57,6 +64,7 @@ def list_sources() -> list[dict[str, Any]]:
     result = []
     for sid, src in _SOURCES.items():
         cached = _load_cache(sid)
+        visible_error = _visible_error(src, cached)
         result.append(
             {
                 "id": sid,
@@ -64,11 +72,13 @@ def list_sources() -> list[dict[str, Any]]:
                 "category": src.category,
                 "country": src.country,
                 "requires_auth": src.requires_auth,
+                "auto_refresh": src.auto_refresh,
+                "manual_only": not src.auto_refresh,
                 "ttl": src.ttl,
                 "refreshed_at": cached.get("refreshed_at") if cached else None,
                 "stale": _is_stale(sid),
                 "has_data": cached is not None and "data" in cached,
-                "error": cached.get("error") if cached else None,
+                "error": visible_error,
             }
         )
     return result
@@ -87,84 +97,127 @@ def get_cached_with_meta(source_id: str) -> dict | None:
     cached = _load_cache(source_id)
     if not cached:
         return {"id": source_id, "data": None, "refreshed_at": None, "error": None, "stale": True}
+    src = get_source_def(source_id)
     return {
         "id": source_id,
         "data": cached.get("data"),
         "refreshed_at": cached.get("refreshed_at"),
-        "error": cached.get("error"),
+        "error": _visible_error(src, cached),
         "stale": _is_stale(source_id),
     }
 
 
-def refresh_source(source_id: str) -> dict:
+def _visible_error(src: SourceDef | None, cached: dict | None) -> str | None:
+    """Hide noisy inherited errors for manual-only sources with no data."""
+    if not cached:
+        return None
+    error = cached.get("error")
+    if not error:
+        return None
+    if src and not src.auto_refresh and not cached.get("data"):
+        return None
+    return error
+
+
+def refresh_source(source_id: str, *, _skip_dependents: bool = False) -> dict:
     """Refresh a single source. Returns {data, refreshed_at, error}."""
     src = _SOURCES.get(source_id)
     if not src:
         return {"error": f"Unknown source: {source_id}"}
+    query_context = _current_query_context(source_id, src)
 
     # Check auth requirements
     if src.requires_auth:
         from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, ORDER_ACCESS_TOKEN, has_token
 
         if src.requires_auth == "fleet" and not has_token(FLEET_ACCESS_TOKEN):
-            return _save_cache(
-                source_id, None, error="Fleet API authentication required. Login in Settings."
+            result = _save_cache(
+                source_id,
+                None,
+                error="Fleet API authentication required. Login in Settings.",
+                query_context=query_context,
             )
+            _append_query(source_id, src, result, {"mode": "auth_guard", "auth_type": "fleet"})
+            return result
         if src.requires_auth == "order" and not has_token(ORDER_ACCESS_TOKEN):
-            return _save_cache(
-                source_id, None, error="Tesla order authentication required. Login in Settings."
+            result = _save_cache(
+                source_id,
+                None,
+                error="Tesla order authentication required. Login in Settings.",
+                query_context=query_context,
             )
+            _append_query(source_id, src, result, {"mode": "auth_guard", "auth_type": "order"})
+            return result
 
     # Check required config values — try auto-detect from other sources
     params = src.openquery_params
     if params.get("doc_number") == "$CEDULA":
-        cfg = load_config()
-        cedula = ""
-        # 1. Try database (driver profiles)
-        try:
-            from tesla_cli.core.db import get_primary_driver
-
-            vin = cfg.general.default_vin
-            if vin:
-                driver = get_primary_driver(vin)
-                if driver:
-                    cedula = driver.get("doc_number", "")
-        except Exception:
-            pass
-        # 2. Fallback to config
+        cedula = _resolve_owner_cedula()
         if not cedula:
-            cedula = cfg.general.cedula
-        # 3. Auto-detect from RUNT cache
-        if not cedula:
-            runt_cache = _load_cache("co.runt")
-            if runt_cache and runt_cache.get("data"):
-                cedula = runt_cache["data"].get("no_identificacion", "")
-        if not cedula:
-            return _save_cache(
-                source_id, None, error="Cédula del propietario requerida. Configúrala en Settings."
+            result = _save_cache(
+                source_id,
+                None,
+                error="Cédula del propietario requerida. Configúrala en Settings.",
+                query_context=query_context,
             )
+            _append_query(source_id, src, result, {"mode": "config_guard", "missing": "cedula"})
+            return result
     if params.get("doc_number") == "$VIN":
         cfg = load_config()
         if not cfg.general.default_vin:
-            return _save_cache(source_id, None, error="VIN not configured.")
+            result = _save_cache(source_id, None, error="VIN not configured.", query_context=query_context)
+            _append_query(source_id, src, result, {"mode": "config_guard", "missing": "vin"})
+            return result
+    if params.get("doc_number") == "$PLACA":
+        plate = _resolve_plate()
+        if not plate:
+            result = _save_cache(
+                source_id,
+                None,
+                error="Plate not available yet. Refresh RUNT successfully first.",
+                query_context=query_context,
+            )
+            _append_query(source_id, src, result, {"mode": "config_guard", "missing": "placa"})
+            return result
 
     # Playwright sources run as subprocess
     if src.uses_playwright:
-        return _refresh_subprocess(source_id, src)
+        result = _refresh_subprocess(source_id, src)
+        _append_query(source_id, src, result, result.pop("_query_meta", {}))
+        return result
 
     # Inline fetch
     if src.fetch_fn:
         try:
-            data = src.fetch_fn()
-            return _save_cache(source_id, data)
+            query_meta: dict[str, Any] = {"mode": "fetch_fn"}
+            fetched = src.fetch_fn()
+            if isinstance(fetched, tuple) and len(fetched) == 2:
+                data, extra_meta = fetched
+                if isinstance(extra_meta, dict):
+                    query_meta.update(extra_meta)
+            else:
+                data = fetched
+            result = _save_cache(source_id, data, query_context=query_context)
+            _append_query(source_id, src, result, query_meta)
+            if not _skip_dependents and not result.get("error"):
+                _refresh_invalidated_dependents(source_id)
+            return result
         except Exception as exc:
-            return _save_cache(source_id, None, error=str(exc))
+            result = _save_cache(source_id, None, error=str(exc), query_context=query_context)
+            _append_query(source_id, src, result, {"mode": "fetch_fn"})
+            return result
 
     # openquery source
     if src.openquery_source:
-        return _refresh_openquery_inline(source_id, src)
+        result = _refresh_openquery_inline(source_id, src)
+        _append_query(source_id, src, result, result.pop("_query_meta", {}))
+        if not _skip_dependents and not result.get("error"):
+            _refresh_invalidated_dependents(source_id)
+        return result
 
-    return _save_cache(source_id, None, error="No fetch method defined")
+    result = _save_cache(source_id, None, error="No fetch method defined", query_context=query_context)
+    _append_query(source_id, src, result, {"mode": "noop"})
+    return result
 
 
 def refresh_stale() -> dict[str, Any]:
@@ -172,6 +225,8 @@ def refresh_stale() -> dict[str, Any]:
     refreshed = []
     failed = []
     for sid in _SOURCES:
+        if not _SOURCES[sid].auto_refresh:
+            continue
         if _is_stale(sid):
             result = refresh_source(sid)
             if result.get("error"):
@@ -179,6 +234,17 @@ def refresh_stale() -> dict[str, Any]:
             else:
                 refreshed.append(sid)
     return {"refreshed": refreshed, "failed": failed}
+
+
+def _refresh_invalidated_dependents(source_id: str) -> None:
+    """Refresh auto sources whose resolved query context changed after a dependency update."""
+    if source_id not in {"tesla.order", "co.runt"}:
+        return
+    for dependent_id, dependent in _SOURCES.items():
+        if dependent_id == source_id or not dependent.auto_refresh:
+            continue
+        if _is_stale(dependent_id):
+            refresh_source(dependent_id, _skip_dependents=True)
 
 
 def missing_auth() -> list[dict]:
@@ -219,6 +285,8 @@ def missing_auth() -> list[dict]:
 
 HISTORY_DIR = CONFIG_DIR / "source_history"
 AUDIT_DIR = CONFIG_DIR / "source_audits"
+DIFFS_DIR = CONFIG_DIR / "source_diffs"
+QUERIES_DIR = CONFIG_DIR / "source_queries"
 
 
 def _load_cache(source_id: str) -> dict | None:
@@ -231,14 +299,37 @@ def _load_cache(source_id: str) -> dict | None:
         return None
 
 
-def _save_cache(source_id: str, data: Any, error: str | None = None, audit: Any = None) -> dict:
+def _openquery_source_exists(source_name: str) -> bool:
+    """Check whether an openquery source is available in the installed package."""
+    global _OPENQUERY_AVAILABLE
+    if _OPENQUERY_AVAILABLE is None:
+        try:
+            from openquery.sources import list_sources
+
+            _OPENQUERY_AVAILABLE = {source.meta().name for source in list_sources()}
+        except Exception:
+            _OPENQUERY_AVAILABLE = set()
+    return source_name in _OPENQUERY_AVAILABLE
+
+
+def _save_cache(
+    source_id: str,
+    data: Any,
+    error: str | None = None,
+    audit: Any = None,
+    query_context: dict[str, Any] | None = None,
+) -> dict:
     SOURCES_DIR.mkdir(parents=True, exist_ok=True)
     now = datetime.now(UTC).isoformat()
     cached = {"data": data, "refreshed_at": now, "error": error}
+    if query_context is not None:
+        cached["query_context"] = query_context
 
     # Detect changes from previous data
     prev = _load_cache(source_id)
-    changes = _detect_changes(source_id, prev.get("data") if prev else None, data) if data else []
+    previous_data = prev.get("data") if prev else None
+    previous_error = prev.get("error") if prev else None
+    changes = _detect_changes(source_id, previous_data, data) if data else []
     if changes:
         cached["changes"] = changes
 
@@ -247,10 +338,26 @@ def _save_cache(source_id: str, data: Any, error: str | None = None, audit: Any 
     # Save to history (append-only log)
     if data:
         _append_history(source_id, data, changes)
+        if changes:
+            _append_diff(source_id, previous_data, data, changes)
 
     # Save audit PDF if present
     if audit:
         _save_audit(source_id, audit, now)
+
+    try:
+        from tesla_cli.core import events
+
+        if changes:
+            events.emit_source_change(source_id, changes, refreshed_at=now)
+        events.emit_source_health(
+            source_id,
+            error=error,
+            previous_error=previous_error,
+            refreshed_at=now,
+        )
+    except Exception:
+        pass
 
     return cached
 
@@ -295,6 +402,26 @@ def _append_history(source_id: str, data: Any, changes: list) -> None:
         "changes": changes,
     }
     with open(history_file, "a") as f:
+        f.write(json.dumps(entry, default=str) + "\n")
+
+
+def _append_diff(source_id: str, previous_data: Any, current_data: Any, changes: list[dict]) -> None:
+    """Append a structured diff entry for a source."""
+    if not changes:
+        return
+
+    DIFFS_DIR.mkdir(parents=True, exist_ok=True)
+    diff_file = DIFFS_DIR / f"{source_id}.jsonl"
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "source_id": source_id,
+        "previous_data_hash": _data_hash(previous_data),
+        "current_data_hash": _data_hash(current_data),
+        "changed": True,
+        "changes_count": len(changes),
+        "changes": changes,
+    }
+    with open(diff_file, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
 
 
@@ -344,6 +471,36 @@ def get_history(source_id: str, limit: int = 50) -> list[dict]:
     return entries
 
 
+def get_diffs(source_id: str, limit: int = 50) -> list[dict]:
+    """Read recent diff entries for a source."""
+    diff_file = DIFFS_DIR / f"{source_id}.jsonl"
+    if not diff_file.exists():
+        return []
+    lines = diff_file.read_text().strip().splitlines()
+    entries = []
+    for line in lines[-limit:]:
+        try:
+            entries.append(json.loads(line))
+        except Exception:
+            pass
+    return entries
+
+
+def get_queries(source_id: str, limit: int = 50) -> list[dict]:
+    """Read recent query audit entries for a source."""
+    query_file = QUERIES_DIR / f"{source_id}.jsonl"
+    if not query_file.exists():
+        return []
+    lines = query_file.read_text().strip().splitlines()
+    entries = []
+    for line in lines[-limit:]:
+        try:
+            entries.append(json.loads(line))
+        except Exception:
+            pass
+    return entries
+
+
 def get_audits(source_id: str) -> list[dict]:
     """List available audit files for a source."""
     if not AUDIT_DIR.exists():
@@ -365,16 +522,20 @@ def get_audits(source_id: str) -> list[dict]:
         )
     return audits
 
-
-import hashlib
-
-
 def _is_stale(source_id: str) -> bool:
     src = _SOURCES.get(source_id)
     if not src:
         return True
     cached = _load_cache(source_id)
     if not cached or not cached.get("refreshed_at"):
+        return True
+    if cached.get("data") is None and not cached.get("error"):
+        return True
+    if not src.auto_refresh and cached.get("data") is None:
+        return True
+    current_context = _current_query_context(source_id, src)
+    cached_context = cached.get("query_context")
+    if current_context and cached_context != current_context:
         return True
     try:
         refreshed = datetime.fromisoformat(cached["refreshed_at"].replace("Z", "+00:00"))
@@ -384,11 +545,181 @@ def _is_stale(source_id: str) -> bool:
         return True
 
 
+def _resolve_owner_cedula() -> str:
+    cfg = load_config()
+    cedula = ""
+    try:
+        from tesla_cli.core.db import get_primary_driver
+
+        vin = cfg.general.default_vin
+        if vin:
+            driver = get_primary_driver(vin)
+            if driver:
+                candidate = driver.get("doc_number", "")
+                if _is_valid_doc_number(candidate):
+                    cedula = candidate
+    except Exception:
+        pass
+    if not cedula:
+        candidate = cfg.general.cedula
+        if _is_valid_doc_number(candidate):
+            cedula = candidate
+    if not cedula:
+        runt_cache = _load_cache("co.runt")
+        if runt_cache and runt_cache.get("data"):
+            candidate = (runt_cache["data"] or {}).get("no_identificacion", "")
+            if _is_valid_doc_number(candidate):
+                cedula = candidate
+    return cedula or ""
+
+
+def _is_valid_doc_number(value: Any) -> bool:
+    """Reject blank or obvious placeholder IDs that break real monitoring."""
+    text = str(value or "").strip()
+    if not text:
+        return False
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if not digits:
+        return False
+    invalid = {
+        "1234567890",
+        "123456789",
+        "12345678",
+        "0123456789",
+        "0000000000",
+        "000000000",
+        "00000000",
+    }
+    if digits in invalid:
+        return False
+    return len(set(digits)) != 1
+
+
+def _resolve_plate() -> str:
+    runt_cache = _load_cache("co.runt")
+    if not runt_cache:
+        return ""
+    return (((runt_cache or {}).get("data") or {}).get("placa", "")) or ""
+
+
+def _resolve_vehicle_identity() -> dict[str, str]:
+    """Resolve best-effort live make/model/year for custom vehicle sources."""
+    cfg = load_config()
+    current_vin = cfg.general.default_vin or ""
+
+    def _matching_cache(source_id: str) -> dict[str, Any]:
+        cached = _load_cache(source_id) or {}
+        data = cached.get("data") or {}
+        cached_vin = str(data.get("vin") or "").strip()
+        if source_id == "vin.decode" and current_vin and cached_vin and cached_vin != current_vin:
+            return {}
+        if source_id == "us.nhtsa_vin" and current_vin and cached_vin and cached_vin != current_vin:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    order_data = ((_load_cache("tesla.order") or {}).get("data") or {}) if current_vin else {}
+    vin_data = _matching_cache("vin.decode")
+    nhtsa_data = _matching_cache("us.nhtsa_vin")
+
+    model_code = str(order_data.get("modelCode") or "").lower()
+    model_fallbacks = {
+        "my": "Model Y",
+        "m3": "Model 3",
+        "ms": "Model S",
+        "mx": "Model X",
+        "cybertruck": "Cybertruck",
+    }
+
+    make = (
+        str(vin_data.get("manufacturer") or "").split("(", 1)[0].replace("Inc.", "").strip()
+        or str(nhtsa_data.get("make") or "").strip()
+        or "TESLA"
+    )
+    model = (
+        str(vin_data.get("model") or "").strip()
+        or str(nhtsa_data.get("model") or "").strip()
+        or model_fallbacks.get(model_code, "")
+    )
+    year = (
+        str(vin_data.get("model_year") or "").strip()
+        or str(nhtsa_data.get("model_year") or "").strip()
+    )
+    return {"make": make, "model": model, "year": year}
+
+
+def _resolve_template_value(value: Any) -> Any:
+    """Resolve placeholder values in openquery params using live source state."""
+    if isinstance(value, dict):
+        return {key: _resolve_template_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_resolve_template_value(item) for item in value]
+    if not isinstance(value, str):
+        return value
+
+    if value == "$VIN":
+        return load_config().general.default_vin or ""
+    if value == "$CEDULA":
+        return _resolve_owner_cedula()
+    if value == "$PLACA":
+        return _resolve_plate()
+    if value in {"$MAKE", "$MODEL", "$YEAR"}:
+        identity = _resolve_vehicle_identity()
+        return {
+            "$MAKE": identity.get("make", ""),
+            "$MODEL": identity.get("model", ""),
+            "$YEAR": identity.get("year", ""),
+        }[value]
+    return value
+
+
+def _current_query_context(source_id: str, src: SourceDef) -> dict[str, Any]:
+    if src.openquery_source:
+        params = dict(src.openquery_params)
+        doc_number = _resolve_template_value(params.get("doc_number", ""))
+        return {
+            "openquery_source": src.openquery_source,
+            "doc_type": params.get("doc_type", "custom"),
+            "doc_number": doc_number,
+            "extra": _resolve_template_value(params.get("extra", {})),
+        }
+    cfg = load_config()
+    if source_id == "vin.decode":
+        return {"vin": cfg.general.default_vin or ""}
+    if source_id in {"tesla.delivery", "tesla.tasks"}:
+        order_cached = _load_cache("tesla.order") or {}
+        portal_cached = _load_cache("tesla.portal") or {}
+        return {
+            "order_hash": _data_hash(order_cached.get("data")),
+            "portal_hash": _data_hash(portal_cached.get("data")),
+            "delivery_cache": _file_signature(CONFIG_DIR / "state" / "delivery.json"),
+        }
+    return {}
+
+
+def _file_signature(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"exists": False}
+    stat = path.stat()
+    return {
+        "exists": True,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _data_hash(data: Any) -> str | None:
+    """Return a stable short hash for persisted source payloads."""
+    if data is None:
+        return None
+    return hashlib.sha256(json.dumps(data, default=str, sort_keys=True).encode()).hexdigest()[:16]
+
+
 # ── Refresh methods ──────────────────────────────────────────────────────────
 
 
 def _refresh_subprocess(source_id: str, src: SourceDef) -> dict:
     """Refresh a Playwright-based source via subprocess."""
+    query_context = _current_query_context(source_id, src)
     script = f"""
 import json
 from openquery.sources import get_source
@@ -399,29 +730,34 @@ cfg = load_config()
 vin = cfg.general.default_vin or ""
 src = get_source("{src.openquery_source}")
 params = {json.dumps(src.openquery_params)}
+query_context = {json.dumps(query_context)}
 
 # Build query input
-doc_type = params.get("doc_type", "custom")
-doc_number = params.get("doc_number", "")
+resolved_doc_type = query_context.get("doc_type") or params.get("doc_type", "custom")
+resolved_doc_number = query_context.get("doc_number") or ""
+extra = query_context.get("extra") or params.get("extra", {{}})
 
-# Auto-fill from config
-if doc_number == "$VIN":
-    doc_number = vin
-elif doc_number == "$CEDULA":
-    doc_number = cfg.general.cedula or ""
-    if not doc_number:
-        print(json.dumps({{"error": "No cedula configured. Set general.cedula in config."}}))
-        import sys; sys.exit(0)
-elif doc_number == "$PLACA":
-    # Try to get placa from cached RUNT
-    import pathlib
-    runt_cache = pathlib.Path.home() / ".tesla-cli" / "sources" / "co.runt.json"
-    if runt_cache.exists():
-        runt_data = json.loads(runt_cache.read_text()).get("data", {{}})
-        doc_number = runt_data.get("placa", "")
+if not resolved_doc_number:
+    doc_number = params.get("doc_number", "")
+    if doc_number == "$VIN":
+        resolved_doc_number = vin
+    elif doc_number == "$CEDULA":
+        resolved_doc_number = cfg.general.cedula or ""
+    elif doc_number == "$PLACA":
+        import pathlib
+        runt_cache = pathlib.Path.home() / ".tesla-cli" / "sources" / "co.runt.json"
+        if runt_cache.exists():
+            runt_data = json.loads(runt_cache.read_text()).get("data", {{}}) or {{}}
+            resolved_doc_number = runt_data.get("placa", "")
+    else:
+        resolved_doc_number = doc_number
+
+if not resolved_doc_number and resolved_doc_type == "cedula":
+    print(json.dumps({{"error": "No cedula configured or resolved for co.simit."}}))
+    import sys; sys.exit(0)
 
 dt_map = {{"vin": DocumentType.VIN, "placa": DocumentType.PLATE, "cedula": DocumentType.CEDULA, "custom": DocumentType.CUSTOM}}
-qi = QueryInput(document_type=dt_map.get(doc_type, DocumentType.CUSTOM), document_number=doc_number, extra=params.get("extra", {{}}), audit=True)
+qi = QueryInput(document_type=dt_map.get(resolved_doc_type, DocumentType.CUSTOM), document_number=resolved_doc_number, extra=extra, audit=True)
 result = src.query(qi)
 
 # Save audit evidence to disk if present
@@ -441,15 +777,49 @@ print(json.dumps(result.model_dump(exclude={{"audit"}}), default=str))
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout.strip())
-            return _save_cache(source_id, data)
+            cached = _save_cache(source_id, data, query_context=query_context)
+            cached["_query_meta"] = {
+                "mode": "openquery_subprocess",
+                "openquery_source": src.openquery_source,
+                "openquery_params": src.openquery_params,
+                "subprocess_returncode": result.returncode,
+                "raw_output_excerpt": result.stdout.strip()[:2000],
+            }
+            return cached
         else:
             err = result.stderr.strip()[-200:] if result.stderr else "subprocess failed"
             log.debug("Source %s subprocess failed: %s", source_id, err)
-            return _save_cache(source_id, None, error=err)
+            cached = _save_cache(source_id, None, error=err, query_context=query_context)
+            cached["_query_meta"] = {
+                "mode": "openquery_subprocess",
+                "openquery_source": src.openquery_source,
+                "openquery_params": src.openquery_params,
+                "subprocess_returncode": result.returncode,
+                "raw_error_excerpt": result.stderr.strip()[-2000:] if result.stderr else err,
+            }
+            return cached
     except subprocess.TimeoutExpired:
-        return _save_cache(source_id, None, error="Query timed out (120s)")
+        cached = _save_cache(
+            source_id,
+            None,
+            error="Query timed out (120s)",
+            query_context=query_context,
+        )
+        cached["_query_meta"] = {
+            "mode": "openquery_subprocess",
+            "openquery_source": src.openquery_source,
+            "openquery_params": src.openquery_params,
+            "timeout_seconds": 120,
+        }
+        return cached
     except Exception as exc:
-        return _save_cache(source_id, None, error=str(exc))
+        cached = _save_cache(source_id, None, error=str(exc), query_context=query_context)
+        cached["_query_meta"] = {
+            "mode": "openquery_subprocess",
+            "openquery_source": src.openquery_source,
+            "openquery_params": src.openquery_params,
+        }
+        return cached
 
 
 def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
@@ -458,17 +828,8 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
         from openquery.sources import get_source
         from openquery.sources.base import DocumentType, QueryInput
 
-        cfg = load_config()
-        params = src.openquery_params
-        doc_number = params.get("doc_number", "")
-        if doc_number == "$VIN":
-            doc_number = cfg.general.default_vin or ""
-        elif doc_number == "$CEDULA":
-            doc_number = cfg.general.cedula or ""
-        elif doc_number == "$PLACA":
-            # Try to get placa from cached RUNT
-            runt_cache = _load_cache("co.runt")
-            doc_number = (runt_cache or {}).get("data", {}).get("placa", "") if runt_cache else ""
+        query_context = _current_query_context(source_id, src)
+        doc_number = query_context.get("doc_number", "")
 
         dt_map = {
             "vin": DocumentType.VIN,
@@ -477,16 +838,83 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
             "custom": DocumentType.CUSTOM,
         }
         qi = QueryInput(
-            document_type=dt_map.get(params.get("doc_type", "custom"), DocumentType.CUSTOM),
+            document_type=dt_map.get(query_context.get("doc_type", "custom"), DocumentType.CUSTOM),
             document_number=doc_number,
-            extra=params.get("extra", {}),
+            extra=query_context.get("extra", {}),
         )
         oq_src = get_source(src.openquery_source)
         result = oq_src.query(qi)
         data = result.model_dump(exclude={"audit"})
-        return _save_cache(source_id, data)
+        cached = _save_cache(source_id, data, query_context=query_context)
+        cached["_query_meta"] = {
+            "mode": "openquery_inline",
+            "openquery_source": src.openquery_source,
+            "openquery_params": src.openquery_params,
+            "query_input": qi.model_dump(mode="json") if hasattr(qi, "model_dump") else {},
+        }
+        return cached
     except Exception as exc:
-        return _save_cache(source_id, None, error=str(exc))
+        cached = _save_cache(
+            source_id,
+            None,
+            error=str(exc),
+            query_context=_current_query_context(source_id, src),
+        )
+        cached["_query_meta"] = {
+            "mode": "openquery_inline",
+            "openquery_source": src.openquery_source,
+            "openquery_params": src.openquery_params,
+        }
+        return cached
+
+
+def _append_query(source_id: str, src: SourceDef, result: dict, query_meta: dict | None = None) -> None:
+    """Append a query audit entry for one source refresh attempt."""
+    QUERIES_DIR.mkdir(parents=True, exist_ok=True)
+    query_file = QUERIES_DIR / f"{source_id}.jsonl"
+    data = result.get("data")
+    error = result.get("error")
+    entry = {
+        "queried_at": result.get("refreshed_at"),
+        "source_id": source_id,
+        "status": "error" if error else "ok",
+        "request": {
+            "mode": (query_meta or {}).get("mode", "unknown"),
+            "source_name": src.name,
+            "category": src.category,
+            "country": src.country,
+            "requires_auth": src.requires_auth,
+            "uses_playwright": src.uses_playwright,
+            "openquery_source": (query_meta or {}).get("openquery_source") or src.openquery_source,
+            "openquery_params": (query_meta or {}).get("openquery_params") or src.openquery_params,
+            "query_input": (query_meta or {}).get("query_input"),
+            "auth_type": (query_meta or {}).get("auth_type"),
+            "missing": (query_meta or {}).get("missing"),
+            "url": (query_meta or {}).get("url"),
+            "method": (query_meta or {}).get("method"),
+            "status_code": (query_meta or {}).get("status_code"),
+        },
+        "response": {
+            "error": error,
+            "data_hash": _data_hash(data),
+            "normalized_data": data,
+            "raw_output_excerpt": (query_meta or {}).get("raw_output_excerpt"),
+            "raw_error_excerpt": (query_meta or {}).get("raw_error_excerpt"),
+            "response_text_excerpt": (query_meta or {}).get("response_text_excerpt"),
+            "subprocess_returncode": (query_meta or {}).get("subprocess_returncode"),
+            "timeout_seconds": (query_meta or {}).get("timeout_seconds"),
+        },
+    }
+    with open(query_file, "a") as f:
+        f.write(json.dumps(entry, default=str) + "\n")
+
+
+def append_query_audit(source_id: str, result: dict, query_meta: dict | None = None) -> None:
+    """Public wrapper for routes or workers that bypass refresh_source."""
+    src = get_source_def(source_id)
+    if not src:
+        return
+    _append_query(source_id, src, result, query_meta)
 
 
 # ── Default source registrations ─────────────────────────────────────────────
@@ -504,6 +932,7 @@ def _register_universal() -> None:
             requires_auth="order",
             ttl=3600,
             country="",
+            auto_refresh=False,
             # Refreshed via /api/auth/portal-scrape, not via source refresh
         )
     )
@@ -527,6 +956,38 @@ def _register_universal() -> None:
     )
 
     # ── Tesla Order ──
+    def _normalize_tesla_tasks(raw_tasks: Any) -> dict[str, dict[str, Any]]:
+        if not raw_tasks:
+            return {}
+        mapped: dict[str, dict[str, Any]] = {}
+        if isinstance(raw_tasks, list):
+            for task in raw_tasks:
+                if not isinstance(task, dict):
+                    continue
+                key = task.get("taskType") or task.get("task_type") or task.get("key")
+                if not key:
+                    continue
+                mapped[str(key)] = {
+                    "complete": bool(task.get("completed", task.get("complete", False))),
+                    "enabled": bool(task.get("active", task.get("enabled", False))),
+                    "status": task.get("taskStatus") or task.get("status") or "",
+                    "name": task.get("taskName") or task.get("name") or str(key),
+                    "details": task,
+                }
+            return mapped
+        if isinstance(raw_tasks, dict):
+            for key, task in raw_tasks.items():
+                if not isinstance(task, dict):
+                    continue
+                mapped[str(key)] = {
+                    "complete": bool(task.get("complete", task.get("completed", False))),
+                    "enabled": bool(task.get("enabled", task.get("active", False))),
+                    "status": task.get("status") or task.get("taskStatus") or "",
+                    "name": task.get("name") or task.get("taskName") or str(key),
+                    "details": task,
+                }
+        return mapped
+
     def _fetch_order():
         from tesla_cli.core.backends.order import OrderBackend
         from tesla_cli.core.config import save_config as _save
@@ -551,11 +1012,46 @@ def _register_universal() -> None:
                     cfg.general.country = order_country.upper()
                     log.info("Auto-detected country from order: %s", cfg.general.country)
                 _save(cfg)
+        elif rn and order_list:
+            for order in order_list:
+                if order.get("referenceNumber") == rn:
+                    api_vin = order.get("vin", "")
+                    if api_vin and api_vin != cfg.general.default_vin:
+                        cfg.general.default_vin = api_vin
+                        _save(cfg)
+                        log.info("Updated default VIN from active order: %s", api_vin)
+                    break
 
+        selected_order = None
         for order in order_list:
             if order.get("referenceNumber") == rn:
-                return order
-        return order_list[0] if order_list else None
+                selected_order = order
+                break
+        if selected_order is None:
+            selected_order = order_list[0] if order_list else None
+
+        enriched_order = selected_order
+        if selected_order:
+            try:
+                details = backend.get_order_details(selected_order.get("referenceNumber", ""))
+                enriched_order = {
+                    **selected_order,
+                    "tasks": [task.model_dump(mode="json") for task in details.tasks],
+                    "delivery": details.delivery,
+                }
+            except Exception:
+                log.warning("Failed to enrich tesla.order source with tasks/delivery", exc_info=True)
+
+        return (
+            enriched_order,
+            {
+                "mode": "fetch_fn",
+                "url": backend.last_query_meta.get("url"),
+                "method": backend.last_query_meta.get("method"),
+                "status_code": backend.last_query_meta.get("status_code"),
+                "response_text_excerpt": backend.last_query_meta.get("response_text_excerpt"),
+            },
+        )
 
     register_source(
         SourceDef(
@@ -566,6 +1062,48 @@ def _register_universal() -> None:
             ttl=1800,
             country="",
             fetch_fn=_fetch_order,
+        )
+    )
+
+    def _fetch_tesla_delivery():
+        order_cached = _load_cache("tesla.order") or {}
+        order_data = order_cached.get("data") or {}
+        if not order_data:
+            order_result = refresh_source("tesla.order", _skip_dependents=True)
+            order_data = (order_result.get("data") or {}) if isinstance(order_result, dict) else {}
+        delivery = order_data.get("delivery") or {}
+        if not isinstance(delivery, dict):
+            delivery = {}
+        return delivery, {"mode": "derived_from_source", "derived_from": ["tesla.order", "tesla.portal"]}
+
+    register_source(
+        SourceDef(
+            id="tesla.delivery",
+            name="Tesla Delivery",
+            category="financiero",
+            ttl=1800,
+            country="",
+            fetch_fn=_fetch_tesla_delivery,
+        )
+    )
+
+    def _fetch_tesla_tasks():
+        order_cached = _load_cache("tesla.order") or {}
+        order_data = order_cached.get("data") or {}
+        if not order_data:
+            order_result = refresh_source("tesla.order", _skip_dependents=True)
+            order_data = (order_result.get("data") or {}) if isinstance(order_result, dict) else {}
+        tasks = _normalize_tesla_tasks(order_data.get("tasks") or {})
+        return tasks, {"mode": "derived_from_source", "derived_from": ["tesla.order", "tesla.portal"]}
+
+    register_source(
+        SourceDef(
+            id="tesla.tasks",
+            name="Tesla Tasks",
+            category="financiero",
+            ttl=1800,
+            country="",
+            fetch_fn=_fetch_tesla_tasks,
         )
     )
 
@@ -591,6 +1129,7 @@ def _register_universal() -> None:
             category="servicios",
             ttl=3600,
             country="",
+            auto_refresh=False,
             openquery_source="intl.electricity_maps",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         )
@@ -606,6 +1145,66 @@ def _register_universal() -> None:
             country="US",
             openquery_source="us.nhtsa_vin",
             openquery_params={"doc_type": "vin", "doc_number": "$VIN"},
+        )
+    )
+    register_source(
+        SourceDef(
+            id="us.nhtsa_recalls",
+            name="NHTSA Recalls",
+            category="seguridad",
+            ttl=86400,
+            country="",
+            openquery_source="us.nhtsa_recalls",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "TESLA",
+                "extra": {"make": "TESLA", "model": "$MODEL", "year": "$YEAR"},
+            },
+        )
+    )
+    register_source(
+        SourceDef(
+            id="us.nhtsa_complaints",
+            name="NHTSA Consumer Complaints",
+            category="seguridad",
+            ttl=86400,
+            country="",
+            openquery_source="us.nhtsa_complaints",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
+            },
+        )
+    )
+    register_source(
+        SourceDef(
+            id="us.nhtsa_investigations",
+            name="NHTSA Defect Investigations",
+            category="seguridad",
+            ttl=86400,
+            country="",
+            openquery_source="us.nhtsa_investigations",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
+            },
+        )
+    )
+    register_source(
+        SourceDef(
+            id="us.epa_fuel_economy",
+            name="EPA Fuel Economy",
+            category="vehiculo",
+            ttl=86400 * 30,
+            country="",
+            openquery_source="us.epa_fuel_economy",
+            openquery_params={
+                "doc_type": "custom",
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
+            },
         )
     )
 
@@ -625,7 +1224,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             openquery_params={
                 "doc_type": "custom",
                 "doc_number": "TESLA",
-                "extra": {"make": "TESLA", "model": "Model Y", "year": "2026"},
+                "extra": {"make": "TESLA", "model": "$MODEL", "year": "$YEAR"},
             },
         ),
         SourceDef(
@@ -649,8 +1248,8 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             openquery_source="us.nhtsa_complaints",
             openquery_params={
                 "doc_type": "custom",
-                "doc_number": "TESLA",
-                "extra": {"make": "TESLA", "model": "Model Y"},
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
             },
         ),
         SourceDef(
@@ -662,8 +1261,8 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             openquery_source="us.nhtsa_investigations",
             openquery_params={
                 "doc_type": "custom",
-                "doc_number": "TESLA",
-                "extra": {"make": "TESLA", "model": "Model Y"},
+                "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
             },
         ),
         SourceDef(
@@ -674,8 +1273,9 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             country="US",
             openquery_source="us.epa_fuel_economy",
             openquery_params={
-                "doc_type": "vin",
+                "doc_type": "custom",
                 "doc_number": "$VIN",
+                "extra": {"make": "$MAKE", "model": "$MODEL", "year": "$YEAR"},
             },
         ),
         SourceDef(
@@ -745,6 +1345,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=43200,  # 12h (changes daily)
             country="CO",
+            auto_refresh=False,
             openquery_source="co.pico_y_placa",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
@@ -769,6 +1370,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             uses_playwright=True,
             ttl=86400 * 7,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.fasecolda",
             openquery_params={
                 "doc_type": "custom",
@@ -782,6 +1384,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=86400,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.combustible",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         ),
@@ -791,6 +1394,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=86400 * 7,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.peajes",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         ),
@@ -800,6 +1404,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="registro",
             ttl=86400,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.vehiculos",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
@@ -809,6 +1414,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="infracciones",
             ttl=3600,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.multas_bogota",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
@@ -818,6 +1424,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="infracciones",
             ttl=3600,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.multas_medellin",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
@@ -827,6 +1434,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=86400,  # daily refresh
             country="CO",
+            auto_refresh=False,
             openquery_source="co.tarifas_energia",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         ),
@@ -837,6 +1445,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=86400,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.estaciones_ev_epm",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         ),
@@ -846,6 +1455,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="servicios",
             ttl=604800,  # weekly
             country="CO",
+            auto_refresh=False,
             openquery_source="co.peajes_tarifas",
             openquery_params={"doc_type": "custom", "doc_number": ""},
         ),
@@ -855,6 +1465,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="financiero",
             ttl=86400,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.impuesto_vehicular",
             openquery_params={"doc_type": "placa", "doc_number": "$PLACA"},
         ),
@@ -865,6 +1476,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="infracciones",
             ttl=3600,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.simit_historico",
             openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
         ),
@@ -874,6 +1486,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="infracciones",
             ttl=3600,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.comparendos_transito",
             openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
         ),
@@ -883,6 +1496,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
             category="registro",
             ttl=86400,
             country="CO",
+            auto_refresh=False,
             openquery_source="co.estado_cedula",
             openquery_params={"doc_type": "cedula", "doc_number": "$CEDULA"},
         ),

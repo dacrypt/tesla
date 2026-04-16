@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import math
+
+logger = logging.getLogger(__name__)
 
 CITY_COORDS: dict[str, tuple[float, float]] = {
     "bogota": (4.711, -74.072),
@@ -137,7 +140,8 @@ def get_tariffs(ciudad: str, estrato: int = 0) -> list[dict]:
                 tariffs = [t for t in tariffs if t.get("estrato") == estrato]
             return tariffs
     except Exception:
-        pass  # Fall through to static data
+        logger.warning("Failed to fetch dynamic energy prices, using fallback tariffs", exc_info=True)
+        # Fall through to static data
 
     # Fallback: static tariff table
     fallback = _FALLBACK_TARIFFS.get(ciudad_key, _FALLBACK_TARIFFS["bogota"])
@@ -165,5 +169,5 @@ def get_vehicle_location() -> tuple[float | None, float | None]:
         if lat is not None and lon is not None:
             return float(lat), float(lon)
     except Exception:
-        pass
+        logger.warning("Failed to resolve vehicle location for energy pricing", exc_info=True)
     return None, None

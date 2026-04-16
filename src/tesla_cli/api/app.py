@@ -118,30 +118,13 @@ def _find_free_ports(stack) -> dict:
 
 
 def _auto_refresh_sources(hub_ref: list | None = None) -> None:
-    """Periodically refresh stale data sources and broadcast updates via hub."""
+    """Refresh stale data sources at startup, then periodically afterwards."""
     import time as _t
 
     log = logging.getLogger("tesla-cli.sources-refresh")
-    _t.sleep(60)  # Wait for server to be fully ready
     while True:
         try:
-            from tesla_cli.core.sources import get_cached, refresh_source, _SOURCES, _is_stale
-
-            refreshed = []
-            failed = []
-            for sid in _SOURCES:
-                if _is_stale(sid):
-                    result = refresh_source(sid)
-                    if result.get("error"):
-                        failed.append({"id": sid, "error": result["error"]})
-                    else:
-                        refreshed.append(sid)
-                        # Broadcast update to SSE clients
-                        hub = hub_ref[0] if hub_ref else None
-                        if hub:
-                            cached = get_cached(sid)
-                            hub.broadcast_source(sid, cached)
-
+            refreshed, failed = _refresh_stale_sources_once(hub_ref)
             if refreshed:
                 log.info("Sources refreshed: %s", ", ".join(refreshed))
             if failed:
@@ -149,6 +132,29 @@ def _auto_refresh_sources(hub_ref: list | None = None) -> None:
         except Exception as exc:
             log.debug("Source auto-refresh failed: %s", exc)
         _t.sleep(1800)  # Every 30 minutes
+
+
+def _refresh_stale_sources_once(hub_ref: list | None = None) -> tuple[list[str], list[dict[str, str]]]:
+    """Run one stale-source refresh pass and optionally broadcast updates."""
+    from tesla_cli.core.sources import _SOURCES, _is_stale, get_cached, refresh_source
+
+    refreshed: list[str] = []
+    failed: list[dict[str, str]] = []
+    for sid in _SOURCES:
+        source_def = _SOURCES[sid]
+        if not getattr(source_def, "auto_refresh", True):
+            continue
+        if _is_stale(sid):
+            result = refresh_source(sid)
+            if result.get("error"):
+                failed.append({"id": sid, "error": result["error"]})
+            else:
+                refreshed.append(sid)
+                hub = hub_ref[0] if hub_ref else None
+                if hub:
+                    cached = get_cached(sid)
+                    hub.broadcast_source(sid, cached)
+    return refreshed, failed
 
 
 @asynccontextmanager
@@ -215,9 +221,15 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
 def _register_middleware(app: FastAPI) -> None:
     """Add CORS and API key middleware."""
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -231,6 +243,7 @@ def _register_middleware(app: FastAPI) -> None:
 def _register_routes(app: FastAPI) -> None:
     """Include all API routers."""
     from tesla_cli.api.routes.abrp import router as abrp_router
+    from tesla_cli.api.routes.alerts import router as alerts_router
     from tesla_cli.api.routes.auth import router as auth_router
     from tesla_cli.api.routes.automations import router as automations_router
     from tesla_cli.api.routes.ble import router as ble_router
@@ -238,24 +251,31 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dashcam import router as dashcam_router
+    from tesla_cli.api.routes.domains import router as domains_router
     from tesla_cli.api.routes.dossier import router as dossier_router
+    from tesla_cli.api.routes.drivers import router as drivers_router
     from tesla_cli.api.routes.energy_prices import router as energy_prices_router
+    from tesla_cli.api.routes.events import router as events_router
     from tesla_cli.api.routes.fleet import router as fleet_router
     from tesla_cli.api.routes.geofence import router as geofence_router
+    from tesla_cli.api.routes.init import router as init_router
+    from tesla_cli.api.routes.mission_control import router as mission_control_router
     from tesla_cli.api.routes.mqtt import router as mqtt_router
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
-    from tesla_cli.api.routes.drivers import router as drivers_router
-    from tesla_cli.api.routes.init import router as init_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
 
     app.include_router(init_router, prefix="/api/init", tags=["Init"])
     app.include_router(drivers_router, prefix="/api/drivers", tags=["Drivers"])
     app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+    app.include_router(events_router, prefix="/api/events", tags=["Events"])
+    app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
     app.include_router(sources_router, prefix="/api/sources", tags=["Sources"])
+    app.include_router(domains_router, prefix="/api/domains", tags=["Domains"])
+    app.include_router(mission_control_router, prefix="/api/mission-control", tags=["Mission Control"])
     app.include_router(colombia_router, prefix="/api/co", tags=["Colombia"])
     app.include_router(energy_prices_router, prefix="/api/energy", tags=["Energy"])
     app.include_router(vehicle_router, prefix="/api/vehicle", tags=["Vehicle"])
@@ -472,7 +492,6 @@ def _register_metrics(app: FastAPI) -> None:
             # State
             _bool_g("tesla_locked", "Doors locked (1=locked 0=unlocked)", vs.get("locked")),
             _bool_g("tesla_sentry_mode", "Sentry mode active (1=on 0=off)", vs.get("sentry_mode")),
-            _bool_g("tesla_climate_on_state", "HVAC active (1=on 0=off)", cl.get("is_climate_on")),
             _bool_g(
                 "tesla_charge_port_open", "Charge port door open", cs.get("charge_port_door_open")
             ),
@@ -588,7 +607,7 @@ def _register_sse_stream(app: FastAPI) -> None:
                     try:
                         event = await asyncio.wait_for(q.get(), timeout=60)
                         yield event
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # Send keepalive comment to prevent proxy/browser timeout
                         yield ": keepalive\n\n"
             finally:
@@ -629,8 +648,8 @@ def _register_ui(app: FastAPI, serve_ui: bool) -> None:
                     return await call_next(request)
 
                 # Try serving a static file from ui_dist.
-                file = _ui_dist / path.lstrip("/")
-                if file.is_file() and ".." not in path:
+                file = (_ui_dist / path.lstrip("/")).resolve()
+                if file.is_file() and str(file).startswith(str(_ui_dist.resolve())):
                     return StarletteFileResponse(str(file))
 
                 # Fallback: serve index.html for client-side routing.

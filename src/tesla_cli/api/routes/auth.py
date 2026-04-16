@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+import time
 import urllib.parse
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +14,8 @@ from pydantic import BaseModel
 from tesla_cli.core.auth.tokens import (
     FLEET_ACCESS_TOKEN,
     FLEET_REFRESH_TOKEN,
+    ORDER_ACCESS_TOKEN,
+    ORDER_REFRESH_TOKEN,
     TESSIE_TOKEN,
     has_token,
     set_token,
@@ -21,8 +24,19 @@ from tesla_cli.core.config import load_config, save_config
 
 router = APIRouter()
 
-# In-memory PKCE verifier store (state → verifier)
-_pending_auth: dict[str, str] = {}
+# In-memory PKCE verifier store (state → verifier), bounded to prevent DoS
+_MAX_PENDING = 100
+_pending_auth: dict[str, tuple[str, float]] = {}  # state → (verifier, created_ts)
+
+
+def _cleanup_pending_auth() -> None:
+    """Remove entries older than 10 minutes."""
+    import time
+
+    cutoff = time.time() - 600
+    expired = [k for k, (_, ts) in _pending_auth.items() if ts < cutoff]
+    for k in expired:
+        _pending_auth.pop(k, None)
 
 AUTH_BASE = "https://auth.tesla.com/oauth2/v3"
 AUTHORIZE_URL = f"{AUTH_BASE}/authorize"
@@ -51,7 +65,10 @@ def auth_login() -> dict:
         base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     )
     state = secrets.token_urlsafe(32)
-    _pending_auth[state] = verifier
+    _cleanup_pending_auth()
+    if len(_pending_auth) >= _MAX_PENDING:
+        raise HTTPException(429, "Too many pending login attempts. Try again later.")
+    _pending_auth[state] = (verifier, time.time())
 
     params = {
         "client_id": client_id,
@@ -81,7 +98,10 @@ def auth_callback(req: CallbackRequest) -> dict:
     Called by the PWA after user completes Tesla login and copies
     the void/callback URL containing the code.
     """
-    verifier = _pending_auth.pop(req.state, None)
+    entry = _pending_auth.pop(req.state, None)
+    if not entry:
+        raise HTTPException(400, "Invalid or expired state. Try logging in again.")
+    verifier, _created = entry
     if not verifier:
         raise HTTPException(400, "Invalid or expired state. Try logging in again.")
 
@@ -153,8 +173,8 @@ def auth_tessie(req: TessieRequest) -> dict:
 
 
 class BrowserLoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str | None = None
+    password: str | None = None
     mfa_code: str | None = None
 
 
@@ -179,18 +199,18 @@ def auth_browser_login(req: BrowserLoginRequest) -> dict:
     # Run in subprocess (Playwright doesn't work in uvicorn)
     script = f"""
 import json
-from tesla_cli.core.auth.browser_login import full_login
+from tesla_cli.core.auth.browser_login import interactive_login_and_capture
 try:
-    result = full_login(
-        email={repr(req.email)},
-        password={repr(req.password)},
-        mfa_code={repr(req.mfa_code)},
+    result = interactive_login_and_capture(
         fleet_client_id={repr(fleet_client_id)},
+        reservation_number={repr(cfg.order.reservation_number or "")},
     )
     print(json.dumps({{
         "ok": True,
         "order": result.get("order"),
         "fleet": result.get("fleet"),
+        "portal": result.get("portal"),
+        "portal_storage_state": result.get("portal_storage_state"),
     }}))
 except Exception as e:
     msg = str(e)
@@ -206,7 +226,7 @@ except Exception as e:
             [sys.executable, "-c", script],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=300,
         )
         if result.stdout.strip():
             data = _json.loads(result.stdout.strip())
@@ -228,8 +248,6 @@ except Exception as e:
 
     # Store tokens
     if data.get("order"):
-        from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN, ORDER_REFRESH_TOKEN
-
         set_token(ORDER_ACCESS_TOKEN, data["order"]["access_token"])
         set_token(ORDER_REFRESH_TOKEN, data["order"]["refresh_token"])
 
@@ -264,6 +282,25 @@ except Exception as e:
         except Exception:
             pass
 
+    # Save portal data/session when captured
+    if data.get("portal"):
+        from tesla_cli.core.auth.portal_scrape import save_portal_session
+        from tesla_cli.core.sources import _save_cache, append_query_audit
+
+        if data.get("portal_storage_state"):
+            save_portal_session(data["portal_storage_state"])
+        result = _save_cache("tesla.portal", data["portal"])
+        append_query_audit(
+            "tesla.portal",
+            result,
+            {
+                "mode": "portal_scrape",
+                "url": "https://www.tesla.com/teslaaccount",
+                "method": "BROWSER",
+                "status_code": 200,
+            },
+        )
+
     # Auto-sync to TeslaMate
     _sync_teslamate_tokens()
 
@@ -271,6 +308,7 @@ except Exception as e:
         "ok": True,
         "has_order": bool(data.get("order")),
         "has_fleet": bool(data.get("fleet")),
+        "has_portal": bool(data.get("portal")),
     }
 
 
@@ -278,8 +316,6 @@ except Exception as e:
 
 
 class PortalScrapeRequest(BaseModel):
-    email: str
-    password: str
     mfa_code: str | None = None
 
 
@@ -302,21 +338,35 @@ def auth_portal_scrape(req: PortalScrapeRequest) -> dict:
 
     script = f"""
 import json
-from tesla_cli.core.auth.portal_scrape import scrape_portal
+from tesla_cli.core.auth.portal_scrape import scrape_portal_with_session
 try:
-    data = scrape_portal(
-        email={repr(req.email)},
-        password={repr(req.password)},
-        mfa_code={repr(req.mfa_code)},
+    data = scrape_portal_with_session(
         reservation_number={repr(rn)},
     )
     # Save to sources cache
-    from tesla_cli.core.sources import _save_cache
+    from tesla_cli.core.sources import _save_cache, append_query_audit
     from pathlib import Path
-    _save_cache("tesla.portal", data)
+    result = _save_cache("tesla.portal", data)
+    append_query_audit("tesla.portal", result, {{
+        "mode": "portal_scrape",
+        "url": "https://www.tesla.com/teslaaccount",
+        "method": "BROWSER",
+        "status_code": 200,
+    }})
     print(json.dumps({{"ok": True, "keys": list(data.keys()), "sections": len(data)}}))
 except Exception as e:
     msg = str(e)
+    try:
+        from tesla_cli.core.sources import _save_cache, append_query_audit
+        result = _save_cache("tesla.portal", None, error=msg if "MFA_REQUIRED" not in msg else "MFA code required")
+        append_query_audit("tesla.portal", result, {{
+            "mode": "portal_scrape",
+            "url": "https://www.tesla.com/teslaaccount",
+            "method": "BROWSER",
+            "status_code": None,
+        }})
+    except Exception:
+        pass
     print(json.dumps({{
         "ok": False,
         "mfa_required": "MFA_REQUIRED" in msg,
@@ -329,7 +379,7 @@ except Exception as e:
             [sys.executable, "-c", script],
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=420,
         )
         if result.stdout.strip():
             data = _json.loads(result.stdout.strip())
@@ -341,8 +391,6 @@ except Exception as e:
         raise HTTPException(502, f"Portal error: {result.stdout[:100]}")
 
     if not data.get("ok"):
-        if data.get("mfa_required"):
-            return {"ok": False, "mfa_required": True}
         raise HTTPException(502, data.get("error", "Scrape failed"))
 
     return data
@@ -354,9 +402,9 @@ except Exception as e:
 @router.get("/status")
 def auth_status() -> dict:
     """Current authentication state."""
-    from tesla_cli.core.auth.tokens import ORDER_ACCESS_TOKEN
-
     cfg = load_config()
+    from tesla_cli.core.auth.portal_scrape import has_portal_session
+
     return {
         "authenticated": has_token(FLEET_ACCESS_TOKEN)
         or has_token(TESSIE_TOKEN)
@@ -365,6 +413,7 @@ def auth_status() -> dict:
         "has_fleet": has_token(FLEET_ACCESS_TOKEN),
         "has_order": has_token(ORDER_ACCESS_TOKEN),
         "has_tessie": has_token(TESSIE_TOKEN),
+        "has_portal_session": has_portal_session(),
         "fleet_client_id": cfg.fleet.client_id or None,
     }
 
@@ -387,3 +436,4 @@ def _sync_teslamate_tokens() -> None:
             stack.sync_tokens_from_keyring()
     except Exception:
         pass
+
