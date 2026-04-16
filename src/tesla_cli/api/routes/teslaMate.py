@@ -91,6 +91,7 @@ def tm_heatmap(days: int = 365) -> list:
     Query params:
     - `days` — lookback window (default 365)
     """
+    days = min(days, 3650)
     try:
         return _backend().get_drive_days(days=days)
     except HTTPException:
@@ -104,8 +105,9 @@ def tm_vampire(days: int = 30) -> dict:
     """Vampire drain analysis for the past N days.
 
     Query params:
-    - `days` — lookback window (default 30)
+    - `days` — lookback window (default 30, max 3650)
     """
+    days = min(days, 3650)
     try:
         return _backend().get_vampire_drain(days=days)
     except HTTPException:
@@ -121,6 +123,7 @@ def tm_daily_energy(days: int = 30) -> list:
     Query params:
     - `days` — lookback window (default 30)
     """
+    days = min(days, 3650)
     try:
         return _backend().get_daily_energy(days=days)
     except HTTPException:
@@ -147,6 +150,7 @@ def tm_report(month: str) -> dict:
 @router.get("/timeline")
 def teslaMate_timeline(days: int = 30) -> list:
     """Unified event timeline: trips, charges, OTA updates (chronological, newest first)."""
+    days = min(days, 3650)
     try:
         backend = _backend()
         return backend.get_timeline(days=days)
@@ -208,6 +212,7 @@ def teslaMate_charging_locations_api(days: int = 90, limit: int = 10) -> list:
 
     Returns list of {location, sessions, kwh_total, last_visit}.
     """
+    days = min(days, 3650)
     limit = min(limit, 500)
     try:
         return _backend().get_charging_locations(days=days, limit=limit)
@@ -226,6 +231,7 @@ def teslaMate_trip_stats_api(days: int = 30) -> dict:
 
     Returns {summary, top_routes, days}
     """
+    days = min(days, 3650)
     try:
         backend = _backend()
         return backend.get_trip_stats(days=days)
@@ -244,6 +250,7 @@ def tm_geo(sample: int = 5) -> list:
 
     Returns list of {lat, lon} dicts.
     """
+    sample = max(sample, 1)
     try:
         return _backend().get_geo_locations(sample=sample)
     except HTTPException:
@@ -360,6 +367,7 @@ def teslaMate_stack_update() -> dict:
 @router.get("/stack/logs")
 def teslaMate_stack_logs(service: str = "", lines: int = 80) -> dict:
     """Get recent logs from the managed stack."""
+    lines = min(lines, 1000)
     _, stack = _get_managed_stack()
     try:
         result = stack.logs(service=service or None, lines=lines)
@@ -371,6 +379,7 @@ def teslaMate_stack_logs(service: str = "", lines: int = 80) -> dict:
 @router.get("/battery-degradation")
 def battery_degradation(months: int = 12) -> dict:
     """Battery degradation trend from high-SoC charges."""
+    months = min(months, 120)
     cfg = load_config()
     if not cfg.teslaMate.database_url:
         raise HTTPException(status_code=404, detail="TeslaMate not configured.")
