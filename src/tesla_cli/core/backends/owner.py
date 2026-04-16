@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 import jwt
 
+from tesla_cli import __version__
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.auth.oauth import refresh_access_token
 from tesla_cli.core.backends.base import VehicleBackend
@@ -76,7 +77,7 @@ class OwnerApiVehicleBackend(VehicleBackend):
         return {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
-            "User-Agent": "tesla-cli/0.1.0",
+            "User-Agent": f"tesla-cli/{__version__}",
         }
 
     # ── VIN → vehicle_id resolution ─────────────────────────────────────────

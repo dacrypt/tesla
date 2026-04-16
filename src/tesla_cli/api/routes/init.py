@@ -105,7 +105,7 @@ def app_init(request: Request) -> dict:
                     or ""
                 )
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Delivery date resolution failed", exc_info=True)
 
         result["computed"]["real_status"] = compute_real_status(
             order_data=order_data,
@@ -235,7 +235,7 @@ def _resolve_location(request: Request, cfg) -> dict:
                         "source": "delivery_cache",
                     }
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Location resolution from delivery cache failed", exc_info=True)
 
     # 3. Default: bogota
     clat, clon = CITY_COORDS.get("bogota", (4.711, -74.072))

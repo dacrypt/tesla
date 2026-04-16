@@ -212,7 +212,7 @@ class TeslaMateBacked:
                     LEAD(start_date)           OVER (ORDER BY start_date)  AS next_start_date
                 FROM drives
                 WHERE car_id = %s
-                  AND start_date >= NOW() - INTERVAL '%s days'
+                  AND start_date >= NOW() - (%s || ' days')::interval
             )
             SELECT
                 DATE(end_date)                                              AS date,
@@ -389,7 +389,7 @@ class TeslaMateBacked:
             FROM drives d
             LEFT JOIN addresses a ON d.start_address_id = a.id
             WHERE d.car_id = %s
-              AND d.start_date >= NOW() - INTERVAL '%s days'
+              AND d.start_date >= NOW() - (%s || ' days')::interval
             UNION ALL
             SELECT
                 'charge'          AS type,
@@ -400,7 +400,7 @@ class TeslaMateBacked:
             FROM charging_processes cp
             LEFT JOIN addresses a ON cp.address_id = a.id
             WHERE cp.car_id = %s
-              AND cp.start_date >= NOW() - INTERVAL '%s days'
+              AND cp.start_date >= NOW() - (%s || ' days')::interval
             UNION ALL
             SELECT
                 'ota'             AS type,
@@ -410,7 +410,7 @@ class TeslaMateBacked:
                 u.version         AS detail
             FROM updates u
             WHERE u.car_id = %s
-              AND u.start_date >= NOW() - INTERVAL '%s days'
+              AND u.start_date >= NOW() - (%s || ' days')::interval
             ORDER BY start_date DESC
         """
         with self._cursor() as cur:
@@ -429,7 +429,7 @@ class TeslaMateBacked:
                 ROUND(AVG(EXTRACT(EPOCH FROM (end_date - start_date)) / 60)::numeric, 0) AS avg_duration_min
             FROM drives
             WHERE car_id = %s
-              AND start_date >= NOW() - INTERVAL '%s days'
+              AND start_date >= NOW() - (%s || ' days')::interval
               AND distance IS NOT NULL
         """
         routes_sql = """
@@ -441,7 +441,7 @@ class TeslaMateBacked:
             LEFT JOIN addresses a_s ON d.start_address_id = a_s.id
             LEFT JOIN addresses a_e ON d.end_address_id   = a_e.id
             WHERE d.car_id = %s
-              AND d.start_date >= NOW() - INTERVAL '%s days'
+              AND d.start_date >= NOW() - (%s || ' days')::interval
             GROUP BY from_addr, to_addr
             ORDER BY count DESC
             LIMIT 5
@@ -467,7 +467,7 @@ class TeslaMateBacked:
             FROM charging_processes cp
             LEFT JOIN addresses a ON cp.address_id = a.id
             WHERE cp.car_id = %s
-              AND cp.start_date >= NOW() - INTERVAL '%s days'
+              AND cp.start_date >= NOW() - (%s || ' days')::interval
               AND cp.charge_energy_added > 0
             GROUP BY a.display_name
             ORDER BY sessions DESC
@@ -492,7 +492,7 @@ class TeslaMateBacked:
             FROM charging_processes cp
             WHERE cp.car_id = %s
               AND cp.end_battery_level >= 95
-              AND cp.end_date >= NOW() - INTERVAL '%s months'
+              AND cp.end_date >= NOW() - (%s || ' months')::interval
               AND cp.end_rated_range_km IS NOT NULL
             GROUP BY TO_CHAR(cp.end_date, 'YYYY-MM')
             ORDER BY month

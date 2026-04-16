@@ -308,6 +308,7 @@ def _openquery_source_exists(source_name: str) -> bool:
 
             _OPENQUERY_AVAILABLE = {source.meta().name for source in list_sources()}
         except Exception:
+            log.debug("openquery package unavailable or failed to load sources", exc_info=True)
             _OPENQUERY_AVAILABLE = set()
     return source_name in _OPENQUERY_AVAILABLE
 
@@ -357,7 +358,7 @@ def _save_cache(
             refreshed_at=now,
         )
     except Exception:
-        pass
+        log.debug("Event emission failed for source %s", source_id, exc_info=True)
 
     return cached
 
@@ -467,7 +468,7 @@ def get_history(source_id: str, limit: int = 50) -> list[dict]:
         try:
             entries.append(json.loads(line))
         except Exception:
-            pass
+            log.debug("Failed to parse history entry for source %s", source_id, exc_info=True)
     return entries
 
 
@@ -482,7 +483,7 @@ def get_diffs(source_id: str, limit: int = 50) -> list[dict]:
         try:
             entries.append(json.loads(line))
         except Exception:
-            pass
+            log.debug("Failed to parse diff entry for source %s", source_id, exc_info=True)
     return entries
 
 
@@ -497,7 +498,7 @@ def get_queries(source_id: str, limit: int = 50) -> list[dict]:
         try:
             entries.append(json.loads(line))
         except Exception:
-            pass
+            log.debug("Failed to parse query audit entry for source %s", source_id, exc_info=True)
     return entries
 
 
@@ -559,7 +560,7 @@ def _resolve_owner_cedula() -> str:
                 if _is_valid_doc_number(candidate):
                     cedula = candidate
     except Exception:
-        pass
+        log.debug("Failed to resolve owner cedula from primary driver DB", exc_info=True)
     if not cedula:
         candidate = cfg.general.cedula
         if _is_valid_doc_number(candidate):

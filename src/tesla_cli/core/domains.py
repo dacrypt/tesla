@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,7 +35,7 @@ def recompute_domain(domain_id: str) -> dict[str, Any]:
 
         events.emit_domain_change(domain_id, projection, previous_projection)
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Domain event emission failed for %s", domain_id, exc_info=True)
     return projection
 
 
@@ -50,6 +51,7 @@ def _load_domain(domain_id: str) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text())
     except Exception:
+        logging.getLogger(__name__).debug("Failed to load domain cache", exc_info=True)
         return None
 
 
