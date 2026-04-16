@@ -12,6 +12,7 @@ router = APIRouter()
 @router.get("")
 def alerts_list(limit: int = 50, active_only: bool = True) -> list:
     """List recent alerts."""
+    limit = min(limit, 500)
     return events.list_alerts(limit=limit, active_only=active_only)
 
 

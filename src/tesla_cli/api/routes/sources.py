@@ -67,6 +67,7 @@ def update_source_config(req: ConfigUpdate) -> dict:
 @router.get("/{source_id}/history")
 def source_history(source_id: str, limit: int = 50) -> list:
     """History of data changes for a source."""
+    limit = min(limit, 500)
     _validate_source_id(source_id)
     return sources.get_history(source_id, limit)
 
@@ -74,6 +75,7 @@ def source_history(source_id: str, limit: int = 50) -> list:
 @router.get("/{source_id}/diffs")
 def source_diffs(source_id: str, limit: int = 50) -> list:
     """Structured diff log for a source."""
+    limit = min(limit, 500)
     _validate_source_id(source_id)
     return sources.get_diffs(source_id, limit)
 
@@ -81,6 +83,7 @@ def source_diffs(source_id: str, limit: int = 50) -> list:
 @router.get("/{source_id}/queries")
 def source_queries(source_id: str, limit: int = 50) -> list:
     """Query audit trail for a source."""
+    limit = min(limit, 500)
     _validate_source_id(source_id)
     return sources.get_queries(source_id, limit)
 

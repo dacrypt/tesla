@@ -32,6 +32,7 @@ def tm_trips(limit: int = 20) -> list:
     Query params:
     - `limit` — number of trips to return (default 20)
     """
+    limit = min(limit, 500)
     try:
         return _backend().get_trips(limit=limit)
     except HTTPException:
@@ -47,6 +48,7 @@ def tm_charges(limit: int = 20) -> list:
     Query params:
     - `limit` — number of sessions to return (default 20)
     """
+    limit = min(limit, 500)
     try:
         return _backend().get_charging_sessions(limit=limit)
     except HTTPException:
@@ -73,6 +75,7 @@ def tm_efficiency(limit: int = 20) -> list:
     Query params:
     - `limit` — number of trips to return (default 20)
     """
+    limit = min(limit, 500)
     try:
         return _backend().get_efficiency(limit=limit)
     except HTTPException:
@@ -163,6 +166,7 @@ def teslaMate_cost_report(month: str = "", limit: int = 100) -> dict:
 
     Returns {cost_per_kwh, months: {YYYY-MM: {sessions, kwh, cost}}, sessions: N}
     """
+    limit = min(limit, 500)
     import collections
 
     try:
@@ -204,6 +208,7 @@ def teslaMate_charging_locations_api(days: int = 90, limit: int = 10) -> list:
 
     Returns list of {location, sessions, kwh_total, last_visit}.
     """
+    limit = min(limit, 500)
     try:
         return _backend().get_charging_locations(days=days, limit=limit)
     except HTTPException:

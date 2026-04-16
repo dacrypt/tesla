@@ -151,6 +151,7 @@ def send_notification(body: SendNotificationRequest) -> dict:
 @router.get("/history")
 def notification_history(limit: int = 50) -> list:
     """Get notification history (most recent first)."""
+    limit = min(limit, 500)
     history_file = Path.home() / ".tesla-cli" / "notification_history.jsonl"
     if not history_file.exists():
         return []
@@ -191,3 +192,11 @@ def _log_notification(title: str, message: str, channel: str, success: bool) -> 
     with history_file.open("a") as f:
         f.write(json.dumps(entry) + "\n")
     os.chmod(history_file, 0o600)
+    # Rotate if file exceeds 2 MB
+    try:
+        if history_file.stat().st_size > 2 * 1024 * 1024:
+            lines = history_file.read_text().strip().splitlines()
+            if len(lines) > 5000:
+                history_file.write_text("\n".join(lines[-5000:]) + "\n")
+    except Exception:
+        pass

@@ -134,6 +134,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
     Returns a list of normalized ChargingSession objects with source attribution.
     Applies cost_per_kwh estimation when actual cost is missing.
     """
+    limit = min(limit, 500)
     from tesla_cli.cli.commands.charge import _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)
@@ -273,6 +274,7 @@ def remove_charge_schedule(schedule_id: int) -> dict:
 @router.get("/analytics/sessions")
 def charge_sessions_api(limit: int = 20) -> list[dict]:
     """Recent charging sessions from the best available source."""
+    limit = min(limit, 500)
     from tesla_cli.cli.commands.charge import _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)

@@ -326,14 +326,19 @@ def _read_jsonl(path, limit: int | None) -> list[dict[str, Any]]:
 
 
 _MAX_JSONL_ENTRIES = 10_000
+_MAX_JSONL_BYTES = 5 * 1024 * 1024  # 5 MB — trigger rotation check
 
 
 def _append_jsonl(path, entry: dict[str, Any]) -> None:
     EVENTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(path, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
-    # Rotate: keep last _MAX_JSONL_ENTRIES lines
-    _rotate_jsonl(path)
+    # Only check rotation when file exceeds size threshold (avoids reading on every append)
+    try:
+        if path.stat().st_size > _MAX_JSONL_BYTES:
+            _rotate_jsonl(path)
+    except OSError:
+        pass
 
 
 def _rotate_jsonl(path) -> None:
