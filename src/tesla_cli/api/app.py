@@ -221,7 +221,8 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
 
 def _register_middleware(app: FastAPI) -> None:
     """Add CORS and API key middleware."""
-    allowed_origins = [
+    cfg = load_config()
+    allowed_origins = cfg.server.cors_origins or [
         "http://localhost:5173",
         "http://localhost:8080",
         "http://127.0.0.1:5173",
