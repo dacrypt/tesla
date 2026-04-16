@@ -234,10 +234,12 @@ def _register_middleware(app: FastAPI) -> None:
         allow_headers=["*"],
     )
 
+    from tesla_cli.api.audit import AuditMiddleware
     from tesla_cli.api.auth import ApiKeyMiddleware
 
     cfg = load_config()
     app.add_middleware(ApiKeyMiddleware, api_key=cfg.server.api_key)
+    app.add_middleware(AuditMiddleware)
 
 
 def _register_routes(app: FastAPI) -> None:
@@ -293,6 +295,10 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(ble_router, prefix="/api/ble", tags=["BLE"])
     app.include_router(mqtt_router, prefix="/api/mqtt", tags=["MQTT"])
     app.include_router(dashcam_router, prefix="/api/dashcam", tags=["Dashcam"])
+
+    from tesla_cli.api.audit import audit_router
+
+    app.include_router(audit_router, prefix="/api/audit", tags=["Audit"])
 
 
 def _build_health_deep(result: dict) -> dict:
