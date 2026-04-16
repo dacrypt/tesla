@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.9.0] - 2026-04-06
 
+### Security & Hardening
+- **Constant-time API key comparison** via `hmac.compare_digest`
+- **PKCE state store bounded** — TTL cleanup (10min) + max 100 entries, 429 on overflow
+- **Path traversal protection** on audit PDF download, SPA middleware (`.resolve()` containment), dashcam USB path (mount prefix allowlist)
+- **SoQL injection fix** — input sanitization on peajes and estaciones_ev routes
+- **Source ID regex validation** on all wildcard API routes
+- **Shell automation blocking** — `command`/`exec` actions gated behind `server.allow_shell_automations` config
+- **CORS restricted** to configurable origins (`server.cors_origins`, defaults to localhost)
+- **Query param caps** — `limit` (500), `days` (3650), `lines` (1000), `months` (120), `sample` (floor 1) on all API routes
+- **JSONL rotation** — events/alerts/notifications capped at 10K entries with size-triggered rotation
+- **Portal session file** secured with `chmod 0600`
+- **15 behavioral security regression tests** covering all hardening fixes
+- **NHTSA recalls** now derive model/year from VIN (was hardcoded)
+- **User-Agent** updated from `0.1.0` to `__version__`
+- **Duplicate Prometheus metric** `tesla_climate_on_state` removed
+- **OptionCodes iteration** fixed to use `.codes` list
+- **11 ruff lint errors** fixed
+
 ### Dashboard
 - **Dedicated Order page** with 15-step financing/delivery tracker
 - **Energy page** — Powerwall controls, city tariff comparison, cost calculator
