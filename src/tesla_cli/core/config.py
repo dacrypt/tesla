@@ -117,6 +117,7 @@ class ServerConfig(BaseModel):
 
     api_key: str = ""  # If set, require X-API-Key header on all /api/* requests
     pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
+    cors_origins: list[str] = []  # Custom CORS origins; defaults to localhost if empty
 
 
 class FleetTelemetryConfig(BaseModel):

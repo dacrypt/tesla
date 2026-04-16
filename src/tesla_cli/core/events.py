@@ -325,14 +325,31 @@ def _read_jsonl(path, limit: int | None) -> list[dict[str, Any]]:
     return entries
 
 
+_MAX_JSONL_ENTRIES = 10_000
+
+
 def _append_jsonl(path, entry: dict[str, Any]) -> None:
     EVENTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(path, "a") as f:
         f.write(json.dumps(entry, default=str) + "\n")
+    # Rotate: keep last _MAX_JSONL_ENTRIES lines
+    _rotate_jsonl(path)
+
+
+def _rotate_jsonl(path) -> None:
+    """Trim file to last _MAX_JSONL_ENTRIES lines if it exceeds the limit."""
+    try:
+        lines = path.read_text().strip().splitlines()
+        if len(lines) > _MAX_JSONL_ENTRIES:
+            path.write_text("\n".join(lines[-_MAX_JSONL_ENTRIES:]) + "\n")
+    except Exception:
+        pass
 
 
 def _write_jsonl(path, entries: list[dict[str, Any]]) -> None:
     EVENTS_DIR.mkdir(parents=True, exist_ok=True)
+    if len(entries) > _MAX_JSONL_ENTRIES:
+        entries = entries[-_MAX_JSONL_ENTRIES:]
     path.write_text("".join(json.dumps(entry, default=str) + "\n" for entry in entries))
 
 

@@ -50,12 +50,14 @@ def pico_y_placa(placa: str = "") -> dict:
 def estaciones_ev(ciudad: str = "", limit: int = 50) -> dict:
     """EV charging stations in Colombia from datos.gov.co."""
     try:
+        import re as _re
+
         import httpx
 
+        limit = min(limit, 500)
         params: dict = {"$limit": limit}
         if ciudad:
-            # Socrata SoQL search — use contains for accent-insensitive matching
-            params["$q"] = ciudad
+            params["$q"] = _re.sub(r"[^a-zA-Z0-9\s\-áéíóúñÁÉÍÓÚÑ]", "", ciudad)
         r = httpx.get("https://www.datos.gov.co/resource/qqm3-dw2u.json", params=params, timeout=10)
         r.raise_for_status()
         stations = r.json()

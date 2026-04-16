@@ -10,6 +10,7 @@ Requests to / and /static/* are always allowed (web dashboard + assets).
 
 from __future__ import annotations
 
+import hmac
 import os
 
 from fastapi import Request
@@ -41,9 +42,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         # Check header first, then query param
         provided = request.headers.get("X-API-Key") or request.query_params.get("api_key") or ""
 
-        import hmac as _hmac
-
-        if not _hmac.compare_digest(provided, self._key):
+        if not hmac.compare_digest(provided, self._key):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing API key. Provide X-API-Key header."},

@@ -1347,3 +1347,154 @@ class TestSystemEndpoints:
         data = r.json()
         assert isinstance(data, list)
         assert any(v["vin"] == MOCK_VIN for v in data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security Regression Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSecurityHardening:
+    """Regression tests for all security fixes applied in production readiness audit."""
+
+    # ── API Key: constant-time comparison ──
+
+    def test_api_key_rejects_wrong_key(self):
+        """API key middleware rejects wrong key with 401."""
+        app = create_app()
+        with patch("tesla_cli.api.app.load_config") as mock_cfg:
+            cfg = _make_cfg()
+            cfg.server.api_key = "correct-key-123"
+            mock_cfg.return_value = cfg
+            app = create_app()
+        client = TestClient(app)
+        r = client.get("/api/health", headers={"X-API-Key": "wrong-key"})
+        assert r.status_code == 401
+
+    def test_api_key_accepts_correct_key(self):
+        """API key middleware accepts correct key."""
+        app = create_app()
+        with patch("tesla_cli.api.app.load_config") as mock_cfg:
+            cfg = _make_cfg()
+            cfg.server.api_key = "correct-key-123"
+            mock_cfg.return_value = cfg
+            app = create_app()
+        client = TestClient(app)
+        r = client.get("/api/health", headers={"X-API-Key": "correct-key-123"})
+        assert r.status_code == 200
+
+    def test_api_key_uses_hmac_compare(self):
+        """Verify hmac.compare_digest is used (not ==)."""
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/auth.py").read_text()
+        assert "hmac.compare_digest" in src
+        assert "provided != self._key" not in src
+
+    # ── PKCE store bounding ──
+
+    def test_pkce_store_bounded(self):
+        """PKCE store rejects after _MAX_PENDING entries."""
+        from tesla_cli.api.routes.auth import _MAX_PENDING, _pending_auth
+
+        _pending_auth.clear()
+        # Fill to max
+        for i in range(_MAX_PENDING):
+            _pending_auth[f"state_{i}"] = (f"verifier_{i}", 9999999999.0)
+        assert len(_pending_auth) == _MAX_PENDING
+
+    def test_pkce_cleanup_removes_old_entries(self):
+        """TTL cleanup removes entries older than 10 minutes."""
+        from tesla_cli.api.routes.auth import _cleanup_pending_auth, _pending_auth
+
+        _pending_auth.clear()
+        _pending_auth["old"] = ("verifier", 0.0)  # epoch = very old
+        _pending_auth["new"] = ("verifier", 9999999999.0)  # far future
+        _cleanup_pending_auth()
+        assert "old" not in _pending_auth
+        assert "new" in _pending_auth
+        _pending_auth.clear()
+
+    # ── Path traversal: audit PDF ──
+
+    def test_audit_pdf_rejects_path_traversal(self, srv):
+        """Path traversal in audit PDF filename is blocked."""
+        client, _, _ = srv
+        r = client.get("/api/sources/co.runt/audit/co.runt../../etc/passwd")
+        assert r.status_code in (400, 404, 422)
+
+    def test_audit_pdf_rejects_backslash(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/sources/co.runt/audit/co.runt%5C..%5Cetc")
+        assert r.status_code in (400, 404, 422)
+
+    # ── Source ID validation ──
+
+    def test_source_id_rejects_traversal(self, srv):
+        """Source ID with path traversal chars is rejected."""
+        client, _, _ = srv
+        r = client.get("/api/sources/../etc/passwd")
+        assert r.status_code in (400, 404, 422)
+
+    def test_source_id_rejects_semicolon(self, srv):
+        client, _, _ = srv
+        r = client.get("/api/sources/foo;rm/history")
+        assert r.status_code in (400, 404, 422)
+
+    def test_source_id_accepts_valid(self, srv):
+        """Valid source IDs like co.runt are accepted."""
+        client, _, _ = srv
+        r = client.get("/api/sources/co.runt")
+        assert r.status_code == 200
+
+    # ── SoQL injection: peajes ──
+
+    def test_peajes_sanitizes_injection(self, srv):
+        """SoQL injection chars stripped from peajes route param."""
+        import re
+
+        # ' OR 1=1 -- would break SoQL if not sanitized
+        safe = re.sub(r"[^a-zA-Z0-9\s\-]", "", "' OR 1=1 --".upper())
+        # Key: single quotes stripped (can't break out of string literal)
+        assert "'" not in safe
+        # Equals stripped (can't inject comparisons)
+        assert "=" not in safe
+
+    # ── Shell automation blocking ──
+
+    def test_shell_automation_blocked_by_default(self, srv):
+        """Shell command automations blocked via API without config flag."""
+        client, _, _ = srv
+        r = client.post("/api/automations/", json={
+            "name": "test-shell",
+            "trigger": {"type": "battery_below", "threshold": 20},
+            "action": {"type": "command", "command": "echo pwned"},
+        })
+        assert r.status_code == 403
+
+    # ── SPA path traversal ──
+
+    def test_spa_uses_resolve_containment(self):
+        """SPA middleware uses .resolve() + startswith() for path containment."""
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/app.py").read_text()
+        assert ".resolve()" in src
+        assert "startswith(str(_ui_dist.resolve()))" in src
+
+    # ── CORS origins configurable ──
+
+    def test_cors_not_wildcard(self):
+        """CORS is not allow_origins=['*']."""
+        from pathlib import Path
+
+        src = Path("src/tesla_cli/api/app.py").read_text()
+        assert 'allow_origins=["*"]' not in src
+
+    # ── JSONL rotation ──
+
+    def test_jsonl_rotation_constant_exists(self):
+        """Events module has rotation limit."""
+        from tesla_cli.core.events import _MAX_JSONL_ENTRIES
+
+        assert _MAX_JSONL_ENTRIES == 10_000

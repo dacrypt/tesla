@@ -31,8 +31,6 @@ _pending_auth: dict[str, tuple[str, float]] = {}  # state → (verifier, created
 
 def _cleanup_pending_auth() -> None:
     """Remove entries older than 10 minutes."""
-    import time
-
     cutoff = time.time() - 600
     expired = [k for k, (_, ts) in _pending_auth.items() if ts < cutoff]
     for k in expired:
@@ -102,8 +100,6 @@ def auth_callback(req: CallbackRequest) -> dict:
     if not entry:
         raise HTTPException(400, "Invalid or expired state. Try logging in again.")
     verifier, _created = entry
-    if not verifier:
-        raise HTTPException(400, "Invalid or expired state. Try logging in again.")
 
     cfg = load_config()
     client_id = cfg.fleet.client_id

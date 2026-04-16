@@ -21,6 +21,7 @@ def has_portal_session() -> bool:
 def save_portal_session(storage_state: dict[str, Any]) -> None:
     PORTAL_SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
     PORTAL_SESSION_FILE.write_text(json.dumps(storage_state, default=str, indent=2))
+    PORTAL_SESSION_FILE.chmod(0o600)
 
 
 def load_portal_session() -> dict[str, Any] | None:
