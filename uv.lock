@@ -3114,7 +3114,7 @@ requires-dist = [
     { name = "fpdf2", marker = "extra == 'pdf'", specifier = ">=2.7" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "keyring", specifier = ">=25" },
-    { name = "openquery", specifier = "==1.4.0" },
+    { name = "openquery", specifier = "~=1.4.0" },
     { name = "openquery", marker = "extra == 'query'" },
     { name = "psycopg2-binary", marker = "extra == 'teslamate'", specifier = ">=2.9" },
     { name = "pydantic", specifier = ">=2.10" },
