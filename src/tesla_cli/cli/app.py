@@ -9,6 +9,7 @@ import typer
 
 from tesla_cli import __version__
 from tesla_cli.cli.commands.config_cmd import config_app
+from tesla_cli.cli.commands.login import login
 from tesla_cli.cli.output import render_error, set_json_mode
 from tesla_cli.core.exceptions import TeslaCliError
 
@@ -18,6 +19,9 @@ app = typer.Typer(
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
+
+# Register top-level commands
+app.command()(login)
 
 # Register sub-command groups
 app.add_typer(config_app, name="config")
