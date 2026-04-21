@@ -47,13 +47,21 @@ VOID_REDIRECT_URI = "https://auth.tesla.com/void/callback"
 DEFAULT_CLIENT_ID = "ownerapi"
 DEFAULT_SCOPES = "openid email offline_access"
 
-# Fleet API scopes — required for vehicle data + commands.
+# Fleet API scopes — request every scope tesla-cli can use, so the token
+# covers vehicle reads, commands, location, charging, Powerwall/solar reads
+# and commands, and account profile. Individual backends still honour
+# whatever the user's Tesla Developer app has enabled, but asking for more
+# than the app provides is a no-op, not an error.
+#
 # vehicle_location was split out of vehicle_device_data in late 2024 for GPS
 # privacy; without it /api/1/vehicles/{vin}/vehicle_data silently drops
 # drive_state (including latitude/longitude) from the response.
 FLEET_SCOPES = (
     "openid email offline_access "
-    "vehicle_device_data vehicle_cmds vehicle_charging_cmds vehicle_location"
+    "user_data "
+    "vehicle_device_data vehicle_location "
+    "vehicle_cmds vehicle_charging_cmds "
+    "energy_device_data energy_cmds"
 )
 
 
