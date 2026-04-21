@@ -24,7 +24,10 @@ def build_mission_control() -> dict[str, Any]:
         "generated_at": _now(),
         "executive": _build_executive(domain_list, source_list),
         "domains": domain_list,
-        "sources": [_merge_source_detail(item, detail) for item, detail in zip(source_list, source_details, strict=False)],
+        "sources": [
+            _merge_source_detail(item, detail)
+            for item, detail in zip(source_list, source_details, strict=False)
+        ],
         "critical_diffs": _build_critical_diffs(source_list, source_details),
         "timeline": _build_timeline(domain_list, source_list),
         "active_alerts": events.list_alerts(limit=20, active_only=True),
@@ -104,7 +107,11 @@ def _extract_delivery_payload(delivery_data: dict, portal_data: dict, order_data
     delivery_raw = _wrap_source_payload(delivery_data)
     if delivery_raw:
         portal_raw = _wrap_source_payload(portal_data)
-        if isinstance(portal_raw, dict) and portal_raw.get("delivery_details") and "delivery_details" not in delivery_raw:
+        if (
+            isinstance(portal_raw, dict)
+            and portal_raw.get("delivery_details")
+            and "delivery_details" not in delivery_raw
+        ):
             delivery_raw = {**delivery_raw, "delivery_details": portal_raw.get("delivery_details")}
         if delivery_raw.get("appointmentDateUtc") and "delivery_details" not in delivery_raw:
             delivery_raw = {
@@ -169,7 +176,9 @@ def _extract_tesla_tasks(tasks_data: dict, portal_data: dict, order_data: dict) 
     return tasks if isinstance(tasks, dict) else {}
 
 
-def _build_executive(domain_list: list[dict[str, Any]], source_list: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_executive(
+    domain_list: list[dict[str, Any]], source_list: list[dict[str, Any]]
+) -> dict[str, Any]:
     domain_map = {item["domain_id"]: item for item in domain_list}
     delivery = domain_map.get("delivery", {})
     financial = domain_map.get("financial", {})
@@ -177,7 +186,9 @@ def _build_executive(domain_list: list[dict[str, Any]], source_list: list[dict[s
     safety = domain_map.get("safety", {})
 
     health_sources = [item for item in source_list if item.get("auto_refresh", True)]
-    ok_sources = sum(1 for item in health_sources if not item.get("stale") and not item.get("error"))
+    ok_sources = sum(
+        1 for item in health_sources if not item.get("stale") and not item.get("error")
+    )
     degraded_sources = [
         item["id"] for item in health_sources if item.get("stale") or item.get("error")
     ]
@@ -290,6 +301,7 @@ def _build_timeline(
                 continue
         filtered.append(row)
     return filtered[:20]
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()

@@ -35,9 +35,7 @@ def delete_events(prefixes: list[str], before: str | None = None) -> int:
     for event in all_events:
         source = event.get("source_id") or ""
         domain = event.get("domain_id") or ""
-        prefix_match = any(
-            source.startswith(p) or domain.startswith(p) for p in prefixes
-        )
+        prefix_match = any(source.startswith(p) or domain.startswith(p) for p in prefixes)
         if prefix_match:
             if before_dt is not None:
                 raw_ts = event.get("created_at", "")

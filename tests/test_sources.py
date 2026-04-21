@@ -126,7 +126,14 @@ class TestGetSourceDef:
 class TestAutoRefreshBehavior:
     def test_refresh_stale_skips_manual_sources(self, isolated_registry):
         fetch = MagicMock(return_value={"value": 1})
-        src = SourceDef(id="test.manual", name="Manual Source", category="servicios", fetch_fn=fetch, ttl=0, auto_refresh=False)
+        src = SourceDef(
+            id="test.manual",
+            name="Manual Source",
+            category="servicios",
+            fetch_fn=fetch,
+            ttl=0,
+            auto_refresh=False,
+        )
         register_source(src)
         result = refresh_stale()
         assert result == {"refreshed": [], "failed": []}
@@ -158,7 +165,9 @@ class TestAutoRefreshBehavior:
 
         assert _is_stale("vin.decode") is True
 
-    def test_is_not_stale_when_query_context_matches(self, isolated_registry, tmp_path, monkeypatch):
+    def test_is_not_stale_when_query_context_matches(
+        self, isolated_registry, tmp_path, monkeypatch
+    ):
         src = SourceDef(id="vin.decode", name="VIN Decode", category="vehiculo", ttl=86400)
         register_source(src)
 
@@ -179,7 +188,9 @@ class TestAutoRefreshBehavior:
 
         assert _is_stale("vin.decode") is False
 
-    def test_resolve_owner_cedula_ignores_placeholder_driver(self, isolated_registry, tmp_path, monkeypatch):
+    def test_resolve_owner_cedula_ignores_placeholder_driver(
+        self, isolated_registry, tmp_path, monkeypatch
+    ):
         cfg = MagicMock()
         cfg.general.default_vin = "VIN-123"
         cfg.general.cedula = ""
@@ -245,7 +256,6 @@ class TestAutoRefreshBehavior:
 
 
 class TestListSources:
-
     def test_list_sources_includes_defaults(self):
         """Default sources are registered on import; must have 15+."""
         result = list_sources()

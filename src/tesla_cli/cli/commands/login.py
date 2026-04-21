@@ -23,7 +23,9 @@ log = logging.getLogger("tesla-cli.login")
 
 
 def login(
-    force: bool = typer.Option(False, "--force", "-f", help="Re-authenticate even if already logged in"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Re-authenticate even if already logged in"
+    ),
 ) -> None:
     """Log in to your Tesla account. Auto-discovers VIN, order, and vehicle data."""
     cfg = load_config()
@@ -119,17 +121,35 @@ def login(
         refreshed = _refresh_available_sources()
 
     if refreshed:
-        console.print(f"[green]✓ {len(refreshed)} fuentes actualizadas:[/green] {', '.join(refreshed)}")
+        console.print(
+            f"[green]✓ {len(refreshed)} fuentes actualizadas:[/green] {', '.join(refreshed)}"
+        )
 
     # ── Summary ──────────────────────────────────────────────────────────────
     console.print()
     console.print(
         Panel.fit(
             "[bold green]Login completo.[/bold green]\n\n"
-            + (f"  VIN:    [bold]{discovered.get('vin', '—')}[/bold]\n" if discovered.get("vin") else "")
-            + (f"  Placa:  [bold]{discovered.get('placa', '—')}[/bold]\n" if discovered.get("placa") else "")
-            + (f"  Cédula: [bold]{discovered.get('cedula', '—')}[/bold]\n" if discovered.get("cedula") else "")
-            + (f"  Orden:  [bold]{discovered.get('rn', '—')}[/bold]\n" if discovered.get("rn") else "")
+            + (
+                f"  VIN:    [bold]{discovered.get('vin', '—')}[/bold]\n"
+                if discovered.get("vin")
+                else ""
+            )
+            + (
+                f"  Placa:  [bold]{discovered.get('placa', '—')}[/bold]\n"
+                if discovered.get("placa")
+                else ""
+            )
+            + (
+                f"  Cédula: [bold]{discovered.get('cedula', '—')}[/bold]\n"
+                if discovered.get("cedula")
+                else ""
+            )
+            + (
+                f"  Orden:  [bold]{discovered.get('rn', '—')}[/bold]\n"
+                if discovered.get("rn")
+                else ""
+            )
             + "\nPrueba:\n"
             "  [bold]tesla order status[/bold]    — estado de tu orden\n"
             "  [bold]tesla vehicle status[/bold]  — estado del vehículo\n"

@@ -380,8 +380,7 @@ def config_auth(
         _auth_fleet_signed()
     else:
         console.print(
-            f"[red]Unknown backend:[/red] {backend}\n"
-            "Valid: order, tessie, fleet, fleet-signed"
+            f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet, fleet-signed"
         )
         raise typer.Exit(1)
 

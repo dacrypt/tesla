@@ -969,7 +969,7 @@ class DossierBackend:
                         "mpge_highway": raw.get("highway08"),
                         "charge_240v_hrs": raw.get("charge240"),
                     }
-                    return {**EPA_FALLBACK, **{k: v for k, v in epa.items() if v not in ('', None)}}
+                    return {**EPA_FALLBACK, **{k: v for k, v in epa.items() if v not in ("", None)}}
         except Exception:
             logger.warning("Failed to fetch EPA data from fueleconomy.gov", exc_info=True)
 

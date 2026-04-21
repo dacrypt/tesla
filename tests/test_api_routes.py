@@ -788,8 +788,14 @@ class TestSourcesRoutes:
         mock_queries = [
             {
                 "source_id": "tesla.owner",
-                "request": {"mode": "fetch_fn", "url": "https://owner-api.teslamotors.com/api/1/users/orders"},
-                "response": {"normalized_data": {"battery_level": 80}, "response_text_excerpt": "{\"response\":[]}"},
+                "request": {
+                    "mode": "fetch_fn",
+                    "url": "https://owner-api.teslamotors.com/api/1/users/orders",
+                },
+                "response": {
+                    "normalized_data": {"battery_level": 80},
+                    "response_text_excerpt": '{"response":[]}',
+                },
             }
         ]
         with patch("tesla_cli.api.routes.sources.sources.get_queries", return_value=mock_queries):
@@ -879,7 +885,9 @@ class TestDomainsRoutes:
         mock_domain = {"domain_id": "legal", "summary": "SOAT valid"}
         with (
             patch("tesla_cli.api.routes.domains.domains.get_domain", return_value=mock_domain),
-            patch("tesla_cli.api.routes.domains.domains.recompute_domain", return_value=mock_domain),
+            patch(
+                "tesla_cli.api.routes.domains.domains.recompute_domain", return_value=mock_domain
+            ),
         ):
             r = client.post("/api/domains/legal/recompute")
         assert r.status_code == 200
@@ -951,7 +959,11 @@ class TestEventRoutes:
 
     def test_ack_alert(self, srv):
         client, _, _ = srv
-        payload = {"alert_id": "alt_123", "acked_at": "2026-04-07T12:00:00+00:00", "resolved_at": None}
+        payload = {
+            "alert_id": "alt_123",
+            "acked_at": "2026-04-07T12:00:00+00:00",
+            "resolved_at": None,
+        }
         with patch("tesla_cli.api.routes.alerts.events.ack_alert", return_value=payload):
             r = client.post("/api/alerts/alt_123/ack")
         assert r.status_code == 200
@@ -1470,6 +1482,7 @@ class TestSecurityHardening:
             # Injected single quote and = must NOT appear between the like '%..%' delimiters
             # Extract the user-controlled part from: like '%USER_INPUT%'
             import re
+
             user_parts = re.findall(r"like '%(.+?)%'", where_clause)
             for part in user_parts:
                 assert "'" not in part, f"Single quote survived sanitization: {part}"
@@ -1480,11 +1493,14 @@ class TestSecurityHardening:
     def test_shell_automation_blocked_by_default(self, srv):
         """Shell command automations blocked via API without config flag."""
         client, _, _ = srv
-        r = client.post("/api/automations/", json={
-            "name": "test-shell",
-            "trigger": {"type": "battery_below", "threshold": 20},
-            "action": {"type": "command", "command": "echo pwned"},
-        })
+        r = client.post(
+            "/api/automations/",
+            json={
+                "name": "test-shell",
+                "trigger": {"type": "battery_below", "threshold": 20},
+                "action": {"type": "command", "command": "echo pwned"},
+            },
+        )
         assert r.status_code == 403
 
     # ── SPA path traversal ──

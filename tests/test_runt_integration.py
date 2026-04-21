@@ -34,4 +34,3 @@ class TestRuntLiveQuery:
         assert result.clase_vehiculo == "CAMIONETA"
         assert result.peso_bruto_kg > 0
         assert result.capacidad_pasajeros == 5
-

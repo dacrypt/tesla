@@ -134,7 +134,9 @@ def get_tariffs(ciudad: str, estrato: int = 0) -> list[dict]:
                 tariffs = [t for t in tariffs if t.get("estrato") == estrato]
             return tariffs
     except Exception:
-        logger.warning("Failed to fetch dynamic energy prices, using fallback tariffs", exc_info=True)
+        logger.warning(
+            "Failed to fetch dynamic energy prices, using fallback tariffs", exc_info=True
+        )
         # Fall through to static data
 
     # Fallback: static tariff table

@@ -87,7 +87,10 @@ def domain_show(domain_id: str = typer.Argument(..., help="Domain id, e.g. deliv
         for key, value in data.items():
             if value in (None, "", [], {}):
                 continue
-            table.add_row(key.replace("_", " "), json.dumps(value) if isinstance(value, (list, dict)) else str(value))
+            table.add_row(
+                key.replace("_", " "),
+                json.dumps(value) if isinstance(value, (list, dict)) else str(value),
+            )
         console.print(table)
         console.print()
 

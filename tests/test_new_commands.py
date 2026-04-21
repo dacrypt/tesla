@@ -375,8 +375,16 @@ class TestDomainCommands:
     def test_domain_list_json(self):
         with patch("tesla_cli.cli.commands.domain_cmd.domains.list_domains") as mock_list:
             mock_list.return_value = [
-                {"domain_id": "delivery", "summary": "Delivery scheduled", "health": {"status": "ok"}},
-                {"domain_id": "legal", "summary": "Plate assigned", "health": {"status": "degraded"}},
+                {
+                    "domain_id": "delivery",
+                    "summary": "Delivery scheduled",
+                    "health": {"status": "ok"},
+                },
+                {
+                    "domain_id": "legal",
+                    "summary": "Plate assigned",
+                    "health": {"status": "degraded"},
+                },
             ]
             result = _run("--json", "domain", "list")
         assert result.exit_code == 0
@@ -409,7 +417,13 @@ class TestEventStreamCommands:
     def test_alerts_json(self):
         with patch("tesla_cli.cli.commands.event_stream_cmd.event_store.list_alerts") as mock_list:
             mock_list.return_value = [
-                {"alert_id": "alt_1", "severity": "critical", "title": "legal", "message": "2 fine(s)", "created_at": "2026-04-07T12:00:00+00:00"}
+                {
+                    "alert_id": "alt_1",
+                    "severity": "critical",
+                    "title": "legal",
+                    "message": "2 fine(s)",
+                    "created_at": "2026-04-07T12:00:00+00:00",
+                }
             ]
             result = _run("--json", "alerts")
         assert result.exit_code == 0
@@ -427,7 +441,12 @@ class TestEventStreamCommands:
     def test_events_json(self):
         with patch("tesla_cli.cli.commands.event_stream_cmd.event_store.list_events") as mock_list:
             mock_list.return_value = [
-                {"kind": "source_change", "title": "co.runt", "message": "1 change(s) detected", "created_at": "2026-04-07T12:00:00+00:00"}
+                {
+                    "kind": "source_change",
+                    "title": "co.runt",
+                    "message": "1 change(s) detected",
+                    "created_at": "2026-04-07T12:00:00+00:00",
+                }
             ]
             result = _run("--json", "events", "list")
         assert result.exit_code == 0

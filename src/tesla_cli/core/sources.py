@@ -50,7 +50,11 @@ _OPENQUERY_AVAILABLE: set[str] | None = None
 
 def register_source(source: SourceDef) -> None:
     if source.openquery_source and not _openquery_source_exists(source.openquery_source):
-        log.warning("Skipping source %s: openquery source %s is not available", source.id, source.openquery_source)
+        log.warning(
+            "Skipping source %s: openquery source %s is not available",
+            source.id,
+            source.openquery_source,
+        )
         return
     _SOURCES[source.id] = source
 
@@ -165,7 +169,9 @@ def refresh_source(source_id: str, *, _skip_dependents: bool = False) -> dict:
     if params.get("doc_number") == "$VIN":
         cfg = load_config()
         if not cfg.general.default_vin:
-            result = _save_cache(source_id, None, error="VIN not configured.", query_context=query_context)
+            result = _save_cache(
+                source_id, None, error="VIN not configured.", query_context=query_context
+            )
             _append_query(source_id, src, result, {"mode": "config_guard", "missing": "vin"})
             return result
     if params.get("doc_number") == "$PLACA":
@@ -215,7 +221,9 @@ def refresh_source(source_id: str, *, _skip_dependents: bool = False) -> dict:
             _refresh_invalidated_dependents(source_id)
         return result
 
-    result = _save_cache(source_id, None, error="No fetch method defined", query_context=query_context)
+    result = _save_cache(
+        source_id, None, error="No fetch method defined", query_context=query_context
+    )
     _append_query(source_id, src, result, {"mode": "noop"})
     return result
 
@@ -406,7 +414,9 @@ def _append_history(source_id: str, data: Any, changes: list) -> None:
         f.write(json.dumps(entry, default=str) + "\n")
 
 
-def _append_diff(source_id: str, previous_data: Any, current_data: Any, changes: list[dict]) -> None:
+def _append_diff(
+    source_id: str, previous_data: Any, current_data: Any, changes: list[dict]
+) -> None:
     """Append a structured diff entry for a source."""
     if not changes:
         return
@@ -522,6 +532,7 @@ def get_audits(source_id: str) -> list[dict]:
             }
         )
     return audits
+
 
 def _is_stale(source_id: str) -> bool:
     src = _SOURCES.get(source_id)
@@ -869,7 +880,9 @@ def _refresh_openquery_inline(source_id: str, src: SourceDef) -> dict:
         return cached
 
 
-def _append_query(source_id: str, src: SourceDef, result: dict, query_meta: dict | None = None) -> None:
+def _append_query(
+    source_id: str, src: SourceDef, result: dict, query_meta: dict | None = None
+) -> None:
     """Append a query audit entry for one source refresh attempt."""
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
     query_file = QUERIES_DIR / f"{source_id}.jsonl"
@@ -1041,7 +1054,9 @@ def _register_universal() -> None:
                     "delivery": details.delivery,
                 }
             except Exception:
-                log.warning("Failed to enrich tesla.order source with tasks/delivery", exc_info=True)
+                log.warning(
+                    "Failed to enrich tesla.order source with tasks/delivery", exc_info=True
+                )
 
         return (
             enriched_order,
@@ -1075,7 +1090,10 @@ def _register_universal() -> None:
         delivery = order_data.get("delivery") or {}
         if not isinstance(delivery, dict):
             delivery = {}
-        return delivery, {"mode": "derived_from_source", "derived_from": ["tesla.order", "tesla.portal"]}
+        return delivery, {
+            "mode": "derived_from_source",
+            "derived_from": ["tesla.order", "tesla.portal"],
+        }
 
     register_source(
         SourceDef(
@@ -1095,7 +1113,10 @@ def _register_universal() -> None:
             order_result = refresh_source("tesla.order", _skip_dependents=True)
             order_data = (order_result.get("data") or {}) if isinstance(order_result, dict) else {}
         tasks = _normalize_tesla_tasks(order_data.get("tasks") or {})
-        return tasks, {"mode": "derived_from_source", "derived_from": ["tesla.order", "tesla.portal"]}
+        return tasks, {
+            "mode": "derived_from_source",
+            "derived_from": ["tesla.order", "tesla.portal"],
+        }
 
     register_source(
         SourceDef(

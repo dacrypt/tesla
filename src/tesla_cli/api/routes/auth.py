@@ -37,6 +37,7 @@ def _cleanup_pending_auth() -> None:
     for k in expired:
         _pending_auth.pop(k, None)
 
+
 AUTH_BASE = "https://auth.tesla.com/oauth2/v3"
 AUTHORIZE_URL = f"{AUTH_BASE}/authorize"
 TOKEN_URL = f"{AUTH_BASE}/token"
@@ -277,7 +278,9 @@ except Exception as e:
                     cfg.general.default_vin = vin
                 save_config(cfg)
         except Exception:
-            logging.getLogger(__name__).debug("VIN/order auto-discover after browser login failed", exc_info=True)
+            logging.getLogger(__name__).debug(
+                "VIN/order auto-discover after browser login failed", exc_info=True
+            )
 
     # Save portal data/session when captured
     if data.get("portal"):
@@ -434,4 +437,3 @@ def _sync_teslamate_tokens() -> None:
             stack.sync_tokens_from_keyring()
     except Exception:
         logging.getLogger(__name__).debug("TeslaMate token sync failed", exc_info=True)
-

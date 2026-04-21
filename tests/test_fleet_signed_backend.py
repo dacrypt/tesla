@@ -81,9 +81,7 @@ def test_auth_key_idempotent(monkeypatch, tmp_path):
     from tesla_cli.cli.commands import config_cmd as cc
 
     # _require_fleet_api success
-    monkeypatch.setattr(
-        "tesla_cli.core.backends.fleet_signed._require_fleet_api", lambda: None
-    )
+    monkeypatch.setattr("tesla_cli.core.backends.fleet_signed._require_fleet_api", lambda: None)
 
     # Fake an httpx.get that returns a 404 so we exit after step (c).
     class _FakeResp:
@@ -158,9 +156,7 @@ def test_handshake_session_closed_on_error(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp)
     monkeypatch.setitem(sys.modules, "tesla_fleet_api", fake_fleet_api_mod)
-    monkeypatch.setitem(
-        sys.modules, "tesla_fleet_api.tesla.vehicle.signed", fake_signed_mod
-    )
+    monkeypatch.setitem(sys.modules, "tesla_fleet_api.tesla.vehicle.signed", fake_signed_mod)
 
     with pytest.raises(RuntimeError, match="handshake boom"):
         asyncio.run(backend._get_vehicle("5YJ3E1EA0JF000000"))

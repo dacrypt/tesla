@@ -106,7 +106,9 @@ def interactive_login_and_capture(
                     fleet_client_id,
                     "openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds",
                 )
-                fleet_code = _capture_auth_code(page, fleet_url, "Tesla fleet login", timeout=timeout)
+                fleet_code = _capture_auth_code(
+                    page, fleet_url, "Tesla fleet login", timeout=timeout
+                )
                 result["fleet"] = _exchange_code(fleet_code, fleet_client_id, fleet_verifier)
             else:
                 result["fleet"] = None

@@ -46,24 +46,54 @@ def test_source_refresh_emits_events_and_alerts():
     events = events_module.list_events(limit=10)
     alerts = events_module.list_alerts(limit=10, active_only=True)
 
-    assert any(item["kind"] == "source_change" and item["source_id"] == "co.runt" for item in events)
+    assert any(
+        item["kind"] == "source_change" and item["source_id"] == "co.runt" for item in events
+    )
     assert any(item["source_id"] == "co.runt" for item in alerts)
 
 
 def test_source_recovery_resolves_health_alert():
-    events_module.emit_source_health("tesla.order", error="boom", previous_error=None, refreshed_at="2026-04-07T12:00:00+00:00")
+    events_module.emit_source_health(
+        "tesla.order", error="boom", previous_error=None, refreshed_at="2026-04-07T12:00:00+00:00"
+    )
     assert len(events_module.list_alerts(limit=10, active_only=True)) == 1
 
-    events_module.emit_source_health("tesla.order", error=None, previous_error="boom", refreshed_at="2026-04-07T12:01:00+00:00")
+    events_module.emit_source_health(
+        "tesla.order", error=None, previous_error="boom", refreshed_at="2026-04-07T12:01:00+00:00"
+    )
 
     assert len(events_module.list_alerts(limit=10, active_only=True)) == 0
 
 
 def test_domain_recompute_emits_event_and_alert():
-    _write_source("co.runt", {"data": {"placa": "ABC123", "gravamenes": ["lease"]}, "refreshed_at": "2026-04-07T12:00:00+00:00", "error": None})
-    _write_source("co.runt_soat", {"data": {"soat_vigente": True}, "refreshed_at": "2026-04-07T12:00:00+00:00", "error": None})
-    _write_source("co.runt_rtm", {"data": {"rtm_vigente": True}, "refreshed_at": "2026-04-07T12:00:00+00:00", "error": None})
-    _write_source("co.simit", {"data": {"comparendos": 2, "total_deuda": "50000"}, "refreshed_at": "2026-04-07T12:00:00+00:00", "error": None})
+    _write_source(
+        "co.runt",
+        {
+            "data": {"placa": "ABC123", "gravamenes": ["lease"]},
+            "refreshed_at": "2026-04-07T12:00:00+00:00",
+            "error": None,
+        },
+    )
+    _write_source(
+        "co.runt_soat",
+        {
+            "data": {"soat_vigente": True},
+            "refreshed_at": "2026-04-07T12:00:00+00:00",
+            "error": None,
+        },
+    )
+    _write_source(
+        "co.runt_rtm",
+        {"data": {"rtm_vigente": True}, "refreshed_at": "2026-04-07T12:00:00+00:00", "error": None},
+    )
+    _write_source(
+        "co.simit",
+        {
+            "data": {"comparendos": 2, "total_deuda": "50000"},
+            "refreshed_at": "2026-04-07T12:00:00+00:00",
+            "error": None,
+        },
+    )
 
     domains_module.recompute_domain("legal")
 
@@ -98,7 +128,10 @@ def test_domain_change_resolves_previous_open_alert_for_same_domain():
             "derived_flags": {"delivery_scheduled": True},
             "health": {"status": "ok"},
         },
-        previous_projection={"summary": "Delivery scheduled for 2026-04-24", "state": {"delivery_date": "2026-04-24"}},
+        previous_projection={
+            "summary": "Delivery scheduled for 2026-04-24",
+            "state": {"delivery_date": "2026-04-24"},
+        },
     )
 
     active = events_module.list_alerts(limit=10, active_only=True)

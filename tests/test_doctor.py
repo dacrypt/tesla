@@ -20,9 +20,7 @@ def test_probe_t0_missing_scope_classifies_correctly():
     cfg = Config()
     cfg.general.backend = "fleet"
     # token has no scopes
-    t0_with_scope = next(
-        f for f in FEATURES if f.tier == "T0" and f.required_scope is not None
-    )
+    t0_with_scope = next(f for f in FEATURES if f.tier == "T0" and f.required_scope is not None)
     row = probe(t0_with_scope, cfg=cfg, token_scopes=[])
     assert row["status"] == "missing-scope"
     assert "remediation" in row
