@@ -22,6 +22,15 @@ def _redirect_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(sources_module, "DIFFS_DIR", tmp_path / "source_diffs")
     monkeypatch.setattr(sources_module, "AUDIT_DIR", tmp_path / "source_audits")
     monkeypatch.setattr(domains_module, "DOMAINS_DIR", tmp_path / "domains")
+    # `_SOURCES` is a module-global registry populated at import time by
+    # `_register_defaults()`. Earlier tests may have mutated it (added test
+    # fixtures, cleared real sources, etc.) — snapshot/restore so this
+    # suite's `register_source` calls always take precedence.
+    saved = dict(sources_module._SOURCES)
+    sources_module._SOURCES.clear()
+    yield
+    sources_module._SOURCES.clear()
+    sources_module._SOURCES.update(saved)
 
 
 def _write_source(source_id: str, payload: dict) -> None:
