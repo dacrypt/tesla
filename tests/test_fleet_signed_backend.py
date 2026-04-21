@@ -83,6 +83,20 @@ def test_auth_key_idempotent(monkeypatch, tmp_path):
     # _require_fleet_api success
     monkeypatch.setattr("tesla_cli.core.backends.fleet_signed._require_fleet_api", lambda: None)
 
+    # Preset fleet.domain on the cfg object load_config() returns so the
+    # interactive prompt never fires under pytest. The real user's config
+    # is never mutated (we replace the call, not the file).
+    from tesla_cli.cli.commands import config_cmd as cc
+    from tesla_cli.core.config import Config
+
+    def _fake_load_config():
+        cfg = Config()
+        cfg.fleet.domain = "test.example.invalid"
+        return cfg
+
+    monkeypatch.setattr(cc, "load_config", _fake_load_config)
+    monkeypatch.setattr(cc, "save_config", lambda _cfg: None)
+
     # Fake an httpx.get that returns a 404 so we exit after step (c).
     class _FakeResp:
         status_code = 404
