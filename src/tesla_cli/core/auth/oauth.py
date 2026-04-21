@@ -47,8 +47,14 @@ VOID_REDIRECT_URI = "https://auth.tesla.com/void/callback"
 DEFAULT_CLIENT_ID = "ownerapi"
 DEFAULT_SCOPES = "openid email offline_access"
 
-# Fleet API scopes — required for vehicle data + commands
-FLEET_SCOPES = "openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds"
+# Fleet API scopes — required for vehicle data + commands.
+# vehicle_location was split out of vehicle_device_data in late 2024 for GPS
+# privacy; without it /api/1/vehicles/{vin}/vehicle_data silently drops
+# drive_state (including latitude/longitude) from the response.
+FLEET_SCOPES = (
+    "openid email offline_access "
+    "vehicle_device_data vehicle_cmds vehicle_charging_cmds vehicle_location"
+)
 
 
 def run_tesla_oauth_flow(

@@ -78,7 +78,10 @@ def main() -> None:
         app()
     except TeslaCliError as e:
         render_error(str(e), error_type=type(e).__name__)
-        raise typer.Exit(1)
+        # SystemExit (unlike typer.Exit) is a BaseException that Python's
+        # default excepthook never prints, so the process exits cleanly after
+        # our friendly panel instead of dumping a Python traceback on top.
+        raise SystemExit(1) from None
     except SystemExit as e:
         # Typer/Click exits with code 2 on UsageError (unknown command).
         # Intercept to offer "Did you mean?" suggestions.

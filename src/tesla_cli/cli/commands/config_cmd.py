@@ -1053,7 +1053,7 @@ def _auth_fleet() -> None:
         "  1. Ve a [link=https://developer.tesla.com]developer.tesla.com[/link] → Create App\n"
         "  2. Nombre: cualquiera (ej. tesla-cli-personal)\n"
         "  3. [bold]Redirect URI:[/bold] [yellow]https://auth.tesla.com/void/callback[/yellow]\n"
-        "  4. Scopes: [yellow]vehicle_device_data  vehicle_cmds  vehicle_charging_cmds[/yellow]\n"
+        "  4. Scopes: [yellow]vehicle_device_data  vehicle_cmds  vehicle_charging_cmds  vehicle_location[/yellow]\n"
         "  5. Copia el [bold]client_id[/bold] y [bold]client_secret[/bold] que te dan\n"
     )
     client_id = Prompt.ask("Client ID")

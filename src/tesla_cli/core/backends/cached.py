@@ -100,8 +100,8 @@ class CachedVehicleBackend(VehicleBackend):
 
     # ── Commands pass through + invalidate cache ──
 
-    def command(self, vin: str, command: str, **params) -> dict:
-        result = self._inner.command(vin, command, **params)
+    def command(self, vin: str, cmd: str, **params) -> dict:
+        result = self._inner.command(vin, cmd, **params)
         self.invalidate(vin)  # Clear cache after state-changing command
         return result
 
@@ -111,6 +111,11 @@ class CachedVehicleBackend(VehicleBackend):
         return result
 
     # ── Delegate remaining methods ──
+    # These pass through to the inner backend unchanged. They aren't cached
+    # because they are either rarely called, already time-bounded by the
+    # server, or state-mutating. Without these explicit forwards, the base
+    # VehicleBackend stubs raise BackendNotSupportedError even when the inner
+    # (e.g. Fleet) backend implements them.
 
     def mobile_enabled(self, vin: str) -> bool:
         return self._inner.mobile_enabled(vin)
@@ -120,3 +125,64 @@ class CachedVehicleBackend(VehicleBackend):
 
     def get_service_data(self, vin: str) -> dict:
         return self._inner.get_service_data(vin)
+
+    def get_release_notes(self, vin: str) -> dict:
+        return self._inner.get_release_notes(vin)
+
+    def get_recent_alerts(self, vin: str) -> dict:
+        return self._inner.get_recent_alerts(vin)
+
+    def get_fleet_status(self, vin: str) -> dict:
+        return self._inner.get_fleet_status(vin)
+
+    def get_charge_history(self) -> dict:
+        return self._inner.get_charge_history()
+
+    def get_safety_score(self, vin: str) -> dict:
+        return self._inner.get_safety_score(vin)
+
+    def get_drive_score(self, vin: str) -> dict:
+        return self._inner.get_drive_score(vin)
+
+    def get_service_visits(self, vin: str) -> list:
+        return self._inner.get_service_visits(vin)
+
+    def get_service_appointments(self) -> dict:
+        return self._inner.get_service_appointments()
+
+    def get_invitations(self, vin: str) -> list:
+        return self._inner.get_invitations(vin)
+
+    def create_invitation(self, vin: str) -> dict:
+        result = self._inner.create_invitation(vin)
+        self.invalidate(vin)
+        return result
+
+    def revoke_invitation(self, vin: str, invitation_id: str) -> dict:
+        result = self._inner.revoke_invitation(vin, invitation_id)
+        self.invalidate(vin)
+        return result
+
+    def add_charge_schedule(
+        self, vin: str, days: str, time: int, lat: float, lon: float, enabled: bool = True
+    ) -> dict:
+        result = self._inner.add_charge_schedule(vin, days, time, lat, lon, enabled)
+        self.invalidate(vin)
+        return result
+
+    def remove_charge_schedule(self, vin: str, schedule_id: int) -> dict:
+        result = self._inner.remove_charge_schedule(vin, schedule_id)
+        self.invalidate(vin)
+        return result
+
+    def add_precondition_schedule(
+        self, vin: str, days: str, time: int, lat: float, lon: float, enabled: bool = True
+    ) -> dict:
+        result = self._inner.add_precondition_schedule(vin, days, time, lat, lon, enabled)
+        self.invalidate(vin)
+        return result
+
+    def remove_precondition_schedule(self, vin: str, schedule_id: int) -> dict:
+        result = self._inner.remove_precondition_schedule(vin, schedule_id)
+        self.invalidate(vin)
+        return result

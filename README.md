@@ -42,6 +42,155 @@ uv tool install -e ".[pdf]"         # PDF dossier export
 
 ---
 
+## Fleet API Setup
+
+**Who needs this?** Owners of recent Teslas (VIN prefixes `LRW`, `7SA`, `XP7` — roughly 2024+ Model Y / Cybertruck / refreshed Model 3) whose Owner API calls return `HTTP 412 — Vehicle not accessible`. Tesla blocks the legacy Owner API for these VINs, so you need to register a Fleet API app (free) to control the car programmatically.
+
+You can skip this section entirely if Owner API works for your VIN, or if you prefer the Tessie backend (`tesla config auth tessie`).
+
+### 1. Register your Tesla Developer app
+
+Go to [developer.tesla.com](https://developer.tesla.com) → **Create App**. Fill in:
+
+| Field | Value |
+|-------|-------|
+| App Name | anything, e.g. `tesla-cli-personal` |
+| Description | short sentence, e.g. "Personal CLI for my Tesla" |
+| Scopes | `vehicle_device_data`, `vehicle_cmds`, `vehicle_charging_cmds`, `vehicle_location` |
+| Redirect URI | `https://auth.tesla.com/void/callback` |
+| Allowed Origin / Domain | a domain **you control** (see step 2) |
+
+Tesla will give you a **Client ID** (UUID) and a **Client Secret** — keep both handy. Example shape (fake):
+
+```
+Client ID:     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+Client Secret: ta-secret.XXXXXXXXXXXXXXXX~XXXXXXXXXXXXXXXXXXXX
+```
+
+### 2. Host your public key
+
+Tesla requires your registered domain to serve a public key at a specific well-known path. This proves you control the domain and lets Tesla verify signed commands later.
+
+```
+https://<your-domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
+```
+
+Easiest free option: a GitHub Pages site. This project ships a working example at [`dacrypt.github.io`](https://dacrypt.github.io/.well-known/appspecific/com.tesla.3p.public-key.pem) — you can fork the [`dacrypt.github.io`](https://github.com/dacrypt/dacrypt.github.io) repo, swap in your own key, and point your Tesla Developer app at your fork's Pages URL.
+
+Generate your own key with:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
+openssl ec -in private-key.pem -pubout -out com.tesla.3p.public-key.pem
+```
+
+Commit the `.pem` to `<your-domain-repo>/.well-known/appspecific/` and verify with:
+
+```bash
+curl -sI https://<your-domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
+# expect: HTTP/2 200 + content-type: application/x-x509-ca-cert
+```
+
+Then set the domain in tesla-cli config so partner registration uses the right one:
+
+```bash
+tesla config set fleet.domain <your-domain>   # e.g. mytesla.example.com
+```
+
+### 3. Run the auth flow
+
+```bash
+tesla config auth fleet
+```
+
+Walkthrough of what you'll see (real output, secrets anonymized):
+
+```
+Fleet API Authentication
+
+Client ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+Client Secret: ****************
+
+Registrando partner account en Fleet API (región NA)...
+  ✓ Partner account registrado en región NA
+
+Iniciando OAuth2 con scopes de vehículo...
+
+Elige método:
+  1 - Login via browser (OAuth2 + PKCE)     ← pick this
+  2 - Pegar refresh token directamente
+
+Abriendo browser para login de Tesla...
+```
+
+Your browser opens Tesla's login page. After you log in, Tesla redirects to a **blank page** whose URL looks like:
+
+```
+https://auth.tesla.com/void/callback?code=NA_<long-opaque-string>&issuer=...&state=...
+```
+
+Copy the **full URL** from the address bar and paste it back in the terminal:
+
+```
+Pega la URL de redirect aquí: https://auth.tesla.com/void/callback?code=NA_...&state=...
+Intercambiando código por tokens...
+✓ Fleet API autenticado. Backend configurado como 'fleet'.
+```
+
+That's it. Tokens are stored in your system keyring (never plain text). Verify:
+
+```bash
+tesla vehicle list
+# ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━━━┓
+# ┃ Vin               ┃ Name ┃ State   ┃ Model ┃
+# ┡━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━╇━━━━━━━┩
+# │ 5YJ3E1EA0JF000000 │      │ offline │       │
+# └───────────────────┴──────┴─────────┴───────┘
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `Partner registration failed: 403` | Public key not reachable. Re-check `curl -sI` against your domain — must return 200. |
+| `Partner registration failed: 412` | Domain in `fleet.domain` config does not match what's registered in developer.tesla.com. |
+| `invalid_client` on token exchange | Client Secret wrong, or Redirect URI in your app ≠ `https://auth.tesla.com/void/callback`. |
+| `insufficient_scope` later | App missing one of `vehicle_device_data`, `vehicle_cmds`, `vehicle_charging_cmds`, `vehicle_location`. Edit the app and rerun `tesla config auth fleet`. |
+| `tesla vehicle location` returns `0.0, 0.0` | App missing `vehicle_location` scope. Tesla split GPS into its own scope for privacy. Add it to the app, re-auth. |
+| Vehicle shows as `offline` forever | Wake it first: `tesla vehicle wake`. Fleet API keeps the car asleep more aggressively than Owner API did. |
+| `HTTP 412` after auth | Region mismatch — newer Colombian/LATAM VINs route through `na`. Check: `tesla config set fleet.region na`. |
+
+### Signed commands — 2024.26+ firmware
+
+Plain Fleet API (the setup above) supports **all read endpoints** — vehicle data, charge state, alerts, release notes, location, etc. — and that's ~80% of what tesla-cli does.
+
+Vehicles on firmware **2024.26 or newer** reject unsigned write commands (lock/unlock, sentry, climate, window control, charge start/stop, etc.) with:
+
+```
+HTTP 403: Tesla Vehicle Command Protocol required
+```
+
+tesla-cli surfaces this as an actionable error:
+
+> \`command 'window_control' …\` is not available on this backend.  
+> Switch to the fleet-signed backend: `tesla config set backend fleet-signed`
+
+The `fleet-signed` backend wraps the [`tesla-fleet-api`](https://pypi.org/project/tesla-fleet-api/) library, which speaks Tesla's Vehicle Command Protocol (end-to-end encrypted, handshake-based). Setup requires (a) installing the optional extras, and (b) a paired private/public key pair the vehicle trusts — the public key lives at your registered domain, and the private key must be importable by `tesla-fleet-api`. A step-by-step guide is tracked in [docs/roadmap.md](docs/roadmap.md); contributions welcome.
+
+Reads always work on plain `fleet` — you can postpone `fleet-signed` until you actually need a write command.
+
+### Rotating credentials
+
+Client secrets can be regenerated in developer.tesla.com at any time. After rotating:
+
+```bash
+tesla config auth fleet   # paste new client_id + secret, re-auth
+```
+
+Tokens auto-refresh; the refresh token is stored in the keyring under `fleet-refresh-token`.
+
+---
+
 ## Features
 
 ### Order Tracking

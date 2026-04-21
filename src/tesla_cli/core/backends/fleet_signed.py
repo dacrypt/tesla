@@ -221,24 +221,24 @@ class FleetSignedBackend(VehicleBackend):
 
         return self._run(_wake())
 
-    def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
+    def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
         """Dispatch a named command to VehicleSigned, using _COMMAND_MAP for routing."""
-        if command not in _COMMAND_MAP:
+        if cmd not in _COMMAND_MAP:
             # Fall back to unsigned Fleet API for unmapped commands
             log.warning(
                 "Command '%s' not in signed command map — falling back to unsigned Fleet API",
-                command,
+                cmd,
             )
-            return self._reads.command(vin, command, **params)
+            return self._reads.command(vin, cmd, **params)
 
-        method_name, positional_keys, keyword_keys = _COMMAND_MAP[command]
+        method_name, positional_keys, keyword_keys = _COMMAND_MAP[cmd]
 
         async def _dispatch() -> dict[str, Any]:
             vehicle = await self._get_vehicle(vin)
             method = getattr(vehicle, method_name, None)
             if method is None:
                 raise RuntimeError(
-                    f"VehicleSigned has no method '{method_name}' for command '{command}'"
+                    f"VehicleSigned has no method '{method_name}' for command '{cmd}'"
                 )
             args = [params[k] for k in positional_keys if k in params]
             kwargs = {k: params[k] for k in keyword_keys if k in params}

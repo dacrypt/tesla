@@ -104,8 +104,8 @@ class TessieBackend(VehicleBackend):
         data = self._post(f"/{vin}/wake")
         return data.get("result", False)
 
-    def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
-        return self._post(f"/{vin}/command/{command}", **params)
+    def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
+        return self._post(f"/{vin}/command/{cmd}", **params)
 
     # Fleet-only methods — override to give Tessie-specific message
     def get_release_notes(self, vin: str) -> dict[str, Any]:

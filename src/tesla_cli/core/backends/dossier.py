@@ -879,7 +879,22 @@ class DossierBackend:
         rs.is_customs_cleared = rs.in_runt  # can't register without customs clearance
         rs.is_registered = rs.in_runt
         rs.is_delivery_scheduled = bool(rs.delivery_date)
-        rs.is_delivered = rs.has_placa and rs.has_soat  # placa + SOAT = on the road
+
+        # Delivered when either:
+        #   (a) placa + SOAT are both live (fully road-legal, weeks post-handover), or
+        #   (b) scheduled delivery_date is in the past (car was handed over — SOAT/placa
+        #       often lag 7-14 days in RUNT, so we can't wait on them).
+        delivery_date_past = False
+        if rs.delivery_date:
+            try:
+                delivery_date_past = (
+                    datetime.fromisoformat(rs.delivery_date[:10]).date() <= datetime.now().date()
+                )
+            except (ValueError, TypeError):
+                pass
+        rs.is_delivered = (rs.has_placa and rs.has_soat) or (
+            rs.is_delivery_scheduled and delivery_date_past
+        )
 
         # Determine phase
         if rs.is_delivered:
