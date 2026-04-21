@@ -163,6 +163,21 @@ def _get_config_attr(cfg: Any, dotted_path: str) -> Any:
 # ── Probe ─────────────────────────────────────────────────────────────────────
 
 
+def _load_scopes_safe() -> list[str]:
+    """Read the Fleet access token's scopes. Return [] on any failure.
+
+    Swallows keyring errors (e.g. `NoKeyringError` on CI where no backend
+    exists) and config-load errors so `tesla doctor` / `/api/doctor` stays
+    usable in fresh/minimal environments.
+    """
+    try:
+        from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, get_token
+
+        return _decode_token_scopes(get_token(FLEET_ACCESS_TOKEN))
+    except Exception:
+        return []
+
+
 def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | None = None) -> dict:
     """Classify one feature's availability — pure function, no I/O.
 
@@ -173,11 +188,16 @@ def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | No
     if cfg is None:
         from tesla_cli.core.config import load_config
 
-        cfg = load_config()
-    if token_scopes is None:
-        from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, get_token
+        try:
+            cfg = load_config()
+        except Exception:
+            # Fresh env / corrupt config: treat as "nothing configured" so T4
+            # rows report `not-configured` instead of blowing up the probe.
+            from tesla_cli.core.config import Config
 
-        token_scopes = _decode_token_scopes(get_token(FLEET_ACCESS_TOKEN))
+            cfg = Config()
+    if token_scopes is None:
+        token_scopes = _load_scopes_safe()
 
     name = feature.name
     tier = feature.tier
@@ -228,9 +248,12 @@ def probe_all(*, cfg: Any = None, token_scopes: list[str] | None = None) -> list
     if cfg is None:
         from tesla_cli.core.config import load_config
 
-        cfg = load_config()
-    if token_scopes is None:
-        from tesla_cli.core.auth.tokens import FLEET_ACCESS_TOKEN, get_token
+        try:
+            cfg = load_config()
+        except Exception:
+            from tesla_cli.core.config import Config
 
-        token_scopes = _decode_token_scopes(get_token(FLEET_ACCESS_TOKEN))
+            cfg = Config()
+    if token_scopes is None:
+        token_scopes = _load_scopes_safe()
     return [probe(f, cfg=cfg, token_scopes=token_scopes) for f in FEATURES]
