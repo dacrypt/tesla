@@ -99,8 +99,10 @@ export default function ChargeContent() {
     { label: 'Time Left', value: isCharging ? formatTime(minutesToFull) : '--', color: '#ffffff' },
     { label: 'Rate', value: isCharging ? `${chargeRate} mi/hr` : '--', color: '#ffffff' },
     { label: 'Added', value: energyAdded > 0 ? `${energyAdded.toFixed(1)} kWh` : '--', color: '#ffffff' },
-    { label: 'Voltage', value: voltage ? `${voltage}V` : '--', color: '#ffffff' },
-    { label: 'Current', value: amps ? `${amps}A` : '--', color: '#ffffff' },
+    // Fleet API returns charger_voltage=2 even when unplugged (sensor floor),
+    // so gate on isCharging to avoid showing noise as real readings.
+    { label: 'Voltage', value: isCharging && voltage > 5 ? `${voltage}V` : '--', color: '#ffffff' },
+    { label: 'Current', value: isCharging && amps ? `${amps}A` : '--', color: '#ffffff' },
   ];
 
   return (

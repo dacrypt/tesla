@@ -188,7 +188,7 @@ class OwnerApiVehicleBackend(VehicleBackend):
         data = self._post(f"/api/1/vehicles/{vid}/wake_up")
         return data.get("state") == "online"
 
-    def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
+    def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
         """Send a command to the vehicle via the Owner API.
 
         If the vehicle is asleep, wakes it up automatically and retries (up to
@@ -199,7 +199,7 @@ class OwnerApiVehicleBackend(VehicleBackend):
         for attempt in range(max_attempts):
             try:
                 return self._post(
-                    f"/api/1/vehicles/{vid}/command/{command}",
+                    f"/api/1/vehicles/{vid}/command/{cmd}",
                     body=params or None,
                 )
             except VehicleAsleepError:

@@ -38,30 +38,30 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
         return self._get("/api/1/vehicles")
 
     def get_vehicle_data(self, vin: str) -> dict[str, Any]:
-        return self._get(
-            f"/api/1/vehicles/{vin}/vehicle_data"
-            "?endpoints=charge_state;climate_state;drive_state;location_data;"
-            "vehicle_config;vehicle_state"
-        )
+        # No `endpoints=` filter: Tesla's filter silently drops substates when any
+        # requested endpoint is out-of-scope (e.g. location_data without
+        # vehicle_location scope). Unfiltered returns every substate the token
+        # has access to, properly nested under charge_state/vehicle_state/etc.
+        return self._get(f"/api/1/vehicles/{vin}/vehicle_data")
 
     def get_charge_state(self, vin: str) -> dict[str, Any]:
-        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=charge_state")
+        data = self.get_vehicle_data(vin)
         return data.get("charge_state", data)
 
     def get_climate_state(self, vin: str) -> dict[str, Any]:
-        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=climate_state")
+        data = self.get_vehicle_data(vin)
         return data.get("climate_state", data)
 
     def get_drive_state(self, vin: str) -> dict[str, Any]:
-        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=drive_state;location_data")
+        data = self.get_vehicle_data(vin)
         return data.get("drive_state", data)
 
     def get_vehicle_state(self, vin: str) -> dict[str, Any]:
-        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=vehicle_state")
+        data = self.get_vehicle_data(vin)
         return data.get("vehicle_state", data)
 
     def get_vehicle_config(self, vin: str) -> dict[str, Any]:
-        data = self._get(f"/api/1/vehicles/{vin}/vehicle_data?endpoints=vehicle_config")
+        data = self.get_vehicle_data(vin)
         return data.get("vehicle_config", data)
 
     def mobile_enabled(self, vin: str) -> bool:
@@ -148,7 +148,9 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
         return self._get(f"/api/1/vehicles/{vin}/recent_alerts")
 
     def get_charge_history(self) -> dict[str, Any]:
-        return self._post("/api/1/vehicles/charge_history")
+        # /api/1/vehicles/charge_history was retired; the live endpoint is the
+        # dx (discovery) path used by the Tesla mobile app.
+        return self._get("/api/1/dx/charging/history")
 
     def get_fleet_status(self, vin: str) -> dict[str, Any]:
         return self._get(f"/api/1/vehicles/{vin}/fleet_status")
@@ -173,8 +175,22 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
 
     # ── Generic command dispatch ────────────────────────────────────
 
-    def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
-        return self._post(f"/api/1/vehicles/{vin}/command/{command}", body=params or None)
+    def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
+        from tesla_cli.core.exceptions import ApiError, BackendNotSupportedError
+
+        try:
+            return self._post(f"/api/1/vehicles/{vin}/command/{cmd}", body=params or None)
+        except ApiError as exc:
+            # 2024.26+ firmware requires the Vehicle Command Protocol (signed
+            # commands) for most command endpoints. The unsigned Fleet API
+            # returns 403 with a specific marker — surface it as an actionable
+            # "switch to fleet-signed" hint instead of a raw HTTP error.
+            if exc.status_code == 403 and "Vehicle Command Protocol" in str(exc):
+                raise BackendNotSupportedError(
+                    f"command '{cmd}' (requires signed commands on 2024.26+ firmware)",
+                    "fleet-signed",
+                ) from exc
+            raise
 
     # ── Convenience command wrappers ────────────────────────────────
     # These all delegate to command() with the right name/params.

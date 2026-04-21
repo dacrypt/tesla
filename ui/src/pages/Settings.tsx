@@ -26,10 +26,12 @@ const InfoIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="cur
 const DockerIcon = () => <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor"><path d="M13 3h2v2h-2V3zm-2 0h2v2h-2V3zM9 3h2v2H9V3zM5 7h2v2H5V7zm4 0h2v2H9V7zm4 0h2v2h-2V7zm-8 4h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm1-4h2v2h-2V7zm4 3c-.55 0-1.22.15-1.72.42-.22-1.3-1.38-2.42-2.78-2.42h-.5V3h-2v2h-2V3H9v2H7V3H5v4H3v2H1v2h2.05c-.03.17-.05.33-.05.5C3 14.53 5.47 17 8.5 17c1.7 0 3.2-.76 4.2-1.96C13.61 16.29 14.97 17 16.5 17c2.48 0 4.5-2.02 4.5-4.5 0-.66-.16-1.28-.43-1.83.58-.31 1.43-.67 1.43-1.67 0-.72-.67-1-1-1z"/></svg>;
 const LogIcon = () => <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>;
 
-function providerColor(s: string): string {
-  if (['ok', 'connected', 'active'].includes(s)) return '#0BE881';
-  if (['error', 'failed'].includes(s)) return '#FF6B6B';
-  return '#86888f';
+function providerColor(available: boolean): string {
+  return available ? '#0BE881' : '#86888f';
+}
+
+function providerLabel(available: boolean): string {
+  return available ? 'Active' : 'Unavailable';
 }
 
 interface NotificationEntry {
@@ -396,7 +398,7 @@ const Settings: React.FC = () => {
               type="url"
               value={apiUrl}
               onChange={(e) => { setApiUrl(e.target.value); setUrlDirty(true); }}
-              placeholder="http://localhost:8080"
+              placeholder={typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080'}
               className="tesla-input mono"
               style={{
                 borderColor: urlDirty ? 'rgba(5,196,107,0.5)' : 'rgba(255,255,255,0.1)',
@@ -528,7 +530,7 @@ const Settings: React.FC = () => {
                   </div>
                   {[
                     { label: 'Backend', value: config.backend },
-                    { label: 'VIN', value: config.vin, mono: true },
+                    { label: 'VIN', value: config.default_vin, mono: true },
                     { label: 'Tessie Token', value: config.tessie_token ? '••••' + config.tessie_token.slice(-4) : 'Not set' },
                     { label: 'TeslaMate URL', value: config.teslaMate_url || 'Not configured' },
                   ].map((item) => (
@@ -677,16 +679,17 @@ const Settings: React.FC = () => {
                     <div style={{ color: '#ffffff', fontWeight: 600, fontSize: 15 }}>Provider Status</div>
                   </div>
                   {providers.map((p, i) => {
-                    const color = providerColor(p.status);
+                    const color = providerColor(p.available);
+                    const label = providerLabel(p.available);
                     return (
                       <div key={i} className="stat-row" style={{ borderBottom: i < providers.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
                         <div>
                           <div style={{ color: '#ffffff', fontSize: 14 }}>{p.name}</div>
-                          {p.message && <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{p.message}</div>}
+                          {(p.description || p.message) && <div style={{ color: '#86888f', fontSize: 11, marginTop: 2 }}>{p.description || p.message}</div>}
                         </div>
                         <div className="flex-center gap-xs">
                           <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 5px ${color}` }} />
-                          <span style={{ color, fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{p.status}</span>
+                          <span style={{ color, fontWeight: 600, fontSize: 13 }}>{label}</span>
                         </div>
                       </div>
                     );

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 
 import httpx
 
@@ -62,7 +63,22 @@ def compute_real_status(
     rs.is_customs_cleared = rs.in_runt
     rs.is_registered = rs.in_runt
     rs.is_delivery_scheduled = bool(rs.delivery_date)
-    rs.is_delivered = rs.has_placa and rs.has_soat
+
+    # Delivered when either placa + SOAT are live (fully road-legal, often
+    # weeks post-handover), or the scheduled delivery date is in the past.
+    # Colombia's RUNT/SOAT paperwork typically lags 7-14 days after handover,
+    # so we can't require has_soat before calling a car delivered.
+    delivery_date_past = False
+    if rs.delivery_date:
+        try:
+            delivery_date_past = (
+                datetime.fromisoformat(rs.delivery_date[:10]).date() <= datetime.now().date()
+            )
+        except (ValueError, TypeError):
+            pass
+    rs.is_delivered = (rs.has_placa and rs.has_soat) or (
+        rs.is_delivery_scheduled and delivery_date_past
+    )
 
     # Determine phase
     if rs.is_delivered:

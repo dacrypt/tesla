@@ -196,6 +196,21 @@ function resolveSteps(
     date: realStatus?.delivery_date || undefined,
   };
 
+  // Terminal-state cascade: if delivered, every earlier step is implicitly done.
+  // Post-delivery paperwork (RUNT, SOAT, plate) may still trail by days, so
+  // only cascade completion into production/logistics/order/financing/delivery
+  // categories — leave registration steps as-is so pending paperwork stays visible.
+  if (delivered) {
+    for (const step of ORDER_STEPS) {
+      if (step.id === 'delivered') continue;
+      if (step.category === 'registration') continue;
+      const st = result[step.id];
+      if (st && !st.completed) {
+        result[step.id] = { ...st, completed: true, active: false };
+      }
+    }
+  }
+
   return result;
 }
 

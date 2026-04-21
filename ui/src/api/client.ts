@@ -217,14 +217,18 @@ export interface OrderStatus {
 
 export interface TeslaConfig {
   backend?: string;
-  vin?: string;
+  default_vin?: string;
   tessie_token?: string;
   teslaMate_url?: string;
 }
 
 export interface ProviderStatus {
   name: string;
-  status: string;
+  available: boolean;
+  layer?: string;
+  priority?: number;
+  capabilities?: string[];
+  description?: string;
   message?: string;
 }
 

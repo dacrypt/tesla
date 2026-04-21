@@ -123,6 +123,7 @@ function DeliveryCard({
   licensePlate,
   mapUrl,
   statusMessage,
+  delivered = false,
 }: {
   deliveryDate?: string;
   deliveryLocation?: string;
@@ -133,6 +134,7 @@ function DeliveryCard({
   licensePlate?: string;
   mapUrl?: string;
   statusMessage?: string;
+  delivered?: boolean;
 }) {
   if (!deliveryDate && !deliveryWindow && !deliveryLocation) return null;
 
@@ -149,14 +151,14 @@ function DeliveryCard({
             fontSize: 10, fontWeight: 700, color: '#05C46B',
             background: '#05C46B18', padding: '3px 10px',
             borderRadius: 100, border: '1px solid #05C46B30',
-          }}>SCHEDULED</span>
+          }}>{delivered ? 'DELIVERED' : 'SCHEDULED'}</span>
         )}
       </div>
 
       {/* Date + type row */}
       <div style={{ display: 'grid', gridTemplateColumns: deliveryType ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 10 }}>
         <div>
-          <div className="text-secondary fw-semi uppercase mb-xs" style={{ fontSize: 10, letterSpacing: '0.05em' }}>Appointment</div>
+          <div className="text-secondary fw-semi uppercase mb-xs" style={{ fontSize: 10, letterSpacing: '0.05em' }}>{delivered ? 'Delivered On' : 'Appointment'}</div>
           {deliveryDate ? (
             <div className="fw-bold text-accent" style={{ fontSize: 16 }}>{deliveryDate}</div>
           ) : deliveryWindow ? (
@@ -609,7 +611,8 @@ const Order: React.FC = () => {
                 : (orderDelivery?.deliveryType as string)
             }
             creditBalance={orderDelivery?.amountDue != null ? orderDelivery.amountDue as number : undefined}
-            licensePlate={sources['co.runt']?.current?.placa || 'Pending'}
+            licensePlate={sources['co.runt']?.placa || sources['co.runt']?.current?.placa || 'Pending'}
+            delivered={!!status?.is_delivered}
             mapUrl={orderDelivery?.mapUrl as string}
             statusMessage={
               orderDelivery?.vehicleIsReady && !orderDelivery?.withinAppointmentWindow

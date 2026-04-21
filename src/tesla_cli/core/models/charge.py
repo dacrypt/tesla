@@ -19,7 +19,7 @@ class ChargeState(BaseModel):
     charge_port_door_open: bool = False
     charge_port_latch: str = ""
     scheduled_charging_pending: bool = False
-    scheduled_charging_start_time: str = ""
+    scheduled_charging_start_time: str | None = None
 
 
 class ChargingHistoryPoint(BaseModel):

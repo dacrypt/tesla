@@ -52,8 +52,14 @@ class VehicleBackend(ABC):
         ...
 
     @abstractmethod
-    def command(self, vin: str, command: str, **params: Any) -> dict[str, Any]:
-        """Send a command to the vehicle."""
+    def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
+        """Send a command to the vehicle.
+
+        `cmd` is the Tesla command name (e.g. ``"window_control"``). Keep the
+        positional param name off-limits for payloads: some Fleet API commands
+        (notably ``window_control``) nest a ``command`` key in the body, so
+        callers need to pass ``command=`` freely via ``**params``.
+        """
         ...
 
     # ── Extended — default stubs raise BackendNotSupportedError ─────────────
