@@ -1051,9 +1051,13 @@ def _auth_fleet() -> None:
         "Necesitas un [bold]client_id[/bold] registrado en developer.tesla.com.\n\n"
         "[bold cyan]Pasos para registrar tu app (gratis):[/bold cyan]\n"
         "  1. Ve a [link=https://developer.tesla.com]developer.tesla.com[/link] → Create App\n"
-        "  2. Nombre: cualquiera (ej. tesla-cli-personal)\n"
+        "  2. Nombre: alphanumeric o con espacios — Tesla rechaza guiones "
+        "(ej. [italic]CarMonitor[/italic] o [italic]My Tesla Dashboard[/italic])\n"
         "  3. [bold]Redirect URI:[/bold] [yellow]https://auth.tesla.com/void/callback[/yellow]\n"
-        "  4. Scopes: [yellow]vehicle_device_data  vehicle_cmds  vehicle_charging_cmds  vehicle_location[/yellow]\n"
+        "  4. Scopes (marca todo lo que quieras usar):\n"
+        "     [yellow]user_data  vehicle_device_data  vehicle_location\n"
+        "     vehicle_cmds  vehicle_charging_cmds\n"
+        "     energy_device_data  energy_cmds[/yellow]\n"
         "  5. Copia el [bold]client_id[/bold] y [bold]client_secret[/bold] que te dan\n"
     )
     client_id = Prompt.ask("Client ID")

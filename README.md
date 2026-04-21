@@ -54,9 +54,10 @@ Go to [developer.tesla.com](https://developer.tesla.com) → **Create App**. Fil
 
 | Field | Value |
 |-------|-------|
-| App Name | anything, e.g. `tesla-cli-personal` |
+| App Name | alphanumeric / spaces — Tesla rejects dashes (e.g. `CarMonitor` or `My Tesla Dashboard`) |
 | Description | short sentence, e.g. "Personal CLI for my Tesla" |
-| Scopes | `vehicle_device_data`, `vehicle_cmds`, `vehicle_charging_cmds`, `vehicle_location` |
+| Scopes | Enable every scope the portal offers — tesla-cli requests them all. At minimum: `vehicle_device_data`, `vehicle_location`, `vehicle_cmds`, `vehicle_charging_cmds`. Optional: `user_data`, `energy_device_data`, `energy_cmds`. |
+| OAuth Grant Type | `Authorization Code and Machine-to-Machine` |
 | Redirect URI | `https://auth.tesla.com/void/callback` |
 | Allowed Origin / Domain | a domain **you control** (see step 2) |
 
