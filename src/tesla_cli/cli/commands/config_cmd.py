@@ -365,7 +365,9 @@ def config_register(
 
 @config_app.command("auth")
 def config_auth(
-    backend: str = typer.Argument(help="Backend to authenticate: order, tessie, fleet"),
+    backend: str = typer.Argument(
+        help="Backend to authenticate: order, tessie, fleet, fleet-signed"
+    ),
 ) -> None:
     """Authenticate with a Tesla backend."""
     if backend == "order":
@@ -374,8 +376,13 @@ def config_auth(
         _auth_tessie()
     elif backend == "fleet":
         _auth_fleet()
+    elif backend == "fleet-signed":
+        _auth_fleet_signed()
     else:
-        console.print(f"[red]Unknown backend:[/red] {backend}\nValid: order, tessie, fleet")
+        console.print(
+            f"[red]Unknown backend:[/red] {backend}\n"
+            "Valid: order, tessie, fleet, fleet-signed"
+        )
         raise typer.Exit(1)
 
 
@@ -1112,6 +1119,133 @@ def _auth_fleet() -> None:
                 console.print("  [green]Tokens synced to TeslaMate automatically.[/green]")
         except Exception:
             pass  # Non-critical
+
+
+def _auth_fleet_signed() -> None:
+    """Set up Vehicle Command Protocol (signed commands) for 2024.26+ firmware.
+
+    Sequence (see docs/fleet-signed-setup.md):
+      a) verify tesla-fleet-api is installed
+      b) generate (or reuse) a prime256v1 EC key pair at ~/.tesla-cli/keys/
+      c) preflight: fetch public key from the registered fleet domain
+      d) dry-run the signed handshake against the default VIN
+      e) on success, flip backend → "fleet-signed" and persist config
+    """
+    import stat
+    from pathlib import Path
+
+    from tesla_cli.core.config import resolve_vin
+    from tesla_cli.core.exceptions import BackendNotSupportedError
+
+    rollback_hint = "To return to read-only Fleet API: tesla config set backend fleet"
+
+    def print_preflight_failure(domain: str) -> None:
+        console.print(
+            f"Public key not found at https://{domain}/.well-known/appspecific/com.tesla.3p.public-key.pem\n"
+            "Deploy your public key via GitHub Pages: see docs/fleet-signed-setup.md#publishing-your-public-key\n"
+            f"{rollback_hint}"
+        )
+
+    def print_handshake_failure() -> None:
+        console.print(
+            "Vehicle Command Protocol required. Run: tesla config auth fleet-signed\n"
+            "Then pair this VIN in the Tesla app under Manage Keys → Add Key.\n"
+            "Check status any time with: tesla doctor\n"
+            f"{rollback_hint}"
+        )
+
+    try:
+        # ── (a) dependency check ─────────────────────────────────────────────
+        try:
+            from tesla_cli.core.backends.fleet_signed import _require_fleet_api
+
+            _require_fleet_api()
+        except RuntimeError:
+            console.print("Install: uv pip install 'tesla-cli[fleet]'")
+            raise typer.Exit(1)
+
+        # ── (b) key generation (idempotent) ──────────────────────────────────
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        keys_dir = Path.home() / ".tesla-cli" / "keys"
+        keys_dir.mkdir(parents=True, exist_ok=True)
+        private_key_path = keys_dir / "private-key.pem"
+        public_key_path = keys_dir / "public-key.pem"
+
+        if private_key_path.exists() or public_key_path.exists():
+            console.print(f"[dim]Reusing existing key pair at {keys_dir}[/dim]")
+        else:
+            private_key = ec.generate_private_key(ec.SECP256R1())
+            private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+            public_pem = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            private_key_path.write_bytes(private_pem)
+            public_key_path.write_bytes(public_pem)
+            private_key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+            console.print(f"[green]✓[/green] Generated prime256v1 key pair at {keys_dir}")
+
+        # ── (c) public-key preflight ─────────────────────────────────────────
+        import httpx
+
+        cfg = load_config()
+        domain = getattr(cfg.fleet, "domain", "") or ""
+        url = f"https://{domain}/.well-known/appspecific/com.tesla.3p.public-key.pem"
+        try:
+            resp = httpx.get(url, timeout=10)
+        except Exception:
+            print_preflight_failure(domain=domain)
+            raise typer.Exit(1)
+        if resp.status_code != 200 or "BEGIN PUBLIC KEY" not in resp.text:
+            print_preflight_failure(domain=domain)
+            raise typer.Exit(1)
+        console.print(f"[green]✓[/green] Public key reachable at {url}")
+
+        # ── (d) dry-run handshake ────────────────────────────────────────────
+        import asyncio
+
+        from tesla_cli.core.backends.fleet_signed import FleetSignedBackend
+
+        vin = resolve_vin(cfg, None)
+        backend = FleetSignedBackend()
+
+        async def _handshake_and_close() -> None:
+            try:
+                await backend._get_vehicle(vin)
+            finally:
+                await backend.close()
+
+        try:
+            asyncio.run(_handshake_and_close())
+        except BackendNotSupportedError:
+            print_handshake_failure()
+            raise typer.Exit(1)
+        except typer.Exit:
+            raise
+        except Exception:
+            print_handshake_failure()
+            raise typer.Exit(1)
+
+        # ── (e) success: flip backend ────────────────────────────────────────
+        cfg.general.backend = "fleet-signed"
+        save_config(cfg)
+        console.print(
+            "[green]Paired. Backend switched to fleet-signed. "
+            "Try: tesla vehicle flash-lights[/green]"
+        )
+    except typer.Exit:
+        raise
+    except BaseException:
+        # Print the rollback hint on unexpected failure so the user is never
+        # left without a way back to the read-only fleet backend.
+        console.print(rollback_hint)
+        raise SystemExit(1)
 
 
 @config_app.command("export-env")

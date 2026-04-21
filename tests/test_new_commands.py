@@ -429,7 +429,7 @@ class TestEventStreamCommands:
             mock_list.return_value = [
                 {"kind": "source_change", "title": "co.runt", "message": "1 change(s) detected", "created_at": "2026-04-07T12:00:00+00:00"}
             ]
-            result = _run("--json", "events")
+            result = _run("--json", "events", "list")
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data[0]["kind"] == "source_change"

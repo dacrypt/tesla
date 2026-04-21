@@ -102,7 +102,8 @@ def _register_commands() -> None:
     # Core vehicle commands
     from tesla_cli.cli.commands.charge import charge_app
     from tesla_cli.cli.commands.climate import climate_app
-    from tesla_cli.cli.commands.event_stream_cmd import alerts_command, events_command
+    from tesla_cli.cli.commands.event_stream_cmd import alerts_command
+    from tesla_cli.cli.commands.events import events_app
     from tesla_cli.cli.commands.media import media_app
     from tesla_cli.cli.commands.notify import notify_app
     from tesla_cli.cli.commands.order import order_app
@@ -121,7 +122,7 @@ def _register_commands() -> None:
     app.add_typer(notify_app, name="notify")
     app.add_typer(runt_app, name="runt")
     app.command("alerts")(alerts_command)
-    app.command("events")(events_command)
+    app.add_typer(events_app, name="events")
 
     # Service center management
     from tesla_cli.cli.commands.service import service_app
@@ -177,6 +178,11 @@ def _register_commands() -> None:
     from tesla_cli.cli.commands.scenes import scenes_app
 
     app.add_typer(scenes_app, name="scene")
+
+    # Feature health (doctor)
+    from tesla_cli.cli.commands.doctor_cmd import doctor_app
+
+    app.add_typer(doctor_app, name="doctor")
 
     # Short aliases (hidden — do not appear in --help)
     @app.command("cs", hidden=True)

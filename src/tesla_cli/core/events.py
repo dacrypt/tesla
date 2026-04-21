@@ -14,6 +14,51 @@ EVENTS_FILE = EVENTS_DIR / "events.jsonl"
 ALERTS_FILE = EVENTS_DIR / "alerts.jsonl"
 
 
+def delete_events(prefixes: list[str], before: str | None = None) -> int:
+    """Delete events whose source_id or domain_id starts with any of *prefixes*.
+
+    Optionally restricts to events whose ``created_at`` is strictly before
+    *before* (an ISO-8601 string).  Returns the number of events deleted.
+    """
+    all_events = _read_jsonl(EVENTS_FILE, limit=None)
+    if not all_events:
+        return 0
+
+    before_dt: datetime | None = None
+    if before:
+        before_dt = datetime.fromisoformat(before)
+        if before_dt.tzinfo is None:
+            before_dt = before_dt.replace(tzinfo=UTC)
+
+    kept: list[dict[str, Any]] = []
+    deleted = 0
+    for event in all_events:
+        source = event.get("source_id") or ""
+        domain = event.get("domain_id") or ""
+        prefix_match = any(
+            source.startswith(p) or domain.startswith(p) for p in prefixes
+        )
+        if prefix_match:
+            if before_dt is not None:
+                raw_ts = event.get("created_at", "")
+                try:
+                    event_dt = datetime.fromisoformat(str(raw_ts))
+                    if event_dt.tzinfo is None:
+                        event_dt = event_dt.replace(tzinfo=UTC)
+                    if event_dt >= before_dt:
+                        kept.append(event)
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            deleted += 1
+        else:
+            kept.append(event)
+
+    if deleted:
+        _write_jsonl(EVENTS_FILE, kept)
+    return deleted
+
+
 def list_events(limit: int = 50) -> list[dict[str, Any]]:
     """Read recent event entries."""
     return _read_jsonl(EVENTS_FILE, limit)

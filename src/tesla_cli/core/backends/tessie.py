@@ -105,7 +105,18 @@ class TessieBackend(VehicleBackend):
         return data.get("result", False)
 
     def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
-        return self._post(f"/{vin}/command/{cmd}", **params)
+        from tesla_cli.core.exceptions import BackendNotSupportedError
+
+        try:
+            return self._post(f"/{vin}/command/{cmd}", **params)
+        except ApiError as exc:
+            # Tessie forwards Tesla's VCP 403 errors; wrap into an actionable hint.
+            if exc.status_code == 403:
+                raise BackendNotSupportedError(
+                    "Vehicle Command Protocol required. Check status with: tesla doctor",
+                    "fleet-signed",
+                ) from exc
+            raise
 
     # Fleet-only methods — override to give Tessie-specific message
     def get_release_notes(self, vin: str) -> dict[str, Any]:
