@@ -213,9 +213,19 @@ def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | No
             )
     elif tier == "T2":
         current_backend = getattr(cfg.general, "backend", "")
+        fleet_domain = (getattr(getattr(cfg, "fleet", None), "domain", "") or "").strip()
         if current_backend != "fleet-signed":
             status = "external-blocker"
             remediation = "Run: tesla config auth fleet-signed (then pair in Tesla app)"
+        elif not fleet_domain:
+            # Backend is fleet-signed but no public-key hosting domain is set —
+            # every signed command will fail preflight. Flag it distinctly.
+            status = "external-blocker"
+            remediation = (
+                "fleet-signed is active but fleet.domain is empty. "
+                "Set it with: tesla config set fleet-domain <your-host> "
+                "(see docs/fleet-signed-setup.md)"
+            )
     elif tier == "T3":
         if feature.required_scope and feature.required_scope not in token_scopes:
             status = "missing-scope"
