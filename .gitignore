@@ -22,6 +22,14 @@ Thumbs.db
 mitm-captures/
 *.flow
 
+# VCP key material — must live only in the user's local
+# ~/.tesla-cli/keys/ (private) or their own hosting repo (public).
+# Never in this OSS repo. See docs/fleet-signed-setup.md.
+*.pem
+*.key
+keys/
+.well-known/
+
 # Large data files (generated, not source)
 references/
 nhtsa-complaints.json
