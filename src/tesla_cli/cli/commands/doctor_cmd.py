@@ -38,7 +38,16 @@ def _run_migration_if_needed(*, quiet_stdout: bool = False) -> None:
     Silently noop if Lane C hasn't landed `run_v491_purge_migration` yet.
     When `quiet_stdout` is set (e.g. `--json` mode), status lines are routed to
     stderr so stdout stays a valid JSON document.
+
+    Skipped entirely under pytest — otherwise running `tesla doctor` inside
+    a test would wipe the shared events store and leak a stderr line into
+    click.testing.CliRunner's combined output (breaks JSON-decoding tests
+    and `test_source_refresh_emits_events_and_alerts`).
     """
+    import sys
+
+    if "pytest" in sys.modules:
+        return
     cfg = load_config()
     if getattr(cfg.general, "v491_events_purge_done", False):
         return
