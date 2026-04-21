@@ -28,6 +28,7 @@ class GeneralConfig(BaseModel):
     country: str = ""  # ISO 3166-1 alpha-2 (e.g. "CO", "US", "BR", "MX")
     charge_budget: float = Field(0.0, ge=0.0)  # Monthly charging budget limit (0 = no budget)
     charge_budget_currency: str = "USD"  # Currency code for charge budget
+    v491_events_purge_done: bool = False  # Set after one-time v4.9.1 fixture-events purge
 
 
 class OrderConfig(BaseModel):

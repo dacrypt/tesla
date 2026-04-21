@@ -253,6 +253,7 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.climate import router as climate_router
     from tesla_cli.api.routes.colombia import router as colombia_router
     from tesla_cli.api.routes.dashcam import router as dashcam_router
+    from tesla_cli.api.routes.doctor import router as doctor_router
     from tesla_cli.api.routes.domains import router as domains_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.drivers import router as drivers_router
@@ -295,6 +296,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(ble_router, prefix="/api/ble", tags=["BLE"])
     app.include_router(mqtt_router, prefix="/api/mqtt", tags=["MQTT"])
     app.include_router(dashcam_router, prefix="/api/dashcam", tags=["Dashcam"])
+    app.include_router(doctor_router, prefix="/api/doctor", tags=["Doctor"])
 
     from tesla_cli.api.audit import audit_router
 

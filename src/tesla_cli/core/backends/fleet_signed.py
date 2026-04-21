@@ -100,6 +100,18 @@ class FleetSignedBackend(VehicleBackend):
         self._vehicles: dict[str, Any] = {}
         # Lazy-initialised regular backend for data reads
         self._read_backend: Any = None
+        # aiohttp ClientSession kept alive while signed vehicles are cached.
+        # Created lazily inside _get_vehicle and closed via .close().
+        self._session: Any = None
+
+    async def close(self) -> None:
+        """Close the aiohttp ClientSession if one was opened."""
+        if self._session is not None:
+            try:
+                await self._session.close()
+            finally:
+                self._session = None
+                self._vehicles.clear()
 
     # ── Event loop management ────────────────────────────────────────────────
 
@@ -129,32 +141,77 @@ class FleetSignedBackend(VehicleBackend):
     # ── Signed vehicle accessor ──────────────────────────────────────────────
 
     async def _get_vehicle(self, vin: str) -> Any:
-        """Return a VehicleSigned instance for *vin*, performing handshake on first use."""
+        """Return a VehicleSigned instance for *vin*, performing handshake on first use.
+
+        Per-VIN cache: if ``vin`` is already in ``self._vehicles``, return the
+        cached VehicleSigned (no new session/handshake).
+
+        Session lifecycle: a single aiohttp.ClientSession is shared across all
+        VINs and stored on ``self._session``. If the handshake raises for a
+        brand-new session, the session is closed before the exception
+        propagates (no leak).
+
+        Pairing errors (NotPaired / KeyNotTrusted / "not paired" in message)
+        are translated to BackendNotSupportedError so the CLI can surface a
+        clear remediation hint.
+        """
         import aiohttp
         from tesla_fleet_api import TeslaFleetApi
         from tesla_fleet_api.tesla.vehicle.signed import VehicleSigned
 
-        if vin not in self._vehicles:
-            cfg = load_config()
-            access_token = tokens.get_token(tokens.FLEET_ACCESS_TOKEN)
-            if not access_token:
-                from tesla_cli.core.exceptions import AuthenticationError
+        from tesla_cli.core.exceptions import (
+            AuthenticationError,
+            BackendNotSupportedError,
+        )
 
-                raise AuthenticationError("No Fleet API token. Run: tesla config auth fleet")
+        if vin in self._vehicles:
+            return self._vehicles[vin]
 
-            session = aiohttp.ClientSession()
-            api = TeslaFleetApi(
-                access_token=access_token,
-                session=session,
-                region=cfg.fleet.region,
-            )
-            vehicle = VehicleSigned(api, vin)
-            log.debug("Performing signed handshake for VIN %s", vin)
+        cfg = load_config()
+        access_token = tokens.get_token(tokens.FLEET_ACCESS_TOKEN)
+        if not access_token:
+            raise AuthenticationError("No Fleet API token. Run: tesla config auth fleet")
+
+        # Reuse an existing session if we already opened one (e.g. for a prior VIN).
+        new_session = self._session is None
+        if new_session:
+            self._session = aiohttp.ClientSession()
+        session = self._session
+
+        api = TeslaFleetApi(
+            access_token=access_token,
+            session=session,
+            region=cfg.fleet.region,
+        )
+        vehicle = VehicleSigned(api, vin)
+        log.debug("Performing signed handshake for VIN %s", vin)
+        try:
             await vehicle.handshake()
-            log.debug("Handshake complete for VIN %s", vin)
-            self._vehicles[vin] = vehicle
+        except Exception as exc:
+            # Close the session we just opened on first-use failure so it
+            # doesn't leak.  Subsequent calls will try again with a fresh one.
+            if new_session:
+                try:
+                    await session.close()
+                finally:
+                    self._session = None
 
-        return self._vehicles[vin]
+            # Map pairing errors to a user-actionable backend error.
+            exc_name = type(exc).__name__
+            msg = str(exc).lower()
+            if (
+                exc_name in ("NotPaired", "KeyNotTrusted")
+                or "not paired" in msg
+                or "key not trusted" in msg
+            ):
+                raise BackendNotSupportedError(
+                    "command — vehicle not paired with this app key — run: tesla doctor",
+                    "fleet-signed",
+                ) from exc
+            raise
+        log.debug("Handshake complete for VIN %s", vin)
+        self._vehicles[vin] = vehicle
+        return vehicle
 
     # ── VehicleBackend — data methods (delegate to unsigned FleetBackend) ────
 
@@ -224,12 +281,15 @@ class FleetSignedBackend(VehicleBackend):
     def command(self, vin: str, cmd: str, **params: Any) -> dict[str, Any]:
         """Dispatch a named command to VehicleSigned, using _COMMAND_MAP for routing."""
         if cmd not in _COMMAND_MAP:
-            # Fall back to unsigned Fleet API for unmapped commands
-            log.warning(
-                "Command '%s' not in signed command map — falling back to unsigned Fleet API",
-                cmd,
+            # No silent fallback to unsigned Fleet API — 2024.26+ firmware
+            # rejects unsigned commands, so a silent fallback would claim
+            # success while producing no effect on the car.
+            from tesla_cli.core.exceptions import BackendNotSupportedError
+
+            raise BackendNotSupportedError(
+                f"signed command {cmd!r} not mapped",
+                "fleet-signed",
             )
-            return self._reads.command(vin, cmd, **params)
 
         method_name, positional_keys, keyword_keys = _COMMAND_MAP[cmd]
 

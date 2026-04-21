@@ -101,7 +101,13 @@ class CachedVehicleBackend(VehicleBackend):
     # ── Commands pass through + invalidate cache ──
 
     def command(self, vin: str, cmd: str, **params) -> dict:
-        result = self._inner.command(vin, cmd, **params)
+        from tesla_cli.core.exceptions import BackendNotSupportedError
+
+        try:
+            result = self._inner.command(vin, cmd, **params)
+        except BackendNotSupportedError:
+            self.invalidate(vin)  # Invalidate even on VCP errors to prevent stale state
+            raise
         self.invalidate(vin)  # Clear cache after state-changing command
         return result
 

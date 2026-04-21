@@ -186,10 +186,13 @@ class FleetBackend(HttpBackendMixin, VehicleBackend):
             # returns 403 with a specific marker — surface it as an actionable
             # "switch to fleet-signed" hint instead of a raw HTTP error.
             if exc.status_code == 403 and "Vehicle Command Protocol" in str(exc):
-                raise BackendNotSupportedError(
-                    f"command '{cmd}' (requires signed commands on 2024.26+ firmware)",
-                    "fleet-signed",
-                ) from exc
+                _msg = (
+                    "Vehicle Command Protocol required. Run: tesla config auth fleet-signed\n"
+                    "Then pair this VIN in the Tesla app under Manage Keys → Add Key.\n"
+                    "Check status any time with: tesla doctor\n"
+                    "To return to read-only Fleet API: tesla config set backend fleet"
+                )
+                raise BackendNotSupportedError(_msg, "fleet-signed") from exc
             raise
 
     # ── Convenience command wrappers ────────────────────────────────
