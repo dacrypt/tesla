@@ -113,7 +113,9 @@ def test_build_mission_control_from_sources_and_domains(monkeypatch):
 def test_build_mission_control_persists_json(monkeypatch):
     monkeypatch.setattr(mission_control_module.domains, "list_domains", lambda: [])
     monkeypatch.setattr(mission_control_module.sources, "list_sources", lambda: [])
-    monkeypatch.setattr(mission_control_module.sources, "get_cached_with_meta", lambda _source_id: {})
+    monkeypatch.setattr(
+        mission_control_module.sources, "get_cached_with_meta", lambda _source_id: {}
+    )
 
     mission_control_module.build_mission_control()
 
@@ -159,8 +161,18 @@ def test_build_legacy_payload_uses_read_model_and_sources(monkeypatch):
             "generated_at": "2026-04-07T12:00:00+00:00",
             "executive": {},
             "sources": [
-                {"id": "tesla.order", "refreshed_at": "2026-04-07T11:59:00+00:00", "stale": False, "error": None},
-                {"id": "co.runt", "refreshed_at": "2026-04-07T11:58:00+00:00", "stale": True, "error": None},
+                {
+                    "id": "tesla.order",
+                    "refreshed_at": "2026-04-07T11:59:00+00:00",
+                    "stale": False,
+                    "error": None,
+                },
+                {
+                    "id": "co.runt",
+                    "refreshed_at": "2026-04-07T11:58:00+00:00",
+                    "stale": True,
+                    "error": None,
+                },
             ],
             "active_alerts": [{"kind": "domain_change"}],
             "timeline": [{"kind": "source_change"}],
@@ -192,7 +204,13 @@ def test_build_legacy_payload_falls_back_to_enriched_order_cache(monkeypatch):
     monkeypatch.setattr(
         mission_control_module,
         "build_mission_control",
-        lambda: {"generated_at": "2026-04-07T12:00:00+00:00", "executive": {}, "sources": [], "active_alerts": [], "timeline": []},
+        lambda: {
+            "generated_at": "2026-04-07T12:00:00+00:00",
+            "executive": {},
+            "sources": [],
+            "active_alerts": [],
+            "timeline": [],
+        },
     )
     monkeypatch.setattr(
         mission_control_module.sources,
@@ -207,7 +225,12 @@ def test_build_legacy_payload_falls_back_to_enriched_order_cache(monkeypatch):
                     "address": "Cra 123 #45-67",
                 },
                 "tasks": [
-                    {"taskType": "deliveryAcceptance", "completed": False, "active": True, "taskStatus": "PENDING"}
+                    {
+                        "taskType": "deliveryAcceptance",
+                        "completed": False,
+                        "active": True,
+                        "taskStatus": "PENDING",
+                    }
                 ],
             },
             "tesla.delivery": {
@@ -224,5 +247,8 @@ def test_build_legacy_payload_falls_back_to_enriched_order_cache(monkeypatch):
 
     payload = mission_control_module.build_legacy_mission_control_payload()
 
-    assert payload["delivery"]["delivery_details"]["deliveryAppointmentDateUtc"] == "2026-04-24T15:00:00Z"
+    assert (
+        payload["delivery"]["delivery_details"]["deliveryAppointmentDateUtc"]
+        == "2026-04-24T15:00:00Z"
+    )
     assert payload["tesla_tasks"]["deliveryAcceptance"]["enabled"] is True

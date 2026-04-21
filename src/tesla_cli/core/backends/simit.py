@@ -44,7 +44,9 @@ class SimitBackend:
                 "openquery is required for SIMIT queries. Install: pip install 'tesla-cli[query]'"
             ) from exc
         except Exception as exc:
-            logger.warning("OpenQuery SIMIT query failed, falling back to Playwright: %s", exc, exc_info=True)
+            logger.warning(
+                "OpenQuery SIMIT query failed, falling back to Playwright: %s", exc, exc_info=True
+            )
 
         from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
         from playwright.sync_api import sync_playwright

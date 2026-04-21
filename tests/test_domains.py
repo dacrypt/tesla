@@ -245,7 +245,12 @@ class TestIdentityDomain:
         _write_source(
             "vin.decode",
             {
-                "data": {"model": "Model Y", "model_year": "2026", "manufacturer": "Tesla", "plant": "Shanghai"},
+                "data": {
+                    "model": "Model Y",
+                    "model_year": "2026",
+                    "manufacturer": "Tesla",
+                    "plant": "Shanghai",
+                },
                 "refreshed_at": "2026-04-07T12:01:00+00:00",
                 "error": None,
             },

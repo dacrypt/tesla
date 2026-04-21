@@ -35,7 +35,9 @@ def recompute_domain(domain_id: str) -> dict[str, Any]:
 
         events.emit_domain_change(domain_id, projection, previous_projection)
     except Exception:
-        logging.getLogger(__name__).debug("Domain event emission failed for %s", domain_id, exc_info=True)
+        logging.getLogger(__name__).debug(
+            "Domain event emission failed for %s", domain_id, exc_info=True
+        )
     return projection
 
 
@@ -98,7 +100,9 @@ def _build_delivery() -> dict[str, Any]:
     health = _compute_health([order, portal, ship])
     summary_bits = []
     if delivery_scheduled:
-        summary_bits.append(f"Delivery scheduled{f' for {appointment_date[:10]}' if appointment_date else ''}")
+        summary_bits.append(
+            f"Delivery scheduled{f' for {appointment_date[:10]}' if appointment_date else ''}"
+        )
     elif estimated_delivery:
         summary_bits.append(f"Estimated delivery {str(estimated_delivery)[:10]}")
     if vin:
@@ -224,7 +228,9 @@ def _build_safety() -> dict[str, Any]:
     investigations_data = nhtsa_investigations["data"] or {}
     local_recalls_data = co_recalls["data"] or {}
 
-    recalls_count = _extract_count(recalls_data, "count", "total", array_keys=("recalls", "results"))
+    recalls_count = _extract_count(
+        recalls_data, "count", "total", array_keys=("recalls", "results")
+    )
     complaints_count = _extract_count(
         complaints_data, "count", "total", array_keys=("complaints", "results")
     )
@@ -370,12 +376,16 @@ def _build_identity() -> dict[str, Any]:
     nhtsa_data = nhtsa_vin["data"] or {}
     portal_data = portal["data"] or {}
 
-    vin = _first_value(order_data, "vin") or _first_value(vin_data, "vin") or _first_value(
-        nhtsa_data, "vin"
+    vin = (
+        _first_value(order_data, "vin")
+        or _first_value(vin_data, "vin")
+        or _first_value(nhtsa_data, "vin")
     )
-    model = _first_value(vin_data, "model", "vehicle", "model_name") or _first_value(
-        nhtsa_data, "model", "vehicle", "model_name"
-    ) or _first_value(order_data, "modelCode", "model")
+    model = (
+        _first_value(vin_data, "model", "vehicle", "model_name")
+        or _first_value(nhtsa_data, "model", "vehicle", "model_name")
+        or _first_value(order_data, "modelCode", "model")
+    )
     model_year = _first_value(vin_data, "model_year", "modelYear", "year") or _first_value(
         nhtsa_data, "model_year", "modelYear", "year"
     )

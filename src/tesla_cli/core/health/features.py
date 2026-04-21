@@ -57,9 +57,7 @@ FEATURES: list[FeatureSpec] = [
     FeatureSpec("honk_horn", "T2", "fleet-signed", "vehicle_cmds", None, "Honk the horn"),
     FeatureSpec("door_lock", "T2", "fleet-signed", "vehicle_cmds", None, "Lock the doors"),
     FeatureSpec("door_unlock", "T2", "fleet-signed", "vehicle_cmds", None, "Unlock the doors"),
-    FeatureSpec(
-        "sentry_mode", "T2", "fleet-signed", "vehicle_cmds", None, "Toggle Sentry Mode"
-    ),
+    FeatureSpec("sentry_mode", "T2", "fleet-signed", "vehicle_cmds", None, "Toggle Sentry Mode"),
     FeatureSpec(
         "actuate_trunk", "T2", "fleet-signed", "vehicle_cmds", None, "Open front/rear trunk"
     ),

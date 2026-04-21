@@ -133,7 +133,9 @@ def _auto_refresh_sources(hub_ref: list | None = None) -> None:
         _t.sleep(1800)  # Every 30 minutes
 
 
-def _refresh_stale_sources_once(hub_ref: list | None = None) -> tuple[list[str], list[dict[str, str]]]:
+def _refresh_stale_sources_once(
+    hub_ref: list | None = None,
+) -> tuple[list[str], list[dict[str, str]]]:
     """Run one stale-source refresh pass and optionally broadcast updates."""
     from tesla_cli.core.sources import _SOURCES, _is_stale, get_cached, refresh_source
 
@@ -278,7 +280,9 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
     app.include_router(sources_router, prefix="/api/sources", tags=["Sources"])
     app.include_router(domains_router, prefix="/api/domains", tags=["Domains"])
-    app.include_router(mission_control_router, prefix="/api/mission-control", tags=["Mission Control"])
+    app.include_router(
+        mission_control_router, prefix="/api/mission-control", tags=["Mission Control"]
+    )
     app.include_router(colombia_router, prefix="/api/co", tags=["Colombia"])
     app.include_router(energy_prices_router, prefix="/api/energy", tags=["Energy"])
     app.include_router(vehicle_router, prefix="/api/vehicle", tags=["Vehicle"])

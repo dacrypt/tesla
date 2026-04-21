@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -17,6 +19,17 @@ def _load_module(module_name: str, file_name: str):
     spec.loader.exec_module(module)
     return module
 
+
+# change-detector.py and refresh-mission-control.py are gitignored legacy
+# scripts at the repo root. Skip the whole module on envs that don't have
+# them (e.g. GitHub Actions CI) instead of failing collection.
+_REQUIRED_SCRIPTS = ["change-detector.py", "refresh-mission-control.py"]
+_missing = [s for s in _REQUIRED_SCRIPTS if not (ROOT / s).exists()]
+if _missing:
+    pytest.skip(
+        f"legacy pipeline scripts not present: {', '.join(_missing)}",
+        allow_module_level=True,
+    )
 
 change_detector = _load_module("change_detector", "change-detector.py")
 refresh_mission_control = _load_module("refresh_mission_control", "refresh-mission-control.py")
@@ -38,7 +51,6 @@ def test_flatten_ignores_metadata():
     assert flat["runt.estado"] == "REGISTRADO"
 
 
-
 def test_flatten_unwraps_provenance():
     data = {
         "runt": {
@@ -57,7 +69,6 @@ def test_flatten_unwraps_provenance():
     assert "runt._meta" not in flat
 
 
-
 def test_section_has_data_with_provenance():
     raw = {
         "runt": {
@@ -69,14 +80,12 @@ def test_section_has_data_with_provenance():
     assert change_detector.section_has_data(raw, "runt") is True
 
 
-
 def test_section_has_data_without_provenance():
     raw = {
         "runt": {"estado": "REGISTRADO"},
     }
 
     assert change_detector.section_has_data(raw, "runt") is True
-
 
 
 def test_detect_no_changes_identical_data(tmp_path, monkeypatch):
@@ -96,7 +105,6 @@ def test_detect_no_changes_identical_data(tmp_path, monkeypatch):
     monkeypatch.setattr(change_detector, "LAST_SNAPSHOT", last_snapshot)
 
     assert change_detector.detect_changes() == []
-
 
 
 def test_detect_change_in_field(tmp_path, monkeypatch):
@@ -128,7 +136,6 @@ def test_detect_change_in_field(tmp_path, monkeypatch):
     assert changes[0]["new"] == "XYZ987"
 
 
-
 def test_skip_failed_section(tmp_path, monkeypatch):
     previous = {
         "runt": {
@@ -156,7 +163,6 @@ def test_skip_failed_section(tmp_path, monkeypatch):
     monkeypatch.setattr(change_detector, "LAST_SNAPSHOT", last_snapshot)
 
     assert change_detector.detect_changes() == []
-
 
 
 def test_refresh_module_exposes_main():

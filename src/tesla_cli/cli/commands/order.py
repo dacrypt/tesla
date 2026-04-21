@@ -139,7 +139,9 @@ def order_share(
             if sys.platform == "darwin":
                 subprocess.run(["pbcopy"], input=text.encode(), check=True)
             elif sys.platform == "linux":
-                subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=True)
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"], input=text.encode(), check=True
+                )
             else:
                 subprocess.run(["clip"], input=text.encode(), check=True)
             console.print("[dim]Copied to clipboard.[/dim]")

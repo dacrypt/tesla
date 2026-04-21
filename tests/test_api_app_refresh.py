@@ -15,7 +15,10 @@ def test_refresh_stale_sources_once_refreshes_and_broadcasts():
     with (
         patch("tesla_cli.core.sources._SOURCES", {"tesla.order": object(), "co.runt": object()}),
         patch("tesla_cli.core.sources._is_stale", side_effect=lambda sid: sid == "tesla.order"),
-        patch("tesla_cli.core.sources.refresh_source", return_value={"data": {"vin": "VIN123"}, "error": None}),
+        patch(
+            "tesla_cli.core.sources.refresh_source",
+            return_value={"data": {"vin": "VIN123"}, "error": None},
+        ),
         patch("tesla_cli.core.sources.get_cached", return_value={"vin": "VIN123"}),
     ):
         refreshed, failed = _refresh_stale_sources_once(hub_ref)
@@ -44,7 +47,10 @@ def test_refresh_stale_sources_once_skips_manual_sources():
     with (
         patch("tesla_cli.core.sources._SOURCES", {"co.manual": manual, "co.auto": auto}),
         patch("tesla_cli.core.sources._is_stale", return_value=True),
-        patch("tesla_cli.core.sources.refresh_source", return_value={"data": {"ok": True}, "error": None}) as refresh,
+        patch(
+            "tesla_cli.core.sources.refresh_source",
+            return_value={"data": {"ok": True}, "error": None},
+        ) as refresh,
         patch("tesla_cli.core.sources.get_cached", return_value={"ok": True}),
     ):
         refreshed, failed = _refresh_stale_sources_once([None])

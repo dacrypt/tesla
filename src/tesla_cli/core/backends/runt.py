@@ -46,7 +46,9 @@ class RuntBackend:
         )
 
         class TeslaCliRuntSource(RuntSource):
-            def _query_with_retries(self, tipo_consulta, campo, valor, tipo_documento="C", audit=False):
+            def _query_with_retries(
+                self, tipo_consulta, campo, valor, tipo_documento="C", audit=False
+            ):
                 browser = BrowserManager(headless=self._headless, timeout=self._timeout)
                 solver = _build_captcha_chain()
                 last_error = None
@@ -63,7 +65,9 @@ class RuntBackend:
 
                     for attempt in range(1, MAX_RETRIES + 1):
                         try:
-                            logger.info("RUNT attempt %d/%d for %s=%s", attempt, MAX_RETRIES, campo, valor)
+                            logger.info(
+                                "RUNT attempt %d/%d for %s=%s", attempt, MAX_RETRIES, campo, valor
+                            )
                             captcha_id, image_bytes = self._generate_captcha(page)
                             captcha_text = solver.solve(image_bytes)
                             logger.info("Captcha solved: %s", captcha_text)
@@ -90,9 +94,13 @@ class RuntBackend:
                             logger.warning("Attempt %d failed: %s", attempt, exc)
                         except Exception as exc:
                             last_error = exc
-                            logger.warning("Attempt %d failed unexpectedly: %s", attempt, exc, exc_info=True)
+                            logger.warning(
+                                "Attempt %d failed unexpectedly: %s", attempt, exc, exc_info=True
+                            )
 
-                raise SourceError("co.runt", f"All {MAX_RETRIES} attempts failed. Last error: {last_error}")
+                raise SourceError(
+                    "co.runt", f"All {MAX_RETRIES} attempts failed. Last error: {last_error}"
+                )
 
         return TeslaCliRuntSource(timeout=self._timeout)
 

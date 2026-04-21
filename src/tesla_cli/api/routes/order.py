@@ -108,7 +108,10 @@ def order_details() -> dict:
                     delivery["withinAppointmentWindow"] = da.get("withinAppointmentWindow", False)
             # Amount due from financing
             financing_raw = raw_details.get("financing", {})
-            if isinstance(financing_raw, dict) and financing_raw.get("amountDueCustomer") is not None:
+            if (
+                isinstance(financing_raw, dict)
+                and financing_raw.get("amountDueCustomer") is not None
+            ):
                 delivery.setdefault("amountDue", financing_raw["amountDueCustomer"])
 
         return {

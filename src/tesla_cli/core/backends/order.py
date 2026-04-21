@@ -227,7 +227,9 @@ class OrderBackend:
         try:
             status = self.get_order_status(reservation_number)
         except Exception:
-            logger.warning("Failed to resolve live order status for delivery cache validation", exc_info=True)
+            logger.warning(
+                "Failed to resolve live order status for delivery cache validation", exc_info=True
+            )
 
         cached = self._load_delivery_cache_for_order(
             reservation_number=reservation_number,
@@ -502,7 +504,9 @@ class OrderBackend:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         DELIVERY_CACHE_FILE.write_text(json.dumps(data, default=str, indent=2))
 
-    def _build_delivery_data(self, reservation_number: str, vin: str, raw_order: dict[str, Any]) -> dict[str, Any]:
+    def _build_delivery_data(
+        self, reservation_number: str, vin: str, raw_order: dict[str, Any]
+    ) -> dict[str, Any]:
         delivery_data = dict(raw_order.get("delivery", {}) or {})
 
         portal_cached = self._load_portal_cache_for_order(reservation_number, vin)
@@ -520,16 +524,24 @@ class OrderBackend:
             delivery_data = {
                 **delivery_data,
                 "appointment": timing.get("appointment", delivery_data.get("appointment", "")),
-                "appointmentDateUtc": dd.get("deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")),
+                "appointmentDateUtc": dd.get(
+                    "deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")
+                ),
                 "location": timing.get("pickupLocationTitle", delivery_data.get("location", "")),
-                "address": timing.get("formattedAddressSingleLine", delivery_data.get("address", "")),
+                "address": timing.get(
+                    "formattedAddressSingleLine", delivery_data.get("address", "")
+                ),
                 "cachedAt": cached.get("fetched_at", ""),
                 "cacheStale": bool(cached.get("_stale")),
-                "cacheAgeHours": round(float(cached.get("_cache_age_hours", 0)), 2) if cached.get("_cache_age_hours") is not None else None,
+                "cacheAgeHours": round(float(cached.get("_cache_age_hours", 0)), 2)
+                if cached.get("_cache_age_hours") is not None
+                else None,
             }
         return delivery_data
 
-    def _load_portal_cache_for_order(self, reservation_number: str, vin: str = "") -> dict[str, Any] | None:
+    def _load_portal_cache_for_order(
+        self, reservation_number: str, vin: str = ""
+    ) -> dict[str, Any] | None:
         if not PORTAL_CACHE_FILE.exists():
             return None
         try:
@@ -549,7 +561,9 @@ class OrderBackend:
                 return None
         return data
 
-    def _merge_delivery_from_portal(self, delivery_data: dict[str, Any], portal_data: dict[str, Any]) -> dict[str, Any]:
+    def _merge_delivery_from_portal(
+        self, delivery_data: dict[str, Any], portal_data: dict[str, Any]
+    ) -> dict[str, Any]:
         dd = portal_data.get("DeliveryDetails") or portal_data.get("delivery_details") or {}
         timing = dd.get("deliveryTiming", {}) if isinstance(dd, dict) else {}
         if not isinstance(dd, dict):
@@ -557,7 +571,9 @@ class OrderBackend:
         return {
             **delivery_data,
             "appointment": timing.get("appointment", delivery_data.get("appointment", "")),
-            "appointmentDateUtc": dd.get("deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")),
+            "appointmentDateUtc": dd.get(
+                "deliveryAppointmentDateUtc", delivery_data.get("appointmentDateUtc", "")
+            ),
             "location": timing.get("pickupLocationTitle", delivery_data.get("location", "")),
             "address": timing.get("formattedAddressSingleLine", delivery_data.get("address", "")),
         }
@@ -572,7 +588,9 @@ class OrderBackend:
                 return parsed
         app_order = portal_data.get("Order") or portal_data.get("order") or {}
         for key in ("tasks", "Tasks", "tesla_tasks", "preDeliveryTasks"):
-            parsed = self._parse_task_items(app_order.get(key) if isinstance(app_order, dict) else None)
+            parsed = self._parse_task_items(
+                app_order.get(key) if isinstance(app_order, dict) else None
+            )
             if parsed:
                 return parsed
         return []
@@ -692,7 +710,8 @@ def generate_summary(
     # Next action hints based on tasks
     if isinstance(tasks, dict):
         pending = [
-            t_id for t_id, t_data in tasks.items()
+            t_id
+            for t_id, t_data in tasks.items()
             if isinstance(t_data, dict) and not t_data.get("complete") and t_data.get("enabled")
         ]
         if pending:

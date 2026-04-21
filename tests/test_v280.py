@@ -403,7 +403,9 @@ class TestSSEHubArchitecture:
     def _hub_src(self) -> str:
         from pathlib import Path
 
-        return (Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "vehicle_hub.py").read_text()
+        return (
+            Path(__file__).parent.parent / "src" / "tesla_cli" / "api" / "vehicle_hub.py"
+        ).read_text()
 
     def test_sse_uses_hub_subscribe(self):
         src = self._server_src()
@@ -415,11 +417,11 @@ class TestSSEHubArchitecture:
 
     def test_hub_broadcasts_vehicle_event(self):
         src = self._hub_src()
-        assert 'event: vehicle' in src
+        assert "event: vehicle" in src
 
     def test_hub_broadcasts_error_event(self):
         src = self._hub_src()
-        assert 'event: error' in src
+        assert "event: error" in src
 
     def test_hub_smart_interval_on_412(self):
         src = self._hub_src()

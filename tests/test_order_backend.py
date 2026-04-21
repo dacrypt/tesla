@@ -221,15 +221,21 @@ def test_get_order_tasks_empty_on_error(httpx_mock, backend, patched_tokens):
 
 
 def test_get_order_tasks_falls_back_to_portal_cache(httpx_mock, backend, patched_tokens, tmp_path):
-    httpx_mock.add_response(url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."})
-    (tmp_path / "tesla.portal.json").write_text(json.dumps({
-        "data": {
-            "tasks": {
-                "deliveryAcceptance": {"complete": False, "enabled": True},
-                "finalPayment": {"complete": True, "enabled": False},
+    httpx_mock.add_response(
+        url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."}
+    )
+    (tmp_path / "tesla.portal.json").write_text(
+        json.dumps(
+            {
+                "data": {
+                    "tasks": {
+                        "deliveryAcceptance": {"complete": False, "enabled": True},
+                        "finalPayment": {"complete": True, "enabled": False},
+                    }
+                }
             }
-        }
-    }))
+        )
+    )
 
     tasks = backend.get_order_tasks(MOCK_RN)
 
@@ -410,7 +416,9 @@ def test_get_delivery_appointment_from_cache(backend, tmp_path):
     assert appt.duration_minutes == 60
 
 
-def test_get_delivery_appointment_ignores_stale_cache(httpx_mock, backend, patched_tokens, tmp_path):
+def test_get_delivery_appointment_ignores_stale_cache(
+    httpx_mock, backend, patched_tokens, tmp_path
+):
     cache = {
         "fetched_at": "2025-01-01T10:00:00Z",
         "order": {"referenceNumber": MOCK_RN, "vin": MOCK_VIN},
@@ -457,23 +465,31 @@ def test_get_delivery_appointment_no_cache_no_api(backend, tmp_path):
 # ── import_delivery_data ───────────────────────────────────────────────────────
 
 
-def test_get_order_details_uses_stale_delivery_cache_when_no_live_delivery(httpx_mock, backend, patched_tokens, tmp_path):
+def test_get_order_details_uses_stale_delivery_cache_when_no_live_delivery(
+    httpx_mock, backend, patched_tokens, tmp_path
+):
     raw = _mock_order_raw()
     raw["delivery"] = {}
     httpx_mock.add_response(url=ORDERS_URL, json={"response": [raw]})
-    httpx_mock.add_response(url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."})
-    (tmp_path / "delivery.json").write_text(json.dumps({
-        "fetched_at": "2025-01-01T10:00:00Z",
-        "order": {"referenceNumber": MOCK_RN, "vin": MOCK_VIN},
-        "delivery_details": {
-            "deliveryAppointmentDateUtc": "2025-06-02T14:00:00Z",
-            "deliveryTiming": {
-                "appointment": "June 2, 2025 at 2:00 PM",
-                "pickupLocationTitle": "Tesla Delivery Hub - Downtown",
-                "formattedAddressSingleLine": "123 Main St, San Francisco, CA 94105",
-            },
-        },
-    }))
+    httpx_mock.add_response(
+        url=_TASKS_URL_RE, status_code=400, json={"message": "Unable to process your request."}
+    )
+    (tmp_path / "delivery.json").write_text(
+        json.dumps(
+            {
+                "fetched_at": "2025-01-01T10:00:00Z",
+                "order": {"referenceNumber": MOCK_RN, "vin": MOCK_VIN},
+                "delivery_details": {
+                    "deliveryAppointmentDateUtc": "2025-06-02T14:00:00Z",
+                    "deliveryTiming": {
+                        "appointment": "June 2, 2025 at 2:00 PM",
+                        "pickupLocationTitle": "Tesla Delivery Hub - Downtown",
+                        "formattedAddressSingleLine": "123 Main St, San Francisco, CA 94105",
+                    },
+                },
+            }
+        )
+    )
 
     details = backend.get_order_details(MOCK_RN)
 

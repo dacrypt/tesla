@@ -32,7 +32,10 @@ def list_cmd(
 def purge_cmd(
     source_prefix: Annotated[
         list[str] | None,
-        typer.Option("--source-prefix", help="Delete events whose source_id or domain_id starts with this prefix (repeatable)."),
+        typer.Option(
+            "--source-prefix",
+            help="Delete events whose source_id or domain_id starts with this prefix (repeatable).",
+        ),
     ] = None,
     before: Annotated[
         str | None,

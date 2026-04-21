@@ -43,7 +43,10 @@ def test_fleet_vcp_403_raises_with_verbatim_message():
 
     api_error = ApiError(403, _VCP_403_BODY)
 
-    with patch.object(backend, "_post", side_effect=api_error), pytest.raises(BackendNotSupportedError) as excinfo:
+    with (
+        patch.object(backend, "_post", side_effect=api_error),
+        pytest.raises(BackendNotSupportedError) as excinfo,
+    ):
         backend.command(VIN, "door_lock")
 
     msg = str(excinfo.value)
@@ -78,7 +81,10 @@ def test_tessie_vcp_403_wraps_to_backend_not_supported():
     backend = TessieBackend.__new__(TessieBackend)
     api_error = ApiError(403, '{"error":"forbidden"}')
 
-    with patch.object(backend, "_post", side_effect=api_error), pytest.raises(BackendNotSupportedError) as excinfo:
+    with (
+        patch.object(backend, "_post", side_effect=api_error),
+        pytest.raises(BackendNotSupportedError) as excinfo,
+    ):
         backend.command(VIN, "door_lock")
 
     msg = str(excinfo.value)

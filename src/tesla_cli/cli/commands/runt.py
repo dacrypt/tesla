@@ -41,7 +41,9 @@ def _render_runt_table(data) -> None:
         ("SOAT", "Vigente" if data.soat_vigente else "No registrado"),
         (
             "Tecnomecánica",
-            "Vigente" if data.tecnomecanica_vigente else (data.tecnomecanica_vencimiento or "No aplica / no registrada"),
+            "Vigente"
+            if data.tecnomecanica_vigente
+            else (data.tecnomecanica_vencimiento or "No aplica / no registrada"),
         ),
         ("Fecha matrícula", data.fecha_matricula or "-"),
         ("Autoridad", data.autoridad_transito or "-"),

@@ -88,22 +88,10 @@ def app_init(request: Request) -> dict:
                 # Try top-level fields first, then nested delivery_details
                 dd = dc.get("delivery_details", {})
                 dt = dd.get("deliveryTiming", {})
-                raw_date = (
-                    dc.get("date_utc")
-                    or dd.get("deliveryAppointmentDateUtc")
-                    or ""
-                )
+                raw_date = dc.get("date_utc") or dd.get("deliveryAppointmentDateUtc") or ""
                 delivery_date = raw_date[:10] if raw_date else ""
-                delivery_location = (
-                    dc.get("location_name")
-                    or dt.get("pickupLocationTitle")
-                    or ""
-                )
-                delivery_appointment = (
-                    dc.get("appointment_text")
-                    or dt.get("appointment")
-                    or ""
-                )
+                delivery_location = dc.get("location_name") or dt.get("pickupLocationTitle") or ""
+                delivery_appointment = dc.get("appointment_text") or dt.get("appointment") or ""
         except Exception:
             logging.getLogger(__name__).debug("Delivery date resolution failed", exc_info=True)
 
@@ -235,7 +223,9 @@ def _resolve_location(request: Request, cfg) -> dict:
                         "source": "delivery_cache",
                     }
     except Exception:
-        logging.getLogger(__name__).debug("Location resolution from delivery cache failed", exc_info=True)
+        logging.getLogger(__name__).debug(
+            "Location resolution from delivery cache failed", exc_info=True
+        )
 
     # 3. Default: bogota
     clat, clon = CITY_COORDS.get("bogota", (4.711, -74.072))

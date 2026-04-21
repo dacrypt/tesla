@@ -47,8 +47,16 @@ def alerts_command(
 
     for row in rows:
         severity = row.get("severity", "info")
-        color = "red" if severity == "critical" else "yellow" if severity in {"high", "warning"} else "cyan"
-        state = "resolved" if row.get("resolved_at") else "acked" if row.get("acked_at") else "active"
+        color = (
+            "red"
+            if severity == "critical"
+            else "yellow"
+            if severity in {"high", "warning"}
+            else "cyan"
+        )
+        state = (
+            "resolved" if row.get("resolved_at") else "acked" if row.get("acked_at") else "active"
+        )
         table.add_row(
             f"[{color}]{severity}[/{color}]",
             row.get("title", "-"),
@@ -85,7 +93,9 @@ def events_command(
 
     for row in rows:
         kind = row.get("kind", "-")
-        color = "cyan" if kind == "domain_change" else "yellow" if kind == "source_change" else "dim"
+        color = (
+            "cyan" if kind == "domain_change" else "yellow" if kind == "source_change" else "dim"
+        )
         table.add_row(
             f"[{color}]{kind}[/{color}]",
             row.get("title", "-"),

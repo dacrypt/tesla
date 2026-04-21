@@ -19,9 +19,7 @@ def _seed(events: list[dict]) -> None:
     import json
 
     events_module.EVENTS_DIR.mkdir(parents=True, exist_ok=True)
-    events_module.EVENTS_FILE.write_text(
-        "".join(json.dumps(e) + "\n" for e in events)
-    )
+    events_module.EVENTS_FILE.write_text("".join(json.dumps(e) + "\n" for e in events))
 
 
 def test_purge_respects_source_prefix_and_before():

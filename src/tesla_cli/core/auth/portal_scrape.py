@@ -108,7 +108,9 @@ def scrape_portal_with_session(
         try:
             page.goto(portal_url, timeout=30000)
             if "auth.tesla.com" in page.url:
-                raise RuntimeError("Tesla portal session expired. Start interactive Tesla auth again.")
+                raise RuntimeError(
+                    "Tesla portal session expired. Start interactive Tesla auth again."
+                )
             page.wait_for_timeout(min(timeout, 15) * 1000)
             data = _extract_portal_data(page)
             if not data:

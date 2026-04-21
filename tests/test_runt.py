@@ -128,7 +128,9 @@ class TestRuntBackendDelegation:
         assert data.capacidad_pasajeros == 5
 
     def test_extra_openquery_fields_ignored_gracefully(self):
-        result = _mock_runt_result(extra_fields={"unknown_extra_field": "some_value", "another_unknown": 42})
+        result = _mock_runt_result(
+            extra_fields={"unknown_extra_field": "some_value", "another_unknown": 42}
+        )
         backend = RuntBackend()
         with patch.object(backend, "_make_source", return_value=_mock_source(result)):
             data = backend.query_by_plate("XYZ123")

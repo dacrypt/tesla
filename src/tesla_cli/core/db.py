@@ -116,8 +116,17 @@ def add_driver(
             """INSERT INTO drivers (name, doc_type, doc_number, email, phone,
                license_number, license_categories, license_expiry, license_status)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (name, doc_type, doc_number, email, phone,
-             license_number, license_categories, license_expiry, license_status),
+            (
+                name,
+                doc_type,
+                doc_number,
+                email,
+                phone,
+                license_number,
+                license_categories,
+                license_expiry,
+                license_status,
+            ),
         )
         conn.commit()
         return get_driver(doc_number)  # type: ignore[return-value]
@@ -162,8 +171,16 @@ def get_driver(doc_number: str) -> dict | None:
 
 def update_driver(doc_number: str, **fields: Any) -> dict | None:
     """Update driver fields. Returns updated driver or None if not found."""
-    allowed = {"name", "doc_type", "email", "phone",
-               "license_number", "license_categories", "license_expiry", "license_status"}
+    allowed = {
+        "name",
+        "doc_type",
+        "email",
+        "phone",
+        "license_number",
+        "license_categories",
+        "license_expiry",
+        "license_status",
+    }
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return get_driver(doc_number)
