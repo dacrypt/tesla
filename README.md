@@ -68,35 +68,36 @@ Client ID:     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 Client Secret: ta-secret.XXXXXXXXXXXXXXXX~XXXXXXXXXXXXXXXXXXXX
 ```
 
-### 2. Host your public key
+### 2. Host your public key (each OSS user does this ONCE on their own domain)
 
-Tesla requires your registered domain to serve a public key at a specific well-known path. This proves you control the domain and lets Tesla verify signed commands later.
+Tesla requires a domain **you control** to host your app's public key at a well-known path:
 
 ```
 https://<your-domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
 ```
 
-Easiest free option: a GitHub Pages site. This project ships a working example at [`dacrypt.github.io`](https://dacrypt.github.io/.well-known/appspecific/com.tesla.3p.public-key.pem) — you can fork the [`dacrypt.github.io`](https://github.com/dacrypt/dacrypt.github.io) repo, swap in your own key, and point your Tesla Developer app at your fork's Pages URL.
+> ⚠ **Do not reuse another project's domain.** Every OSS user registers their own domain and publishes their own public key. Registering `dacrypt.github.io` (or any other user's domain) would give their private key authority over your car. See [`docs/fleet-signed-setup.md`](docs/fleet-signed-setup.md) for the full reasoning.
 
-Generate your own key with:
+Three common hosting options (pick one; detailed walkthrough in [`docs/fleet-signed-setup.md`](docs/fleet-signed-setup.md#choosing-how-to-host-your-public-key)):
 
-```bash
-openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
-openssl ec -in private-key.pem -pubout -out com.tesla.3p.public-key.pem
-```
+- **GitHub Pages** — `<username>.github.io` (free, 5 min — recommended for most OSS users)
+- **Custom domain** — `tesla.yourdomain.com` (if you already own a host)
+- **Netlify / Vercel / Cloudflare Pages** — `my-tesla-keys.netlify.app` (free tier)
 
-Commit the `.pem` to `<your-domain-repo>/.well-known/appspecific/` and verify with:
+The CLI generates the key pair for you on first run of `tesla config auth fleet-signed`. You only need to host the resulting `~/.tesla-cli/keys/public-key.pem` at the path above. Verify:
 
 ```bash
 curl -sI https://<your-domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
-# expect: HTTP/2 200 + content-type: application/x-x509-ca-cert
+# expect: HTTP/2 200
 ```
 
-Then set the domain in tesla-cli config so partner registration uses the right one:
+Then set the domain in tesla-cli:
 
 ```bash
-tesla config set fleet.domain <your-domain>   # e.g. mytesla.example.com
+tesla config set fleet-domain <your-domain>   # e.g. myusername.github.io
 ```
+
+(The CLI will also prompt for this on first `tesla config auth fleet-signed` run if unset.)
 
 ### 3. Run the auth flow
 

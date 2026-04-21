@@ -48,9 +48,21 @@ def test_probe_t2_requires_fleet_signed_backend():
 def test_probe_t2_ok_when_fleet_signed():
     cfg = Config()
     cfg.general.backend = "fleet-signed"
+    cfg.fleet.domain = "myusername.github.io"
     t2 = next(f for f in FEATURES if f.tier == "T2")
     row = probe(t2, cfg=cfg, token_scopes=["vehicle_cmds"])
     assert row["status"] == "ok"
+
+
+def test_probe_t2_external_blocker_when_domain_empty():
+    """backend=fleet-signed without fleet.domain → blocker, not ok."""
+    cfg = Config()
+    cfg.general.backend = "fleet-signed"
+    cfg.fleet.domain = ""  # the new OSS default
+    t2 = next(f for f in FEATURES if f.tier == "T2")
+    row = probe(t2, cfg=cfg, token_scopes=["vehicle_cmds"])
+    assert row["status"] == "external-blocker"
+    assert "fleet-domain" in row["remediation"]
 
 
 def test_probe_t3_missing_scope():

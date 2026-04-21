@@ -57,6 +57,7 @@ def config_set(
         "reservation-number": ("order", "reservation_number"),
         "region": ("fleet", "region"),
         "client-id": ("fleet", "client_id"),
+        "fleet-domain": ("fleet", "domain"),
         "notifications-enabled": ("notifications", "enabled"),
         "cost-per-kwh": ("general", "cost_per_kwh"),
         "cedula": ("general", "cedula"),
@@ -1194,7 +1195,31 @@ def _auth_fleet_signed() -> None:
         import httpx
 
         cfg = load_config()
-        domain = getattr(cfg.fleet, "domain", "") or ""
+        domain = (getattr(cfg.fleet, "domain", "") or "").strip()
+        if not domain:
+            console.print(
+                "\n[bold]Fleet domain required[/bold]\n"
+                "Your app's public key must be published at a domain you control.\n"
+                "Tesla registers the domain on your developer app; every OSS user\n"
+                "picks a different one (never reuse another person's).\n\n"
+                "[cyan]Three common setups:[/cyan]\n"
+                "  1. GitHub Pages       [italic]<username>.github.io[/italic]  "
+                "(free, 5 min)\n"
+                "  2. Custom domain      [italic]tesla.mydomain.com[/italic]   "
+                "(if you already have a host)\n"
+                "  3. Netlify / Vercel   [italic]my-tesla-keys.netlify.app[/italic]   "
+                "(free tier)\n\n"
+                "See [link]docs/fleet-signed-setup.md[/link] for step-by-step "
+                "instructions for each option.\n"
+            )
+            domain = Prompt.ask("Fleet domain (bare host, no https://)").strip()
+            if not domain:
+                console.print("[red]No domain provided. Aborting.[/red]")
+                raise typer.Exit(1)
+            domain = domain.removeprefix("https://").removeprefix("http://").rstrip("/")
+            cfg.fleet.domain = domain
+            save_config(cfg)
+            console.print(f"[dim]Saved fleet.domain = {domain}[/dim]")
         url = f"https://{domain}/.well-known/appspecific/com.tesla.3p.public-key.pem"
         try:
             resp = httpx.get(url, timeout=10)

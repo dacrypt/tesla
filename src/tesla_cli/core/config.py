@@ -42,7 +42,11 @@ class TessieConfig(BaseModel):
 class FleetConfig(BaseModel):
     region: str = "na"  # "na" | "eu" | "cn"
     client_id: str = ""
-    domain: str = "dacrypt.github.io"  # Domain registered in partner_accounts (bare, no https://)
+    # Domain registered in developer.tesla.com as Allowed Origin. Bare host,
+    # no https://. Every OSS user sets their own — there is no sane default,
+    # because the domain is what ties the user's public key to their app.
+    # See docs/fleet-signed-setup.md for how to pick one.
+    domain: str = ""
 
 
 class NotificationsConfig(BaseModel):

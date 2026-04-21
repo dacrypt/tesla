@@ -255,9 +255,17 @@ def register_fleet_partner(
     from tesla_cli.core.config import load_config
 
     cfg = load_config()
-    raw_domain = getattr(cfg.fleet, "domain", None) or "dacrypt.github.io"
-    # Strip any https:// prefix — Tesla expects bare domain (e.g. dacrypt.github.io)
+    raw_domain = getattr(cfg.fleet, "domain", None) or ""
+    # Strip any https:// prefix — Tesla expects bare domain (e.g. mytesla.example.com)
     domain = raw_domain.removeprefix("https://").removeprefix("http://").rstrip("/")
+    if not domain:
+        raise AuthenticationError(
+            "No fleet domain configured. Set one with:\n"
+            "  tesla config set fleet-domain <your-domain>\n"
+            "The domain must serve your app's public key at\n"
+            "  https://<domain>/.well-known/appspecific/com.tesla.3p.public-key.pem\n"
+            "See docs/fleet-signed-setup.md for setup options."
+        )
 
     with httpx.Client(timeout=30) as client:
         resp = client.post(
