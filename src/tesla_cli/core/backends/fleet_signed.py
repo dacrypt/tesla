@@ -183,10 +183,34 @@ class FleetSignedBackend(VehicleBackend):
             session=session,
             region=cfg.fleet.region,
         )
+
+        # Attach the signing key. tesla-fleet-api reads `api.private_key`
+        # inside VehicleSigned to build HMAC material for the handshake;
+        # without it, the first call raises `ValueError: No private key.`
+        from pathlib import Path
+
+        from cryptography.hazmat.primitives import serialization
+
+        key_path = Path.home() / ".tesla-cli" / "keys" / "private-key.pem"
+        if not key_path.exists():
+            if new_session:
+                try:
+                    await session.close()
+                finally:
+                    self._session = None
+            raise BackendNotSupportedError(
+                f"No VCP private key at {key_path} — run: tesla config auth fleet-signed",
+                "fleet-signed",
+            )
+        api.private_key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+
         vehicle = VehicleSigned(api, vin)
         log.debug("Performing signed handshake for VIN %s", vin)
         try:
-            await vehicle.handshake()
+            # tesla-fleet-api exposes per-domain handshakes. Vehicle-security
+            # covers the bulk of control commands (lock, sentry, flash, etc.).
+            # Infotainment commands (media, nav) handshake lazily on first use.
+            await vehicle.handshakeVehicleSecurity()
         except Exception as exc:
             # Close the session we just opened on first-use failure so it
             # doesn't leak.  Subsequent calls will try again with a fresh one.

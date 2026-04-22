@@ -130,7 +130,7 @@ def test_auth_key_idempotent(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_handshake_session_closed_on_error(monkeypatch):
+def test_handshake_session_closed_on_error(monkeypatch, tmp_path):
     """Regression: a failing handshake used to leak the aiohttp session.
     After T2.2 the session.close() coroutine must be awaited even when
     handshake() raises."""
@@ -148,6 +148,23 @@ def test_handshake_session_closed_on_error(monkeypatch):
     fake_cfg.fleet.region = "na"
     monkeypatch.setattr(fs_mod, "load_config", lambda: fake_cfg)
 
+    # Redirect ~/.tesla-cli/keys/private-key.pem to an isolated tmp dir and
+    # drop a real prime256v1 key there so _get_vehicle can load it.
+    fake_home = tmp_path / "home"
+    (fake_home / ".tesla-cli" / "keys").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    priv = ec.generate_private_key(ec.SECP256R1())
+    (fake_home / ".tesla-cli" / "keys" / "private-key.pem").write_bytes(
+        priv.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+
     # Build a MagicMock aiohttp.ClientSession where .close() is an AsyncMock
     # so we can assert it was awaited.
     session_close = AsyncMock()
@@ -161,8 +178,11 @@ def test_handshake_session_closed_on_error(monkeypatch):
     fake_fleet_api_mod = MagicMock()
     fake_fleet_api_mod.TeslaFleetApi = MagicMock(return_value=MagicMock())
 
-    # Stub VehicleSigned so we control the handshake.
+    # Stub VehicleSigned so we control the handshake. The backend now calls
+    # `handshakeVehicleSecurity()` instead of the generic `handshake()` —
+    # patch both to stay robust against future upstream renames.
     fake_vehicle = MagicMock()
+    fake_vehicle.handshakeVehicleSecurity = AsyncMock(side_effect=RuntimeError("handshake boom"))
     fake_vehicle.handshake = AsyncMock(side_effect=RuntimeError("handshake boom"))
     fake_signed_mod = MagicMock()
     fake_signed_mod.VehicleSigned = MagicMock(return_value=fake_vehicle)
