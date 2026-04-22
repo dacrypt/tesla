@@ -113,16 +113,16 @@ Fleet API Authentication
 Client ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 Client Secret: ****************
 
-Registrando partner account en Fleet API (región NA)...
-  ✓ Partner account registrado en región NA
+Registering partner account in Fleet API (region NA)...
+  ✓ Partner account registered in region NA
 
-Iniciando OAuth2 con scopes de vehículo...
+Starting OAuth2 with vehicle scopes...
 
-Elige método:
+Choose method:
   1 - Login via browser (OAuth2 + PKCE)     ← pick this
-  2 - Pegar refresh token directamente
+  2 - Paste refresh token directly
 
-Abriendo browser para login de Tesla...
+Opening browser for Tesla login...
 ```
 
 Your browser opens Tesla's login page. After you log in, Tesla redirects to a **blank page** whose URL looks like:
@@ -134,9 +134,9 @@ https://auth.tesla.com/void/callback?code=NA_<long-opaque-string>&issuer=...&sta
 Copy the **full URL** from the address bar and paste it back in the terminal:
 
 ```
-Pega la URL de redirect aquí: https://auth.tesla.com/void/callback?code=NA_...&state=...
-Intercambiando código por tokens...
-✓ Fleet API autenticado. Backend configurado como 'fleet'.
+Paste the redirect URL here: https://auth.tesla.com/void/callback?code=NA_...&state=...
+Exchanging code for tokens...
+✓ Fleet API authenticated. Backend set to 'fleet'.
 ```
 
 That's it. Tokens are stored in your system keyring (never plain text). Verify:
