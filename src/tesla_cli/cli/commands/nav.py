@@ -14,8 +14,8 @@ Design notes:
 from __future__ import annotations
 
 import re
-import time as _time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import typer
 
@@ -24,6 +24,13 @@ from tesla_cli.cli.output import console, render_success
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.nav.arrival import ArrivalDetector, NullArrivalSource
 from tesla_cli.core.nav.geocode import GeocodeError, batch_geocode, geocode
+from tesla_cli.core.nav.importers import (
+    detect_and_parse,
+    parse_gpx,
+    parse_kml,
+    parse_takeout_csv,
+    parse_takeout_geojson,
+)
 from tesla_cli.core.nav.route import NavStore, Place, Route
 
 nav_app = typer.Typer(name="nav", help="Multi-stop navigation (routes + places, v4.9.2).")
@@ -54,18 +61,9 @@ def _validate_name(name: str) -> None:
 
 def _dispatch_share(vin: str, raw_address: str) -> None:
     """Send one waypoint to the car via the signed `share` command."""
-    ts = str(int(_time.time() * 1000))
-    _with_wake(
-        lambda b, v: b.command(
-            v,
-            "share",
-            type="share_ext_content_raw",
-            value={"android.intent.extra.TEXT": raw_address},
-            locale="en-US",
-            timestamp_ms=ts,
-        ),
-        vin,
-    )
+    from tesla_cli.core.nav.dispatch import send_place
+
+    _with_wake(lambda b, v: send_place(b, v, raw_address), vin)
 
 
 # ─── route sub-app ───────────────────────────────────────────────────────────
@@ -370,3 +368,102 @@ def place_delete(alias: str = typer.Argument(..., help="Place alias.")) -> None:
         raise typer.Exit(1)
     store.delete_place(alias)
     render_success(f"Place '{alias}' deleted.")
+
+
+@place_app.command("import", help="Bulk-import places from Google Takeout CSV/GeoJSON, KML, or GPX.")
+def place_import(
+    path: Path = typer.Argument(..., help="Path to source file"),  # noqa: B008
+    fmt: str = typer.Option("auto", "--format", "-f", help="auto|takeout-csv|takeout-geojson|kml|gpx"),
+    tag: str | None = typer.Option(None, "--tag", help="Extra tag applied to every imported place"),
+    max_geocode: int = typer.Option(20, "--max-geocode", help="Max Nominatim calls for entries missing coords"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print summary, don't write nav.toml"),
+) -> None:
+    try:
+        if fmt == "auto":
+            places = detect_and_parse(path)
+        elif fmt == "takeout-csv":
+            places = parse_takeout_csv(path)
+        elif fmt == "takeout-geojson":
+            places = parse_takeout_geojson(path)
+        elif fmt == "kml":
+            places = parse_kml(path)
+        elif fmt == "gpx":
+            places = parse_gpx(path)
+        else:
+            console.print(f"[red]Unknown format '{fmt}'. Use: auto|takeout-csv|takeout-geojson|kml|gpx[/red]", markup=True)
+            raise typer.Exit(1)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    if tag is not None:
+        for place in places:
+            if place.tags is None:
+                place.tags = []
+            place.tags.append(tag)
+
+    # Geocode entries missing coords, up to max_geocode
+    needing_geo = [p for p in places if p.lat is None or p.lon is None]
+    if needing_geo:
+        if len(needing_geo) > max_geocode:
+            skipped_geo = len(needing_geo) - max_geocode
+            needing_geo = needing_geo[:max_geocode]
+            console.print(
+                f"[yellow]geocode cap reached: skipping {skipped_geo} place(s) without coords[/yellow]",
+                markup=True,
+            )
+        addresses = [p.raw_address for p in needing_geo]
+        try:
+            geocoded = batch_geocode(addresses, max_calls=max_geocode, warn_at=5)
+        except GeocodeError as exc:
+            console.print(f"[red]{exc}[/red]", markup=True)
+            raise typer.Exit(1) from exc
+        for place, wp in zip(needing_geo, geocoded, strict=False):
+            place.lat = wp.lat
+            place.lon = wp.lon
+        # Remove places that still lack coords after geocode cap
+        places = [p for p in places if p.lat is not None or p.lon is not None]
+
+    if dry_run:
+        from collections import Counter
+
+        source_counts = Counter(p.source or "unknown" for p in places)
+        summary = ", ".join(f"{src}: {n}" for src, n in source_counts.items())
+        console.print(f"Would import {len(places)} place(s) from {path}: {summary}")
+        return
+
+    store = NavStore()
+    imported, updated, skipped = store.save_places_bulk(places)
+    console.print(
+        f"imported: {imported}, updated: {updated}, skipped: {skipped} (collisions with hand-created)"
+    )
+
+
+@place_app.command("send", help="Send a saved place to the car via Tesla nav.")
+def place_send(
+    alias: str = typer.Argument(..., help="Place alias"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print address, don't call backend"),
+    vin: str | None = VinOption,
+) -> None:
+    _validate_name(alias)
+    store = NavStore()
+    place = store.get_place(alias)
+    if place is None:
+        console.print(f"[red]No place named '{alias}'[/red]", markup=True)
+        raise typer.Exit(1)
+
+    if place.raw_address:
+        address = place.raw_address
+    elif place.lat is not None and place.lon is not None:
+        address = f"{place.lat},{place.lon}"
+    else:
+        console.print(f"[red]place '{alias}' has no usable address or coords[/red]", markup=True)
+        raise typer.Exit(1)
+
+    if dry_run:
+        console.print(f"Would send: {address}")
+        return
+
+    v = _vin(vin)
+    _dispatch_share(v, address)
+    render_success(f"Sent '{alias}' → {address}")

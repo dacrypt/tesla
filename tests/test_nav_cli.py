@@ -231,3 +231,164 @@ def test_simulate_arrival_dispatches_all_waypoints(isolated_nav, monkeypatch):
     assert r.exit_code == 0, r.output
     assert len(calls) == 2
     assert "Trip complete" in r.output
+
+
+# ─── KML fixture helper ───────────────────────────────────────────────────────
+
+
+def _write_kml(tmp_path: Path, placemarks: list[tuple[str, float, float]]) -> Path:
+    """Write a minimal KML file with the given (name, lat, lon) placemarks."""
+    ns = "http://www.opengis.net/kml/2.2"
+    marks = ""
+    for name, lat, lon in placemarks:
+        marks += f"""
+  <Placemark>
+    <name>{name}</name>
+    <Point><coordinates>{lon},{lat},0</coordinates></Point>
+  </Placemark>"""
+    content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="{ns}">
+<Document>{marks}
+</Document>
+</kml>"""
+    kml_path = tmp_path / "places.kml"
+    kml_path.write_text(content)
+    return kml_path
+
+
+# ─── place import tests ───────────────────────────────────────────────────────
+
+
+def test_place_import_dry_run(isolated_nav, tmp_path):
+    kml = _write_kml(tmp_path, [("Home", 4.6, -74.0), ("Work", 4.7, -74.1)])
+    r = run_cli("nav", "place", "import", str(kml), "--dry-run")
+    assert r.exit_code == 0, r.output
+    assert "Would import" in r.output
+    # nav.toml must NOT have been written
+    assert not isolated_nav.list_places()
+
+
+def test_place_import_kml_writes_to_store(isolated_nav, tmp_path):
+    kml = _write_kml(tmp_path, [("Home", 4.6, -74.0), ("Work", 4.7, -74.1)])
+    r = run_cli("nav", "place", "import", str(kml))
+    assert r.exit_code == 0, r.output
+    places = isolated_nav.list_places()
+    assert len(places) == 2
+    sources = {p.source for p in places}
+    assert sources == {"kml"}
+
+
+def test_place_import_idempotent(isolated_nav, tmp_path):
+    kml = _write_kml(tmp_path, [("Home", 4.6, -74.0), ("Work", 4.7, -74.1)])
+    run_cli("nav", "place", "import", str(kml))
+    r2 = run_cli("nav", "place", "import", str(kml))
+    assert r2.exit_code == 0, r2.output
+    assert "imported: 0" in r2.output
+    assert "updated: 2" in r2.output
+
+
+def test_place_import_with_tag(isolated_nav, tmp_path):
+    kml = _write_kml(tmp_path, [("Home", 4.6, -74.0)])
+    r = run_cli("nav", "place", "import", str(kml), "--tag", "bogota")
+    assert r.exit_code == 0, r.output
+    places = isolated_nav.list_places()
+    assert len(places) == 1
+    assert "bogota" in (places[0].tags or [])
+
+
+def test_place_import_bad_extension(isolated_nav, tmp_path):
+    txt = tmp_path / "places.txt"
+    txt.write_text("not a supported format")
+    r = run_cli("nav", "place", "import", str(txt))
+    assert r.exit_code == 1
+    assert "unsupported" in r.output.lower()
+
+
+def test_place_import_oversize_file(isolated_nav, tmp_path, monkeypatch):
+    from tesla_cli.core.nav import importers as imp_mod
+
+    def _raise(path, max_mb=25):
+        raise ValueError("file too large: 99999999 bytes > 25 MB cap")
+
+    monkeypatch.setattr(imp_mod, "_check_file_size", _raise)
+    kml = _write_kml(tmp_path, [("Home", 4.6, -74.0)])
+    r = run_cli("nav", "place", "import", str(kml))
+    assert r.exit_code == 1
+    assert "too large" in r.output
+
+
+# ─── place send tests ─────────────────────────────────────────────────────────
+
+
+def test_place_send_dry_run_no_backend_call(isolated_nav, monkeypatch):
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.nav.route import Place
+
+    calls: list = []
+    monkeypatch.setattr(nav_cmd, "_dispatch_share", lambda vin, addr: calls.append((vin, addr)))
+    isolated_nav.save_place(Place(alias="home", raw_address="Calle 1 # 2-3, Bogotá"))
+
+    r = run_cli("nav", "place", "send", "home", "--dry-run")
+    assert r.exit_code == 0, r.output
+    assert "Would send" in r.output
+    assert calls == []
+
+
+def test_place_send_invokes_dispatch(isolated_nav, monkeypatch):
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.nav.route import Place
+
+    calls: list = []
+    monkeypatch.setattr(nav_cmd, "_dispatch_share", lambda vin, addr: calls.append((vin, addr)))
+    monkeypatch.setattr(nav_cmd, "_vin", lambda v: "5YJ3E1EA1PF000001")
+    isolated_nav.save_place(Place(alias="home", raw_address="Calle 1 # 2-3, Bogotá"))
+
+    r = run_cli("nav", "place", "send", "home")
+    assert r.exit_code == 0, r.output
+    assert len(calls) == 1
+    assert calls[0] == ("5YJ3E1EA1PF000001", "Calle 1 # 2-3, Bogotá")
+
+
+def test_place_send_missing_alias(isolated_nav):
+    r = run_cli("nav", "place", "send", "nope")
+    assert r.exit_code == 1
+    assert "No place" in r.output
+
+
+def test_place_send_lat_lon_fallback(isolated_nav, monkeypatch):
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.nav.route import Place
+
+    monkeypatch.setattr(nav_cmd, "_dispatch_share", lambda vin, addr: None)
+    isolated_nav.save_place(Place(alias="x", raw_address="", lat=4.7, lon=-74.0))
+
+    r = run_cli("nav", "place", "send", "x", "--dry-run")
+    assert r.exit_code == 0, r.output
+    assert "4.7" in r.output
+    assert "-74.0" in r.output
+
+
+def test_dispatch_share_uses_send_place(monkeypatch):
+    """_dispatch_share must delegate to send_place via _with_wake's lambda."""
+    import tesla_cli.core.nav.dispatch as dispatch_mod
+    from tesla_cli.cli.commands import nav as nav_cmd
+
+    send_calls: list = []
+
+    def fake_send_place(backend, vin, address, locale="en-US"):
+        send_calls.append((backend, vin, address))
+
+    monkeypatch.setattr(dispatch_mod, "send_place", fake_send_place)
+
+    # Fake _with_wake: immediately invoke the lambda with a mock backend + vin
+    fake_backend = object()
+
+    def fake_with_wake(fn, vin):
+        fn(fake_backend, vin)
+
+    monkeypatch.setattr(nav_cmd, "_with_wake", fake_with_wake)
+
+    nav_cmd._dispatch_share("VIN123", "Test Address")
+
+    assert len(send_calls) == 1
+    assert send_calls[0] == (fake_backend, "VIN123", "Test Address")

@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.3] - 2026-04-22
+
+### CLI — Favorites Importer
+- **`tesla nav place import <path>`** — bulk-import favorites from Google Takeout
+  (CSV + GeoJSON), KML, or GPX files. Auto-detects format by extension; explicit
+  `--format` override available. Supports `--tag`, `--max-geocode`, `--dry-run`.
+- **`tesla nav place send <alias>`** — dispatch a saved place to the car via the
+  signed `share` command. Honors `--dry-run` and `--vin`; falls back to
+  `"lat,lon"` when no raw address is stored.
+- **Stable dedupe** via `(source, source_id)` — re-importing the same file after
+  renaming an entry in Google Maps **updates** the existing place rather than
+  duplicating. Hand-created places (`source=None`) are never overwritten.
+- **File-size guard** at 25 MB; **geocode cap** at 20 calls (configurable).
+- Stdlib-only parsers (`csv`, `json`, `xml.etree`) — zero new dependencies.
+
+### Core
+- **`core/nav/dispatch.py`** — new `send_place(backend, vin, address)` function
+  decouples the share dispatch from the CLI layer so the upcoming REST API
+  endpoint can reuse it. `_dispatch_share` in `cli/commands/nav.py` becomes a
+  thin wrapper; `route go` / `route next` behavior unchanged.
+- **`Place` model extended** with optional `lat`, `lon`, `tags`, `source`,
+  `source_id`, `imported_at` fields. Backward-compatible with existing
+  `nav.toml` files (old entries with just `alias`+`raw_address` load unchanged).
+- **`NavStore.save_places_bulk(places)`** — idempotent bulk write, returns
+  `(imported, updated, skipped)`. Single atomic rename-over, partial-failure
+  safe.
+
+### Quality
+- 200 new tests (model round-trip, 4 parsers, slugify collision/accents,
+  dedupe rules, CLI commands, dispatch mock, file-size guards).
+- Full suite: **1882 passed**, 0 fail. Ruff clean.
+
+### Documentation
+- `docs/user-guide.md` — new "Favorites Importer" section with command examples
+  and dedupe semantics.
+- `docs/roadmap.md` — current state advanced to v4.9.3.
+- `.omc/plans/nav-favorites-importer.md` — ralplan consensus design record.
+
+## [4.9.2] - 2026-04-20
+
+### CLI — Multi-stop Navigation
+- **`tesla nav route`** family — CRUD for named routes, manual advance (`next`),
+  simulated auto-advance (`--simulate-arrival-after`), atomic state writes.
+- Real Fleet Telemetry arrival source deferred to v4.9.2.1.
+
 ## [4.9.0] - 2026-04-06
 
 ### Security & Hardening

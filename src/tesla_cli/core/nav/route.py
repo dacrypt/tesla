@@ -15,6 +15,7 @@ No lockfile — tesla-cli is single-user.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -51,6 +52,12 @@ class Route:
 class Place:
     alias: str
     raw_address: str
+    lat: float | None = None
+    lon: float | None = None
+    tags: list[str] | None = None
+    source: str | None = None  # "google-takeout-csv", "google-takeout-geojson", "kml", "gpx", or None
+    source_id: str | None = None  # stable id from source (URL, hash); for dedupe
+    imported_at: str | None = None  # ISO-8601 UTC
 
 
 def _atomic_write(path: Path, payload: dict) -> None:
@@ -139,10 +146,7 @@ class NavStore:
     def save_place(self, place: Place) -> None:
         data = _read_toml(self.nav_file)
         places = data.get("places", {})
-        places[place.alias] = {
-            "alias": place.alias,
-            "raw_address": place.raw_address,
-        }
+        places[place.alias] = {k: v for k, v in asdict(place).items() if v is not None}
         data["places"] = places
         _atomic_write(self.nav_file, data)
 
@@ -151,14 +155,105 @@ class NavStore:
         entry = data.get("places", {}).get(alias)
         if entry is None:
             return None
-        return Place(alias=entry["alias"], raw_address=entry["raw_address"])
+        return Place(
+            alias=entry["alias"],
+            raw_address=entry["raw_address"],
+            lat=entry.get("lat"),
+            lon=entry.get("lon"),
+            tags=entry.get("tags"),
+            source=entry.get("source"),
+            source_id=entry.get("source_id"),
+            imported_at=entry.get("imported_at"),
+        )
 
     def list_places(self) -> list[Place]:
         data = _read_toml(self.nav_file)
         return [
-            Place(alias=e["alias"], raw_address=e["raw_address"])
+            Place(
+                alias=e["alias"],
+                raw_address=e["raw_address"],
+                lat=e.get("lat"),
+                lon=e.get("lon"),
+                tags=e.get("tags"),
+                source=e.get("source"),
+                source_id=e.get("source_id"),
+                imported_at=e.get("imported_at"),
+            )
             for e in data.get("places", {}).values()
         ]
+
+    def save_places_bulk(self, places: list[Place]) -> tuple[int, int, int]:
+        """Bulk-save places. Returns (imported, updated, skipped).
+
+        Dedupe rules:
+        - If incoming place has source AND source_id → match existing entries by (source, source_id).
+          On match: update in place; preserve original alias to avoid breaking user shortcuts
+          (warn to stderr if alias differs).
+        - Otherwise (hand-created or legacy entries with no source) → fall back to alias-match.
+        - If imported entry's slug collides with an existing HAND-CREATED entry (existing.source is None
+          AND incoming.source is not None) → skip the import for that entry, emit stderr warning
+          "skipped 'X' — alias collides with hand-created place".
+
+        Single read-modify-write cycle via _atomic_write (rename-over). Partial-failure mid-bulk
+        leaves the original nav.toml intact.
+        """
+        data = _read_toml(self.nav_file)
+        places_data: dict[str, dict] = data.get("places", {})
+
+        # Build reverse index: (source, source_id) -> alias for existing imported entries
+        source_index: dict[tuple[str, str], str] = {}
+        for alias, entry in places_data.items():
+            src = entry.get("source")
+            sid = entry.get("source_id")
+            if src is not None and sid is not None:
+                source_index[(src, sid)] = alias
+
+        imported = 0
+        updated = 0
+        skipped = 0
+
+        for place in places:
+            serialized = {k: v for k, v in asdict(place).items() if v is not None}
+
+            if place.source is not None and place.source_id is not None:
+                # Match by (source, source_id)
+                key = (place.source, place.source_id)
+                if key in source_index:
+                    existing_alias = source_index[key]
+                    if existing_alias != place.alias:
+                        print(
+                            f"warning: alias changed from '{existing_alias}' to '{place.alias}'"
+                            f" for source_id '{place.source_id}' — preserving original alias",
+                            file=sys.stderr,
+                        )
+                    # Update in place under the original alias
+                    serialized["alias"] = existing_alias
+                    places_data[existing_alias] = serialized
+                    updated += 1
+                else:
+                    # New imported entry — check for alias collision with hand-created place
+                    if place.alias in places_data and places_data[place.alias].get("source") is None:
+                        print(
+                            f"skipped '{place.alias}' — alias collides with hand-created place",
+                            file=sys.stderr,
+                        )
+                        skipped += 1
+                    else:
+                        places_data[place.alias] = serialized
+                        source_index[key] = place.alias
+                        imported += 1
+            else:
+                # Fall back to alias-match
+                if place.alias in places_data:
+                    places_data[place.alias] = serialized
+                    updated += 1
+                else:
+                    places_data[place.alias] = serialized
+                    imported += 1
+
+        data["places"] = places_data
+        _atomic_write(self.nav_file, data)
+        return (imported, updated, skipped)
 
     def delete_place(self, alias: str) -> None:
         data = _read_toml(self.nav_file)

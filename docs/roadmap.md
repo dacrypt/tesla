@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (v4.9.2)
+## Current State (v4.9.3)
 
-180+ commands across 26 groups (added `nav route` multi-stop driver), 1700+ tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**.
+180+ commands across 26 groups (added `nav route` multi-stop driver + `nav place import`), 1880+ tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**, **favorites importer for Google Takeout / KML / GPX**.
 
 ---
 
@@ -34,6 +34,7 @@
 - ✅ **RUNT Default VIN** — `tesla data runt` uses configured VIN automatically
 - ✅ **Claude Code Plugin v1.1.0** — marketplace-ready, 9 skills, guardrails, RUNT in pre-delivery fallback
 - ✅ **Multi-stop Navigation (v4.9.2)** — `tesla nav route` with CRUD, manual advance (`next`), simulated auto-advance (`--simulate-arrival-after`), atomic state writes, Nominatim fair-use caps, `"lat,lon"` short-circuit. Free alternative to ABRP Premium's multi-waypoint driver. See [docs/nav-route.md](nav-route.md).
+- ✅ **Favorites Importer (v4.9.3)** — `tesla nav place import` pulls favorites from Google Takeout (CSV + GeoJSON), KML, and GPX into the local place book. Stable `(source, source_id)` dedupe survives renames in Google Maps; hand-created places are never overwritten by imports. `tesla nav place send <alias>` dispatches any stored place to the car via the signed share command. Stdlib-only parsers, 25 MB file guard, 20-call geocode cap.
 
 ---
 
