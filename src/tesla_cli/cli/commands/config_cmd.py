@@ -50,6 +50,16 @@ def config_set(
     value: str = typer.Argument(help="Value to set"),
 ) -> None:
     """Set a configuration value."""
+    # Keyring-stored keys (never written to config.toml)
+    keyring_map = {
+        "planner-openroute-key": tokens.PLANNER_OPENROUTE_KEY,
+        "planner-openchargemap-key": tokens.PLANNER_OPENCHARGEMAP_KEY,
+    }
+    if key in keyring_map:
+        tokens.set_token(keyring_map[key], value)
+        render_success(f"{key} saved to keyring")
+        return
+
     cfg = load_config()
     key_map = {
         "default-vin": ("general", "default_vin"),
@@ -64,16 +74,20 @@ def config_set(
         "telemetry-enabled": ("telemetry", "enabled"),
         "telemetry-hostname": ("telemetry", "hostname"),
         "telemetry-port": ("telemetry", "port"),
+        "planner-router": ("planner", "router"),
+        "planner-osrm-url": ("planner", "osrm_base_url"),
+        "planner-stops-every-km": ("planner", "default_stops_every_km"),
+        "planner-car-model": ("planner", "default_car_model"),
     }
     if key not in key_map:
-        valid = ", ".join(key_map.keys())
+        valid = ", ".join(list(key_map.keys()) + list(keyring_map.keys()))
         console.print(f"[red]Unknown key:[/red] {key}\nValid keys: {valid}")
         raise typer.Exit(1)
     section, field = key_map[key]
     section_obj = getattr(cfg, section)
     if field == "enabled":
         value = value.lower() in ("true", "1", "yes")  # type: ignore[assignment]
-    elif field == "cost_per_kwh":
+    elif field in ("cost_per_kwh", "default_stops_every_km"):
         value = float(value)  # type: ignore[assignment]
     setattr(section_obj, field, value)
     save_config(cfg)

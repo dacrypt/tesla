@@ -5,6 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.10.0] - 2026-04-22
+
+### CLI — Native EV Route Planner (Phase 1 MVP)
+
+First shippable phase of the native EV planner roadmap
+(`.omc/plans/native-ev-planner.md`). Suggests charging stops along a route
+using open-source data — no ABRP Premium contract required.
+
+- **`tesla nav plan <origin> <destination>`** — computes a driving route via
+  OpenRouteService (or OSRM), interpolates waypoints every N km (default
+  **150 km** — LATAM-mountain-road safe), queries OpenChargeMap for the
+  closest charger to each interpolation point, and prints a suggested stop
+  table with power and connection info.
+- **ABRP deep link** (`--abrp-link` / `--no-abrp-link`, default on) — emits
+  an `abetterrouteplanner.com` URL pre-filled with origin, destination,
+  car model, and initial SoC so you get an immediate SoC-aware second
+  opinion from ABRP's planner without needing a paid API integration.
+- **Network filtering**: `--network tesla | ccs | any` with documented
+  OpenChargeMap OperatorID + ConnectionType ID constants (Tesla=23,
+  Supercharger=27, CCS-1=32, CCS-2=33). Verify with
+  `tesla nav plan-probe-taxonomy` once your OCM key is configured.
+- **Min power**: `--min-power 50` filters out low-power chargers.
+- **Save as route**: `--save-as NAME` persists the plan as a nav Route
+  with `source="native-planner"`. The Phase 0 dedupe guard prevents
+  planner-generated routes from ever overwriting a hand-created route of
+  the same name.
+- **JSON output**: `--json` emits the full `PlannedRoute` Pydantic model
+  for scripting.
+- **BYOK enforced** — no API keys shipped. First use without a key exits
+  1 with signup URL:
+  - `tesla config set planner-openchargemap-key <KEY>` (free at
+    [openchargemap.org/site/profile/applications](https://openchargemap.org/site/profile/applications))
+  - `tesla config set planner-openroute-key <KEY>` (free at
+    [openrouteservice.org/dev/#/signup](https://openrouteservice.org/dev/#/signup),
+    2000 calls/day)
+  - Alternative: `--router osrm` uses the public OSRM demo server (no
+    key, rate-limited). Self-host for production.
+
+### Core
+
+- **`core/planner/`** — new subpackage with:
+  - `models.py` — `ChargerSuggestion`, `PlannedRoute` Pydantic models.
+    `PlannedRoute.to_nav_route(name)` projects to nav `Route` for
+    persistence.
+  - `routing.py` — `OpenRouteServiceEngine` (GeoJSON response format) +
+    `OsrmEngine` (public demo) behind a `RoutingEngine` Protocol.
+    Error hierarchy: `RoutingError` / `RoutingAuthError` /
+    `RoutingRateLimitError` with actionable messages.
+  - `chargers.py` — OpenChargeMap client with documented taxonomy
+    constants, `find_chargers_near_point()`, `probe_taxonomy()`.
+  - `car_models.py` — 10 Tesla alias → ABRP car_model IDs for
+    `--abrp-link` deep URLs.
+  - `mvp.py` — `plan_route()` algorithm: haversine interpolation +
+    closest-charger per interp + de-dup, pure function with injected
+    engines for testability.
+- **`core/config.py`** — new `PlannerConfig` (router, osrm_base_url,
+  stops_every_km default, car_model default). Keys stored in keyring,
+  non-sensitive config in `~/.tesla-cli/config.toml`.
+
+### What's NOT in Phase 1 (deferred by design)
+
+- No SoC prediction (use the ABRP deep link as a bridge).
+- No consumption model calibration from TeslaMate — Phase 2.
+- No alternative-routes ranking — Phase 3.
+- No REST API / dashboard UI — Phase 3.
+
+### Quality
+
+- 45 new tests (`test_planner_models.py`, `test_planner_routing.py`,
+  `test_planner_chargers.py`, `test_planner_mvp.py`, `test_planner_cli.py`).
+  All HTTP paths mocked via `pytest-httpx`.
+- Full suite: **1926 passed**, 0 fail (up from 1888). Ruff clean.
+- Zero new pip dependencies.
+
 ## [4.9.4] - 2026-04-22
 
 ### Core — Route model extension (prerequisite for native EV planner)

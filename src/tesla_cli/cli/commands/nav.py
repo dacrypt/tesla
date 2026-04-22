@@ -21,6 +21,7 @@ import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
 from tesla_cli.cli.output import console, render_success
+from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.nav.arrival import ArrivalDetector, NullArrivalSource
 from tesla_cli.core.nav.geocode import GeocodeError, batch_geocode, geocode
@@ -32,6 +33,19 @@ from tesla_cli.core.nav.importers import (
     parse_takeout_geojson,
 )
 from tesla_cli.core.nav.route import NavStore, Place, Route
+from tesla_cli.core.planner.chargers import (
+    ChargerAuthError,
+    ChargerLookupError,
+    find_chargers_near_point,
+    probe_taxonomy,
+)
+from tesla_cli.core.planner.mvp import plan_route
+from tesla_cli.core.planner.routing import (
+    RoutingAuthError,
+    RoutingError,
+    RoutingRateLimitError,
+    get_engine,
+)
 
 nav_app = typer.Typer(name="nav", help="Multi-stop navigation (routes + places, v4.9.2).")
 
@@ -370,12 +384,18 @@ def place_delete(alias: str = typer.Argument(..., help="Place alias.")) -> None:
     render_success(f"Place '{alias}' deleted.")
 
 
-@place_app.command("import", help="Bulk-import places from Google Takeout CSV/GeoJSON, KML, or GPX.")
+@place_app.command(
+    "import", help="Bulk-import places from Google Takeout CSV/GeoJSON, KML, or GPX."
+)
 def place_import(
     path: Path = typer.Argument(..., help="Path to source file"),  # noqa: B008
-    fmt: str = typer.Option("auto", "--format", "-f", help="auto|takeout-csv|takeout-geojson|kml|gpx"),
+    fmt: str = typer.Option(
+        "auto", "--format", "-f", help="auto|takeout-csv|takeout-geojson|kml|gpx"
+    ),
     tag: str | None = typer.Option(None, "--tag", help="Extra tag applied to every imported place"),
-    max_geocode: int = typer.Option(20, "--max-geocode", help="Max Nominatim calls for entries missing coords"),
+    max_geocode: int = typer.Option(
+        20, "--max-geocode", help="Max Nominatim calls for entries missing coords"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print summary, don't write nav.toml"),
 ) -> None:
     try:
@@ -390,7 +410,10 @@ def place_import(
         elif fmt == "gpx":
             places = parse_gpx(path)
         else:
-            console.print(f"[red]Unknown format '{fmt}'. Use: auto|takeout-csv|takeout-geojson|kml|gpx[/red]", markup=True)
+            console.print(
+                f"[red]Unknown format '{fmt}'. Use: auto|takeout-csv|takeout-geojson|kml|gpx[/red]",
+                markup=True,
+            )
             raise typer.Exit(1)
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]", markup=True)
@@ -437,6 +460,196 @@ def place_import(
     console.print(
         f"imported: {imported}, updated: {updated}, skipped: {skipped} (collisions with hand-created)"
     )
+
+
+_LATLON_INPUT_RE = re.compile(r"^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$")
+
+
+def _resolve_endpoint(raw: str) -> tuple[str, tuple[float, float]]:
+    """Resolve a user-supplied address or 'lat,lon' to (raw, (lat, lon))."""
+    if _LATLON_INPUT_RE.match(raw.strip()):
+        lat_s, lon_s = raw.strip().split(",", 1)
+        return raw, (float(lat_s), float(lon_s.strip()))
+    wp = geocode(raw)
+    return raw, (wp.lat, wp.lon)
+
+
+@nav_app.command("plan", help="Plan an EV route: auto-suggest charging stops along a route.")
+def nav_plan(
+    origin: str = typer.Argument(..., help="Start address or 'lat,lon'"),
+    destination: str = typer.Argument(..., help="Destination address or 'lat,lon'"),
+    stops_every: float = typer.Option(
+        150.0, "--stops-every", help="Interpolation interval (km) — LATAM-safe default."
+    ),
+    network: str = typer.Option("any", "--network", help="tesla | ccs | any"),
+    min_power: float | None = typer.Option(None, "--min-power", help="Minimum charger power (kW)"),
+    radius: float = typer.Option(
+        10.0, "--radius", help="Search radius around each interp point (km)"
+    ),
+    router: str | None = typer.Option(
+        None, "--router", help="openroute | osrm (default: from config)"
+    ),
+    car: str | None = typer.Option(
+        None, "--car", help="Car model alias (e.g. model_y_lr) or ABRP id"
+    ),
+    soc_start: float = typer.Option(
+        0.8, "--soc-start", help="Initial SoC for --abrp-link (0.0-1.0)"
+    ),
+    abrp_link: bool = typer.Option(
+        True,
+        "--abrp-link/--no-abrp-link",
+        help="Emit ABRP deep link as second opinion.",
+    ),
+    save_as: str | None = typer.Option(
+        None, "--save-as", help="Persist as a nav Route with this name"
+    ),
+    output_json: bool = typer.Option(False, "--json", help="Emit JSON"),
+) -> None:
+    cfg = load_config()
+
+    # Resolve endpoints
+    try:
+        origin_addr, origin_ll = _resolve_endpoint(origin)
+        dest_addr, dest_ll = _resolve_endpoint(destination)
+    except GeocodeError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    # Build routing engine
+    router_name = router or cfg.planner.router
+    try:
+        engine = get_engine(router_name, cfg)
+    except RoutingAuthError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    # Resolve OCM key (keyring > config)
+    ocm_key = (
+        cfg.planner.openchargemap_key or tokens.get_token(tokens.PLANNER_OPENCHARGEMAP_KEY) or ""
+    )
+    if not ocm_key:
+        console.print(
+            "[red]OpenChargeMap API key not configured. Get one free at "
+            "https://openchargemap.org/site/profile/applications then run: "
+            "tesla config set planner-openchargemap-key <KEY>[/red]",
+            markup=True,
+        )
+        raise typer.Exit(1)
+
+    def charger_finder(lat: float, lon: float):
+        return find_chargers_near_point(
+            lat,
+            lon,
+            ocm_key,
+            radius_km=radius,
+            network=network,
+            min_power_kw=min_power,
+        )
+
+    car_alias = car or cfg.planner.default_car_model
+
+    try:
+        plan = plan_route(
+            origin_address=origin_addr,
+            origin_latlon=origin_ll,
+            destination_address=dest_addr,
+            destination_latlon=dest_ll,
+            routing=engine,
+            charger_finder=charger_finder,
+            stops_every_km=stops_every,
+            car_model_alias=car_alias,
+            initial_soc=soc_start,
+            emit_abrp_link=abrp_link,
+        )
+    except RoutingAuthError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+    except RoutingRateLimitError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+    except RoutingError as exc:
+        console.print(f"[red]routing error: {exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+    except ChargerAuthError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    if output_json:
+        console.print(plan.model_dump_json(indent=2))
+    else:
+        from rich.table import Table
+
+        console.print(
+            f"[bold]{origin_addr}[/bold] → [bold]{dest_addr}[/bold]  "
+            f"({plan.total_distance_km:.1f} km, {plan.total_duration_min} min, "
+            f"via {plan.routing_provider})"
+        )
+        if not plan.stops:
+            console.print("[dim]No intermediate stops needed.[/dim]")
+        else:
+            table = Table(show_header=True)
+            table.add_column("#", justify="right")
+            table.add_column("Charger")
+            table.add_column("km from route", justify="right")
+            table.add_column("kW", justify="right")
+            table.add_column("Connectors")
+            for i, s in enumerate(plan.stops, start=1):
+                kw = f"{s.max_power_kw:.0f}" if s.max_power_kw is not None else "?"
+                conns = ", ".join(s.connection_types) if s.connection_types else ""
+                table.add_row(str(i), s.name, f"{s.distance_from_route_km:.2f}", kw, conns)
+            console.print(table)
+        if plan.abrp_deep_link:
+            console.print(f"ABRP: {plan.abrp_deep_link}")
+
+    if save_as:
+        _validate_name(save_as)
+        store = NavStore()
+        store.save_route(plan.to_nav_route(save_as))
+        render_success(f"Route '{save_as}' saved ({len(plan.stops)} stops).")
+
+
+@nav_app.command(
+    "plan-probe-taxonomy",
+    help="Fetch current OpenChargeMap operator/connection IDs for verification.",
+)
+def nav_plan_probe_taxonomy(
+    output_json: bool = typer.Option(False, "--json", help="Emit JSON"),
+) -> None:
+    cfg = load_config()
+    ocm_key = (
+        cfg.planner.openchargemap_key or tokens.get_token(tokens.PLANNER_OPENCHARGEMAP_KEY) or ""
+    )
+    if not ocm_key:
+        console.print(
+            "[red]OpenChargeMap API key not configured. Get one free at "
+            "https://openchargemap.org/site/profile/applications then run: "
+            "tesla config set planner-openchargemap-key <KEY>[/red]",
+            markup=True,
+        )
+        raise typer.Exit(1)
+    try:
+        result = probe_taxonomy(ocm_key)
+    except ChargerAuthError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+    except ChargerLookupError as exc:
+        console.print(f"[red]{exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    if output_json:
+        import json as _json
+
+        console.print(_json.dumps(result, indent=2))
+        return
+    console.print("[bold]Tesla operators:[/bold]")
+    for op in result["tesla_operators"]:
+        console.print(f"  {op['ID']}: {op['Title']}")
+    console.print("[bold]Connection types:[/bold]")
+    for c in result["connection_types"]:
+        console.print(f"  {c['ID']}: {c['Title']}")
 
 
 @place_app.command("send", help="Send a saved place to the car via Tesla nav.")
