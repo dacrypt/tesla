@@ -67,11 +67,61 @@ def _run_migration_if_needed(*, quiet_stdout: bool = False) -> None:
         out.print(f"[yellow]Migration warning:[/yellow] {exc}")
 
 
+def _check_vin_reachable() -> tuple[bool, str]:
+    """Verify that `general.default_vin` matches a VIN on the current Fleet
+    account. Returns (ok, human_readable_detail).
+
+    Catches a real class of bug: test pollution / fat-finger editing of the
+    config file that leaves `default_vin` pointing at a sample VIN Tesla
+    doesn't recognise (e.g. `5YJ3E1EA1PF000001`). Every signed command
+    then 404s silently and the user spends hours wondering why pairing
+    "broke" when in fact the VIN is wrong.
+
+    One cheap Fleet API call (`list_vehicles`); never wakes the car.
+    """
+    try:
+        cfg = load_config()
+    except Exception as exc:
+        return False, f"cannot load config: {exc}"
+    vin = (cfg.general.default_vin or "").strip()
+    if not vin:
+        return False, "default_vin is empty — set with: tesla config set default-vin <VIN>"
+    try:
+        from tesla_cli.core.backends import get_vehicle_backend
+
+        vehicles = get_vehicle_backend(cfg).list_vehicles()
+    except Exception as exc:
+        return False, f"could not list vehicles: {exc}"
+    account_vins = [v.get("vin") for v in vehicles]
+    if vin in account_vins:
+        return True, f"{vin} (present on account)"
+    return False, (
+        f"{vin} is NOT on this account. Known VINs: {account_vins}. "
+        f"Fix: tesla config set default-vin <one-of-those>"
+    )
+
+
 def doctor(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of a table"),
+    check_vin: bool = typer.Option(
+        False,
+        "--check-vin",
+        help="Also verify `default_vin` matches a VIN on the Fleet account (1 API call).",
+    ),
 ) -> None:
     """Show per-feature health status (offline-safe, never wakes the car)."""
     rows = probe_all()
+
+    if check_vin:
+        ok, detail = _check_vin_reachable()
+        rows.append(
+            {
+                "name": "default_vin_reachable",
+                "tier": "T0",
+                "status": "ok" if ok else "external-blocker",
+                **({"remediation": detail} if not ok else {}),
+            }
+        )
 
     if json_output:
         typer.echo(_json.dumps(rows))
@@ -104,6 +154,11 @@ def doctor(
 def _doctor_callback(
     ctx: typer.Context,
     json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of a table"),
+    check_vin: bool = typer.Option(
+        False,
+        "--check-vin",
+        help="Also verify `default_vin` matches a VIN on the Fleet account (1 API call).",
+    ),
 ) -> None:
     if ctx.invoked_subcommand is None:
-        doctor(json_output=json_output)
+        doctor(json_output=json_output, check_vin=check_vin)

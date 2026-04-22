@@ -294,8 +294,51 @@ If anything still 403s, re-check the fingerprint match from step 6.
 | Preflight 200 but handshake still fails | You published the file, but Tesla's cache is stale | Step 6 again — publishing alone is not enough |
 | `HTTP 403 Vehicle Command Protocol required` on every command | `backend` still set to `fleet` (not `fleet-signed`) | `tesla config set backend fleet-signed` |
 | `NotPaired` after step 8 | Add Key tap not confirmed, or different iCloud account | Re-open `tesla.com/_ak/<host>` in Safari on the Tesla-owner's iPhone |
+| `NotFound` / `404` on every signed command | `cfg.general.default_vin` is wrong (e.g. a sample VIN like `5YJ3E1EA1PF000001` that a test run wrote to your real config) | `tesla doctor --check-vin` → if the VIN row is `external-blocker`, run `tesla config set default-vin <your-real-VIN>` |
+| `ServiceUnavailable: vehicle did not respond (timeout)` | Car is asleep. Signed commands don't wake it | Run `tesla vehicle wake` on the `fleet` backend first, then `tesla config set backend fleet-signed` before sending the command |
+| Vehicle's Manage Keys shows *"dacrypt.github.io — llave desconocida"* | Car cached the pubkey BEFORE you re-registered the partner | Remove the entry on the touchscreen (or via BLE), then re-pair via `tesla.com/_ak/<host>` again |
 | Commands hang or `ModuleNotFoundError: tesla_fleet_api` | Optional extra missing | `uv pip install 'tesla-cli[fleet]'` |
+| `ValueError: No private key` deep in the library | `~/.tesla-cli/keys/private-key.pem` missing or unreadable | `tesla config auth fleet-signed` regenerates it; verify file mode is `0600` |
 | Locked out — want to revert to read-only | Handshake mis-config | `tesla config set backend fleet` (reads keep working) |
+
+## `wake` vs signed commands — the split-backend pattern
+
+Tesla's `wake_up` endpoint is **unsigned** (Fleet API, not VCP). Every
+other write command on firmware 2024.26+ is signed. If you just ran
+`tesla config set backend fleet-signed` and your car is asleep, trying
+to flash lights will time out because the command can't travel to a
+sleeping car and VCP does not wake it.
+
+The workaround is a two-step split:
+
+```bash
+tesla config set backend fleet     # wake uses unsigned
+tesla vehicle wake
+sleep 10                           # let Tesla's side register online
+tesla config set backend fleet-signed   # signed for the real command
+tesla vehicle flash
+```
+
+A future release will auto-wake from inside `FleetSignedBackend` so
+this toggle isn't needed.
+
+## Verified working commands (2026-04-22)
+
+After walking through steps 1-10 on firmware 2026.8.6, these commands
+round-trip successfully end-to-end (vehicle responds OK):
+
+| Group | Commands |
+|---|---|
+| Security | `security lock` / `unlock`, `vehicle sentry --on/--off`, `vehicle flash`, `vehicle horn` |
+| Climate | `climate on` / `off`, `climate temp <°C>`, `climate seat-heater <pos> <level>`, `climate steering-wheel --on`, `climate defrost` |
+| Charging (writes) | `charge port-open` / `port-close`, `charge limit <pct>`, `charge amps <A>` |
+| Charging (reads) | `charge status`, `charge forecast`, `charge schedule-preview`, `charge history` |
+| Vehicle (reads) | `vehicle bio`, `vehicle info`, `vehicle alerts`, `vehicle fleet-status`, `vehicle last-seen`, `vehicle ready` |
+| Dashboard (web) | Home, Vehicle, Order, Info (Dossier), Settings, Alerts, Energy all render live |
+
+If you hit one that returns `404` despite VCP being set up, run
+`tesla doctor --check-vin` first — the #1 root cause is a
+wrong/missing `default_vin` in your config.
 
 ## Rotating keys
 
