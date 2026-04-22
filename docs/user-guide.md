@@ -210,6 +210,38 @@ tesla media home               # navigate home
 tesla media work               # navigate to work
 ```
 
+### Multi-stop Routes (`tesla nav route`, v4.9.2)
+
+Free alternative to ABRP Premium's multi-waypoint driver. Stores named routes,
+dispatches waypoints via the signed `share` command, and supports manual advance
+between legs (`next`) or simulated auto-advance for tests (`--simulate-arrival-after`).
+
+```bash
+# Create a named route (mix of addresses + "lat,lon" short-circuit)
+tesla nav route create commute \
+  "Calle 100 #19-54, Bogota" \
+  "4.6487,-74.0672" \
+  "Centro Andino"
+
+tesla nav route list
+tesla nav route show commute
+tesla nav route verify commute --write     # re-geocode entries >30 days old
+
+# Option A — manual advance (works today)
+tesla nav route next commute               # sends waypoint 1
+tesla nav route next commute               # sends waypoint 2 ...
+
+# Option B — end-to-end simulation (tests/demos)
+tesla nav route go commute --simulate-arrival-after 30
+
+# Named address book (reusable in routes)
+tesla nav place save home "Calle 100 #19-54, Bogota"
+tesla nav route create daily home work
+```
+
+Real auto-advance (consume Fleet Telemetry arrival events) ships in **v4.9.2.1**.
+Full walkthrough: [docs/nav-route.md](./nav-route.md).
+
 ### Multi-Vehicle
 
 ```bash

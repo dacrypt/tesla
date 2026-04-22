@@ -89,6 +89,30 @@ FEATURES: list[FeatureSpec] = [
         None,
         "Set target SoC",
     ),
+    # ── Navigation (multi-stop route dispatch) ──────────────────────────────
+    # nav_route_dispatch: single-destination send works whenever share works
+    # (backend=fleet-signed + vehicle_cmds scope). Runtime probe reuses the
+    # same logic as other T2 rows.
+    FeatureSpec(
+        "nav_route_dispatch",
+        "T2",
+        "fleet-signed",
+        "vehicle_cmds",
+        None,
+        "Send the next waypoint of a multi-stop route",
+    ),
+    # nav_route_auto_advance: auto-advance on arrival requires a live
+    # telemetry subscriber. That subscriber ships in v4.9.2.1 (tracked in
+    # ADR follow-ups of .omc/plans/nav-route-telemetry.md). For v4.9.2 the
+    # probe is HARDCODED to external-blocker — not a runtime check.
+    FeatureSpec(
+        "nav_route_auto_advance",
+        "T2",
+        "fleet-signed",
+        None,
+        None,
+        "Auto-advance through waypoints when the vehicle arrives",
+    ),
     FeatureSpec("safety_score", "T3", "fleet", "user_data", None, "Tesla safety score"),
     FeatureSpec(
         "energy_status",
@@ -212,20 +236,31 @@ def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | No
                 "and re-auth: tesla config auth fleet"
             )
     elif tier == "T2":
-        current_backend = getattr(cfg.general, "backend", "")
-        fleet_domain = (getattr(getattr(cfg, "fleet", None), "domain", "") or "").strip()
-        if current_backend != "fleet-signed":
-            status = "external-blocker"
-            remediation = "Run: tesla config auth fleet-signed (then pair in Tesla app)"
-        elif not fleet_domain:
-            # Backend is fleet-signed but no public-key hosting domain is set —
-            # every signed command will fail preflight. Flag it distinctly.
+        # Hardcoded in v4.9.2: auto-advance needs a live telemetry subscriber
+        # that ships in v4.9.2.1. Report external-blocker regardless of
+        # backend state — see docs/nav-route.md / ADR follow-ups.
+        if name == "nav_route_auto_advance":
             status = "external-blocker"
             remediation = (
-                "fleet-signed is active but fleet.domain is empty. "
-                "Set it with: tesla config set fleet-domain <your-host> "
-                "(see docs/fleet-signed-setup.md)"
+                "Ships in v4.9.2.1 — deferred pending receiver design spike. "
+                "For v4.9.2, use 'tesla nav route next <name>' between legs, "
+                "or 'tesla nav route go <name> --simulate-arrival-after 120' for testing."
             )
+        else:
+            current_backend = getattr(cfg.general, "backend", "")
+            fleet_domain = (getattr(getattr(cfg, "fleet", None), "domain", "") or "").strip()
+            if current_backend != "fleet-signed":
+                status = "external-blocker"
+                remediation = "Run: tesla config auth fleet-signed (then pair in Tesla app)"
+            elif not fleet_domain:
+                # Backend is fleet-signed but no public-key hosting domain is set —
+                # every signed command will fail preflight. Flag it distinctly.
+                status = "external-blocker"
+                remediation = (
+                    "fleet-signed is active but fleet.domain is empty. "
+                    "Set it with: tesla config set fleet-domain <your-host> "
+                    "(see docs/fleet-signed-setup.md)"
+                )
     elif tier == "T3":
         if feature.required_scope and feature.required_scope not in token_scopes:
             status = "missing-scope"

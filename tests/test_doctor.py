@@ -59,10 +59,29 @@ def test_probe_t2_external_blocker_when_domain_empty():
     cfg = Config()
     cfg.general.backend = "fleet-signed"
     cfg.fleet.domain = ""  # the new OSS default
-    t2 = next(f for f in FEATURES if f.tier == "T2")
+    # Pick a T2 row that is NOT the hardcoded auto_advance (which would
+    # return external-blocker for a different remediation string).
+    t2 = next(
+        f for f in FEATURES if f.tier == "T2" and f.name != "nav_route_auto_advance"
+    )
     row = probe(t2, cfg=cfg, token_scopes=["vehicle_cmds"])
     assert row["status"] == "external-blocker"
     assert "fleet-domain" in row["remediation"]
+
+
+def test_doctor_auto_advance_is_external_blocker():
+    """nav_route_auto_advance is HARDCODED external-blocker in v4.9.2 — no runtime probe."""
+    cfg = Config()
+    # Even when every condition for a healthy T2 is met, auto_advance must
+    # still report external-blocker because the telemetry subscriber ships
+    # in v4.9.2.1.
+    cfg.general.backend = "fleet-signed"
+    cfg.fleet.domain = "example.github.io"
+    auto = next(f for f in FEATURES if f.name == "nav_route_auto_advance")
+    row = probe(auto, cfg=cfg, token_scopes=["vehicle_cmds"])
+    assert row["status"] == "external-blocker"
+    assert "v4.9.2.1" in row["remediation"]
+    assert "tesla nav route next" in row["remediation"]
 
 
 def test_probe_t3_missing_scope():
