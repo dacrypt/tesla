@@ -46,6 +46,8 @@ class Route:
     name: str
     waypoints: list[Waypoint]
     created_at: str  # ISO-8601 UTC
+    source: str | None = None  # "native-planner", "abrp", or None for hand-created
+    source_id: str | None = None  # stable id for dedupe (e.g. "{origin}→{dest}@{car_model}")
 
 
 @dataclass
@@ -99,13 +101,35 @@ class NavStore:
     # ---- routes ----
 
     def save_route(self, route: Route) -> None:
+        """Save a route. Dedupe rule: if incoming route.source is not None and the
+        existing entry with the same name has source=None (hand-created), SKIP
+        with a stderr warning — imported/planned routes never overwrite
+        hand-created ones.
+        """
         data = _read_toml(self.nav_file)
         routes = data.get("routes", {})
-        routes[route.name] = {
+        existing = routes.get(route.name)
+        if (
+            existing is not None
+            and route.source is not None
+            and existing.get("source") is None
+        ):
+            print(
+                f"skipped saving route '{route.name}' — collides with hand-created route",
+                file=sys.stderr,
+            )
+            return
+        # Serialize all non-None fields; waypoints are always present.
+        entry: dict = {
             "name": route.name,
             "created_at": route.created_at,
             "waypoints": [asdict(w) for w in route.waypoints],
         }
+        if route.source is not None:
+            entry["source"] = route.source
+        if route.source_id is not None:
+            entry["source_id"] = route.source_id
+        routes[route.name] = entry
         data["routes"] = routes
         _atomic_write(self.nav_file, data)
 
@@ -118,6 +142,8 @@ class NavStore:
             name=entry["name"],
             created_at=entry["created_at"],
             waypoints=[Waypoint(**w) for w in entry["waypoints"]],
+            source=entry.get("source"),
+            source_id=entry.get("source_id"),
         )
 
     def list_routes(self) -> list[Route]:
@@ -129,6 +155,8 @@ class NavStore:
                     name=entry["name"],
                     created_at=entry["created_at"],
                     waypoints=[Waypoint(**w) for w in entry["waypoints"]],
+                    source=entry.get("source"),
+                    source_id=entry.get("source_id"),
                 )
             )
         return out

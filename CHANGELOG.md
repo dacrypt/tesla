@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.4] - 2026-04-22
+
+### Core — Route model extension (prerequisite for native EV planner)
+
+- **`Route` dataclass** gains optional `source: str | None = None` and
+  `source_id: str | None = None` fields, mirroring the `Place` model. Tracks
+  where a saved route came from (e.g. `"native-planner"`, `"abrp"`, or
+  `None` for hand-created via `tesla nav route create`).
+- **`NavStore.save_route()`** replaces its hardcoded 3-key dict with the
+  `save_place()` filter-None pattern: only serializes non-None optional
+  fields, keeping TOML clean. Adds a **dedupe guard**: saving a route with
+  `source != None` is skipped + stderr-warned when an existing route with
+  the same name has `source=None` (hand-created). Imported/planned routes
+  never overwrite user-created ones.
+- **`NavStore.get_route()` + `list_routes()`** read the new fields with
+  `.get()` defaults — old `nav.toml` files with only `name`+`created_at`
+  +`waypoints` load unchanged.
+- Zero code changes to `Waypoint` dataclass (5 fields, untouched).
+
+### Why
+
+Unblocks the phased native EV route planner roadmap
+(`.omc/plans/native-ev-planner.md`): Phase 1 `tesla nav plan <from> <to>`
+will tag generated routes with `source="native-planner"` so that re-running
+a plan cannot clobber a route you created by hand with `tesla nav route
+create`. Ships standalone (no dependency on later phases).
+
+### Quality
+
+- 6 new tests (default-None roundtrip, full-source roundtrip, old-TOML
+  backward compat, hand-created dedupe, same-source overwrite, hand-
+  created-over-hand-created overwrite).
+- Full suite: **1888 passed**, 0 fail. Ruff clean.
+
 ## [4.9.3] - 2026-04-22
 
 ### i18n — English Default
