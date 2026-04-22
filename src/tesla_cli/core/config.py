@@ -7,6 +7,7 @@ Tokens: stored in system keyring (never in config file)
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import tomli_w
 from pydantic import BaseModel, Field
@@ -149,6 +150,21 @@ class EnergyConfig(BaseModel):
     site_id: int = 0  # Auto-discovered or set manually via tesla energy sites
 
 
+class PlannerConfig(BaseModel):
+    """Native EV route planner (Phase 1).
+
+    BYOK: no default API keys are shipped. Missing keys surface an actionable
+    error with the signup URL when the planner is invoked.
+    """
+
+    router: Literal["openroute", "osrm"] = "openroute"
+    osrm_base_url: str = "https://router.project-osrm.org"
+    openroute_key: str = ""  # stored in keyring preferentially
+    openchargemap_key: str = ""  # stored in keyring preferentially
+    default_stops_every_km: float = 150.0  # LATAM-safe default
+    default_car_model: str = ""  # alias or ABRP id
+
+
 class Config(BaseModel):
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
@@ -166,6 +182,7 @@ class Config(BaseModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     telemetry: FleetTelemetryConfig = Field(default_factory=FleetTelemetryConfig)
     energy: EnergyConfig = Field(default_factory=EnergyConfig)
+    planner: PlannerConfig = Field(default_factory=PlannerConfig)
 
 
 def load_config() -> Config:

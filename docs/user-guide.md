@@ -242,6 +242,53 @@ tesla nav route create daily home work
 Real auto-advance (consume Fleet Telemetry arrival events) ships in **v4.9.2.1**.
 Full walkthrough: [docs/nav-route.md](./nav-route.md).
 
+### Native EV Route Planner (`tesla nav plan`, v4.10.0)
+
+Free alternative to ABRP Premium's route planner. Uses OpenRouteService for
+routing and OpenChargeMap for the charger database. Suggests stops along a
+route every N km — no consumption prediction yet (that's Phase 2), but
+emits an ABRP deep link so you get a SoC-aware second opinion immediately.
+
+**Requires free API keys** (BYOK — no keys shipped):
+```bash
+tesla config set planner-openchargemap-key <KEY>   # openchargemap.org/site/profile/applications
+tesla config set planner-openroute-key <KEY>       # openrouteservice.org/dev/#/signup
+```
+
+Alternative for zero-SaaS-dependency: `--router osrm` uses the public OSRM
+demo server (rate-limited; self-host for production).
+
+```bash
+# Plan Bogotá → Medellín (interpolate every 150 km, Tesla network only)
+tesla nav plan "Bogotá" "Medellín" --network tesla --car model_y_lr
+
+# Only chargers ≥ 100 kW, saved as reusable route
+tesla nav plan "Bogotá" "Cartagena" \
+  --min-power 100 --save-as bog-ctg --abrp-link
+
+# JSON output for scripting
+tesla nav plan "4.71,-74.07" "6.24,-75.58" --json
+
+# Use OSRM (no OpenRouteService key needed)
+tesla nav plan "Bogotá" "Medellín" --router osrm
+
+# Verify OpenChargeMap taxonomy (operator/connection IDs)
+tesla nav plan-probe-taxonomy
+```
+
+**What it produces**:
+- A table of suggested charging stops with operator name, max power, connection types, and distance-from-route.
+- Total drive distance + duration.
+- An ABRP deep link (unless `--no-abrp-link`) that opens `abetterrouteplanner.com` with your route pre-filled — that's the SoC-aware second opinion.
+- Optionally persists as a nav Route with `source="native-planner"` — can be dispatched via `tesla nav route next <name>` just like any other route.
+
+**Phase 1 limitations (by design)**:
+- No SoC prediction — the ABRP deep link bridges this gap.
+- No consumption calibration (Phase 2 will fit a model from TeslaMate drives).
+- No alternative-route ranking (Phase 3).
+
+**Dedupe safety**: `--save-as commute` with an existing hand-created `commute` route is **skipped with a warning** — planner-generated routes never overwrite user-created ones. (This protection was added in v4.9.4's Route model extension.)
+
 ### Favorites Importer (`tesla nav place import`, v4.9.3)
 
 Bulk-import favorites from Google Maps, KML, or GPX into your place book, then
