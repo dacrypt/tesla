@@ -54,6 +54,7 @@ def config_set(
     keyring_map = {
         "planner-openroute-key": tokens.PLANNER_OPENROUTE_KEY,
         "planner-openchargemap-key": tokens.PLANNER_OPENCHARGEMAP_KEY,
+        "planner-weather-key": tokens.PLANNER_WEATHER_KEY,
     }
     if key in keyring_map:
         tokens.set_token(keyring_map[key], value)

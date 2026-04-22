@@ -51,9 +51,11 @@ nav_app = typer.Typer(name="nav", help="Multi-stop navigation (routes + places, 
 
 route_app = typer.Typer(help="Multi-stop navigation routes (manual-advance, v4.9.2).")
 place_app = typer.Typer(help="Named-address book for reuse in routes.")
+consumption_app = typer.Typer(help="Consumption model calibration (Phase 2).")
 
 nav_app.add_typer(route_app, name="route")
 nav_app.add_typer(place_app, name="place")
+nav_app.add_typer(consumption_app, name="consumption")
 
 
 VinOption = typer.Option(None, "--vin", "-v", help="VIN or alias")
@@ -348,6 +350,65 @@ def route_next(
         )
 
 
+@route_app.command("export", help="Export a saved nav Route as GPX or KML.")
+def route_export(
+    name: str = typer.Argument(..., help="Route name."),
+    fmt: str = typer.Option("gpx", "--format", "-f", help="gpx|kml"),
+    output: Path | None = typer.Option(  # noqa: B008
+        None, "--output", "-o", help="Output file path (defaults to stdout)"
+    ),
+) -> None:
+    _validate_name(name)
+    if fmt not in ("gpx", "kml"):
+        console.print(f"[red]unknown format '{fmt}' — use gpx or kml[/red]")
+        raise typer.Exit(1)
+    store = NavStore()
+    route = store.get_route(name)
+    if route is None:
+        console.print(f"[red]No route named '{name}'[/red]")
+        raise typer.Exit(1)
+    if not route.waypoints:
+        console.print(f"[red]Route '{name}' has no waypoints[/red]")
+        raise typer.Exit(1)
+
+    # Project a NavStore Route into a minimal PlannedRoute for export.
+    from tesla_cli.core.planner.export import to_gpx, to_kml
+    from tesla_cli.core.planner.models import ChargerSuggestion, PlannedRoute
+
+    wps = route.waypoints
+    origin_wp = wps[0]
+    dest_wp = wps[-1] if len(wps) > 1 else wps[0]
+    stop_wps = wps[1:-1] if len(wps) > 2 else []
+    stops = [
+        ChargerSuggestion(
+            ocm_id=i + 1,
+            name=wp.raw_address,
+            lat=wp.lat,
+            lon=wp.lon,
+            network="unknown",
+        )
+        for i, wp in enumerate(stop_wps)
+    ]
+    plan = PlannedRoute(
+        origin_address=origin_wp.raw_address,
+        origin_latlon=(origin_wp.lat, origin_wp.lon),
+        destination_address=dest_wp.raw_address,
+        destination_latlon=(dest_wp.lat, dest_wp.lon),
+        total_distance_km=0.0,
+        total_duration_min=0,
+        stops=stops,
+        planned_at=route.created_at or _now_iso(),
+        routing_provider="nav-store",
+    )
+    body = to_gpx(plan) if fmt == "gpx" else to_kml(plan)
+
+    if output is None:
+        console.print(body)
+    else:
+        output.write_text(body)
+        render_success(f"Exported {fmt.upper()} → {output}")
+
+
 # ─── place sub-app ───────────────────────────────────────────────────────────
 
 
@@ -492,9 +553,18 @@ def nav_plan(
     car: str | None = typer.Option(
         None, "--car", help="Car model alias (e.g. model_y_lr) or ABRP id"
     ),
-    soc_start: float = typer.Option(
-        0.8, "--soc-start", help="Initial SoC for --abrp-link (0.0-1.0)"
+    soc_start: float = typer.Option(0.8, "--soc-start", help="Initial SoC fraction (0.0-1.0)"),
+    soc_target: float = typer.Option(
+        0.2, "--soc-target", help="Target SoC at destination / after each charge (0.0-1.0)"
     ),
+    min_arrival_soc: float = typer.Option(
+        0.10, "--min-arrival-soc", help="Minimum SoC at arrival (0.0-1.0)"
+    ),
+    battery_kwh: float = typer.Option(
+        75.0, "--battery-kwh", help="Usable battery pack capacity (kWh)"
+    ),
+    no_elevation: bool = typer.Option(False, "--no-elevation", help="Skip open-elevation lookup"),
+    no_weather: bool = typer.Option(False, "--no-weather", help="Skip OpenWeatherMap lookup"),
     abrp_link: bool = typer.Option(
         True,
         "--abrp-link/--no-abrp-link",
@@ -502,6 +572,17 @@ def nav_plan(
     ),
     save_as: str | None = typer.Option(
         None, "--save-as", help="Persist as a nav Route with this name"
+    ),
+    alternatives: int = typer.Option(
+        1,
+        "--alternatives",
+        help="Number of ranked alternatives (>=2 activates graph A*).",
+    ),
+    export: str | None = typer.Option(
+        None,
+        "--export",
+        help="After planning, write the plan as gpx|kml to <save-as>.<ext> "
+        "or /tmp/plan.<ext> if no --save-as.",
     ),
     output_json: bool = typer.Option(False, "--json", help="Emit JSON"),
 ) -> None:
@@ -551,19 +632,101 @@ def nav_plan(
 
     car_alias = car or cfg.planner.default_car_model
 
+    # Decide Phase 1 (MVP) vs Phase 2 (SoC-aware). We engage Phase 2 when any
+    # SoC flag diverges from Phase-1 defaults OR when a calibrated model exists
+    # for the resolved car_model id.
+    from tesla_cli.core.planner.car_models import resolve_car_model
+    from tesla_cli.core.planner.consumption import (
+        CALIBRATION_FILE,
+        get_model,
+    )
+
+    resolved_model_id = resolve_car_model(car_alias)
+    calibrated_exists = False
+    if resolved_model_id and CALIBRATION_FILE.exists():
+        try:
+            import tomllib as _tomllib
+        except ImportError:  # pragma: no cover
+            import tomli as _tomllib  # type: ignore[no-redef]
+        try:
+            _cal = _tomllib.loads(CALIBRATION_FILE.read_text())
+            calibrated_exists = resolved_model_id in _cal
+        except Exception:
+            calibrated_exists = False
+
+    phase2 = (
+        soc_target != 0.2
+        or min_arrival_soc != 0.10
+        or battery_kwh != 75.0
+        or no_elevation
+        or no_weather
+        or calibrated_exists
+    )
+
     try:
-        plan = plan_route(
-            origin_address=origin_addr,
-            origin_latlon=origin_ll,
-            destination_address=dest_addr,
-            destination_latlon=dest_ll,
-            routing=engine,
-            charger_finder=charger_finder,
-            stops_every_km=stops_every,
-            car_model_alias=car_alias,
-            initial_soc=soc_start,
-            emit_abrp_link=abrp_link,
-        )
+        if phase2:
+            from tesla_cli.core.planner.calibrated import plan_with_soc
+            from tesla_cli.core.planner.elevation import ElevationError, get_elevation_profile
+            from tesla_cli.core.planner.weather import WeatherAuthError, get_ambient_temp
+
+            consumption_model = get_model(resolved_model_id)
+
+            fetch_elev = None
+            if not no_elevation:
+
+                def fetch_elev(poly):
+                    try:
+                        return get_elevation_profile(poly)
+                    except ElevationError:
+                        return []
+
+            fetch_temp = None
+            if not no_weather:
+                owm_key = (
+                    cfg.planner.openweather_key
+                    or tokens.get_token(tokens.PLANNER_WEATHER_KEY)
+                    or ""
+                )
+                if owm_key:
+
+                    def fetch_temp(lat, lon):
+                        try:
+                            return get_ambient_temp(lat, lon, owm_key)
+                        except WeatherAuthError:
+                            return None
+
+            plan = plan_with_soc(
+                origin_address=origin_addr,
+                origin_latlon=origin_ll,
+                destination_address=dest_addr,
+                destination_latlon=dest_ll,
+                routing=engine,
+                charger_finder=charger_finder,
+                consumption_model=consumption_model,
+                initial_soc_kwh=soc_start * battery_kwh,
+                battery_kwh=battery_kwh,
+                target_soc_kwh=soc_target * battery_kwh,
+                min_arrival_soc_kwh=min_arrival_soc * battery_kwh,
+                stops_every_km=stops_every,
+                car_model_alias=car_alias,
+                initial_soc_frac=soc_start,
+                emit_abrp_link=abrp_link,
+                fetch_elevation=fetch_elev,
+                fetch_temp=fetch_temp,
+            )
+        else:
+            plan = plan_route(
+                origin_address=origin_addr,
+                origin_latlon=origin_ll,
+                destination_address=dest_addr,
+                destination_latlon=dest_ll,
+                routing=engine,
+                charger_finder=charger_finder,
+                stops_every_km=stops_every,
+                car_model_alias=car_alias,
+                initial_soc=soc_start,
+                emit_abrp_link=abrp_link,
+            )
     except RoutingAuthError as exc:
         console.print(f"[red]{exc}[/red]", markup=True)
         raise typer.Exit(1) from exc
@@ -582,25 +745,47 @@ def nav_plan(
     else:
         from rich.table import Table
 
-        console.print(
+        header = (
             f"[bold]{origin_addr}[/bold] → [bold]{dest_addr}[/bold]  "
             f"({plan.total_distance_km:.1f} km, {plan.total_duration_min} min, "
             f"via {plan.routing_provider})"
         )
+        if plan.total_energy_kwh is not None:
+            header += f"  |  est. energy: {plan.total_energy_kwh:.1f} kWh"
+        console.print(header)
+        if phase2 and plan.consumption_source:
+            console.print(f"[dim]consumption model: {plan.consumption_source}[/dim]")
         if not plan.stops:
             console.print("[dim]No intermediate stops needed.[/dim]")
         else:
             table = Table(show_header=True)
             table.add_column("#", justify="right")
             table.add_column("Charger")
-            table.add_column("km from route", justify="right")
+            table.add_column("km", justify="right")
             table.add_column("kW", justify="right")
-            table.add_column("Connectors")
+            if phase2:
+                table.add_column("arr SoC (kWh)", justify="right")
+                table.add_column("dep SoC (kWh)", justify="right")
+                table.add_column("charge (min)", justify="right")
+            else:
+                table.add_column("Connectors")
             for i, s in enumerate(plan.stops, start=1):
                 kw = f"{s.max_power_kw:.0f}" if s.max_power_kw is not None else "?"
-                conns = ", ".join(s.connection_types) if s.connection_types else ""
-                table.add_row(str(i), s.name, f"{s.distance_from_route_km:.2f}", kw, conns)
+                if phase2:
+                    arr = f"{s.arrival_soc_kwh:.1f}" if s.arrival_soc_kwh is not None else "-"
+                    dep = f"{s.departure_soc_kwh:.1f}" if s.departure_soc_kwh is not None else "-"
+                    chg = f"{s.charge_duration_min}" if s.charge_duration_min is not None else "-"
+                    table.add_row(
+                        str(i), s.name, f"{s.distance_from_route_km:.2f}", kw, arr, dep, chg
+                    )
+                else:
+                    conns = ", ".join(s.connection_types) if s.connection_types else ""
+                    table.add_row(str(i), s.name, f"{s.distance_from_route_km:.2f}", kw, conns)
             console.print(table)
+            if phase2:
+                for s in plan.stops:
+                    if s.soc_warning:
+                        console.print(f"[yellow]warning @ {s.name}: {s.soc_warning}[/yellow]")
         if plan.abrp_deep_link:
             console.print(f"ABRP: {plan.abrp_deep_link}")
 
@@ -609,6 +794,48 @@ def nav_plan(
         store = NavStore()
         store.save_route(plan.to_nav_route(save_as))
         render_success(f"Route '{save_as}' saved ({len(plan.stops)} stops).")
+
+    # Graph-based alternatives (Phase 3) — only triggered when alternatives >= 2
+    if alternatives >= 2:
+        from tesla_cli.core.planner.consumption import get_model
+        from tesla_cli.core.planner.graph import plan_alternatives
+
+        model = get_model(resolved_model_id)
+        alt_seqs = plan_alternatives(
+            origin=origin_ll,
+            destination=dest_ll,
+            chargers=plan.stops,
+            consumption_model=model,
+            initial_soc_kwh=soc_start * battery_kwh,
+            battery_kwh=battery_kwh,
+            target_soc_kwh=soc_target * battery_kwh,
+            min_arrival_soc_kwh=min_arrival_soc * battery_kwh,
+            max_alternatives=alternatives,
+        )
+        if not alt_seqs:
+            console.print("[yellow]No feasible alternatives returned by graph planner.[/yellow]")
+        else:
+            console.print(f"[bold]{len(alt_seqs)} alternative(s) via graph A*:[/bold]")
+            for i, seq in enumerate(alt_seqs, start=1):
+                names = " → ".join(s.name for s in seq) if seq else "(direct)"
+                console.print(f"  alt {i}: {len(seq)} stop(s)  {names}")
+
+    # GPX / KML export (Phase 3)
+    if export:
+        from pathlib import Path as _Path
+
+        from tesla_cli.core.planner.export import to_gpx, to_kml
+
+        fmt = export.lower()
+        if fmt not in ("gpx", "kml"):
+            console.print(f"[red]unknown export format '{export}' — use gpx or kml[/red]")
+            raise typer.Exit(1)
+        body = to_gpx(plan) if fmt == "gpx" else to_kml(plan)
+        out_path = (
+            _Path(f"./{save_as}.{fmt}") if save_as else _Path(f"/tmp/plan.{fmt}")
+        )
+        out_path.write_text(body)
+        render_success(f"Exported {fmt.upper()} → {out_path}")
 
 
 @nav_app.command(
@@ -680,3 +907,85 @@ def place_send(
     v = _vin(vin)
     _dispatch_share(v, address)
     render_success(f"Sent '{alias}' → {address}")
+
+
+# ─── consumption sub-app (Phase 2) ────────────────────────────────────────────
+
+
+@consumption_app.command("calibrate", help="Fit consumption coefficients from TeslaMate drives.")
+def consumption_calibrate(
+    car: str | None = typer.Option(
+        None, "--car", help="Car model alias (e.g. model_y_lr) or ABRP id"
+    ),
+    days: int = typer.Option(90, "--days", help="Days of drive history to use"),
+    battery_kwh: float = typer.Option(75.0, "--battery-kwh", help="Battery nominal capacity"),
+    vin: str | None = VinOption,
+) -> None:
+    from tesla_cli.core.backends.teslaMate import TeslaMateBacked
+    from tesla_cli.core.planner.car_models import resolve_car_model
+    from tesla_cli.core.planner.consumption import fit_from_dataset, save_calibrated
+
+    cfg = load_config()
+    if not cfg.teslaMate.database_url:
+        console.print(
+            "[red]Requires TeslaMate. Install:\n"
+            "  uv pip install tesla-cli[teslaMate]\n"
+            "  tesla teslaMate connect postgresql://user:pass@host/teslaMate[/red]",
+            markup=True,
+        )
+        raise typer.Exit(1)
+
+    car_id = resolve_car_model(car or cfg.planner.default_car_model) or (
+        car or cfg.planner.default_car_model or "baseline"
+    )
+    try:
+        backend = TeslaMateBacked(cfg.teslaMate.database_url, car_id=cfg.teslaMate.car_id)
+        segments = backend.get_calibration_dataset(days=days, vin=vin, battery_kwh=battery_kwh)
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[red]TeslaMate query failed: {exc}[/red]", markup=True)
+        raise typer.Exit(1) from exc
+
+    if not segments:
+        console.print("[yellow]No drive segments returned — nothing to fit.[/yellow]")
+        raise typer.Exit(1)
+
+    model = fit_from_dataset(car_id, segments)
+    save_calibrated(model)
+    console.print(
+        f"[green]Fitted[/green] {car_id}: base={model.base_wh_per_km:.1f} Wh/km, "
+        f"speed_gain={model.speed_gain:.2f}, elev={model.elevation_wh_per_100m:.1f}, "
+        f"temp_factor={model.temp_factor_at_minus10:.2f}"
+    )
+    line = f"  samples={model.samples}"
+    if model.r_squared is not None:
+        line += f"  r2={model.r_squared:.3f}"
+    if model.mape_pct is not None:
+        line += f"  MAPE={model.mape_pct:.1f}%"
+    console.print(line)
+
+
+@consumption_app.command("show", help="Show the fitted or baseline consumption model.")
+def consumption_show(
+    car: str | None = typer.Option(
+        None, "--car", help="Car model alias (e.g. model_y_lr) or ABRP id"
+    ),
+) -> None:
+    from tesla_cli.core.planner.car_models import resolve_car_model
+    from tesla_cli.core.planner.consumption import get_model
+
+    cfg = load_config()
+    car_id = resolve_car_model(car or cfg.planner.default_car_model)
+    model = get_model(car_id)
+    console.print(f"[bold]consumption model for {model.car_model}[/bold]  (source: {model.source})")
+    console.print(f"  base_wh_per_km:         {model.base_wh_per_km:.1f}")
+    console.print(f"  speed_gain (90→130):    {model.speed_gain:.3f}")
+    console.print(f"  elevation_wh_per_100m:  {model.elevation_wh_per_100m:.1f}")
+    console.print(f"  temp_factor_at_minus10: {model.temp_factor_at_minus10:.3f}")
+    if model.samples:
+        console.print(f"  samples:                {model.samples}")
+    if model.r_squared is not None:
+        console.print(f"  r_squared:              {model.r_squared:.3f}")
+    if model.mape_pct is not None:
+        console.print(f"  MAPE_pct:               {model.mape_pct:.1f}")
+    if model.fitted_at:
+        console.print(f"  fitted_at:              {model.fitted_at}")
