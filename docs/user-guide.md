@@ -242,6 +242,48 @@ tesla nav route create daily home work
 Real auto-advance (consume Fleet Telemetry arrival events) ships in **v4.9.2.1**.
 Full walkthrough: [docs/nav-route.md](./nav-route.md).
 
+### Favorites Importer (`tesla nav place import`, v4.9.3)
+
+Bulk-import favorites from Google Maps, KML, or GPX into your place book, then
+send any of them to the car with a single command. Tesla's Fleet API does not
+expose the car's native Favorites list, so places live in tesla-cli and dispatch
+via the signed `share` command — same path as `nav route`.
+
+```bash
+# Google Takeout (export → "Saved" folder → CSV per list + Saved Places.json)
+tesla nav place import ~/Downloads/Takeout/Saved/"Want to go.csv"
+tesla nav place import ~/Downloads/Takeout/Saved/"Saved Places.json"
+
+# Generic KML / GPX (works with any map tool that exports these)
+tesla nav place import places.kml --tag bogota
+tesla nav place import track.gpx --max-geocode 10
+
+# Preview without writing
+tesla nav place import places.kml --dry-run
+
+# Send one to the car (uses the signed share command)
+tesla nav place send casa-de-mami
+tesla nav place send casa --dry-run        # preview, no API call
+```
+
+**Dedupe rules.** Imported entries carry a stable `(source, source_id)` pair
+(Google Maps URL, KML placemark id, or content hash). Re-importing the same
+file after renaming an entry in Google Maps **updates** the existing place —
+does not duplicate. Hand-created places (`tesla nav place save`) are never
+overwritten by imports; collisions are skipped with a stderr warning.
+
+**Supported sources.**
+| Source | Format | Notes |
+|---|---|---|
+| Google Takeout | `.csv` (per list) | Title + URL → alias + lat/lon extracted from `@lat,lon` |
+| Google Takeout | `.geojson` / `.json` | FeatureCollection with `[lon, lat]` coords |
+| Google Earth / My Maps | `.kml` | Namespaced `<Placemark>` with `<Point>` |
+| GPS apps | `.gpx` 1.0 / 1.1 | `<wpt>` waypoints |
+
+**Guards.** 25 MB file-size cap per import. Default 20 Nominatim calls for
+entries missing coords (configurable via `--max-geocode`); entries beyond the
+cap are dropped with a yellow warning. Stdlib-only parser — no new deps.
+
 ### Multi-Vehicle
 
 ```bash
