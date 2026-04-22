@@ -266,6 +266,161 @@ def test_bulk_uses_alias_match_for_no_source(store: NavStore) -> None:
     assert store.get_place("x").raw_address == "Updated"  # type: ignore[union-attr]
 
 
+# ---- Route extended fields (Phase 0: native-ev-planner prerequisite) ----
+
+
+def test_route_default_fields_are_none(store: NavStore) -> None:
+    """Route without source/source_id round-trips with None values; TOML stays clean."""
+    route = Route(
+        name="commute2",
+        created_at="2026-04-22T03:00:00Z",
+        waypoints=[_wp("A", 4.0, -74.0)],
+    )
+    store.save_route(route)
+
+    got = store.get_route("commute2")
+    assert got is not None
+    assert got.source is None
+    assert got.source_id is None
+
+    raw = store.nav_file.read_text()
+    assert "source" not in raw
+    assert "source_id" not in raw
+
+
+def test_route_with_source_roundtrip(store: NavStore) -> None:
+    """Route with source+source_id fields round-trips correctly."""
+    route = Route(
+        name="bogota-medellin",
+        created_at="2026-04-22T03:00:00Z",
+        waypoints=[_wp("Bogotá", 4.711, -74.0721), _wp("Medellín", 6.2442, -75.5812)],
+        source="native-planner",
+        source_id="Bogotá→Medellín@model_y_lr",
+    )
+    store.save_route(route)
+
+    got = store.get_route("bogota-medellin")
+    assert got is not None
+    assert got.source == "native-planner"
+    assert got.source_id == "Bogotá→Medellín@model_y_lr"
+
+
+def test_route_old_toml_loads_without_error(store: NavStore) -> None:
+    """Old-format TOML with only name/created_at/waypoints loads into extended Route without error."""
+    store.nav_file.parent.mkdir(parents=True, exist_ok=True)
+    store.nav_file.write_text(
+        '[routes.legacy]\n'
+        'name = "legacy"\n'
+        'created_at = "2026-01-01T00:00:00Z"\n'
+        '\n'
+        '[[routes.legacy.waypoints]]\n'
+        'raw_address = "Start"\n'
+        'lat = 4.0\n'
+        'lon = -74.0\n'
+        'geocode_provider = "nominatim"\n'
+        'geocode_at = "2026-01-01T00:00:00Z"\n'
+    )
+
+    got = store.get_route("legacy")
+    assert got is not None
+    assert got.source is None
+    assert got.source_id is None
+
+    routes = store.list_routes()
+    assert len(routes) == 1
+    assert routes[0].source is None
+
+
+def test_save_route_skips_when_imported_collides_with_hand_created(
+    store: NavStore, capsys: pytest.CaptureFixture
+) -> None:
+    """Saving an imported route over a hand-created one is skipped with a stderr warning."""
+    hand_created = Route(
+        name="commute",
+        created_at="2026-04-22T00:00:00Z",
+        waypoints=[_wp("Home", 4.0, -74.0)],
+        source=None,
+    )
+    store.save_route(hand_created)
+
+    imported = Route(
+        name="commute",
+        created_at="2026-04-22T01:00:00Z",
+        waypoints=[_wp("Other", 5.0, -75.0)],
+        source="abrp",
+        source_id="x",
+    )
+    store.save_route(imported)
+
+    # Original must be unchanged
+    got = store.get_route("commute")
+    assert got is not None
+    assert got.waypoints[0].raw_address == "Home"
+    assert got.source is None
+
+    captured = capsys.readouterr()
+    assert "skipped" in captured.err
+    assert "commute" in captured.err
+
+
+def test_save_route_allows_update_of_same_sourced_route(
+    store: NavStore, capsys: pytest.CaptureFixture
+) -> None:
+    """Saving the same imported route twice overwrites cleanly with no warning."""
+    route = Route(
+        name="plan1",
+        created_at="2026-04-22T00:00:00Z",
+        waypoints=[_wp("A", 4.0, -74.0)],
+        source="native-planner",
+        source_id="A→B@y",
+    )
+    store.save_route(route)
+
+    route2 = Route(
+        name="plan1",
+        created_at="2026-04-22T01:00:00Z",
+        waypoints=[_wp("A", 4.0, -74.0), _wp("B", 5.0, -75.0)],
+        source="native-planner",
+        source_id="A→B@y",
+    )
+    store.save_route(route2)
+
+    got = store.get_route("plan1")
+    assert got is not None
+    assert len(got.waypoints) == 2
+    assert got.source == "native-planner"
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
+def test_save_route_allows_hand_created_over_hand_created(
+    store: NavStore, capsys: pytest.CaptureFixture
+) -> None:
+    """Two hand-created saves with the same name: second overwrites, no warning."""
+    r1 = Route(
+        name="trip",
+        created_at="2026-04-22T00:00:00Z",
+        waypoints=[_wp("X", 1.0, 2.0)],
+    )
+    store.save_route(r1)
+
+    r2 = Route(
+        name="trip",
+        created_at="2026-04-22T01:00:00Z",
+        waypoints=[_wp("Y", 3.0, 4.0)],
+    )
+    store.save_route(r2)
+
+    got = store.get_route("trip")
+    assert got is not None
+    assert got.waypoints[0].raw_address == "Y"
+    assert got.source is None
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
 def test_atomic_write_via_existing_helper(store: NavStore, tmp_path: Path) -> None:
     """save_places_bulk leaves original file intact if serialization raises mid-bulk."""
     import tomli_w
