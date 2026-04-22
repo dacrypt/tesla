@@ -1231,6 +1231,29 @@ def _auth_fleet_signed() -> None:
             raise typer.Exit(1)
         console.print(f"[green]✓[/green] Public key reachable at {url}")
 
+        # ── (c2) refresh partner account so Tesla re-fetches our pubkey ─────
+        # Tesla CACHES the pubkey at partner registration time. If the user
+        # rotated keys or published a new pubkey after first registering the
+        # partner, Tesla is still serving the old fingerprint and any signed
+        # command will 404. Re-POSTing to /api/1/partner_accounts forces Tesla
+        # to re-fetch from the well-known URL. Skipped silently when we don't
+        # have a client_secret stashed (no-op; the user likely hasn't run
+        # `tesla config auth fleet` yet — they'll need to do that separately).
+        cs = tokens.get_token(tokens.FLEET_CLIENT_SECRET)
+        if cs and cfg.fleet.client_id:
+            try:
+                from tesla_cli.core.auth.oauth import register_fleet_partner
+
+                register_fleet_partner(cfg.fleet.client_id, cs, region=cfg.fleet.region or "na")
+                console.print("[green]✓[/green] Refreshed Tesla partner pubkey cache")
+            except Exception as exc:
+                console.print(
+                    f"[yellow]⚠[/yellow] Partner re-register skipped: {exc}\n"
+                    "[dim]If the handshake below fails with NotFound, run manually:\n"
+                    '    python -c "from tesla_cli.core.auth.oauth import register_fleet_partner; ..."\n'
+                    "or re-run `tesla config auth fleet` first.[/dim]"
+                )
+
         # ── (d) dry-run handshake ────────────────────────────────────────────
         import asyncio
 
