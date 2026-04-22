@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (v4.8.0)
+## Current State (v4.9.2)
 
-175+ commands across 25 groups, 1679 tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, 17 --oneline commands, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support.
+180+ commands across 26 groups (added `nav route` multi-stop driver), 1700+ tests, 83 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**.
 
 ---
 
@@ -33,10 +33,19 @@
 - ✅ **Order Status --oneline** — compact emoji output for tmux/scripts
 - ✅ **RUNT Default VIN** — `tesla data runt` uses configured VIN automatically
 - ✅ **Claude Code Plugin v1.1.0** — marketplace-ready, 9 skills, guardrails, RUNT in pre-delivery fallback
+- ✅ **Multi-stop Navigation (v4.9.2)** — `tesla nav route` with CRUD, manual advance (`next`), simulated auto-advance (`--simulate-arrival-after`), atomic state writes, Nominatim fair-use caps, `"lat,lon"` short-circuit. Free alternative to ABRP Premium's multi-waypoint driver. See [docs/nav-route.md](nav-route.md).
 
 ---
 
 ## Remaining Gaps
+
+### P1 — Next Release
+
+#### 0. Real Telemetry Arrival Source (v4.9.2.1)
+- Wire a concrete `TelemetryArrivalSource` into `tesla nav route go` (currently `NullArrivalSource` only).
+- Requires a publish-sink decision (SSE / Kafka / NATS) for the in-tree Fleet Telemetry receiver.
+- Removes the hardcoded `external-blocker` on the `nav_route_auto_advance` doctor row.
+- Trigger: open the v4.9.2.1 spike PR within 7 days of v4.9.2 merge. See ADR-012 in `.omc/plans/nav-route-telemetry.md`.
 
 ### P3 — Lower Priority
 

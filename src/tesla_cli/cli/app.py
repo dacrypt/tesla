@@ -105,6 +105,7 @@ def _register_commands() -> None:
     from tesla_cli.cli.commands.event_stream_cmd import alerts_command
     from tesla_cli.cli.commands.events import events_app
     from tesla_cli.cli.commands.media import media_app
+    from tesla_cli.cli.commands.nav import nav_app
     from tesla_cli.cli.commands.notify import notify_app
     from tesla_cli.cli.commands.order import order_app
     from tesla_cli.cli.commands.runt import runt_app
@@ -119,6 +120,7 @@ def _register_commands() -> None:
     app.add_typer(security_app, name="security")
     app.add_typer(simit_app, name="simit")
     app.add_typer(media_app, name="media")
+    app.add_typer(nav_app, name="nav")
     app.add_typer(notify_app, name="notify")
     app.add_typer(runt_app, name="runt")
     app.command("alerts")(alerts_command)

@@ -1,0 +1,184 @@
+"""Route / Waypoint / Place models and on-disk TOML store.
+
+Persistence layout:
+    ~/.tesla-cli/nav.toml        — routes + places (source of truth)
+    ~/.tesla-cli/nav.state.toml  — run-time next_index counters for `route next`
+
+Atomic write protocol (both files):
+    1. Serialize to `<path>.tmp`
+    2. `fsync()` the fd
+    3. Close
+    4. `os.rename(<path>.tmp, <path>)`
+No lockfile — tesla-cli is single-user.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import tomli_w
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib  # type: ignore[no-redef]
+
+
+NAV_DIR = Path.home() / ".tesla-cli"
+NAV_FILE = NAV_DIR / "nav.toml"
+NAV_STATE_FILE = NAV_DIR / "nav.state.toml"
+
+
+@dataclass
+class Waypoint:
+    raw_address: str
+    lat: float
+    lon: float
+    geocode_provider: str  # "nominatim" | "user"
+    geocode_at: str  # ISO-8601 UTC, e.g. "2026-04-22T02:15:00Z"
+
+
+@dataclass
+class Route:
+    name: str
+    waypoints: list[Waypoint]
+    created_at: str  # ISO-8601 UTC
+
+
+@dataclass
+class Place:
+    alias: str
+    raw_address: str
+
+
+def _atomic_write(path: Path, payload: dict) -> None:
+    """Serialize payload as TOML to <path>.tmp, fsync, rename over path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    encoded = tomli_w.dumps(payload).encode("utf-8")
+    # open with O_CREAT|O_WRONLY|O_TRUNC so we own the fd and can fsync
+    fd = os.open(tmp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, encoded)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp_path, path)
+
+
+def _read_toml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return tomllib.loads(path.read_text())
+
+
+class NavStore:
+    """Reads/writes ~/.tesla-cli/nav.toml and ~/.tesla-cli/nav.state.toml."""
+
+    def __init__(
+        self,
+        nav_file: Path | None = None,
+        state_file: Path | None = None,
+    ) -> None:
+        # Resolve module-level constants at call time so monkeypatched
+        # paths (tests) are honored by callers that don't pass explicit files.
+        import tesla_cli.core.nav.route as _self
+
+        self.nav_file = nav_file if nav_file is not None else _self.NAV_FILE
+        self.state_file = state_file if state_file is not None else _self.NAV_STATE_FILE
+
+    # ---- routes ----
+
+    def save_route(self, route: Route) -> None:
+        data = _read_toml(self.nav_file)
+        routes = data.get("routes", {})
+        routes[route.name] = {
+            "name": route.name,
+            "created_at": route.created_at,
+            "waypoints": [asdict(w) for w in route.waypoints],
+        }
+        data["routes"] = routes
+        _atomic_write(self.nav_file, data)
+
+    def get_route(self, name: str) -> Route | None:
+        data = _read_toml(self.nav_file)
+        entry = data.get("routes", {}).get(name)
+        if entry is None:
+            return None
+        return Route(
+            name=entry["name"],
+            created_at=entry["created_at"],
+            waypoints=[Waypoint(**w) for w in entry["waypoints"]],
+        )
+
+    def list_routes(self) -> list[Route]:
+        data = _read_toml(self.nav_file)
+        out: list[Route] = []
+        for entry in data.get("routes", {}).values():
+            out.append(
+                Route(
+                    name=entry["name"],
+                    created_at=entry["created_at"],
+                    waypoints=[Waypoint(**w) for w in entry["waypoints"]],
+                )
+            )
+        return out
+
+    def delete_route(self, name: str) -> None:
+        data = _read_toml(self.nav_file)
+        routes = data.get("routes", {})
+        if name in routes:
+            del routes[name]
+            data["routes"] = routes
+            _atomic_write(self.nav_file, data)
+
+    # ---- places ----
+
+    def save_place(self, place: Place) -> None:
+        data = _read_toml(self.nav_file)
+        places = data.get("places", {})
+        places[place.alias] = {
+            "alias": place.alias,
+            "raw_address": place.raw_address,
+        }
+        data["places"] = places
+        _atomic_write(self.nav_file, data)
+
+    def get_place(self, alias: str) -> Place | None:
+        data = _read_toml(self.nav_file)
+        entry = data.get("places", {}).get(alias)
+        if entry is None:
+            return None
+        return Place(alias=entry["alias"], raw_address=entry["raw_address"])
+
+    def list_places(self) -> list[Place]:
+        data = _read_toml(self.nav_file)
+        return [
+            Place(alias=e["alias"], raw_address=e["raw_address"])
+            for e in data.get("places", {}).values()
+        ]
+
+    def delete_place(self, alias: str) -> None:
+        data = _read_toml(self.nav_file)
+        places = data.get("places", {})
+        if alias in places:
+            del places[alias]
+            data["places"] = places
+            _atomic_write(self.nav_file, data)
+
+    # ---- state (next_index) ----
+
+    def read_state(self, route_name: str) -> dict:
+        """Return {"next_index": int, "last_dispatch_ts": str} or empty dict."""
+        data = _read_toml(self.state_file)
+        return dict(data.get(route_name, {}))
+
+    def write_state(self, route_name: str, next_index: int, last_dispatch_ts: str) -> None:
+        data = _read_toml(self.state_file)
+        data[route_name] = {
+            "next_index": next_index,
+            "last_dispatch_ts": last_dispatch_ts,
+        }
+        _atomic_write(self.state_file, data)
