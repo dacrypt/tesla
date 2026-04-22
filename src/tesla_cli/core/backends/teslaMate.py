@@ -572,6 +572,79 @@ class TeslaMateBacked:
             cur.execute(sql, (drive_id,))
             return [dict(r) for r in cur.fetchall()]
 
+    def get_calibration_dataset(
+        self,
+        days: int = 90,
+        vin: str | None = None,
+        battery_kwh: float = 75.0,
+    ) -> list[dict[str, Any]]:
+        """Return drive segments for consumption-model calibration.
+
+        Each segment is a dict with:
+            avg_speed_kmh, elevation_delta_m, distance_km, energy_kwh, outside_temp_c
+
+        Energy is approximated as (start_ideal_range_km - end_ideal_range_km) *
+        (battery_kwh / max_rated_range_km). TeslaMate does not expose per-drive
+        energy directly; this is the conventional proxy. Document this in the
+        notebook when interpreting R²/MAPE.
+        """
+        sql = """
+            SELECT
+                d.distance,
+                d.duration_min,
+                d.outside_temp_avg,
+                d.start_ideal_range_km,
+                d.end_ideal_range_km,
+                (SELECT AVG(p.speed) FROM positions p
+                   WHERE p.drive_id = d.id AND p.speed IS NOT NULL) AS avg_speed,
+                (SELECT COALESCE(MAX(p.elevation), 0) - COALESCE(MIN(p.elevation), 0)
+                   FROM positions p WHERE p.drive_id = d.id) AS elev_range,
+                (SELECT AVG(p.outside_temp) FROM positions p
+                   WHERE p.drive_id = d.id AND p.outside_temp IS NOT NULL) AS avg_outside_temp
+            FROM drives d
+            WHERE d.end_date > NOW() - (%s || ' days')::interval
+              AND (%s IS NULL OR d.car_id IN (SELECT id FROM cars WHERE vin = %s))
+              AND d.distance > 5
+            ORDER BY d.start_date DESC
+            LIMIT 500
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (str(days), vin, vin))
+            rows = [dict(r) for r in cur.fetchall()]
+
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            distance = r.get("distance")
+            duration = r.get("duration_min") or 0
+            if distance is None or distance <= 0:
+                continue
+            avg_speed = r.get("avg_speed")
+            if avg_speed is None and duration > 0:
+                avg_speed = float(distance) / (float(duration) / 60.0)
+            if avg_speed is None:
+                continue
+            start_r = r.get("start_ideal_range_km") or 0
+            end_r = r.get("end_ideal_range_km") or 0
+            ideal_full_km = 500.0  # Model Y LR ideal-range proxy
+            energy_kwh = max(0.0, float(start_r) - float(end_r)) * (
+                battery_kwh / ideal_full_km
+            )
+            if energy_kwh <= 0:
+                continue
+            temp = r.get("outside_temp_avg")
+            if temp is None:
+                temp = r.get("avg_outside_temp")
+            out.append(
+                {
+                    "avg_speed_kmh": float(avg_speed),
+                    "elevation_delta_m": float(r.get("elev_range") or 0.0),
+                    "distance_km": float(distance),
+                    "energy_kwh": float(energy_kwh),
+                    "outside_temp_c": float(temp) if temp is not None else None,
+                }
+            )
+        return out
+
     def ping(self) -> bool:
         """Return True if DB connection is alive."""
         try:

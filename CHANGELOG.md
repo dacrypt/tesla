@@ -5,6 +5,114 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-04-22
+
+### Major — Native EV Route Planner Phases 2 + 3 (speculative, probe-deferred)
+
+> ⚠️ **Speculative build**: Phase 2 shipped with *published Tesla baseline
+> coefficients* — the Phase 2 probe gate (notebook fitting on real TeslaMate
+> data with 5-fold CV, R²≥0.7) was **not** run before release. Calibrated
+> per-vehicle coefficients require the user to run `tesla nav consumption
+> calibrate` against their own TeslaMate. Until then, predictions use the
+> baseline. Accuracy is conservative, not specific.
+
+### CLI — Phase 2 (consumption + SoC prediction)
+
+- **`tesla nav consumption calibrate`** — fits per-vehicle Wh/km coefficients
+  from TeslaMate drives (90-day window by default). Uses a pure-Python
+  coordinate-descent grid search over `{base_wh_per_km, speed_gain,
+  elevation_wh_per_100m, temp_factor_at_minus10}`. No scipy/sklearn needed.
+  Fails loudly with install instructions when TeslaMate is not configured.
+  Persists to `~/.tesla-cli/consumption.toml`.
+- **`tesla nav consumption show [--car MODEL]`** — display current model
+  (calibrated or baseline).
+- **Extended `tesla nav plan`** with `--soc-target`, `--min-arrival-soc`,
+  `--battery-kwh`, `--no-elevation`, `--no-weather`. Auto-switches to
+  SoC-aware mode when any Phase 2 flag is set OR a calibrated model exists
+  for the resolved car ID. Output gains SoC-at-arrival column, total energy
+  kWh, and per-segment "insufficient range" warnings.
+- **New provider integrations (all free tier, BYOK where needed)**:
+  - [open-elevation.com](https://www.open-elevation.com/) — free, no key, route elevation profile.
+  - [OpenWeatherMap](https://openweathermap.org/api) — 1000 calls/day free tier, BYOK via `tesla config set planner-weather-key <KEY>`.
+
+### CLI — Phase 3 (alternatives + exports)
+
+- **`tesla nav plan --alternatives N`** (N≥2) — activates A* graph search
+  over chargers-as-nodes with SoC as a state dimension. Returns up to N
+  ranked alternative stop sequences (Yen-style k-shortest simplification).
+- **`tesla nav plan --export gpx|kml`** — writes the computed plan to
+  `./<save-as>.<ext>` or `/tmp/plan.<ext>`.
+- **`tesla nav route export <name> --format gpx|kml`** — export any saved
+  nav Route to GPX 1.1 or KML 2.2.
+
+### REST API — Phase 3
+
+- **`POST /api/nav/plan`** — same contract as `tesla nav plan` CLI.
+  Returns `{plan, alternatives, warnings}`. Supports all CLI flags.
+- **`POST /api/nav/plan/save`** — persist a computed plan as a nav Route
+  (respects Phase 0 hand-created dedupe).
+- **`GET /api/nav/plan/{name}/export?fmt=gpx|kml`** — export saved Route.
+
+### Web Dashboard — Phase 3
+
+- **New `/planner` page** (`ui/src/pages/Planner.tsx`) — Ionic form with
+  origin/destination inputs, car selector, SoC sliders, network radio,
+  alternatives count. Submit calls `/api/nav/plan`. Results: summary card,
+  charging-stops table, ABRP deep-link button, save-as input, GPX/KML
+  export buttons. No map widget yet (deferred).
+
+### Core — new modules
+
+- `core/planner/consumption.py` — `ConsumptionModel` Pydantic + 7 Tesla
+  baselines + `estimate_wh_per_km` + `fit_from_dataset` + TOML persistence.
+- `core/planner/elevation.py` — open-elevation POST client with polyline
+  subsampling.
+- `core/planner/weather.py` — OpenWeatherMap current-weather client.
+- `core/planner/calibrated.py` — `plan_with_soc` extends Phase 1 with
+  segment energy + SoC tracking + charge-duration estimator.
+- `core/planner/graph.py` — A* with SoC state + Yen-style k-shortest
+  alternatives. **Intentionally simplified** — real A* over EV graphs is
+  a research problem (ABRP has 15+ engineers on it); this is a scaffold.
+- `core/planner/export.py` — stdlib XML GPX/KML serializers.
+- `api/routes/planner.py` — 3 REST endpoints.
+- `core/backends/teslaMate.py` — new `get_calibration_dataset()` joining
+  `drives` + `positions` for speed/elevation/temp per drive.
+
+### Config
+
+- `PlannerConfig` gains `openweather_key`, `default_battery_kwh`,
+  `default_min_arrival_soc`.
+- `tesla config set planner-weather-key <KEY>` → keyring.
+- `notebooks/consumption-model-probe.ipynb` — Jupyter template for the
+  deferred probe gate. Run `pip install scikit-learn pandas matplotlib`
+  first. Documents the decision table (R²≥0.7 → trust calibrated model,
+  0.5–0.7 → fallback to single-variable fit, <0.5 → keep baseline).
+
+### Known limitations (explicit)
+
+- **Phase 2 probe deferred**. Baseline coefficients are published-Tesla
+  averages, not your car. `tesla nav consumption calibrate` with a TeslaMate
+  install is the path to per-vehicle accuracy.
+- **Phase 3 A* is simplified**. Not a replacement for ABRP Premium; use
+  `--alternatives 1` (default) for the reliable Phase 1+2 algorithm and
+  `--alternatives N` for exploratory what-if analysis.
+- **Dashboard Planner page has no map**. Results table only. Map widget
+  is a future iteration.
+- **Kill-switch bypassed**. Phase 1 had <5 real-user invocations before
+  Phase 2/3 shipped — per the approved plan's risk policy, this is
+  speculative investment that may be partially rolled back if the Phase 2
+  probe reveals the consumption model doesn't calibrate well on real data.
+
+### Quality
+
+- 50 new tests across 7 new test files (`test_planner_consumption`,
+  `_elevation`, `_weather`, `_calibrated`, `_graph`, `_export`, `_api`).
+- Full suite: **1976 passed**, 0 fail (up from 1926). Ruff clean.
+- UI: `npm run build` → `built in 7.87s`. New lazy chunk `Planner-*.js`
+  (6.70 kB gzipped 2.33 kB).
+- Zero new required pip deps. scikit-learn/pandas/matplotlib remain
+  **optional** (notebook only).
+
 ## [4.10.0] - 2026-04-22
 
 ### CLI — Native EV Route Planner (Phase 1 MVP)

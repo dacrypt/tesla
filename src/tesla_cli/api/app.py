@@ -268,6 +268,7 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.mqtt import router as mqtt_router
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
+    from tesla_cli.api.routes.planner import router as planner_router
     from tesla_cli.api.routes.security import router as security_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
@@ -301,6 +302,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(mqtt_router, prefix="/api/mqtt", tags=["MQTT"])
     app.include_router(dashcam_router, prefix="/api/dashcam", tags=["Dashcam"])
     app.include_router(doctor_router, prefix="/api/doctor", tags=["Doctor"])
+    app.include_router(planner_router, prefix="/api/nav", tags=["Nav Planner"])
 
     from tesla_cli.api.audit import audit_router
 

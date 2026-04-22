@@ -17,9 +17,10 @@ TESLAMATE_DB_PASSWORD = "teslamate-db-password"
 TESLAMATE_GRAFANA_PASSWORD = "teslamate-grafana-password"
 TESLAMATE_ENCRYPTION_KEY = "teslamate-encryption-key"
 
-# Native EV planner BYOK keys (Phase 1)
+# Native EV planner BYOK keys (Phase 1 + Phase 2)
 PLANNER_OPENROUTE_KEY = "planner-openroute-key"
 PLANNER_OPENCHARGEMAP_KEY = "planner-openchargemap-key"
+PLANNER_WEATHER_KEY = "planner-weather-key"
 
 
 def get_token(key: str) -> str | None:

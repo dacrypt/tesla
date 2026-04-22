@@ -28,6 +28,7 @@ const Alerts = React.lazy(() => import('./pages/Alerts'));
 const Energy = React.lazy(() => import('./pages/Energy'));
 const Timeline = React.lazy(() => import('./pages/Timeline'));
 const Automations = React.lazy(() => import('./pages/Automations'));
+const Planner = React.lazy(() => import('./pages/Planner'));
 
 /* Core CSS required for Ionic components */
 import '@ionic/react/css/core.css';
@@ -194,6 +195,13 @@ const App: React.FC = () => {
             <ErrorBoundary>
               <React.Suspense fallback={<PageLoader />}>
                 <Automations />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
+          <Route exact path="/planner">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Planner />
               </React.Suspense>
             </ErrorBoundary>
           </Route>

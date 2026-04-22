@@ -1,4 +1,4 @@
-"""Pydantic models for the native EV route planner (Phase 1)."""
+"""Pydantic models for the native EV route planner (Phase 1 + Phase 2)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,11 @@ class ChargerSuggestion(BaseModel):
     connection_types: list[str] = Field(default_factory=list)
     distance_from_route_km: float = 0.0  # closest-to-polyline
     interp_index: int = 0  # which interp point this satisfies
+    # Phase 2 SoC fields
+    arrival_soc_kwh: float | None = None
+    departure_soc_kwh: float | None = None
+    charge_duration_min: int | None = None  # estimated charge time (linear model)
+    soc_warning: str | None = None  # e.g. "insufficient range"
 
 
 class PlannedRoute(BaseModel):
@@ -31,6 +36,10 @@ class PlannedRoute(BaseModel):
     abrp_deep_link: str | None = None
     planned_at: str  # ISO-8601 UTC
     routing_provider: str  # "openroute" | "osrm"
+    # Phase 2 consumption/SoC fields
+    total_energy_kwh: float | None = None
+    segments: list[dict] = Field(default_factory=list)
+    consumption_source: str | None = None  # "baseline" | "teslamate-calibrated"
 
     def to_nav_route(self, name: str):  # -> Route (forward ref; avoid circular import)
         """Project to nav Route for persistence. Stops + final dest as Waypoints."""

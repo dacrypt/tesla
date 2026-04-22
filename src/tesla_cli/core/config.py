@@ -161,8 +161,11 @@ class PlannerConfig(BaseModel):
     osrm_base_url: str = "https://router.project-osrm.org"
     openroute_key: str = ""  # stored in keyring preferentially
     openchargemap_key: str = ""  # stored in keyring preferentially
+    openweather_key: str = ""  # Phase 2 — stored in keyring preferentially
     default_stops_every_km: float = 150.0  # LATAM-safe default
     default_car_model: str = ""  # alias or ABRP id
+    default_battery_kwh: float = 75.0  # Phase 2 — usable pack capacity
+    default_min_arrival_soc: float = 0.10  # Phase 2 — fraction of battery_kwh
 
 
 class Config(BaseModel):

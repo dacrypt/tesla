@@ -217,3 +217,149 @@ def test_nav_plan_probe_taxonomy_without_key_exits_with_signup(
     r = run_cli("nav", "plan-probe-taxonomy")
     assert r.exit_code == 1
     assert "openchargemap.org" in r.output
+
+
+# ─── Phase 2 CLI tests ───────────────────────────────────────────────────────
+
+
+def _osrm_long_response() -> dict:
+    # 4-degree lat span ≈ 444 km, forces two interp points at 150/300 km
+    return {
+        "code": "Ok",
+        "routes": [
+            {
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[-74.07, 4.71], [-74.07, 8.71]],
+                },
+                "distance": 444_000.0,
+                "duration": 18_000.0,
+            }
+        ],
+    }
+
+
+def test_nav_plan_with_phase2_flags_renders_soc_columns(
+    httpx_mock, isolated_nav, isolated_config
+) -> None:
+    _seed_ocm_key(isolated_config)
+    httpx_mock.add_response(url=OSRM_URL_RE, json=_osrm_long_response())
+    # Match any OCM request
+    httpx_mock.add_response(url=OCM_URL_RE, json=_ocm_one_charger())
+    httpx_mock.add_response(url=OCM_URL_RE, json=_ocm_one_charger())
+    r = run_cli(
+        "nav",
+        "plan",
+        "4.71,-74.07",
+        "8.71,-74.07",
+        "--router",
+        "osrm",
+        "--no-elevation",
+        "--no-weather",
+        "--car",
+        "model_y_lr",
+        "--battery-kwh",
+        "75",
+        "--soc-start",
+        "0.8",
+        "--soc-target",
+        "0.3",
+        "--min-arrival-soc",
+        "0.1",
+    )
+    assert r.exit_code == 0, r.output
+    # Phase 2 header/columns
+    assert "est. energy" in r.output
+    assert "arr SoC" in r.output
+    assert "consumption model: baseline" in r.output
+
+
+def test_nav_plan_with_tiny_soc_start_warns_insufficient_range(
+    httpx_mock, isolated_nav, isolated_config
+) -> None:
+    _seed_ocm_key(isolated_config)
+    httpx_mock.add_response(url=OSRM_URL_RE, json=_osrm_long_response())
+    httpx_mock.add_response(url=OCM_URL_RE, json=_ocm_one_charger())
+    httpx_mock.add_response(url=OCM_URL_RE, json=_ocm_one_charger())
+    r = run_cli(
+        "nav",
+        "plan",
+        "4.71,-74.07",
+        "8.71,-74.07",
+        "--router",
+        "osrm",
+        "--no-elevation",
+        "--no-weather",
+        "--car",
+        "model_y_lr",
+        "--battery-kwh",
+        "75",
+        "--soc-start",
+        "0.05",  # basically empty
+        "--min-arrival-soc",
+        "0.10",
+    )
+    assert r.exit_code == 0, r.output
+    assert "insufficient range" in r.output
+
+
+def test_nav_consumption_calibrate_without_teslaMate_exits_with_install_hint(
+    isolated_nav, isolated_config, tmp_path, monkeypatch
+) -> None:
+    # Redirect the calibration file so we don't touch the user's home
+    monkeypatch.setattr(
+        "tesla_cli.core.planner.consumption.CALIBRATION_FILE",
+        tmp_path / "consumption.toml",
+    )
+    r = run_cli("nav", "consumption", "calibrate", "--car", "model_y_lr")
+    assert r.exit_code == 1
+    assert "TeslaMate" in r.output
+
+
+def test_nav_consumption_show_prints_baseline(
+    isolated_nav, isolated_config, tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "tesla_cli.core.planner.consumption.CALIBRATION_FILE",
+        tmp_path / "consumption.toml",
+    )
+    r = run_cli("nav", "consumption", "show", "--car", "model_y_lr")
+    assert r.exit_code == 0, r.output
+    assert "consumption model" in r.output
+    assert "base_wh_per_km" in r.output
+
+
+def test_nav_consumption_calibrate_with_mocked_teslaMate(
+    isolated_nav, isolated_config, tmp_path, monkeypatch
+) -> None:
+    """TeslaMate configured + mocked returns 50 segments → calibrated model saved."""
+    monkeypatch.setattr(
+        "tesla_cli.core.planner.consumption.CALIBRATION_FILE",
+        tmp_path / "consumption.toml",
+    )
+    # Seed a fake teslaMate url in the isolated config file so calibrate proceeds
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text('[teslaMate]\ndatabase_url = "postgresql://fake/db"\ncar_id = 1\n')
+
+    # Mock TeslaMateBacked.get_calibration_dataset
+    fake_segs = [
+        {
+            "avg_speed_kmh": 90.0 + (i % 5),
+            "elevation_delta_m": 0.0,
+            "distance_km": 60.0,
+            "energy_kwh": 60.0 * 0.170,
+            "outside_temp_c": 20.0,
+        }
+        for i in range(50)
+    ]
+    monkeypatch.setattr(
+        "tesla_cli.core.backends.teslaMate.TeslaMateBacked.get_calibration_dataset",
+        lambda self, **kw: fake_segs,
+    )
+    monkeypatch.setattr(
+        "tesla_cli.core.backends.teslaMate.TeslaMateBacked.__init__",
+        lambda self, *a, **kw: None,
+    )
+    r = run_cli("nav", "consumption", "calibrate", "--car", "model_y_lr", "--days", "60")
+    assert r.exit_code == 0, r.output
+    assert "Fitted" in r.output
