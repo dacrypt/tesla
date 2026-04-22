@@ -353,15 +353,15 @@ def config_register(
             raise typer.Exit(1)
         tokens.set_token(tokens.FLEET_CLIENT_SECRET, client_secret.strip())
 
-    console.print(f"[dim]Registrando partner account en Fleet API región '{region}'...[/dim]")
+    console.print(f"[dim]Registering partner account in Fleet API region '{region}'...[/dim]")
     try:
         result = register_fleet_partner(client_id, client_secret, region=region)
-        console.print(f"  [green]✓[/green] Partner registrado: {result}")
+        console.print(f"  [green]✓[/green] Partner registered: {result}")
     except Exception as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
 
-    render_success(f"Partner account registrado en región '{region}'. Ejecuta: tesla vehicle info")
+    render_success(f"Partner account registered in region '{region}'. Run: tesla vehicle info")
 
 
 @config_app.command("auth")
@@ -1055,17 +1055,17 @@ def _auth_fleet() -> None:
     """Configure Fleet API credentials."""
     console.print(
         "[bold]Fleet API Authentication[/bold]\n\n"
-        "Necesitas un [bold]client_id[/bold] registrado en developer.tesla.com.\n\n"
-        "[bold cyan]Pasos para registrar tu app (gratis):[/bold cyan]\n"
-        "  1. Ve a [link=https://developer.tesla.com]developer.tesla.com[/link] → Create App\n"
-        "  2. Nombre: alphanumeric o con espacios — Tesla rechaza guiones "
-        "(ej. [italic]CarMonitor[/italic] o [italic]My Tesla Dashboard[/italic])\n"
+        "You need a [bold]client_id[/bold] registered at developer.tesla.com.\n\n"
+        "[bold cyan]Steps to register your app (free):[/bold cyan]\n"
+        "  1. Go to [link=https://developer.tesla.com]developer.tesla.com[/link] → Create App\n"
+        "  2. Name: alphanumeric or with spaces — Tesla rejects dashes "
+        "(e.g. [italic]CarMonitor[/italic] or [italic]My Tesla Dashboard[/italic])\n"
         "  3. [bold]Redirect URI:[/bold] [yellow]https://auth.tesla.com/void/callback[/yellow]\n"
-        "  4. Scopes (marca todo lo que quieras usar):\n"
+        "  4. Scopes (check every one you want to use):\n"
         "     [yellow]user_data  vehicle_device_data  vehicle_location\n"
         "     vehicle_cmds  vehicle_charging_cmds\n"
         "     energy_device_data  energy_cmds[/yellow]\n"
-        "  5. Copia el [bold]client_id[/bold] y [bold]client_secret[/bold] que te dan\n"
+        "  5. Copy the [bold]client_id[/bold] and [bold]client_secret[/bold] Tesla gives you\n"
     )
     client_id = Prompt.ask("Client ID")
     if not client_id.strip():
@@ -1084,26 +1084,26 @@ def _auth_fleet() -> None:
     from tesla_cli.core.auth.oauth import FLEET_SCOPES, register_fleet_partner, run_tesla_oauth_flow
 
     # Step 1: Register partner account (one-time, uses client_credentials)
-    console.print("[dim]Registrando partner account en Fleet API (región NA)...[/dim]")
+    console.print("[dim]Registering partner account in Fleet API (region NA)...[/dim]")
     try:
         register_fleet_partner(client_id.strip(), client_secret.strip(), region="na")
-        console.print("  [green]✓[/green] Partner account registrado en región NA")
+        console.print("  [green]✓[/green] Partner account registered in region NA")
     except Exception as exc:
         if "already" in str(exc).lower() or "204" in str(exc):
-            console.print("  [dim]✓ Partner ya registrado (OK)[/dim]")
+            console.print("  [dim]✓ Partner already registered (OK)[/dim]")
         else:
             console.print(
-                f"  [yellow]⚠[/yellow] Registro de partner: {exc}\n  Continuando con autenticación de usuario..."
+                f"  [yellow]⚠[/yellow] Partner registration: {exc}\n  Continuing with user authentication..."
             )
 
     # Step 2: User OAuth2 PKCE for vehicle access
-    console.print("[bold]Iniciando OAuth2 con scopes de vehículo...[/bold]")
+    console.print("[bold]Starting OAuth2 with vehicle scopes...[/bold]")
     token_data = run_tesla_oauth_flow(client_id=client_id.strip(), scopes=FLEET_SCOPES)
     tokens.set_token(tokens.FLEET_ACCESS_TOKEN, token_data["access_token"])
     tokens.set_token(tokens.FLEET_REFRESH_TOKEN, token_data["refresh_token"])
     cfg.general.backend = "fleet"
     save_config(cfg)
-    render_success("Fleet API autenticado. Backend configurado como 'fleet'.")
+    render_success("Fleet API authenticated. Backend set to 'fleet'.")
 
     # Auto-sync tokens to TeslaMate if managed stack is running
     if cfg.teslaMate.managed:

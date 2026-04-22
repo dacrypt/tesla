@@ -161,7 +161,7 @@ def refresh_source(source_id: str, *, _skip_dependents: bool = False) -> dict:
             result = _save_cache(
                 source_id,
                 None,
-                error="Cédula del propietario requerida. Configúrala en Settings.",
+                error="Owner cédula required. Set it in Settings.",
                 query_context=query_context,
             )
             _append_query(source_id, src, result, {"mode": "config_guard", "missing": "cedula"})
@@ -1514,7 +1514,7 @@ COUNTRY_SOURCES: dict[str, list[SourceDef]] = {
         ),
         SourceDef(
             id="co.estado_cedula",
-            name="Estado Cédula",
+            name="Cédula Status",
             category="registro",
             ttl=86400,
             country="CO",

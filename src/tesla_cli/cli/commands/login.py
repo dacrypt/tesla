@@ -48,9 +48,9 @@ def login(
     console.print(
         Panel.fit(
             "[bold cyan]Tesla CLI — Login[/bold cyan]\n\n"
-            "Se abrirá tu navegador para autenticarte con Tesla.\n"
-            "Después del login, Tesla te redirige a una página en blanco.\n"
-            "[bold yellow]Copia la URL completa[/bold yellow] de esa página y pégala aquí.",
+            "Your browser will open to authenticate with Tesla.\n"
+            "After logging in, Tesla redirects you to a blank page.\n"
+            "[bold yellow]Copy the full URL[/bold yellow] from that page and paste it here.",
             border_style="cyan",
         )
     )
@@ -62,12 +62,12 @@ def login(
         token_data = run_tesla_oauth_flow()
         tokens.set_token(tokens.ORDER_ACCESS_TOKEN, token_data["access_token"])
         tokens.set_token(tokens.ORDER_REFRESH_TOKEN, token_data["refresh_token"])
-        console.print("[green]✓ Autenticado con Tesla.[/green]\n")
+        console.print("[green]✓ Authenticated with Tesla.[/green]\n")
     except AuthenticationError as e:
-        console.print(f"[red]Error de autenticación:[/red] {e}")
+        console.print(f"[red]Authentication error:[/red] {e}")
         raise typer.Exit(1)
     except (KeyboardInterrupt, EOFError):
-        console.print("\n[yellow]Cancelado.[/yellow]")
+        console.print("\n[yellow]Cancelled.[/yellow]")
         raise typer.Exit()
 
     # ── Step 2: Auto-discover orders → VIN + RN ─────────────────────────────
@@ -76,7 +76,7 @@ def login(
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
     ) as p:
-        p.add_task("Buscando tus órdenes en Tesla...", total=None)
+        p.add_task("Looking up your Tesla orders...", total=None)
         discovered.update(_discover_orders())
 
     cfg = load_config()
@@ -85,29 +85,29 @@ def login(
         console.print(f"[green]✓ VIN:[/green] [bold]{discovered['vin']}[/bold]")
     if discovered.get("rn"):
         cfg.order.reservation_number = discovered["rn"]
-        console.print(f"[green]✓ Orden:[/green] [bold]{discovered['rn']}[/bold]")
+        console.print(f"[green]✓ Order:[/green] [bold]{discovered['rn']}[/bold]")
     if discovered.get("model"):
-        console.print(f"[green]✓ Modelo:[/green] [bold]{discovered['model']}[/bold]")
+        console.print(f"[green]✓ Model:[/green] [bold]{discovered['model']}[/bold]")
 
     # ── Step 3: RUNT → cédula + placa ────────────────────────────────────────
     if discovered.get("vin"):
         with Progress(
             SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
         ) as p:
-            p.add_task("Consultando RUNT con tu VIN...", total=None)
+            p.add_task("Querying RUNT with your VIN...", total=None)
             runt = _discover_runt(discovered["vin"])
 
         if runt.get("cedula"):
             cfg.general.cedula = runt["cedula"]
             discovered["cedula"] = runt["cedula"]
-            console.print(f"[green]✓ Cédula propietario:[/green] [bold]{runt['cedula']}[/bold]")
+            console.print(f"[green]✓ Owner ID (cédula):[/green] [bold]{runt['cedula']}[/bold]")
         if runt.get("placa"):
             discovered["placa"] = runt["placa"]
-            console.print(f"[green]✓ Placa:[/green] [bold]{runt['placa']}[/bold]")
+            console.print(f"[green]✓ License plate:[/green] [bold]{runt['placa']}[/bold]")
         if runt.get("estado"):
-            console.print(f"[green]✓ Estado RUNT:[/green] [bold]{runt['estado']}[/bold]")
+            console.print(f"[green]✓ RUNT status:[/green] [bold]{runt['estado']}[/bold]")
         if not runt:
-            console.print("[dim]  RUNT: vehículo aún no registrado en Colombia.[/dim]")
+            console.print("[dim]  RUNT: vehicle not yet registered in Colombia.[/dim]")
 
     save_config(cfg)
 
@@ -117,26 +117,26 @@ def login(
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
     ) as p:
-        p.add_task("Refrescando fuentes de datos...", total=None)
+        p.add_task("Refreshing data sources...", total=None)
         refreshed = _refresh_available_sources()
 
     if refreshed:
         console.print(
-            f"[green]✓ {len(refreshed)} fuentes actualizadas:[/green] {', '.join(refreshed)}"
+            f"[green]✓ {len(refreshed)} source(s) refreshed:[/green] {', '.join(refreshed)}"
         )
 
     # ── Summary ──────────────────────────────────────────────────────────────
     console.print()
     console.print(
         Panel.fit(
-            "[bold green]Login completo.[/bold green]\n\n"
+            "[bold green]Login complete.[/bold green]\n\n"
             + (
                 f"  VIN:    [bold]{discovered.get('vin', '—')}[/bold]\n"
                 if discovered.get("vin")
                 else ""
             )
             + (
-                f"  Placa:  [bold]{discovered.get('placa', '—')}[/bold]\n"
+                f"  Plate:  [bold]{discovered.get('placa', '—')}[/bold]\n"
                 if discovered.get("placa")
                 else ""
             )
@@ -146,14 +146,14 @@ def login(
                 else ""
             )
             + (
-                f"  Orden:  [bold]{discovered.get('rn', '—')}[/bold]\n"
+                f"  Order:  [bold]{discovered.get('rn', '—')}[/bold]\n"
                 if discovered.get("rn")
                 else ""
             )
-            + "\nPrueba:\n"
-            "  [bold]tesla order status[/bold]    — estado de tu orden\n"
-            "  [bold]tesla vehicle status[/bold]  — estado del vehículo\n"
-            "  [bold]tesla data sources[/bold]    — todas las fuentes de datos",
+            + "\nTry:\n"
+            "  [bold]tesla order status[/bold]    — your order status\n"
+            "  [bold]tesla vehicle status[/bold]  — vehicle status\n"
+            "  [bold]tesla data sources[/bold]    — all data sources",
             border_style="green",
         )
     )

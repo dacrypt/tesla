@@ -72,11 +72,11 @@ def run_tesla_oauth_flow(
     """Run Tesla auth. Returns dict with access_token and refresh_token."""
     _console().print(
         "\n[bold]Tesla Authentication[/bold]\n"
-        "\nElige método:\n"
+        "\nChoose method:\n"
         "  [cyan]1[/cyan] - Login via browser (OAuth2 + PKCE)\n"
-        "  [cyan]2[/cyan] - Pegar refresh token directamente\n"
+        "  [cyan]2[/cyan] - Paste refresh token directly\n"
     )
-    method = Prompt.ask("Método", choices=["1", "2"], default="1")
+    method = Prompt.ask("Method", choices=["1", "2"], default="1")
 
     if method == "1":
         return _oauth_pkce_flow(client_id, scopes)
@@ -116,23 +116,23 @@ def _oauth_pkce_flow(
     }
     auth_url = f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
 
-    _console().print("\n[bold]Abriendo browser para login de Tesla...[/bold]")
+    _console().print("\n[bold]Opening browser for Tesla login...[/bold]")
     _console().print(
-        "\nDespués de hacer login, Tesla te redirige a una página en blanco.\n"
-        "[bold yellow]Copia la URL completa de esa página[/bold yellow] y pégala aquí.\n"
-        "La URL se ve algo así: https://auth.tesla.com/void/callback?code=...&state=...\n"
+        "\nAfter logging in, Tesla will redirect you to a blank page.\n"
+        "[bold yellow]Copy the full URL from that page[/bold yellow] and paste it here.\n"
+        "The URL looks like: https://auth.tesla.com/void/callback?code=...&state=...\n"
     )
     webbrowser.open(auth_url)
 
     # User pastes the redirect URL
-    redirect_url = Prompt.ask("\nPega la URL de redirect aquí")
+    redirect_url = Prompt.ask("\nPaste the redirect URL here")
     if not redirect_url.strip():
         raise AuthenticationError("No URL provided.")
 
     code = _extract_code_from_url(redirect_url.strip())
 
     # Exchange code for tokens
-    _console().print("[dim]Intercambiando código por tokens...[/dim]")
+    _console().print("[dim]Exchanging code for tokens...[/dim]")
     return _exchange_code(code, client_id, verifier, VOID_REDIRECT_URI)
 
 
@@ -146,23 +146,23 @@ def _refresh_token_flow(client_id: str | None = None) -> dict[str, Any]:
     4. Or use another tool (TeslaMate, Tessie, etc.) to export it
     """
     _console().print(
-        "\n[bold]Refresh Token Directo[/bold]\n"
-        "\nCómo obtener tu refresh token:\n"
-        "  1. Ve a [link=https://tesla.com]tesla.com[/link] y haz login\n"
-        "  2. Abre DevTools (F12) → pestaña Network\n"
-        "  3. Busca requests a auth.tesla.com que contengan tokens\n"
-        "  4. O expórtalo desde TeslaMate, Tessie, u otra herramienta\n"
+        "\n[bold]Direct Refresh Token[/bold]\n"
+        "\nHow to get your refresh token:\n"
+        "  1. Go to [link=https://tesla.com]tesla.com[/link] and log in\n"
+        "  2. Open DevTools (F12) → Network tab\n"
+        "  3. Look for requests to auth.tesla.com that contain tokens\n"
+        "  4. Or export it from TeslaMate, Tessie, or another tool\n"
     )
     token = Prompt.ask("Refresh token", password=True)
     if not token.strip():
         raise AuthenticationError("No token provided.")
 
     # Validate by refreshing
-    _console().print("[dim]Validando refresh token...[/dim]")
+    _console().print("[dim]Validating refresh token...[/dim]")
     try:
         token_data = refresh_access_token(token.strip(), client_id)
     except httpx.HTTPStatusError as e:
-        raise AuthenticationError(f"Token inválido: {e.response.status_code} {e.response.text}")
+        raise AuthenticationError(f"Invalid token: {e.response.status_code} {e.response.text}")
 
     # Return with the original refresh token included
     if "refresh_token" not in token_data:

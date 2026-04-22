@@ -313,7 +313,7 @@ def query_runt(
     audit: bool = AuditOption,
     audit_dir: str | None = AuditDirOpt,
 ) -> None:
-    """RUNT — registro nacional de tránsito (vehículo por cédula, placa o VIN).
+    """RUNT — Colombia's national vehicle registry (lookup by cédula, placa, or VIN).
 
     If no option is given, uses the default VIN from config.
     """
@@ -493,11 +493,11 @@ def query_cedula(
 
 @data_app.command("fasecolda")
 def query_fasecolda(
-    marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
-    modelo: str | None = typer.Option(None, "--modelo", help="Año modelo (ej. 2026)"),
+    marca: str | None = typer.Option(None, "--marca", help="Vehicle brand (e.g. TESLA)"),
+    modelo: str | None = typer.Option(None, "--modelo", help="Model year (e.g. 2026)"),
     extra: str | None = ExtraOption,
 ) -> None:
-    """FASECOLDA — precios de referencia de vehículos."""
+    """FASECOLDA — Colombian vehicle reference prices."""
     _require_openquery()
     e: dict = _json.loads(extra) if extra else {}
     if marca:
@@ -510,10 +510,10 @@ def query_fasecolda(
 
 @data_app.command("recalls")
 def query_recalls(
-    marca: str | None = typer.Option(None, "--marca", help="Marca del vehículo (ej. TESLA)"),
+    marca: str | None = typer.Option(None, "--marca", help="Vehicle brand (e.g. TESLA)"),
     extra: str | None = ExtraOption,
 ) -> None:
-    """Recalls de seguridad vehicular en Colombia."""
+    """Vehicle safety recalls in Colombia."""
     _require_openquery()
     e: dict = _json.loads(extra) if extra else {}
     if marca:
@@ -526,7 +526,7 @@ def query_recalls(
 def query_siniestralidad(
     extra: str | None = ExtraOption,
 ) -> None:
-    """Puntos críticos de accidentalidad vial."""
+    """Road accident hotspots in Colombia."""
     _require_openquery()
     q = _build_input(None, None, None, extra_json=extra)
     _run("co.siniestralidad", q)
@@ -574,7 +574,7 @@ def query_energia(
         transient=True,
         disable=is_json_mode(),
     ) as prog:
-        prog.add_task("Consultando tarifas de energía…", total=None)
+        prog.add_task("Querying energy tariffs…", total=None)
         try:
             src = get_source("co.tarifas_energia")
             result = src.query(qi)
@@ -584,7 +584,7 @@ def query_energia(
             )
             raise typer.Exit(1)
         except Exception as exc:  # noqa: BLE001
-            console.print(f"[red]Error consultando tarifas:[/red] {exc}")
+            console.print(f"[red]Error querying tariffs:[/red] {exc}")
             raise typer.Exit(1)
 
     data = result.model_dump(exclude={"audit", "queried_at"})

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.9.3] - 2026-04-22
 
+### i18n — English Default
+- Translated the OAuth login flow, Fleet API setup walkthrough, and first-run
+  wizard panels to English. Spanish prompts that were leaking into the default
+  locale (auth method picker, browser-redirect instructions, token-exchange
+  progress, partner-registration messages, post-login summary, RUNT lookup
+  progress) now speak English. The README Fleet-auth transcript matches.
+- Affected: `core/auth/oauth.py`, `cli/commands/login.py`, `cli/commands/config_cmd.py`,
+  `cli/commands/data_cmd.py`, `core/sources.py`. Spanish/Portuguese translations
+  in `cli/i18n.py` are unchanged — they're the locale bundles, not leaks.
+
 ### CLI — Favorites Importer
 - **`tesla nav place import <path>`** — bulk-import favorites from Google Takeout
   (CSV + GeoJSON), KML, or GPX files. Auto-detects format by extension; explicit
