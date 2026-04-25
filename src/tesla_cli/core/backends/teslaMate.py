@@ -13,8 +13,16 @@ Requires psycopg2: uv pip install psycopg2-binary
 from __future__ import annotations
 
 import logging
+import math
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
+
+from tesla_cli.core.models.charge import (
+    ChargeCurve,
+    ChargeCurveStats,
+    ChargeSample,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +167,7 @@ class TeslaMateBacked:
         sql = """
             SELECT
                 cp.id,
+                cp.id                                       AS process_id,
                 cp.start_date,
                 cp.end_date,
                 ROUND(cp.charge_energy_added::numeric, 2)   AS energy_added_kwh,
@@ -175,6 +184,174 @@ class TeslaMateBacked:
         with self._cursor() as cur:
             cur.execute(sql, (self._car_id, limit))
             return [dict(r) for r in cur.fetchall()]
+
+    # ── Charge curves ────────────────────────────────────────────────────────
+
+    def get_charging_process_end_date(self, process_id: int) -> datetime | None:
+        """Return `end_date` of a charging process (None if still in progress or absent)."""
+        sql = "SELECT end_date FROM charging_processes WHERE id = %s"
+        with self._cursor() as cur:
+            cur.execute(sql, (process_id,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return row.get("end_date")
+
+    def get_charge_curve(self, process_id: int, max_samples: int = 500) -> ChargeCurve:
+        """Return a (possibly downsampled) charge curve for a charging process.
+
+        Uses modulo-based sampling over a ROW_NUMBER() window to avoid pulling
+        the full series when the table has >max_samples rows.
+        """
+        count_sql = "SELECT COUNT(*) AS n FROM charges WHERE charging_process_id = %s"
+        with self._cursor() as cur:
+            cur.execute(count_sql, (process_id,))
+            count_row = cur.fetchone()
+        total = int((count_row or {}).get("n") or 0)
+        if total == 0:
+            return ChargeCurve(samples=[], downsampled=False, total_samples=0, stride=1)
+
+        stride = max(1, math.ceil(total / max_samples))
+
+        sample_sql = """
+            SELECT date, battery_level, charger_power, charger_actual_current,
+                   charger_voltage, charger_phases, ideal_battery_range_km
+            FROM (
+              SELECT date, battery_level, charger_power, charger_actual_current,
+                     charger_voltage, charger_phases, ideal_battery_range_km,
+                     ROW_NUMBER() OVER (ORDER BY date) AS rn
+              FROM charges
+              WHERE charging_process_id = %s
+            ) s
+            WHERE (rn - 1) %% %s = 0
+            ORDER BY date
+        """
+        with self._cursor() as cur:
+            cur.execute(sample_sql, (process_id, stride))
+            rows = cur.fetchall()
+
+        samples: list[ChargeSample] = []
+        for r in rows:
+            samples.append(
+                ChargeSample(
+                    ts=r["date"],
+                    soc=int(r["battery_level"]) if r.get("battery_level") is not None else 0,
+                    power_kw=float(r["charger_power"])
+                    if r.get("charger_power") is not None
+                    else 0.0,
+                    current_a=(
+                        float(r["charger_actual_current"])
+                        if r.get("charger_actual_current") is not None
+                        else None
+                    ),
+                    voltage_v=(
+                        float(r["charger_voltage"])
+                        if r.get("charger_voltage") is not None
+                        else None
+                    ),
+                    phases=(
+                        int(r["charger_phases"]) if r.get("charger_phases") is not None else None
+                    ),
+                    ideal_range_km=(
+                        float(r["ideal_battery_range_km"])
+                        if r.get("ideal_battery_range_km") is not None
+                        else None
+                    ),
+                )
+            )
+        return ChargeCurve(
+            samples=samples,
+            downsampled=stride > 1,
+            total_samples=total,
+            stride=stride,
+        )
+
+    def get_curve_stats(self, process_id: int) -> ChargeCurveStats | None:
+        """Compute curve statistics over the FULL `charges` rows for a process.
+
+        Runs directly against the full series regardless of any downsampling
+        applied by `get_charge_curve`, so stats are stable.
+        """
+        agg_sql = """
+            SELECT
+              MAX(charger_power) AS peak_kw,
+              AVG(charger_power) FILTER (WHERE battery_level BETWEEN 20 AND 80) AS avg_kw_20_80,
+              COUNT(*) AS n_samples,
+              ARRAY_AGG(DISTINCT charger_phases) FILTER (WHERE charger_phases IS NOT NULL)
+                AS phases_used,
+              EXTRACT(EPOCH FROM (MAX(date) - MIN(date)))::int AS duration_s
+            FROM charges
+            WHERE charging_process_id = %s
+        """
+        with self._cursor() as cur:
+            cur.execute(agg_sql, (process_id,))
+            agg = cur.fetchone()
+
+        if not agg or not agg.get("n_samples"):
+            return None
+
+        # Full ordered stream for trapezoidal integration and knee detection.
+        # Postgres lacks a concise primitive for piecewise-linear integration
+        # across a threshold, so we stream the full series and integrate in
+        # Python. This is the only query in this method that is not aggregate.
+        stream_sql = (
+            "SELECT date, charger_power, battery_level FROM charges "
+            "WHERE charging_process_id=%s ORDER BY date"
+        )
+        with self._cursor() as cur:
+            cur.execute(stream_sql, (process_id,))
+            rows = cur.fetchall()
+
+        kwh_added = 0.0
+        time_above_100kw_s = 0.0
+        energy_above_100kw_kwh = 0.0
+        peak_kw = 0.0
+        peak_idx = 0
+        for i, r in enumerate(rows):
+            p = float(r.get("charger_power") or 0.0)
+            if p > peak_kw:
+                peak_kw = p
+                peak_idx = i
+
+        for a, b in zip(rows, rows[1:], strict=False):
+            pa = float(a.get("charger_power") or 0.0)
+            pb = float(b.get("charger_power") or 0.0)
+            dt_s = (b["date"] - a["date"]).total_seconds()
+            if dt_s <= 0:
+                continue
+            p_avg = (pa + pb) / 2.0
+            kwh_added += p_avg * dt_s / 3600.0
+            if min(pa, pb) >= 100.0:
+                time_above_100kw_s += dt_s
+                energy_above_100kw_kwh += p_avg * dt_s / 3600.0
+
+        # Knee: first SoC (after peak) where power < 0.8 * peak_kw
+        knee_soc: int | None = None
+        threshold = 0.8 * peak_kw
+        if peak_kw > 0:
+            for r in rows[peak_idx:]:
+                p = float(r.get("charger_power") or 0.0)
+                if p < threshold:
+                    lvl = r.get("battery_level")
+                    if lvl is not None:
+                        knee_soc = int(lvl)
+                        break
+
+        phases_raw = agg.get("phases_used") or []
+        phases_used = sorted(int(p) for p in phases_raw if p is not None)
+
+        return ChargeCurveStats(
+            peak_kw=float(agg.get("peak_kw") or 0.0),
+            avg_kw_20_80=(
+                float(agg["avg_kw_20_80"]) if agg.get("avg_kw_20_80") is not None else None
+            ),
+            taper_knee_soc=knee_soc,
+            time_above_100kw_s=int(round(time_above_100kw_s)),
+            energy_above_100kw_kwh=round(energy_above_100kw_kwh, 6),
+            phases_used=phases_used,
+            duration_s=int(agg.get("duration_s") or 0),
+            kwh_added=round(kwh_added, 6),
+        )
 
     def get_updates(self) -> list[dict[str, Any]]:
         """Software OTA update history for the car."""
@@ -626,9 +803,7 @@ class TeslaMateBacked:
             start_r = r.get("start_ideal_range_km") or 0
             end_r = r.get("end_ideal_range_km") or 0
             ideal_full_km = 500.0  # Model Y LR ideal-range proxy
-            energy_kwh = max(0.0, float(start_r) - float(end_r)) * (
-                battery_kwh / ideal_full_km
-            )
+            energy_kwh = max(0.0, float(start_r) - float(end_r)) * (battery_kwh / ideal_full_km)
             if energy_kwh <= 0:
                 continue
             temp = r.get("outside_temp_avg")

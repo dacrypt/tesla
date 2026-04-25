@@ -29,6 +29,7 @@ const Energy = React.lazy(() => import('./pages/Energy'));
 const Timeline = React.lazy(() => import('./pages/Timeline'));
 const Automations = React.lazy(() => import('./pages/Automations'));
 const Planner = React.lazy(() => import('./pages/Planner'));
+const ChargeSessions = React.lazy(() => import('./pages/ChargeSessions'));
 
 /* Core CSS required for Ionic components */
 import '@ionic/react/css/core.css';
@@ -100,6 +101,12 @@ const EnergyTabIcon = () => (
 const AutomationsTabIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
     <path d="M12 2a2 2 0 012 2c0 .74-.4 1.38-1 1.73V7h3a3 3 0 013 3v1a2 2 0 012 2v2a2 2 0 01-2 2v1a3 3 0 01-3 3H8a3 3 0 01-3-3v-1a2 2 0 01-2-2v-2a2 2 0 012-2v-1a3 3 0 013-3h3V5.73A2 2 0 0112 2zm-4 9a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2zm-4 3.5c-1.5 0-2.5.67-2.5.67v.83s1 .5 2.5.5 2.5-.5 2.5-.5v-.83S13.5 14.5 12 14.5z"/>
+  </svg>
+);
+
+const ChargeTabIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+    <path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.34C7 21.4 7.6 22 8.33 22h7.34c.74 0 1.33-.6 1.33-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 18v-3H9l4-8v5h2l-4 6z"/>
   </svg>
 );
 
@@ -205,6 +212,13 @@ const App: React.FC = () => {
               </React.Suspense>
             </ErrorBoundary>
           </Route>
+          <Route exact path="/charge/sessions">
+            <ErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <ChargeSessions />
+              </React.Suspense>
+            </ErrorBoundary>
+          </Route>
           <Route exact path="/"><Redirect to="/dashboard" /></Route>
         </IonRouterOutlet>
 
@@ -228,6 +242,10 @@ const App: React.FC = () => {
           <IonTabButton tab="energy" href="/energy">
             <EnergyTabIcon />
             <IonLabel>Energy</IonLabel>
+          </IonTabButton>
+          <IonTabButton tab="charge" href="/charge/sessions">
+            <ChargeTabIcon />
+            <IonLabel>Carga</IonLabel>
           </IonTabButton>
           <IonTabButton tab="automations" href="/automations">
             <AutomationsTabIcon />

@@ -1,0 +1,12 @@
+{
+  "peak_kw": 180.0,
+  "avg_kw_20_80": 142.58009033423667,
+  "taper_knee_soc": 55,
+  "time_above_100kw_s": 959,
+  "energy_above_100kw_kwh": 43.391067,
+  "phases_used": [
+    3
+  ],
+  "duration_s": 1199,
+  "kwh_added": 48.461433
+}

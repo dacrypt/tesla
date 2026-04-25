@@ -90,7 +90,8 @@ services:
       - all
 
   grafana:
-    image: teslamate/grafana:latest
+    # Pinned digest for reproducibility — resolved 2026-04-24. Bump via: tesla teslaMate update (see plan §7)
+    image: teslamate/grafana@sha256:e02d1f036dd10771ea04db2bafc483067a9dbb874d0b5137dda5a6fe539b77dc
     restart: unless-stopped
     depends_on:
       postgres:

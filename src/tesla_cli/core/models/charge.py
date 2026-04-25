@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -111,6 +113,7 @@ class ChargingSession(BaseModel):
     battery_start: int | None = None
     battery_end: int | None = None
     source: str = ""  # "teslamate", "fleet", "tessie"
+    process_id: int | None = None  # TeslaMate charging_processes.id, for curve lookup
 
     @classmethod
     def from_teslamate(cls, row: dict, cost_per_kwh: float = 0.0) -> ChargingSession:
@@ -130,6 +133,7 @@ class ChargingSession(BaseModel):
             battery_start=row.get("start_battery_level"),
             battery_end=row.get("end_battery_level"),
             source="teslamate",
+            process_id=row.get("process_id") or row.get("id"),
         )
 
     @classmethod
@@ -150,3 +154,37 @@ class ChargingSession(BaseModel):
             cost_estimated=estimated,
             source="fleet",
         )
+
+
+class ChargeSample(BaseModel):
+    """A single sample point from a TeslaMate `charges` row."""
+
+    ts: datetime
+    soc: int
+    power_kw: float
+    current_a: float | None = None
+    voltage_v: float | None = None
+    phases: int | None = None
+    ideal_range_km: float | None = None
+
+
+class ChargeCurve(BaseModel):
+    """Downsampled charge-session curve payload."""
+
+    samples: list[ChargeSample]
+    downsampled: bool
+    total_samples: int
+    stride: int  # 1 if not downsampled
+
+
+class ChargeCurveStats(BaseModel):
+    """Charge-session statistics computed over the full (un-downsampled) curve."""
+
+    peak_kw: float
+    avg_kw_20_80: float | None
+    taper_knee_soc: int | None
+    time_above_100kw_s: int
+    energy_above_100kw_kwh: float
+    phases_used: list[int]
+    duration_s: int
+    kwh_added: float

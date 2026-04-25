@@ -141,6 +141,36 @@ export interface ChargingSession {
   battery_start: number | null;
   battery_end: number | null;
   source: string;
+  process_id?: number | null;
+  duration_min?: number | null;
+}
+
+export interface ChargeSample {
+  ts: string; // ISO datetime
+  soc: number;
+  power_kw: number;
+  current_a: number | null;
+  voltage_v: number | null;
+  phases: number | null;
+  ideal_range_km: number | null;
+}
+
+export interface ChargeCurve {
+  samples: ChargeSample[];
+  downsampled: boolean;
+  total_samples: number;
+  stride: number;
+}
+
+export interface ChargeCurveStats {
+  peak_kw: number;
+  avg_kw_20_80: number | null;
+  taper_knee_soc: number | null;
+  time_above_100kw_s: number;
+  energy_above_100kw_kwh: number;
+  phases_used: number[];
+  duration_s: number;
+  kwh_added: number;
 }
 
 export interface FleetVehicle {
@@ -1019,6 +1049,12 @@ export const api = {
 
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
+
+  // Charge curves (TeslaMate)
+  getChargingCurve: (processId: number, maxSamples = 500) =>
+    client().get<ChargeCurve>(`/api/teslaMate/charging/${processId}/curve`, { params: { max_samples: maxSamples } }).then(r => r.data),
+  getChargingStats: (processId: number) =>
+    client().get<ChargeCurveStats>(`/api/teslaMate/charging/${processId}/stats`).then(r => r.data),
 
   // Energy pricing
   getEnergyTariffs: (ciudad: string, estrato: number) =>
