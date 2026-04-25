@@ -27,6 +27,7 @@ import {
   ChargingSession,
   ChargeCurve,
   ChargeCurveStats,
+  ChargeEnrichment,
 } from '../api/client';
 
 // ── Shared chart palette (matches Analytics.tsx) ──────────────────────────────
@@ -181,6 +182,181 @@ function TeslaMateUnavailable() {
   );
 }
 
+// ── Curiosidades helpers ──────────────────────────────────────────────────────
+
+function confidenceEs(c: 'high' | 'medium' | 'low' | null): string {
+  if (c === 'high') return 'alta';
+  if (c === 'medium') return 'media';
+  if (c === 'low') return 'baja';
+  return '';
+}
+
+function formatHHmm(iso: string | null): string {
+  if (!iso) return '--';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch {
+    return '--';
+  }
+}
+
+interface CurioCardProps {
+  label: string;
+  subtext: string;
+  accent: string;
+}
+
+function CurioCard({ label, subtext, accent }: CurioCardProps) {
+  return (
+    <div
+      className="tesla-card"
+      style={{
+        padding: '14px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        borderLeft: `3px solid ${accent}`,
+      }}
+    >
+      <span style={{ color: '#e5e5e5', fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>
+        {label}
+      </span>
+      <span style={{ color: C.sub, fontSize: 11, lineHeight: 1.4 }}>
+        {subtext}
+      </span>
+    </div>
+  );
+}
+
+interface CuriosidadesSectionProps {
+  enrichment: ChargeEnrichment;
+}
+
+function CuriosidadesSection({ enrichment }: CuriosidadesSectionProps) {
+  const cards: React.ReactNode[] = [];
+
+  // Card 1 — Ranking
+  if (enrichment.rank.fastest_20_to_80_position !== null) {
+    if (enrichment.rank.is_personal_best) {
+      cards.push(
+        <CurioCard
+          key="rank"
+          label="🏆 Récord personal"
+          subtext="Tu carga 20→80% más rápida en 90 días"
+          accent="#10b981"
+        />
+      );
+    } else {
+      const pos = enrichment.rank.fastest_20_to_80_position;
+      const total = enrichment.rank.fastest_20_to_80_total;
+      cards.push(
+        <CurioCard
+          key="rank"
+          label={`#${pos}${total !== null ? ` de ${total}` : ''}`}
+          subtext="Posición en cargas 20→80% (90 días)"
+          accent={C.blue}
+        />
+      );
+    }
+  }
+
+  // Card 2 — Preconditioning
+  if (enrichment.preconditioning.detected) {
+    const dur = enrichment.preconditioning.duration_minutes;
+    const conf = confidenceEs(enrichment.preconditioning.confidence);
+    const sub = [
+      dur !== null ? `${dur} min antes de cargar` : null,
+      conf ? `confianza ${conf}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    cards.push(
+      <CurioCard
+        key="precond"
+        label="Preacondicionamiento detectado"
+        subtext={sub || 'Batería precondicionada antes de la sesión'}
+        accent="#0FBCF9"
+      />
+    );
+  }
+
+  // Card 3 — Shared stall
+  if (enrichment.shared_stall.detected) {
+    const drop = enrichment.shared_stall.power_drop_kw;
+    const ts = formatHHmm(enrichment.shared_stall.timestamp);
+    const sub = [
+      drop !== null ? `Caída de ${drop.toFixed(0)} kW` : null,
+      enrichment.shared_stall.timestamp ? `a las ${ts}` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    cards.push(
+      <CurioCard
+        key="stall"
+        label="Stall compartido detectado"
+        subtext={sub || 'Se detectó una caída de potencia inesperada'}
+        accent={C.orange}
+      />
+    );
+  }
+
+  // Card 4 — ABRP cost
+  if (enrichment.abrp_cost.available && enrichment.abrp_cost.estimated_cost !== null) {
+    const { delta_pct, estimated_cost, actual_cost, currency } = enrichment.abrp_cost;
+    let label: string;
+    let accent: string;
+    let sub: string;
+
+    const absDelta = delta_pct !== null ? Math.abs(delta_pct) : null;
+    const estFmt = `${currency} ${estimated_cost.toFixed(2)}`;
+    const actFmt = actual_cost !== null ? `${currency} ${actual_cost.toFixed(2)}` : null;
+    const costLine = actFmt ? `${actFmt} (estimado ${estFmt})` : `Estimado ${estFmt}`;
+
+    if (delta_pct !== null && delta_pct < -5) {
+      label = '💰 Bajo el estimado ABRP';
+      accent = '#10b981';
+      sub = `Pagaste ${absDelta!.toFixed(1)}% menos que la predicción · ${costLine}`;
+    } else if (delta_pct !== null && delta_pct > 5) {
+      label = '📈 Sobre el estimado ABRP';
+      accent = C.orange;
+      sub = `Pagaste ${delta_pct.toFixed(1)}% más que la predicción · ${costLine}`;
+    } else {
+      label = '≈ Igual al estimado ABRP';
+      accent = C.sub;
+      sub = delta_pct !== null
+        ? `Diferencia ${delta_pct.toFixed(1)}% (dentro del rango esperado) · ${costLine}`
+        : costLine;
+    }
+
+    cards.push(
+      <CurioCard key="abrp" label={label} subtext={sub} accent={accent} />
+    );
+  }
+
+  if (cards.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {/* Section header — matches the "Curva de carga" heading style */}
+      <div
+        style={{
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 600,
+          marginBottom: 8,
+          paddingLeft: 4,
+        }}
+      >
+        Curiosidades de esta sesión
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {cards}
+      </div>
+    </div>
+  );
+}
+
 // ── Modal detail content ──────────────────────────────────────────────────────
 interface DetailProps {
   session: ChargingSession;
@@ -190,6 +366,7 @@ interface DetailProps {
 function ChargeSessionDetail({ session, onClose }: DetailProps) {
   const [curve, setCurve] = useState<ChargeCurve | null>(null);
   const [stats, setStats] = useState<ChargeCurveStats | null>(null);
+  const [enrichment, setEnrichment] = useState<ChargeEnrichment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -200,10 +377,12 @@ function ChargeSessionDetail({ session, onClose }: DetailProps) {
     Promise.all([
       api.getChargingCurve(session.process_id),
       api.getChargingStats(session.process_id),
+      api.getChargingEnrichment(session.process_id),
     ])
-      .then(([c, s]) => {
+      .then(([c, s, e]) => {
         setCurve(c);
         setStats(s);
+        setEnrichment(e);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -445,6 +624,11 @@ function ChargeSessionDetail({ session, onClose }: DetailProps) {
               </div>
             </div>
           </>
+        )}
+
+        {/* Curiosidades de esta sesión */}
+        {!loading && !error && enrichment && (
+          <CuriosidadesSection enrichment={enrichment} />
         )}
 
         {/* Basic session info when curve is unavailable */}

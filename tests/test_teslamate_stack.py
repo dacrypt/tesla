@@ -191,6 +191,59 @@ class TestInstall:
         mode = (stack_dir / ".env").stat().st_mode
         assert mode & 0o077 == 0  # no group/other permissions
 
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack._wait_healthy", return_value=True)
+    @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
+    @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
+    @patch("tesla_cli.infra.teslamate_stack.set_token")
+    def test_install_writes_localhost_dsn(self, _st, _gt, mock_run, _wh, stack):
+        import re
+
+        result = stack.install()
+        assert re.match(
+            r"postgresql://teslamate:.+@localhost:\d+/teslamate", result["database_url"]
+        ), f"DSN not host-reachable: {result['database_url']}"
+        assert result["dsn_host_reachable"] is True
+        assert "localhost:5432" in result["database_url"]
+
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack.sync_tokens_from_keyring", return_value=True)
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack._wait_healthy", return_value=True)
+    @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
+    @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
+    @patch("tesla_cli.infra.teslamate_stack.set_token")
+    def test_install_auto_syncs_tokens_when_present(
+        self, _st, _gt, mock_run, _wh, mock_sync, stack
+    ):
+        result = stack.install()
+        mock_sync.assert_called_once()
+        assert result["tokens_synced"] is True
+
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack.sync_tokens_from_keyring", side_effect=RuntimeError("rpc failed"))
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack._wait_healthy", return_value=True)
+    @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
+    @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
+    @patch("tesla_cli.infra.teslamate_stack.set_token")
+    def test_install_continues_when_token_sync_fails(
+        self, _st, _gt, mock_run, _wh, mock_sync, stack
+    ):
+        # install() must not raise even when sync_tokens_from_keyring raises
+        result = stack.install()
+        assert result["tokens_synced"] is False
+        assert "database_url" in result
+
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack.sync_tokens_from_keyring", return_value=False)
+    @patch("tesla_cli.infra.teslamate_stack.TeslaMateStack._wait_healthy", return_value=True)
+    @patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="2.27.0\n"))
+    @patch("tesla_cli.infra.teslamate_stack.get_token", return_value=None)
+    @patch("tesla_cli.infra.teslamate_stack.set_token")
+    def test_install_skips_token_sync_when_no_tokens(
+        self, _st, _gt, mock_run, _wh, mock_sync, stack
+    ):
+        # sync_tokens_from_keyring returns False (no tokens present) — install must complete
+        result = stack.install()
+        mock_sync.assert_called_once()
+        assert result["tokens_synced"] is False
+        assert "database_url" in result
+
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 

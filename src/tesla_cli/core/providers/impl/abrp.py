@@ -35,7 +35,11 @@ class AbrpProvider(Provider):
         self._cfg = config
 
     def is_available(self) -> bool:
-        return bool(self._cfg.abrp.user_token)
+        # Telemetry push needs the user token; the local cost-fallback only
+        # needs a configured cost_per_kwh. Either capability counts as available.
+        if self._cfg.abrp.user_token:
+            return True
+        return bool(getattr(self._cfg.general, "cost_per_kwh", 0.0) or 0.0) > 0.0
 
     def health_check(self) -> dict:
         if not self.is_available():
@@ -43,6 +47,9 @@ class AbrpProvider(Provider):
         return {"status": "ok", "latency_ms": 0, "detail": f"endpoint={_ABRP_API}"}
 
     def execute(self, operation: str, **kwargs) -> ProviderResult:
+        if operation == "estimate_charge_cost":
+            return self._estimate_charge_cost(**kwargs)
+
         if operation not in ("push", "send"):
             return ProviderResult(
                 ok=False, provider=self.name, error=f"Unknown operation: {operation}"
@@ -91,3 +98,72 @@ class AbrpProvider(Provider):
             )
         except Exception as exc:  # noqa: BLE001
             return ProviderResult(ok=False, provider=self.name, error=str(exc))
+
+    # ── Cost estimation (Phase 3 fallback) ───────────────────────────────────
+
+    def _estimate_charge_cost(
+        self,
+        kwh_added: float = 0.0,
+        location_name: str | None = None,
+        location_lat: float | None = None,
+        location_lon: float | None = None,
+        currency: str = "USD",
+        **_: object,
+    ) -> ProviderResult:
+        """Phase 3 MVP — local fallback cost estimator.
+
+        ABRP's public API does not expose a cost endpoint, so we fall back to
+        either a TeslaMate geofence's `cost_per_kwh` (when the caller supplies a
+        DSN via `database_url`) or `cfg.general.cost_per_kwh`. Returning a
+        stable shape lets a future real-ABRP implementation slot in without
+        breaking callers.
+        """
+        rate: float | None = None
+        source = "abrp_fallback"
+
+        # Optional geofence lookup — only when the caller wires it in.
+        try:
+            db_url = getattr(self._cfg.teslaMate, "database_url", "") or ""
+        except Exception:  # noqa: BLE001
+            db_url = ""
+        if db_url and (location_lat is not None and location_lon is not None):
+            try:
+                import psycopg2
+                import psycopg2.extras
+
+                with psycopg2.connect(db_url) as conn:
+                    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    cur.execute(
+                        "SELECT cost_per_unit FROM geofences "
+                        "WHERE latitude IS NOT NULL AND longitude IS NOT NULL "
+                        "ORDER BY (latitude - %s) * (latitude - %s) "
+                        "       + (longitude - %s) * (longitude - %s) ASC LIMIT 1",
+                        (location_lat, location_lat, location_lon, location_lon),
+                    )
+                    row = cur.fetchone()
+                    cur.close()
+                if row and row.get("cost_per_unit") is not None:
+                    rate = float(row["cost_per_unit"])
+                    source = "geofence"
+            except Exception:  # noqa: BLE001
+                rate = None
+
+        if rate is None:
+            cfg_rate = float(getattr(self._cfg.general, "cost_per_kwh", 0.0) or 0.0)
+            if cfg_rate > 0:
+                rate = cfg_rate
+
+        if rate is None or rate <= 0 or kwh_added <= 0:
+            return ProviderResult(
+                ok=False,
+                provider=self.name,
+                error="cost_per_kwh not configured",
+                data={"estimated_cost": None, "currency": currency, "source": source},
+            )
+
+        estimated = round(rate * float(kwh_added), 2)
+        return ProviderResult(
+            ok=True,
+            provider=self.name,
+            data={"estimated_cost": estimated, "currency": currency, "source": source},
+        )

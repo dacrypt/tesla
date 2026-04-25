@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -188,3 +189,49 @@ class ChargeCurveStats(BaseModel):
     phases_used: list[int]
     duration_s: int
     kwh_added: float
+
+
+# ── Curiosities / enrichment (Phase 3) ──────────────────────────────────────
+
+
+class RankInfo(BaseModel):
+    """Where a session ranks among recent 20→80% charges."""
+
+    fastest_20_to_80_position: int | None = None
+    fastest_20_to_80_total: int | None = None
+    is_personal_best: bool = False
+
+
+class PreconditioningInfo(BaseModel):
+    """Heuristic preconditioning detection from the early-session power signature."""
+
+    detected: bool = False
+    duration_minutes: int | None = None
+    confidence: Literal["high", "medium", "low"] | None = None
+
+
+class SharedStallInfo(BaseModel):
+    """Detection of a Supercharger stall being shared mid-session."""
+
+    detected: bool = False
+    timestamp: datetime | None = None
+    power_drop_kw: float | None = None
+
+
+class AbrpCost(BaseModel):
+    """Cost estimate vs actual session cost (ABRP fallback model in Phase 3)."""
+
+    estimated_cost: float | None = None
+    actual_cost: float | None = None
+    delta_pct: float | None = None
+    currency: str = "USD"
+    available: bool = False
+
+
+class ChargeEnrichment(BaseModel):
+    """Aggregated session curiosities (rank, preconditioning, shared stall, ABRP cost)."""
+
+    rank: RankInfo
+    preconditioning: PreconditioningInfo
+    shared_stall: SharedStallInfo
+    abrp_cost: AbrpCost

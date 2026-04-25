@@ -16,12 +16,17 @@ import logging
 import math
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from tesla_cli.core.models.charge import (
+    AbrpCost,
     ChargeCurve,
     ChargeCurveStats,
+    ChargeEnrichment,
     ChargeSample,
+    PreconditioningInfo,
+    RankInfo,
+    SharedStallInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -819,6 +824,274 @@ class TeslaMateBacked:
                 }
             )
         return out
+
+    # ── Curiosities / enrichment (Phase 3) ───────────────────────────────────
+
+    def get_charge_curve_enrichment(self, process_id: int) -> ChargeEnrichment:
+        """Compose rank, preconditioning, shared-stall, and ABRP-cost blocks.
+
+        Each sub-section is wrapped in try/except so a single failure does not
+        kill the whole report — we degrade to the appropriate null state for
+        that piece and keep going.
+        """
+        rank = self._safe(self._compute_rank, process_id, fallback=RankInfo())
+        precond = self._safe(
+            self._compute_preconditioning, process_id, fallback=PreconditioningInfo()
+        )
+        stall = self._safe(self._compute_shared_stall, process_id, fallback=SharedStallInfo())
+        abrp_cost = self._safe(
+            self._compute_abrp_cost, process_id, fallback=AbrpCost(currency="USD")
+        )
+        return ChargeEnrichment(
+            rank=rank,
+            preconditioning=precond,
+            shared_stall=stall,
+            abrp_cost=abrp_cost,
+        )
+
+    @staticmethod
+    def _safe(fn, *args, fallback):
+        try:
+            result = fn(*args)
+            return result if result is not None else fallback
+        except Exception:  # noqa: BLE001
+            logger.warning("enrichment subquery failed for %s", fn.__name__, exc_info=True)
+            return fallback
+
+    # -- Rank ---------------------------------------------------------------
+
+    def _compute_rank(self, process_id: int) -> RankInfo:
+        sql = """
+            WITH per_session AS (
+              SELECT cp.id, EXTRACT(EPOCH FROM (
+                MAX(c.date) FILTER (WHERE c.battery_level <= 80)
+                - MIN(c.date) FILTER (WHERE c.battery_level >= 20)
+              )) AS sec_20_80
+              FROM charging_processes cp
+              JOIN charges c ON c.charging_process_id = cp.id
+              WHERE cp.start_date > NOW() - INTERVAL '90 days'
+                AND cp.car_id = (SELECT car_id FROM charging_processes WHERE id = %s)
+                AND cp.end_date IS NOT NULL
+              GROUP BY cp.id
+              HAVING MIN(c.battery_level) <= 20 AND MAX(c.battery_level) >= 80
+            )
+            SELECT id, sec_20_80, RANK() OVER (ORDER BY sec_20_80 ASC) AS r
+            FROM per_session
+        """
+        with self._cursor() as cur:
+            cur.execute(sql, (process_id,))
+            rows = cur.fetchall()
+        if not rows:
+            return RankInfo()
+        total = len(rows)
+        position: int | None = None
+        for r in rows:
+            if int(r.get("id")) == int(process_id):
+                position = int(r.get("r") or 0)
+                break
+        if position is None:
+            return RankInfo()
+        return RankInfo(
+            fastest_20_to_80_position=position,
+            fastest_20_to_80_total=total,
+            is_personal_best=(position == 1 and total >= 2),
+        )
+
+    # -- Preconditioning ----------------------------------------------------
+
+    def _compute_preconditioning(self, process_id: int) -> PreconditioningInfo:
+        sql = (
+            "SELECT date, charger_power FROM charges "
+            "WHERE charging_process_id = %s ORDER BY date ASC"
+        )
+        with self._cursor() as cur:
+            cur.execute(sql, (process_id,))
+            rows = cur.fetchall()
+        if not rows or len(rows) < 2:
+            return PreconditioningInfo()
+
+        start = rows[0].get("date")
+        if start is None:
+            return PreconditioningInfo()
+        # Need at least 60 seconds of samples.
+        last_ts = rows[-1].get("date")
+        if last_ts is None or (last_ts - start).total_seconds() < 60:
+            return PreconditioningInfo()
+
+        # Look at samples in the first 5 minutes and locate the first sample
+        # that goes "sustained high" (> 50 kW).
+        early = []
+        first_high_idx: int | None = None
+        for i, r in enumerate(rows):
+            ts = r.get("date")
+            if ts is None:
+                continue
+            elapsed = (ts - start).total_seconds()
+            if elapsed > 300:
+                break
+            p = float(r.get("charger_power") or 0.0)
+            early.append((elapsed, p))
+            if first_high_idx is None and p > 50:
+                first_high_idx = i
+
+        if first_high_idx is None or first_high_idx == 0:
+            return PreconditioningInfo()
+
+        # Look for a low/medium-power sample (5..30 kW) BEFORE the first high
+        # sample, within the first 3 minutes.
+        had_warmup = False
+        warmup_elapsed = 0.0
+        for elapsed, p in early[:first_high_idx]:
+            if elapsed > 180:
+                break
+            if 5 <= p < 30:
+                had_warmup = True
+            if elapsed > warmup_elapsed:
+                warmup_elapsed = elapsed
+        if not had_warmup:
+            return PreconditioningInfo()
+
+        first_high_ts = rows[first_high_idx].get("date")
+        gap_s = (first_high_ts - start).total_seconds()
+        confidence: Literal["high", "medium", "low"] = "medium"
+        if gap_s > 300:
+            confidence = "high"
+        return PreconditioningInfo(
+            detected=True,
+            duration_minutes=int(round(gap_s / 60.0)),
+            confidence=confidence,
+        )
+
+    # -- Shared stall -------------------------------------------------------
+
+    def _compute_shared_stall(self, process_id: int) -> SharedStallInfo:
+        sql = (
+            "SELECT date, battery_level, charger_power FROM charges "
+            "WHERE charging_process_id = %s ORDER BY date ASC"
+        )
+        with self._cursor() as cur:
+            cur.execute(sql, (process_id,))
+            rows = cur.fetchall()
+        if not rows or len(rows) < 4:
+            return SharedStallInfo()
+
+        for i in range(len(rows) - 1):
+            a = rows[i]
+            b = rows[i + 1]
+            soc_a = a.get("battery_level")
+            if soc_a is None or not (30 <= int(soc_a) <= 70):
+                continue
+            ts_a = a.get("date")
+            ts_b = b.get("date")
+            if ts_a is None or ts_b is None:
+                continue
+            dt_s = (ts_b - ts_a).total_seconds()
+            if dt_s < 20:
+                continue
+            pa = float(a.get("charger_power") or 0.0)
+            pb = float(b.get("charger_power") or 0.0)
+            if pa <= 0:
+                continue
+            if pb < 0.55 * pa and (pa - pb) > 30.0:
+                # Confirm the drop persists for ≥ 30 seconds via the next 2-3 samples.
+                low_band_high = pb * 1.15
+                persisted_s = 0.0
+                last_ts = ts_b
+                persisted = False
+                for j in range(i + 2, min(i + 5, len(rows))):
+                    nxt = rows[j]
+                    nxt_ts = nxt.get("date")
+                    nxt_p = float(nxt.get("charger_power") or 0.0)
+                    if nxt_ts is None:
+                        break
+                    if nxt_p > low_band_high:
+                        break
+                    persisted_s += (nxt_ts - last_ts).total_seconds()
+                    last_ts = nxt_ts
+                    if persisted_s >= 30:
+                        persisted = True
+                        break
+                if persisted:
+                    return SharedStallInfo(
+                        detected=True,
+                        timestamp=ts_b,
+                        power_drop_kw=round(pa - pb, 2),
+                    )
+        return SharedStallInfo()
+
+    # -- ABRP cost ----------------------------------------------------------
+
+    def _compute_abrp_cost(self, process_id: int) -> AbrpCost:
+        # Pull the session header (kwh_added, cost, location).
+        head_sql = """
+            SELECT cp.charge_energy_added AS kwh_added,
+                   cp.cost                AS actual_cost,
+                   a.display_name         AS location_name,
+                   a.latitude             AS lat,
+                   a.longitude            AS lon
+            FROM charging_processes cp
+            LEFT JOIN addresses a ON a.id = cp.address_id
+            WHERE cp.id = %s
+        """
+        with self._cursor() as cur:
+            cur.execute(head_sql, (process_id,))
+            row = cur.fetchone()
+        if not row:
+            return AbrpCost(currency="USD")
+
+        kwh_added = float(row.get("kwh_added") or 0.0)
+        actual_cost = row.get("actual_cost")
+        actual = float(actual_cost) if actual_cost is not None else None
+        location_name = row.get("location_name")
+        lat = row.get("lat")
+        lon = row.get("lon")
+
+        # Build a one-shot ABRP provider against the loaded config.
+        try:
+            from tesla_cli.core.config import load_config
+            from tesla_cli.core.providers.impl.abrp import AbrpProvider
+
+            cfg = load_config()
+            provider = AbrpProvider(cfg)
+            currency = "USD"
+            if not provider.is_available():
+                return AbrpCost(
+                    estimated_cost=None,
+                    actual_cost=actual,
+                    delta_pct=None,
+                    currency=currency,
+                    available=False,
+                )
+            result = provider.execute(
+                "estimate_charge_cost",
+                kwh_added=kwh_added,
+                location_name=location_name,
+                location_lat=float(lat) if lat is not None else None,
+                location_lon=float(lon) if lon is not None else None,
+                currency=currency,
+            )
+            data = result.data or {}
+            estimated = data.get("estimated_cost")
+            est_f = float(estimated) if estimated is not None else None
+            delta_pct: float | None = None
+            if est_f is not None and est_f > 0 and actual is not None:
+                delta_pct = round((actual - est_f) / est_f * 100.0, 2)
+            return AbrpCost(
+                estimated_cost=est_f,
+                actual_cost=actual,
+                delta_pct=delta_pct,
+                currency=data.get("currency") or currency,
+                available=bool(result.ok and est_f is not None),
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("ABRP cost estimation failed", exc_info=True)
+            return AbrpCost(
+                estimated_cost=None,
+                actual_cost=actual,
+                delta_pct=None,
+                currency="USD",
+                available=False,
+            )
 
     def ping(self) -> bool:
         """Return True if DB connection is alive."""

@@ -2409,3 +2409,37 @@ def teslamate_import(
             inserted = 0
 
     console.print(f"  [green]Done.[/green] {inserted:,} rows imported.")
+
+
+@teslaMate_app.command("doctor")
+def teslaMate_doctor(
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit JSON instead of formatted output."
+    ),
+) -> None:
+    """Diagnose TeslaMate stack health (8 checks). Exit code = number of failed checks."""
+    from tesla_cli.core.diagnostics.teslamate_doctor import run_doctor
+
+    cfg = load_config()
+    report = run_doctor(cfg)
+    if json_output:
+        typer.echo(report.model_dump_json(indent=2))
+    else:
+        for c in report.checks:
+            mark = "✓" if c.ok else "✗"
+            color = typer.colors.GREEN if c.ok else typer.colors.RED
+            typer.secho(f"{mark} {c.label}: {c.message}", fg=color)
+            if not c.ok and c.hint:
+                typer.secho(f"   → {c.hint}", fg=typer.colors.YELLOW)
+        typer.echo()
+        if report.failed == 0:
+            typer.secho(
+                f"All {report.total} checks passed.", fg=typer.colors.GREEN, bold=True
+            )
+        else:
+            typer.secho(
+                f"{report.failed}/{report.total} checks failed.",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+    raise typer.Exit(code=report.failed)
