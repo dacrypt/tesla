@@ -90,7 +90,8 @@ services:
       - all
 
   grafana:
-    image: teslamate/grafana:latest
+    # Pinned digest for reproducibility — resolved 2026-04-24. Bump via: tesla teslaMate update (see plan §7)
+    image: teslamate/grafana@sha256:e02d1f036dd10771ea04db2bafc483067a9dbb874d0b5137dda5a6fe539b77dc
     restart: unless-stopped
     depends_on:
       postgres:
@@ -281,6 +282,15 @@ class TeslaMateStack:
 
         database_url = f"postgresql://teslamate:{db_password}@localhost:{postgres_port}/teslamate"
 
+        # Auto-sync Tesla tokens from keyring into TeslaMate if available.
+        tokens_synced = False
+        try:
+            tokens_synced = self.sync_tokens_from_keyring()
+        except Exception as e:
+            import logging
+
+            logging.getLogger("tesla-cli.teslamate").warning("Token sync skipped: %s", e)
+
         return {
             "database_url": database_url,
             "stack_dir": str(self.stack_dir),
@@ -291,6 +301,8 @@ class TeslaMateStack:
             "healthy": healthy,
             "has_tesla_tokens": bool(tesla_access and tesla_refresh),
             "grafana_password": grafana_password,
+            "dsn_host_reachable": True,
+            "tokens_synced": tokens_synced,
         }
 
     # ------------------------------------------------------------------

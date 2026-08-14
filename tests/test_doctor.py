@@ -61,9 +61,7 @@ def test_probe_t2_external_blocker_when_domain_empty():
     cfg.fleet.domain = ""  # the new OSS default
     # Pick a T2 row that is NOT the hardcoded auto_advance (which would
     # return external-blocker for a different remediation string).
-    t2 = next(
-        f for f in FEATURES if f.tier == "T2" and f.name != "nav_route_auto_advance"
-    )
+    t2 = next(f for f in FEATURES if f.tier == "T2" and f.name != "nav_route_auto_advance")
     row = probe(t2, cfg=cfg, token_scopes=["vehicle_cmds"])
     assert row["status"] == "external-blocker"
     assert "fleet-domain" in row["remediation"]

@@ -64,9 +64,7 @@ def _edge_energy_kwh(
     return dist_km, (wh_per_km * dist_km) / 1000.0
 
 
-def _charge_minutes(
-    arrival_kwh: float, target_kwh: float, charge_power_kw: float
-) -> float:
+def _charge_minutes(arrival_kwh: float, target_kwh: float, charge_power_kw: float) -> float:
     """Simple linear charge-time model — 150 kW DC fast by default."""
     delta = max(0.0, target_kwh - max(arrival_kwh, 0.0))
     return (delta / max(charge_power_kw, 1.0)) * 60.0
@@ -155,9 +153,7 @@ def _run_a_star(
                 continue  # infeasible leg
             # Charge at this stop to target (simple policy)
             departure_soc = max(arrival_soc, min(target_soc_kwh, battery_kwh))
-            charge_min = _charge_minutes(
-                arrival_soc, departure_soc, _effective_charge_power(c)
-            )
+            charge_min = _charge_minutes(arrival_soc, departure_soc, _effective_charge_power(c))
             drive_min = (dist_km / max(avg_speed_kmh, 1.0)) * 60.0
             edge_cost = drive_min + charge_min
 

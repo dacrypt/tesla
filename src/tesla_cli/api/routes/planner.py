@@ -113,9 +113,7 @@ def plan_endpoint(req: PlanRequest) -> PlanResponse:
 
     # OCM key
     ocm_key = (
-        cfg.planner.openchargemap_key
-        or tokens.get_token(tokens.PLANNER_OPENCHARGEMAP_KEY)
-        or ""
+        cfg.planner.openchargemap_key or tokens.get_token(tokens.PLANNER_OPENCHARGEMAP_KEY) or ""
     )
     if not ocm_key:
         raise HTTPException(
@@ -227,9 +225,7 @@ def _build_linear_plan(
         fetch_temp = None
         if req.use_weather:
             owm_key = (
-                cfg.planner.openweather_key
-                or tokens.get_token(tokens.PLANNER_WEATHER_KEY)
-                or ""
+                cfg.planner.openweather_key or tokens.get_token(tokens.PLANNER_WEATHER_KEY) or ""
             )
             if owm_key:
 

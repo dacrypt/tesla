@@ -831,9 +831,7 @@ def nav_plan(
             console.print(f"[red]unknown export format '{export}' — use gpx or kml[/red]")
             raise typer.Exit(1)
         body = to_gpx(plan) if fmt == "gpx" else to_kml(plan)
-        out_path = (
-            _Path(f"./{save_as}.{fmt}") if save_as else _Path(f"/tmp/plan.{fmt}")
-        )
+        out_path = _Path(f"./{save_as}.{fmt}") if save_as else _Path(f"/tmp/plan.{fmt}")
         out_path.write_text(body)
         render_success(f"Exported {fmt.upper()} → {out_path}")
 

@@ -52,6 +52,9 @@ def _patches():
             )
         ]
 
+    def _stub_elevation(polyline, samples=50, api_key=None, timeout_s=30.0):
+        return [1000.0] * min(samples, max(len(polyline), 1))
+
     return [
         patch("tesla_cli.api.routes.planner.load_config", return_value=_mock_cfg()),
         patch("tesla_cli.api.routes.planner.get_engine", return_value=_StubEngine()),
@@ -59,6 +62,15 @@ def _patches():
             "tesla_cli.api.routes.planner.find_chargers_near_point",
             side_effect=_stub_finder,
         ),
+        # The Phase-2 (SoC-aware) path imports these inside the handler, so they
+        # must be patched at the source module rather than on the route module.
+        # Without this the suite makes a live call to api.open-elevation.com,
+        # which is what made this file fail in CI but pass locally.
+        patch(
+            "tesla_cli.core.planner.elevation.get_elevation_profile",
+            side_effect=_stub_elevation,
+        ),
+        patch("tesla_cli.core.planner.weather.get_ambient_temp", return_value=20.0),
     ]
 
 
@@ -96,15 +108,23 @@ def test_plan_endpoint_returns_200_with_valid_plan() -> None:
 
 
 def test_plan_endpoint_400_for_bad_coords() -> None:
-    patches = _patches()
+    from tesla_cli.core.nav.geocode import GeocodeError
+
+    # The handler imports geocode locally, so patch it at the source module.
+    # Previously this test hit nominatim.openstreetmap.org for real.
+    patches = [
+        *_patches(),
+        patch(
+            "tesla_cli.core.nav.geocode.geocode",
+            side_effect=GeocodeError("no match for 'nonsense,,,address'"),
+        ),
+    ]
     for p in patches:
         p.start()
     try:
         client = _client()
-        # Malformed coord — doesn't match the latlon regex, will try geocode
-        # and fail. We expect 400 from the geocode error path, but since
-        # geocode might succeed with a stub address, ensure we can at least
-        # cover the explicit bad-format coord path.
+        # Malformed coord — doesn't match the latlon regex, so the handler
+        # falls back to geocoding, which fails.
         resp = client.post(
             "/api/nav/plan",
             json={
@@ -138,10 +158,10 @@ def test_plan_endpoint_401_when_no_ocm_key() -> None:
                 "total_duration_min": 90,
             }
 
-    with patch("tesla_cli.api.routes.planner.load_config", return_value=cfg), patch(
-        "tesla_cli.api.routes.planner.get_engine", return_value=_StubEngine()
-    ), patch(
-        "tesla_cli.api.routes.planner.tokens.get_token", return_value=""
+    with (
+        patch("tesla_cli.api.routes.planner.load_config", return_value=cfg),
+        patch("tesla_cli.api.routes.planner.get_engine", return_value=_StubEngine()),
+        patch("tesla_cli.api.routes.planner.tokens.get_token", return_value=""),
     ):
         client = _client()
         resp = client.post(

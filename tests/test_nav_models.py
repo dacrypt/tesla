@@ -228,9 +228,7 @@ def test_bulk_dedupe_by_source_id(store: NavStore, capsys: pytest.CaptureFixture
     assert "original" in captured.err
 
 
-def test_bulk_skips_hand_created_collision(
-    store: NavStore, capsys: pytest.CaptureFixture
-) -> None:
+def test_bulk_skips_hand_created_collision(store: NavStore, capsys: pytest.CaptureFixture) -> None:
     """Importing a place whose alias matches a hand-created place is skipped with warning."""
     # Pre-save a hand-created place (no source)
     store.save_place(Place(alias="casa", raw_address="My Home"))
@@ -309,14 +307,14 @@ def test_route_old_toml_loads_without_error(store: NavStore) -> None:
     """Old-format TOML with only name/created_at/waypoints loads into extended Route without error."""
     store.nav_file.parent.mkdir(parents=True, exist_ok=True)
     store.nav_file.write_text(
-        '[routes.legacy]\n'
+        "[routes.legacy]\n"
         'name = "legacy"\n'
         'created_at = "2026-01-01T00:00:00Z"\n'
-        '\n'
-        '[[routes.legacy.waypoints]]\n'
+        "\n"
+        "[[routes.legacy.waypoints]]\n"
         'raw_address = "Start"\n'
-        'lat = 4.0\n'
-        'lon = -74.0\n'
+        "lat = 4.0\n"
+        "lon = -74.0\n"
         'geocode_provider = "nominatim"\n'
         'geocode_at = "2026-01-01T00:00:00Z"\n'
     )
@@ -432,8 +430,9 @@ def test_atomic_write_via_existing_helper(store: NavStore, tmp_path: Path) -> No
 
     places = [Place(alias="new", raw_address="New Addr")]
 
-    with patch.object(tomli_w, "dumps", side_effect=RuntimeError("boom")), pytest.raises(
-        RuntimeError, match="boom"
+    with (
+        patch.object(tomli_w, "dumps", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError, match="boom"),
     ):
         store.save_places_bulk(places)
 

@@ -202,7 +202,9 @@ class TestParseTakeoutCsv:
         f.write_text(CSV_CONTENT, encoding="utf-8")
 
         places = parse_takeout_csv(f)
-        assert places[0].source_id == "https://www.google.com/maps/place/Coffee/@4.6097,-74.0817,15z"
+        assert (
+            places[0].source_id == "https://www.google.com/maps/place/Coffee/@4.6097,-74.0817,15z"
+        )
 
     def test_source_id_fallback_no_url(self, tmp_path: Path):
         content = "Title,Note,URL,Comment\nNoURL,,,\n"
@@ -535,7 +537,6 @@ class TestCheckFileSize:
     def test_exact_limit_passes(self, tmp_path: Path, monkeypatch):
         f = tmp_path / "exact.bin"
         f.write_text("x")
-
 
         exact_stat = os.stat_result((0o644, 0, 0, 1, 0, 0, 25 * 1024 * 1024, 0, 0, 0))
 

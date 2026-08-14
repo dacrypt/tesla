@@ -23,7 +23,7 @@ def _make_plan() -> PlannedRoute:
         ),
         ChargerSuggestion(
             ocm_id=102,
-            name='Terpel <Andrés & Co>',  # special chars for escaping
+            name="Terpel <Andrés & Co>",  # special chars for escaping
             lat=5.85,
             lon=-75.10,
             network="ccs",

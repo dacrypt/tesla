@@ -57,7 +57,9 @@ class Place:
     lat: float | None = None
     lon: float | None = None
     tags: list[str] | None = None
-    source: str | None = None  # "google-takeout-csv", "google-takeout-geojson", "kml", "gpx", or None
+    source: str | None = (
+        None  # "google-takeout-csv", "google-takeout-geojson", "kml", "gpx", or None
+    )
     source_id: str | None = None  # stable id from source (URL, hash); for dedupe
     imported_at: str | None = None  # ISO-8601 UTC
 
@@ -109,11 +111,7 @@ class NavStore:
         data = _read_toml(self.nav_file)
         routes = data.get("routes", {})
         existing = routes.get(route.name)
-        if (
-            existing is not None
-            and route.source is not None
-            and existing.get("source") is None
-        ):
+        if existing is not None and route.source is not None and existing.get("source") is None:
             print(
                 f"skipped saving route '{route.name}' — collides with hand-created route",
                 file=sys.stderr,
@@ -260,7 +258,10 @@ class NavStore:
                     updated += 1
                 else:
                     # New imported entry — check for alias collision with hand-created place
-                    if place.alias in places_data and places_data[place.alias].get("source") is None:
+                    if (
+                        place.alias in places_data
+                        and places_data[place.alias].get("source") is None
+                    ):
                         print(
                             f"skipped '{place.alias}' — alias collides with hand-created place",
                             file=sys.stderr,

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from tesla_cli.core.config import load_config
+from tesla_cli.core.models.charge import ChargeCurve, ChargeCurveStats, ChargeEnrichment
 
 router = APIRouter()
 
@@ -376,6 +377,96 @@ def teslaMate_stack_logs(service: str = "", lines: int = 80) -> dict:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+from tesla_cli.core.diagnostics.teslamate_doctor import DoctorReport, run_doctor
+
+
+@router.get("/doctor", response_model=DoctorReport)
+def teslaMate_doctor() -> DoctorReport:
+    """8-check health report for the TeslaMate stack.
+
+    Never raises — even if every backend is down, returns a populated
+    report with ok=False entries. Failures are reported in the body,
+    not as HTTP error status codes.
+    """
+    cfg = load_config()
+    return run_doctor(cfg)
+
+
+@router.get("/charging/{process_id}/curve", response_model=ChargeCurve)
+def tm_charge_curve(
+    process_id: int,
+    response: Response,
+    max_samples: int = 500,
+) -> ChargeCurve:
+    """Charge curve (downsampled if needed) for a TeslaMate charging process."""
+    max_samples = max(1, min(max_samples, 5000))
+    backend = _backend()
+    if not backend.ping():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "detail": "TeslaMate unreachable",
+                "hint": (
+                    "check cfg.teslaMate.database_url and that the teslaMate stack is running"
+                ),
+            },
+        )
+    try:
+        curve = backend.get_charge_curve(process_id, max_samples=max_samples)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if curve.total_samples == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No charge samples for process_id={process_id}",
+        )
+
+    end_date = backend.get_charging_process_end_date(process_id)
+    if end_date is not None:
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-store"
+    return curve
+
+
+@router.get("/charging/{process_id}/stats", response_model=ChargeCurveStats)
+def tm_charge_curve_stats(process_id: int, response: Response) -> ChargeCurveStats:
+    """Aggregate statistics over a charging process (computed over full series)."""
+    backend = _backend()
+    if not backend.ping():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "detail": "TeslaMate unreachable",
+                "hint": (
+                    "check cfg.teslaMate.database_url and that the teslaMate stack is running"
+                ),
+            },
+        )
+    try:
+        stats = backend.get_curve_stats(process_id)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if stats is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No charge samples for process_id={process_id}",
+        )
+
+    end_date = backend.get_charging_process_end_date(process_id)
+    if end_date is not None:
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-store"
+    return stats
+
+
 @router.get("/battery-degradation")
 def battery_degradation(months: int = 12) -> dict:
     """Battery degradation trend from high-SoC charges."""
@@ -390,3 +481,29 @@ def battery_degradation(months: int = 12) -> dict:
         return backend.get_battery_degradation(months=months)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/charging/{process_id}/enrichment", response_model=ChargeEnrichment)
+def teslaMate_charge_enrichment(process_id: int, response: Response) -> ChargeEnrichment:
+    """Curiosities enrichment for a charging process: rank, preconditioning,
+    shared-stall detection, and ABRP cost estimate.
+
+    Never 404s — for missing/insufficient data we return ChargeEnrichment with
+    null fields so the UI can render gracefully.
+    """
+    backend = _backend()
+    if not backend.ping():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "detail": "TeslaMate unreachable",
+                "hint": "run: tesla teslaMate doctor",
+            },
+        )
+    enrichment = backend.get_charge_curve_enrichment(process_id)
+    end_date = backend.get_charging_process_end_date(process_id)
+    if end_date is not None:
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-store"
+    return enrichment

@@ -141,6 +141,36 @@ export interface ChargingSession {
   battery_start: number | null;
   battery_end: number | null;
   source: string;
+  process_id?: number | null;
+  duration_min?: number | null;
+}
+
+export interface ChargeSample {
+  ts: string; // ISO datetime
+  soc: number;
+  power_kw: number;
+  current_a: number | null;
+  voltage_v: number | null;
+  phases: number | null;
+  ideal_range_km: number | null;
+}
+
+export interface ChargeCurve {
+  samples: ChargeSample[];
+  downsampled: boolean;
+  total_samples: number;
+  stride: number;
+}
+
+export interface ChargeCurveStats {
+  peak_kw: number;
+  avg_kw_20_80: number | null;
+  taper_knee_soc: number | null;
+  time_above_100kw_s: number;
+  energy_above_100kw_kwh: number;
+  phases_used: number[];
+  duration_s: number;
+  kwh_added: number;
 }
 
 export interface FleetVehicle {
@@ -345,6 +375,20 @@ export interface StackService {
   status?: string;
   image?: string;
   ports?: string;
+}
+
+export interface DoctorCheck {
+  name: string;
+  label: string;
+  ok: boolean;
+  message: string;
+  hint: string | null;
+}
+
+export interface DoctorReport {
+  checks: DoctorCheck[];
+  failed: number;
+  total: number;
 }
 
 export interface StackStatus {
@@ -792,6 +836,31 @@ export interface EnergyVehicleLocationTariff {
   lon: number | null;
 }
 
+export interface ChargeEnrichment {
+  rank: {
+    fastest_20_to_80_position: number | null;
+    fastest_20_to_80_total: number | null;
+    is_personal_best: boolean;
+  };
+  preconditioning: {
+    detected: boolean;
+    duration_minutes: number | null;
+    confidence: 'high' | 'medium' | 'low' | null;
+  };
+  shared_stall: {
+    detected: boolean;
+    timestamp: string | null;
+    power_drop_kw: number | null;
+  };
+  abrp_cost: {
+    estimated_cost: number | null;
+    actual_cost: number | null;
+    delta_pct: number | null;
+    currency: string;
+    available: boolean;
+  };
+}
+
 // API methods
 export const api = {
   // Status
@@ -1019,6 +1088,21 @@ export const api = {
 
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
+
+  // Charge curves (TeslaMate)
+  getChargingCurve: (processId: number, maxSamples = 500) =>
+    client().get<ChargeCurve>(`/api/teslaMate/charging/${processId}/curve`, { params: { max_samples: maxSamples } }).then(r => r.data),
+  getChargingStats: (processId: number) =>
+    client().get<ChargeCurveStats>(`/api/teslaMate/charging/${processId}/stats`).then(r => r.data),
+  getChargingEnrichment: (processId: number) =>
+    client().get<ChargeEnrichment>(`/api/teslaMate/charging/${processId}/enrichment`)
+      .then(r => r.data)
+      .catch((e: any) => {
+        if (e.response?.status === 404 || e.response?.status === 503) return null;
+        throw e;
+      }) as Promise<ChargeEnrichment | null>,
+  getTeslaMateDoctor: () =>
+    client().get<DoctorReport>('/api/teslaMate/doctor').then(r => r.data),
 
   // Energy pricing
   getEnergyTariffs: (ciudad: string, estrato: number) =>

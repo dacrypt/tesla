@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -111,6 +114,7 @@ class ChargingSession(BaseModel):
     battery_start: int | None = None
     battery_end: int | None = None
     source: str = ""  # "teslamate", "fleet", "tessie"
+    process_id: int | None = None  # TeslaMate charging_processes.id, for curve lookup
 
     @classmethod
     def from_teslamate(cls, row: dict, cost_per_kwh: float = 0.0) -> ChargingSession:
@@ -130,6 +134,7 @@ class ChargingSession(BaseModel):
             battery_start=row.get("start_battery_level"),
             battery_end=row.get("end_battery_level"),
             source="teslamate",
+            process_id=row.get("process_id") or row.get("id"),
         )
 
     @classmethod
@@ -150,3 +155,83 @@ class ChargingSession(BaseModel):
             cost_estimated=estimated,
             source="fleet",
         )
+
+
+class ChargeSample(BaseModel):
+    """A single sample point from a TeslaMate `charges` row."""
+
+    ts: datetime
+    soc: int
+    power_kw: float
+    current_a: float | None = None
+    voltage_v: float | None = None
+    phases: int | None = None
+    ideal_range_km: float | None = None
+
+
+class ChargeCurve(BaseModel):
+    """Downsampled charge-session curve payload."""
+
+    samples: list[ChargeSample]
+    downsampled: bool
+    total_samples: int
+    stride: int  # 1 if not downsampled
+
+
+class ChargeCurveStats(BaseModel):
+    """Charge-session statistics computed over the full (un-downsampled) curve."""
+
+    peak_kw: float
+    avg_kw_20_80: float | None
+    taper_knee_soc: int | None
+    time_above_100kw_s: int
+    energy_above_100kw_kwh: float
+    phases_used: list[int]
+    duration_s: int
+    kwh_added: float
+
+
+# ── Curiosities / enrichment (Phase 3) ──────────────────────────────────────
+
+
+class RankInfo(BaseModel):
+    """Where a session ranks among recent 20→80% charges."""
+
+    fastest_20_to_80_position: int | None = None
+    fastest_20_to_80_total: int | None = None
+    is_personal_best: bool = False
+
+
+class PreconditioningInfo(BaseModel):
+    """Heuristic preconditioning detection from the early-session power signature."""
+
+    detected: bool = False
+    duration_minutes: int | None = None
+    confidence: Literal["high", "medium", "low"] | None = None
+
+
+class SharedStallInfo(BaseModel):
+    """Detection of a Supercharger stall being shared mid-session."""
+
+    detected: bool = False
+    timestamp: datetime | None = None
+    power_drop_kw: float | None = None
+
+
+class AbrpCost(BaseModel):
+    """Cost estimate vs actual session cost (ABRP fallback model in Phase 3)."""
+
+    estimated_cost: float | None = None
+    actual_cost: float | None = None
+    delta_pct: float | None = None
+    currency: str = "USD"
+    available: bool = False
+
+
+class ChargeEnrichment(BaseModel):
+    """Aggregated session curiosities (rank, preconditioning, shared stall, ABRP cost)."""
+
+    rank: RankInfo
+    preconditioning: PreconditioningInfo
+    shared_stall: SharedStallInfo
+    abrp_cost: AbrpCost
