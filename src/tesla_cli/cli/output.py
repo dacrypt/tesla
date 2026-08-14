@@ -14,6 +14,21 @@ from rich.table import Table
 console = Console()
 error_console = Console(stderr=True)
 
+# Machine-readable output needs a console that leaves the payload byte-for-byte
+# intact. The human-facing consoles above would wrap JSON to the terminal width
+# (80 columns whenever stdout is not a TTY, i.e. every `| jq` invocation),
+# injecting newlines inside string values, and would parse square brackets in
+# values as Rich markup -- silently dropping them, or raising MarkupError on
+# something like "[/close]".
+json_console = Console(soft_wrap=True, markup=False, highlight=False)
+json_error_console = Console(stderr=True, soft_wrap=True, markup=False, highlight=False)
+
+
+def write_json(payload: str) -> None:
+    """Write a pre-serialized JSON document to stdout, verbatim."""
+    json_console.print(payload)
+
+
 # Global flag toggled by --json
 _json_mode = False
 
@@ -78,7 +93,7 @@ def anonymize(text: str) -> str:
 def render_model(data: BaseModel, title: str = "") -> None:
     """Render a pydantic model as Rich panel or JSON."""
     if _json_mode:
-        console.print(data.model_dump_json(indent=2))
+        write_json(data.model_dump_json(indent=2))
         return
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Field", style="bold cyan")
@@ -92,7 +107,7 @@ def render_model(data: BaseModel, title: str = "") -> None:
 def render_dict(data: dict[str, Any], title: str = "") -> None:
     """Render a dict as Rich panel or JSON."""
     if _json_mode:
-        console.print(json.dumps(data, indent=2, default=str))
+        write_json(json.dumps(data, indent=2, default=str))
         return
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Field", style="bold cyan")
@@ -106,7 +121,7 @@ def render_dict(data: dict[str, Any], title: str = "") -> None:
 def render_table(rows: list[dict[str, Any]], columns: list[str], title: str = "") -> None:
     """Render a list of dicts as Rich table or JSON array."""
     if _json_mode:
-        console.print(json.dumps(rows, indent=2, default=str))
+        write_json(json.dumps(rows, indent=2, default=str))
         return
     table = Table(title=title, border_style="blue")
     for col in columns:
@@ -118,14 +133,14 @@ def render_table(rows: list[dict[str, Any]], columns: list[str], title: str = ""
 
 def render_success(message: str) -> None:
     if _json_mode:
-        console.print(json.dumps({"status": "ok", "message": message}))
+        write_json(json.dumps({"status": "ok", "message": message}))
     else:
         console.print(f"[bold green]OK[/bold green] {message}")
 
 
 def render_error(message: str, error_type: str = "Error") -> None:
     if _json_mode:
-        error_console.print(json.dumps({"error": message, "type": error_type}))
+        json_error_console.print(json.dumps({"error": message, "type": error_type}))
     else:
         error_console.print(
             Panel(message, title=f"[bold red]{error_type}[/bold red]", border_style="red")

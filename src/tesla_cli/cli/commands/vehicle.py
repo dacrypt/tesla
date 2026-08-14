@@ -14,6 +14,7 @@ from tesla_cli.cli.output import (
     render_model,
     render_success,
     render_table,
+    write_json,
 )
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
@@ -121,7 +122,7 @@ def vehicle_map(
         raise typer.Exit(1)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {"lat": lat, "lon": lon, "heading": heading, "speed": speed, "shift_state": shift}
             )
@@ -351,7 +352,7 @@ def fleet_status() -> None:
     rows.sort(key=lambda r: r["alias"])
 
     if is_json_mode():
-        console.print(_json.dumps(rows, indent=2))
+        write_json(_json.dumps(rows, indent=2))
         return
 
     render_table(
@@ -443,7 +444,7 @@ def vehicle_sentry(
         if is_json_mode():
             import json
 
-            console.print(
+            write_json(
                 json.dumps(
                     {
                         "sentry_mode": sentry_on,
@@ -493,7 +494,7 @@ def vehicle_trips(
     if is_json_mode():
         import json
 
-        console.print(
+        write_json(
             json.dumps(
                 {
                     "service_data": svc_data,
@@ -611,7 +612,7 @@ def vehicle_software(
     scheduled_ms = sw_update.get("scheduled_time_ms", 0)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "current_version": current,
@@ -704,7 +705,7 @@ def vehicle_nearby(
     destination = data.get("destination_charging", [])
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "superchargers": superchargers,
@@ -813,7 +814,7 @@ def vehicle_alerts(
     alerts = data if isinstance(data, list) else data.get("recent_alerts", [])
 
     if is_json_mode():
-        console.print(_json.dumps(alerts, indent=2, default=str))
+        write_json(_json.dumps(alerts, indent=2, default=str))
         return
 
     if not alerts:
@@ -874,7 +875,7 @@ def vehicle_release_notes(
     notes = data if isinstance(data, list) else data.get("release_notes", [])
 
     if is_json_mode():
-        console.print(_json.dumps(notes, indent=2, default=str))
+        write_json(_json.dumps(notes, indent=2, default=str))
         return
 
     if not notes:
@@ -917,7 +918,7 @@ def vehicle_valet(
         state = _with_wake(lambda b, v: b.get_vehicle_state(v), v)
         valet_active = state.get("valet_mode", False)
         if is_json_mode():
-            console.print(_json.dumps({"valet_mode": valet_active}, indent=2))
+            write_json(_json.dumps({"valet_mode": valet_active}, indent=2))
             return
         status = "[green]ON[/green]" if valet_active else "[dim]OFF[/dim]"
         console.print(f"  Valet Mode: {status}")
@@ -926,7 +927,7 @@ def vehicle_valet(
     _with_wake(lambda b, v: b.set_valet_mode(v, on=on, password=password), v)
     action = "enabled" if on else "disabled"
     if is_json_mode():
-        console.print(_json.dumps({"valet_mode": on, "action": action}, indent=2))
+        write_json(_json.dumps({"valet_mode": on, "action": action}, indent=2))
         return
     render_success(f"Valet Mode {action}")
 
@@ -950,7 +951,7 @@ def vehicle_schedule_charge(
     if off:
         _with_wake(lambda b, v: b.set_scheduled_charging(v, enable=False, time_minutes=0), v)
         if is_json_mode():
-            console.print(_json.dumps({"scheduled_charging": False}, indent=2))
+            write_json(_json.dumps({"scheduled_charging": False}, indent=2))
             return
         render_success("Scheduled charging disabled")
         return
@@ -961,7 +962,7 @@ def vehicle_schedule_charge(
         enabled = state.get("scheduled_charging_pending", False)
         sched_time = state.get("scheduled_charging_start_time")
         if is_json_mode():
-            console.print(
+            write_json(
                 _json.dumps(
                     {
                         "scheduled_charging_pending": enabled,
@@ -997,7 +998,7 @@ def vehicle_schedule_charge(
     _with_wake(lambda b, v: b.set_scheduled_charging(v, enable=True, time_minutes=time_minutes), v)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {"scheduled_charging": True, "time": time_str, "time_minutes": time_minutes},
                 indent=2,
@@ -1043,7 +1044,7 @@ def vehicle_tires(
             p.add_task("Fetching tire pressure history...", total=None)
             records = backend.get_tire_pressure_history(v)
         if is_json_mode():
-            console.print(_json.dumps(records, indent=2, default=str))
+            write_json(_json.dumps(records, indent=2, default=str))
             return
         if not records:
             console.print("[yellow]No tire pressure history found.[/yellow]")
@@ -1078,7 +1079,7 @@ def vehicle_tires(
         }
 
     if is_json_mode():
-        console.print(_json.dumps(data, indent=2, default=str))
+        write_json(_json.dumps(data, indent=2, default=str))
         return
 
     from rich.table import Table
@@ -1129,7 +1130,7 @@ def vehicle_homelink(
     _with_wake(lambda b, v: b.command(v, "trigger_homelink", lat=lat, lon=lon), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"homelink": "triggered", "lat": lat, "lon": lon}, indent=2))
+        write_json(_json.dumps({"homelink": "triggered", "lat": lat, "lon": lon}, indent=2))
         return
     render_success("HomeLink triggered")
 
@@ -1148,7 +1149,7 @@ def vehicle_dashcam(
     _with_wake(lambda b, v: b.command(v, "dashcam_save_clip"), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"dashcam_save": True}, indent=2))
+        write_json(_json.dumps({"dashcam_save": True}, indent=2))
         return
     render_success("Dashcam clip saved to USB storage")
 
@@ -1168,7 +1169,7 @@ def vehicle_rename(
     _with_wake(lambda b, v: b.command(v, "set_vehicle_name", vehicle_name=name), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"name": name}, indent=2))
+        write_json(_json.dumps({"name": name}, indent=2))
         return
     render_success(f"Vehicle renamed to '{name}'")
 
@@ -1190,7 +1191,7 @@ def vehicle_precondition(
     _with_wake(lambda b, v: b.command(v, "set_preconditioning_max", on=on), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"preconditioning_max": on}, indent=2))
+        write_json(_json.dumps({"preconditioning_max": on}, indent=2))
         return
     status = "enabled" if on else "disabled"
     render_success(f"Max preconditioning {status}")
@@ -1211,7 +1212,7 @@ def vehicle_screenshot(
     _with_wake(lambda b, v: b.command(v, "trigger_vehicle_screenshot"), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"screenshot": "triggered"}, indent=2))
+        write_json(_json.dumps({"screenshot": "triggered"}, indent=2))
         return
     render_success("Screenshot triggered — check the TeslaConnect mobile app")
 
@@ -1243,7 +1244,7 @@ def vehicle_tonneau(
             "door_state": door_state,
         }
         if is_json_mode():
-            console.print(_json.dumps(data, indent=2, default=str))
+            write_json(_json.dumps(data, indent=2, default=str))
             return
         render_dict(data, title="Tonneau Cover Status")
         return
@@ -1262,7 +1263,7 @@ def vehicle_tonneau(
     _with_wake(lambda b, v: b.command(v, command_map[action]), v)
 
     if is_json_mode():
-        console.print(_json.dumps({"tonneau": action}, indent=2))
+        write_json(_json.dumps({"tonneau": action}, indent=2))
         return
     render_success(f"Tonneau cover {action} command sent")
 
@@ -1301,7 +1302,7 @@ def vehicle_sentry_events(
     sentry_events = sentry_events[:limit]
 
     if is_json_mode():
-        console.print(_json.dumps(sentry_events, indent=2, default=str))
+        write_json(_json.dumps(sentry_events, indent=2, default=str))
         return
 
     if not sentry_events:
@@ -1367,7 +1368,7 @@ def vehicle_sw_update(
     if not watch:
         info = _check_once()
         if is_json_mode():
-            console.print(_json.dumps(info, indent=2))
+            write_json(_json.dumps(info, indent=2))
             return
         from rich.panel import Panel
         from rich.table import Table as RTable
@@ -1507,7 +1508,7 @@ def vehicle_speed_limit(
     pin_set = slm.get("pin_code_set", False)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "active": active,
@@ -1561,7 +1562,7 @@ def vehicle_bio(vin: str | None = VinOption) -> None:
     vcfg = data.get("vehicle_config", {}) or {}
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "vin": data.get("vin", v),
@@ -1733,7 +1734,7 @@ def vehicle_cabin_protection(
         cop = data.get("cabin_overheat_protection", "Unknown")
         cop_active = data.get("cabin_overheat_protection_actively_cooling", False)
         if is_json_mode():
-            console.print(
+            write_json(
                 _json.dumps(
                     {
                         "cabin_overheat_protection": cop,
@@ -1760,7 +1761,7 @@ def vehicle_cabin_protection(
         params = _CABIN_LEVEL_MAP[lu]
         _with_wake(lambda b, v: b.command(v, "set_cabin_overheat_protection", **params), v)
         if is_json_mode():
-            console.print(_json.dumps({"cabin_overheat_protection": lu, **params}, indent=2))
+            write_json(_json.dumps({"cabin_overheat_protection": lu, **params}, indent=2))
             return
         render_success(f"Cabin Overheat Protection set to {lu}")
         return
@@ -1770,7 +1771,7 @@ def vehicle_cabin_protection(
         lambda b, v: b.command(v, "set_cabin_overheat_protection", on=bool(on), fan_only=False), v
     )
     if is_json_mode():
-        console.print(_json.dumps({"cabin_overheat_protection": "on" if on else "off"}, indent=2))
+        write_json(_json.dumps({"cabin_overheat_protection": "on" if on else "off"}, indent=2))
         return
     render_success(f"Cabin Overheat Protection {'enabled' if on else 'disabled'}")
 
@@ -1940,7 +1941,7 @@ def vehicle_watch(
                             c.replace("[bold]", "").replace("[/bold]", "") for c in changes
                         ],
                     }
-                    console.print(_json.dumps(payload))
+                    write_json(_json.dumps(payload))
                 else:
                     line = _format_watch_change(curr, changes, ts, tag, mode)
                     console.print(line)
@@ -2045,7 +2046,7 @@ def vehicle_schedule_update(
     result = b.schedule_software_update(v, offset_sec=offset_sec)
 
     if is_json_mode():
-        console.print(_json.dumps({"ok": bool(result), "delay_min": delay, "vin": v}))
+        write_json(_json.dumps({"ok": bool(result), "delay_min": delay, "vin": v}))
         return
 
     if result:
@@ -2154,7 +2155,7 @@ def vehicle_health_check(vin: str | None = VinOption) -> None:
         _check("Odometer", "ok", f"{float(odo):.0f} mi")
 
     if is_json_mode():
-        console.print(_json.dumps(results, indent=2))
+        write_json(_json.dumps(results, indent=2))
         return
 
     _ICON = {
@@ -2469,7 +2470,7 @@ def vehicle_dashboard(vin: str | None = VinOption) -> None:
     data = _with_wake(lambda b, v: b.get_vehicle_data(v), v)
 
     if is_json_mode():
-        console.print(_json.dumps(data, indent=2, default=str))
+        write_json(_json.dumps(data, indent=2, default=str))
         return
 
     charge = data.get("charge_state", {})

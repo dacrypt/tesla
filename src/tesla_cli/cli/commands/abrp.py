@@ -12,7 +12,7 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, is_json_mode, render_success
+from tesla_cli.cli.output import console, is_json_mode, render_success, write_json
 from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 abrp_app = typer.Typer(
@@ -112,7 +112,7 @@ def abrp_send(vin: str | None = VinOption) -> None:
     resp = _push(cfg, tlm)
 
     if is_json_mode():
-        console.print(_json.dumps({"telemetry": tlm, "abrp_response": resp}, indent=2))
+        write_json(_json.dumps({"telemetry": tlm, "abrp_response": resp}, indent=2))
         return
 
     status = resp.get("status", "unknown")
@@ -170,7 +170,7 @@ def abrp_stream(
                 power = tlm.get("power", 0)
                 status = resp.get("status", "?")
                 if is_json_mode():
-                    console.print(
+                    write_json(
                         _json.dumps(
                             {
                                 "ts": ts,
@@ -228,7 +228,7 @@ def abrp_status() -> None:
     has_api_key = bool(cfg.abrp.api_key)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "user_token_set": has_user_token,

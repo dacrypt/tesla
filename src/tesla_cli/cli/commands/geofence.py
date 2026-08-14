@@ -11,7 +11,7 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_table, write_json
 from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 geofence_app = typer.Typer(
@@ -51,7 +51,7 @@ def geofence_add(
     save_config(cfg)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {"zone": name, "lat": lat, "lon": lon, "radius_km": radius, "status": "added"}
             )
@@ -78,7 +78,7 @@ def geofence_list() -> None:
         return
 
     if is_json_mode():
-        console.print(_json.dumps([{"name": n, **z} for n, z in zones.items()], indent=2))
+        write_json(_json.dumps([{"name": n, **z} for n, z in zones.items()], indent=2))
         return
 
     rows = [
@@ -112,7 +112,7 @@ def geofence_remove(
     save_config(cfg)
 
     if is_json_mode():
-        console.print(_json.dumps({"zone": name, "status": "removed"}))
+        write_json(_json.dumps({"zone": name, "status": "removed"}))
         return
     render_success(f"Geofence zone '{name}' removed.")
 
@@ -213,7 +213,7 @@ def geofence_watch(
                             for e in events
                         ],
                     }
-                    console.print(_json.dumps(payload))
+                    write_json(_json.dumps(payload))
                 elif events:
                     for ev in events:
                         console.print(f"  [dim]{ts}[/dim]  {ev}")

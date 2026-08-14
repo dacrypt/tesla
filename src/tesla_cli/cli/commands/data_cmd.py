@@ -24,7 +24,7 @@ import time
 import typer
 from rich.table import Table
 
-from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode, write_json
 
 data_app = typer.Typer(
     name="data",
@@ -141,7 +141,7 @@ def _run(source_name: str, q_input, audit_dir: str | None = None) -> None:
 
     # ── JSON output ──
     if is_json_mode():
-        console.print(result.model_dump_json(indent=2))
+        write_json(result.model_dump_json(indent=2))
         return
 
     # ── Rich table ──
@@ -252,7 +252,7 @@ def query_sources() -> None:
             }
             for s in sources
         ]
-        console.print(_json.dumps(data, indent=2, ensure_ascii=False))
+        write_json(_json.dumps(data, indent=2, ensure_ascii=False))
         return
 
     t = Table(title="OpenQuery Sources", border_style="dim")

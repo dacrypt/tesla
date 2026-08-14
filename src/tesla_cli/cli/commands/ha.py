@@ -14,7 +14,7 @@ import time
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, is_json_mode, render_success
+from tesla_cli.cli.output import console, is_json_mode, render_success, write_json
 from tesla_cli.core.config import load_config, resolve_vin, save_config
 
 ha_app = typer.Typer(
@@ -132,7 +132,7 @@ def ha_status() -> None:
     configured = bool(base_url and token)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "configured": configured,
@@ -201,7 +201,7 @@ def ha_push(vin: str | None = VinOption) -> None:
     errors = sum(1 for r in results if r["status"] == "error")
 
     if is_json_mode():
-        console.print(_json.dumps({"pushed": ok, "errors": errors, "results": results}, indent=2))
+        write_json(_json.dumps({"pushed": ok, "errors": errors, "results": results}, indent=2))
         return
 
     if errors:
@@ -275,7 +275,7 @@ def ha_sync(
                 climate = (data.get("climate_state") or {}).get("is_climate_on", False)
 
                 if is_json_mode():
-                    console.print(
+                    write_json(
                         _json.dumps(
                             {
                                 "ts": ts,

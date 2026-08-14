@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning, write_json
 from tesla_cli.core.config import load_config, save_config
 
 notify_app = typer.Typer(name="notify", help="Manage push notifications (Apprise).")
@@ -242,7 +242,7 @@ def notify_show_template() -> None:
     tmpl = cfg.notifications.message_template
 
     if is_json_mode():
-        console.print(_json.dumps({"template": tmpl}))
+        write_json(_json.dumps({"template": tmpl}))
         return
 
     console.print(f"[dim]Template:[/dim] [bold]{tmpl}[/bold]")

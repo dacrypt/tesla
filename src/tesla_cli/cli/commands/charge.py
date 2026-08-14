@@ -10,6 +10,7 @@ from tesla_cli.cli.output import (
     is_json_mode,
     render_model,
     render_success,
+    write_json,
 )
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
@@ -147,7 +148,7 @@ def charge_limit(
         data = _with_wake(lambda b, v: b.get_charge_state(v), v)
         limit = data.get("charge_limit_soc")
         if is_json_mode():
-            console.print(_json.dumps({"charge_limit_soc": limit}))
+            write_json(_json.dumps({"charge_limit_soc": limit}))
             return
         render_success(f"Current charge limit: {limit}%")
         return
@@ -155,7 +156,7 @@ def charge_limit(
         raise typer.BadParameter("Charge limit must be between 50 and 100.")
     _with_wake(lambda b, v: b.command(v, "set_charge_limit", percent=percent), v)
     if is_json_mode():
-        console.print(_json.dumps({"charge_limit_soc": percent, "status": "ok"}))
+        write_json(_json.dumps({"charge_limit_soc": percent, "status": "ok"}))
         return
     render_success(f"Charge limit set to {percent}%")
 
@@ -178,7 +179,7 @@ def charge_amps(
         data = _with_wake(lambda b, v: b.get_charge_state(v), v)
         current = data.get("charge_amps") or data.get("charger_actual_current")
         if is_json_mode():
-            console.print(_json.dumps({"charge_amps": current}))
+            write_json(_json.dumps({"charge_amps": current}))
             return
         render_success(f"Current charge amps: {current}A")
         return
@@ -186,7 +187,7 @@ def charge_amps(
         raise typer.BadParameter("Amps must be between 1 and 48.")
     _with_wake(lambda b, v: b.command(v, "set_charging_amps", charging_amps=amps), v)
     if is_json_mode():
-        console.print(_json.dumps({"charge_amps": amps, "status": "ok"}))
+        write_json(_json.dumps({"charge_amps": amps, "status": "ok"}))
         return
     render_success(f"Charging amps set to {amps}A")
 
@@ -257,9 +258,7 @@ def charge_departure(
             v,
         )
         if is_json_mode():
-            from tesla_cli.cli.output import console
-
-            console.print(_json.dumps({"scheduled_departure": False}, indent=2))
+            write_json(_json.dumps({"scheduled_departure": False}, indent=2))
             return
         render_success("Scheduled departure disabled")
         return
@@ -281,9 +280,7 @@ def charge_departure(
     )
 
     if is_json_mode():
-        from tesla_cli.cli.output import console
-
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "scheduled_departure": True,
@@ -442,7 +439,7 @@ def charge_profile(
             raise typer.Exit(1)
 
         if is_json_mode():
-            console.print(
+            write_json(
                 _json.dumps(
                     {
                         "charge_limit_soc": cs.get("charge_limit_soc"),
@@ -487,7 +484,7 @@ def charge_profile(
     ok = all(results.values())
 
     if is_json_mode():
-        console.print(_json.dumps({"ok": ok, "results": results}))
+        write_json(_json.dumps({"ok": ok, "results": results}))
         return
 
     if ok:
@@ -542,7 +539,7 @@ def charge_schedule_amps(
     b.set_scheduled_charging(v, enable=True, time_minutes=minutes)
 
     if is_json_mode():
-        console.print(_json.dumps({"ok": True, "schedule": schedule_time, "amps": amps, "vin": v}))
+        write_json(_json.dumps({"ok": True, "schedule": schedule_time, "amps": amps, "vin": v}))
         return
 
     render_success(f"Scheduled charging set: [bold]{schedule_time}[/bold] at [bold]{amps} A[/bold]")
@@ -591,7 +588,7 @@ def charge_forecast(vin: str | None = VinOption) -> None:
     kwh_needed = round(rate_kw * ttf_hrs, 2) if ttf_hrs > 0 and rate_kw > 0 else None
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "battery_level": level,
@@ -1175,7 +1172,7 @@ def charge_invoices(
         return
 
     if is_json_mode():
-        console.print(_json.dumps([inv.model_dump() for inv in invoices], indent=2))
+        write_json(_json.dumps([inv.model_dump() for inv in invoices], indent=2))
         return
 
     if csv_file:
@@ -1562,7 +1559,7 @@ def _show_budget_status(cfg) -> None:  # noqa: ANN001
     projected = (spent / elapsed_days * month_days) if elapsed_days > 0 and spent > 0 else spent
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "month": now.strftime("%Y-%m"),

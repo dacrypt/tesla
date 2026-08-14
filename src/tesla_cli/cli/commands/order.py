@@ -15,6 +15,7 @@ from tesla_cli.cli.output import (
     render_success,
     render_table,
     render_warning,
+    write_json,
 )
 from tesla_cli.core.backends.order import OrderBackend
 from tesla_cli.core.config import load_config
@@ -89,7 +90,7 @@ def order_summary(
     if is_json_mode():
         import json as _json
 
-        console.print(_json.dumps({"summary": summary, "reservation_number": rn}))
+        write_json(_json.dumps({"summary": summary, "reservation_number": rn}))
         return
 
     if oneline:
@@ -126,7 +127,7 @@ def order_share(
     if is_json_mode():
         import json as _json
 
-        console.print(_json.dumps({"text": text, "summary": summary}))
+        write_json(_json.dumps({"text": text, "summary": summary}))
         return
 
     console.print(f"\n{text}\n")

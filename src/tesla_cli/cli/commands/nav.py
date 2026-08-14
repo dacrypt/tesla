@@ -20,7 +20,7 @@ from pathlib import Path
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, render_success
+from tesla_cli.cli.output import console, render_success, write_json
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.nav.arrival import ArrivalDetector, NullArrivalSource
@@ -741,7 +741,7 @@ def nav_plan(
         raise typer.Exit(1) from exc
 
     if output_json:
-        console.print(plan.model_dump_json(indent=2))
+        write_json(plan.model_dump_json(indent=2))
     else:
         from rich.table import Table
 
@@ -831,9 +831,7 @@ def nav_plan(
             console.print(f"[red]unknown export format '{export}' — use gpx or kml[/red]")
             raise typer.Exit(1)
         body = to_gpx(plan) if fmt == "gpx" else to_kml(plan)
-        out_path = (
-            _Path(f"./{save_as}.{fmt}") if save_as else _Path(f"/tmp/plan.{fmt}")
-        )
+        out_path = _Path(f"./{save_as}.{fmt}") if save_as else _Path(f"/tmp/plan.{fmt}")
         out_path.write_text(body)
         render_success(f"Exported {fmt.upper()} → {out_path}")
 
@@ -869,7 +867,7 @@ def nav_plan_probe_taxonomy(
     if output_json:
         import json as _json
 
-        console.print(_json.dumps(result, indent=2))
+        write_json(_json.dumps(result, indent=2))
         return
     console.print("[bold]Tesla operators:[/bold]")
     for op in result["tesla_operators"]:

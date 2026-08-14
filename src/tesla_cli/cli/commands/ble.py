@@ -14,7 +14,7 @@ import subprocess
 
 import typer
 
-from tesla_cli.cli.output import console, is_json_mode, render_success
+from tesla_cli.cli.output import console, is_json_mode, render_success, write_json
 from tesla_cli.core.config import load_config, resolve_vin, save_config
 from tesla_cli.core.exceptions import ExternalToolNotFoundError
 
@@ -85,7 +85,7 @@ def _print_result(result: dict, success_msg: str) -> None:
     import json as _json
 
     if is_json_mode():
-        console.print(_json.dumps(result, indent=2))
+        write_json(_json.dumps(result, indent=2))
         return
     if result["status"] == "ok":
         render_success(success_msg)
@@ -189,7 +189,7 @@ def ble_status() -> None:
     }
 
     if is_json_mode():
-        console.print(_json.dumps(data, indent=2))
+        write_json(_json.dumps(data, indent=2))
         return
 
     from rich.table import Table

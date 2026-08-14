@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, is_json_mode, render_model, render_success
+from tesla_cli.cli.output import console, is_json_mode, render_model, render_success, write_json
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.models.climate import ClimateState
 
@@ -108,7 +108,7 @@ def climate_temp(
         d = data.get("driver_temp_setting")
         p = data.get("passenger_temp_setting")
         if is_json_mode():
-            console.print(_json.dumps({"driver_temp_setting": d, "passenger_temp_setting": p}))
+            write_json(_json.dumps({"driver_temp_setting": d, "passenger_temp_setting": p}))
             return
         render_success(f"Driver: {d}°C  Passenger: {p}°C")
         return
@@ -122,7 +122,7 @@ def climate_temp(
         v,
     )
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps({"driver_temp": celsius, "passenger_temp": pass_temp, "status": "ok"})
         )
         return
@@ -198,7 +198,7 @@ def seat_heater_named(
             "rear-right": data.get("seat_heater_rear_right", 0),
         }
         if is_json_mode():
-            console.print(_json.dumps(seats))
+            write_json(_json.dumps(seats))
             return
         for name, lvl in seats.items():
             dot = "🔴" if lvl == 3 else "🟡" if lvl == 2 else "🟠" if lvl == 1 else "⚫"
@@ -217,7 +217,7 @@ def seat_heater_named(
         lambda b, v: b.command(v, "remote_seat_heater_request", heater=seat_id, level=level), v
     )
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps({"seat": pos_lower, "heater_id": seat_id, "level": level, "status": "ok"})
         )
         return
@@ -245,14 +245,14 @@ def steering_wheel_heater(
         data = _with_wake(lambda b, v: b.get_climate_state(v), v)
         state = data.get("steering_wheel_heater", False)
         if is_json_mode():
-            console.print(_json.dumps({"steering_wheel_heater": state}))
+            write_json(_json.dumps({"steering_wheel_heater": state}))
             return
         label = "[green]ON[/green]" if state else "[dim]OFF[/dim]"
         console.print(f"\n  Steering wheel heater: {label}\n")
         return
     _with_wake(lambda b, v: b.command(v, "remote_steering_wheel_heater_request", on=on), v)
     if is_json_mode():
-        console.print(_json.dumps({"steering_wheel_heater": on, "status": "ok"}))
+        write_json(_json.dumps({"steering_wheel_heater": on, "status": "ok"}))
         return
     render_success(f"Steering wheel heater {'ON' if on else 'OFF'}")
 

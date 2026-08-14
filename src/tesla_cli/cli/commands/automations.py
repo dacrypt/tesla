@@ -7,7 +7,7 @@ from pathlib import Path
 
 import typer
 
-from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning, write_json
 from tesla_cli.core.automation import AUTOMATIONS_FILE, AutomationEngine
 from tesla_cli.core.models.automation import (
     AutomationAction,
@@ -754,7 +754,7 @@ def automations_status() -> None:
     unit_path = str(_LAUNCHD_PLIST) if sys.platform == "darwin" else str(_SYSTEMD_UNIT)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "installed": installed,

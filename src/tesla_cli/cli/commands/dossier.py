@@ -13,7 +13,7 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode, write_json
 from tesla_cli.core.backends.dossier import DossierBackend
 from tesla_cli.core.mission_control import build_legacy_mission_control_payload
 
@@ -1601,7 +1601,7 @@ def dossier_clean(
 
     if total <= keep:
         if is_json_mode():
-            console.print(_json.dumps({"deleted": 0, "kept": total, "files_removed": []}, indent=2))
+            write_json(_json.dumps({"deleted": 0, "kept": total, "files_removed": []}, indent=2))
             return
         console.print(f"  [green]Nothing to clean[/green] — {total} snapshot(s), keep={keep}")
         return
@@ -1616,7 +1616,7 @@ def dossier_clean(
             f.unlink(missing_ok=True)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "deleted": len(to_delete),
@@ -1710,7 +1710,7 @@ def dossier_battery_health(
     }
 
     if is_json_mode():
-        console.print(_json.dumps(summary, indent=2, default=str))
+        write_json(_json.dumps(summary, indent=2, default=str))
         return
 
     from rich.table import Table

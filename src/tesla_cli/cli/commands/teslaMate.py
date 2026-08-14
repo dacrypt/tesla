@@ -8,7 +8,7 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
+from tesla_cli.cli.output import console, is_json_mode, render_success, render_table, write_json
 from tesla_cli.core.config import load_config, save_config
 
 teslaMate_app = typer.Typer(
@@ -782,7 +782,7 @@ def teslaMate_geo(
         return
 
     if is_json_mode():
-        console.print(_json.dumps(locations, indent=2, default=str))
+        write_json(_json.dumps(locations, indent=2, default=str))
         return
 
     render_table(
@@ -830,7 +830,7 @@ def teslaMate_report(
         data = backend.get_monthly_report(month=month)
 
     if is_json_mode():
-        console.print(_json.dumps(data, indent=2, default=str))
+        write_json(_json.dumps(data, indent=2, default=str))
         return
 
     driving = data.get("driving") or {}
@@ -1020,7 +1020,7 @@ def teslaMate_stats() -> None:
     }
 
     if is_json_mode():
-        console.print(_json.dumps(combined, indent=2, default=str))
+        write_json(_json.dumps(combined, indent=2, default=str))
         return
 
     console.print()
@@ -1104,7 +1104,7 @@ def teslaMate_heatmap(
     activity: dict[str, float] = {str(r["day"]): float(r["km"] or 0) for r in rows}
 
     if is_json_mode():
-        console.print(
+        write_json(
             json.dumps(
                 [
                     {"date": str(r["day"]), "drives": r["drives"], "km": float(r["km"] or 0)}
@@ -1570,7 +1570,7 @@ def teslaMate_grafana(
     url = base + _GRAFANA_DASHBOARDS[key]
 
     if is_json_mode():
-        console.print(_json.dumps({"dashboard": key, "url": url}))
+        write_json(_json.dumps({"dashboard": key, "url": url}))
         return
 
     console.print(f"Opening [bold cyan]{key}[/bold cyan] dashboard…  [dim]{url}[/dim]")
@@ -1625,7 +1625,7 @@ def teslaMate_energy_report(
     ]
 
     if is_json_mode():
-        console.print(_json.dumps(rows, indent=2))
+        write_json(_json.dumps(rows, indent=2))
         return
 
     if not rows:
@@ -2433,9 +2433,7 @@ def teslaMate_doctor(
                 typer.secho(f"   → {c.hint}", fg=typer.colors.YELLOW)
         typer.echo()
         if report.failed == 0:
-            typer.secho(
-                f"All {report.total} checks passed.", fg=typer.colors.GREEN, bold=True
-            )
+            typer.secho(f"All {report.total} checks passed.", fg=typer.colors.GREEN, bold=True)
         else:
             typer.secho(
                 f"{report.failed}/{report.total} checks failed.",

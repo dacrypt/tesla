@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode, write_json
 
 providers_app = typer.Typer(
     name="providers",
@@ -32,7 +32,7 @@ def providers_status() -> None:
     rows = registry.status()
 
     if is_json_mode():
-        console.print(_json.dumps(rows, indent=2))
+        write_json(_json.dumps(rows, indent=2))
         return
 
     from rich.table import Table, box
@@ -119,7 +119,7 @@ def providers_test() -> None:
             p.advance(task)
 
     if is_json_mode():
-        console.print(_json.dumps(results, indent=2))
+        write_json(_json.dumps(results, indent=2))
         return
 
     from rich.table import Table, box
@@ -168,7 +168,7 @@ def providers_capabilities() -> None:
             available = [p.name for p in registry.for_capability(cap)]
             all_p = [p.name for p in registry.for_capability(cap, available_only=False)]
             out[cap] = {"available": available, "all": all_p}
-        console.print(_json.dumps(out, indent=2))
+        write_json(_json.dumps(out, indent=2))
         return
 
     from rich.table import Table, box

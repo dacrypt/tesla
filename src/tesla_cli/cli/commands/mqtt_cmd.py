@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import typer
 
-from tesla_cli.cli.output import console, is_json_mode
+from tesla_cli.cli.output import console, is_json_mode, write_json
 from tesla_cli.core.config import load_config, save_config
 
 mqtt_app = typer.Typer(
@@ -193,7 +193,7 @@ def mqtt_status() -> None:
     configured = bool(mc.broker)
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "configured": configured,
@@ -276,13 +276,13 @@ def mqtt_test() -> None:
         ms = round((time.monotonic() - t0) * 1000, 1)
 
         if is_json_mode():
-            console.print(_json.dumps({"ok": True, "topic": topic, "latency_ms": ms}))
+            write_json(_json.dumps({"ok": True, "topic": topic, "latency_ms": ms}))
         else:
             console.print(f"[green]✓[/green] Message published to [bold]{topic}[/bold]  ({ms} ms)")
 
     except Exception as exc:  # noqa: BLE001
         if is_json_mode():
-            console.print(_json.dumps({"ok": False, "error": str(exc)}))
+            write_json(_json.dumps({"ok": False, "error": str(exc)}))
         else:
             console.print(f"[red]✗ MQTT test failed:[/red] {exc}")
         raise typer.Exit(1)
@@ -339,7 +339,7 @@ def mqtt_publish(
             console.print(f"[yellow]⚠ HA discovery publish failed: {exc}[/yellow]")
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "ok": result.ok,
@@ -397,7 +397,7 @@ def mqtt_ha_discovery(vin: str | None = VinOption) -> None:
         client.disconnect()
 
         if is_json_mode():
-            console.print(_json.dumps({"ok": True, "sensors": count, "vin": v}))
+            write_json(_json.dumps({"ok": True, "sensors": count, "vin": v}))
         else:
             console.print(
                 f"[green]✓[/green] Published [bold]{count}[/bold] HA discovery configs "
@@ -407,7 +407,7 @@ def mqtt_ha_discovery(vin: str | None = VinOption) -> None:
             )
     except Exception as exc:  # noqa: BLE001
         if is_json_mode():
-            console.print(_json.dumps({"ok": False, "error": str(exc)}))
+            write_json(_json.dumps({"ok": False, "error": str(exc)}))
         else:
             console.print(f"[red]✗ HA discovery failed:[/red] {exc}")
         raise typer.Exit(1)

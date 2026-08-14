@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from tesla_cli.cli.output import console
+from tesla_cli.cli.output import console, write_json
 
 serve_app = typer.Typer(name="serve", help="Launch local API server and web dashboard.")
 
@@ -238,7 +238,7 @@ def serve_status(
         result: dict = {"running": running}
         if running and pid:
             result["pid"] = pid
-        console.print(_json.dumps(result))
+        write_json(_json.dumps(result))
         return
 
     if running:

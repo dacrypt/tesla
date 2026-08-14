@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 from rich.prompt import Prompt
 
-from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success
+from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success, write_json
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
 
@@ -769,7 +769,7 @@ def config_migrate(
     if is_json_mode():
         import tesla_cli
 
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "dry_run": dry_run,
@@ -911,7 +911,7 @@ def config_validate() -> None:
     warnings = [c for c in checks if c["status"] == "warn"]
 
     if is_json_mode():
-        console.print(
+        write_json(
             _json.dumps(
                 {
                     "version": __version__,
