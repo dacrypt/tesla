@@ -1,0 +1,20 @@
+{
+  "general": {
+    "default_vin": "",
+    "backend": "owner",
+    "cost_per_kwh": 0.15
+  },
+  "order": {
+    "reservation_number": ""
+  },
+  "fleet": {
+    "region": "na",
+    "client_id": "00000000-0000-4000-8000-000000000000",
+    "domain": "example.invalid"
+  },
+  "notifications": {
+    "enabled": false,
+    "apprise_urls": [],
+    "message_template": "{event}"
+  }
+}

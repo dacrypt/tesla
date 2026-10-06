@@ -1,0 +1,45 @@
+title = "Tesla secrets and personal identifiers"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "tesla-vin"
+description = "Vehicle identifiers must not be published"
+regex = '''\b(?:[1-5][A-HJ-NPR-Z0-9]{2}|7SA|7G2|LRW|XP7)[A-HJ-NPR-Z0-9]{14}\b'''
+
+[[rules.allowlists]]
+description = "Individually audited synthetic fixtures; never add a real identifier"
+regexes = ['''^(?:5YJ3E1EA0JF000000|5YJ3E1EA1PF000001|5YJ3E1EA1PF000002|5YJ3E1EA1PF123456|5YJ3E1EA1PF999999|5YJ3E1EA8PF123456|5YJYGDEE5MF000000|LRWYE7FK4TC123456|LRWYGCEK3TC000000|7SAYGDEF1TF123456|7SAYGDEE4RF000001)$''']
+
+[[rules]]
+id = "tesla-reservation"
+description = "Order reservations must not be published"
+regex = '''\bRN[0-9]{6,12}\b'''
+
+[[rules.allowlists]]
+description = "Individually audited synthetic order fixtures"
+regexes = ['''^(?:RN000000000|RN123456|RN123456789|RN987654321|RN999888|RN999999999)$''']
+
+[[rules]]
+id = "telegram-token-in-url"
+description = "Telegram bot credentials, including Apprise URLs"
+regex = '''\b[0-9]{7,12}:[A-Za-z0-9_-]{30,50}\b'''
+
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Audited generated React vnode SHA1 keys, not authentication keys"
+condition = "AND"
+regexTarget = "match"
+regexes = ['''\bkey\s*:\s*["'][a-f0-9]{30,40}(?:["']|$)''']
+paths = ['''(?:^|/)(?:src/)?tesla_cli/api/ui_dist/assets/[^/]+\.js$''']
+
+[[rules]]
+id = "private-key"
+[[rules.allowlists]]
+description = "Nonfunctional fake key marker used by the idempotency test"
+condition = "AND"
+regexTarget = "match"
+regexes = ['''^-----BEGIN PRIVATE KEY-----(?:\\n|\n)fake(?:\\n|\n)''']
+paths = ['''(?:^|/)tests/test_fleet_signed_backend\.py$''']
