@@ -76,3 +76,15 @@ superchargers-co.json
 .codex/
 AGENTS.md
 audit/
+
+# Local configuration, backups and environment credentials
+.env
+.env.*
+!.env.example
+.envrc
+/tesla-config*.json
+!/tesla-config.example.json
+/tesla-config*.json.*
+/tesla-config*.bak
+/tesla-config*.backup
+coverage.xml

@@ -1,0 +1,20 @@
+#!/bin/sh
+# Opt in with: git config core.hooksPath .githooks
+set -eu
+root=$(git rev-parse --show-toplevel)
+while read -r local_ref local_oid remote_ref remote_oid extra; do
+    [ -n "$local_ref" ] && [ -n "$remote_ref" ] && [ -z "$extra" ] || {
+        printf '%s\n' 'Invalid pre-push input.' >&2
+        exit 1
+    }
+    for oid in "$local_oid" "$remote_oid"; do
+        case "$oid" in
+            ''|*[!0-9a-fA-F]*) printf '%s\n' 'Invalid pre-push object ID.' >&2; exit 1 ;;
+        esac
+        [ "${#oid}" -eq 40 ] || [ "${#oid}" -eq 64 ] || exit 1
+    done
+    case "$local_oid" in
+        *[!0]*) "$root/scripts/secret-scan.sh" --ref "$local_oid" ;;
+        *) : ;; # Deleting a ref publishes no objects and needs no scanner.
+    esac
+done
