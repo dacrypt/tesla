@@ -94,6 +94,7 @@ const Planner: React.FC = () => {
     try {
       const res = await fetch(`${apiBase()}/api/nav/plan`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           origin,
@@ -132,6 +133,7 @@ const Planner: React.FC = () => {
     try {
       const res = await fetch(`${apiBase()}/api/nav/plan/save`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: saveAs.trim(), plan: result.plan }),
       });

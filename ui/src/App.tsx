@@ -1,6 +1,7 @@
 import React from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
+import AuthGate from './components/AuthGate';
 import {
   IonApp,
   IonLabel,
@@ -122,6 +123,7 @@ const App: React.FC = () => {
   return (
   <ErrorBoundary>
   <IonApp>
+  <AuthGate>
     <IonToast
       isOpen={rateLimitMsg !== null}
       message={rateLimitMsg ?? ''}
@@ -258,6 +260,7 @@ const App: React.FC = () => {
         </IonTabBar>
       </IonTabs>
     </IonReactRouter>
+  </AuthGate>
   </IonApp>
   </ErrorBoundary>
   );

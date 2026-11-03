@@ -26,6 +26,27 @@ function emitRateLimit(retryAfterSeconds: number): void {
   rateLimitListeners.forEach(fn => fn(retryAfterSeconds));
 }
 
+// ── Auth-required event ───────────────────────────────────────────────────────
+// Fired when the server answers 401 so the app can show the sign-in screen.
+
+type AuthListener = () => void;
+const authListeners = new Set<AuthListener>();
+
+export function onAuthRequired(fn: AuthListener): () => void {
+  authListeners.add(fn);
+  return () => authListeners.delete(fn);
+}
+
+function emitAuthRequired(): void {
+  authListeners.forEach(fn => fn());
+}
+
+export interface SessionStatus {
+  auth_required: boolean;
+  authenticated: boolean;
+  role: 'control' | 'read' | null;
+}
+
 // ── Axios client with 429 retry ───────────────────────────────────────────────
 
 const MAX_RETRIES = 2;
@@ -34,6 +55,8 @@ function createClient(): AxiosInstance {
   const instance = axios.create({
     baseURL: getBaseUrl(),
     timeout: 15000,
+    // Send the HttpOnly session cookie (also when the API lives on another origin).
+    withCredentials: true,
     headers: { 'Content-Type': 'application/json' },
   });
 
@@ -45,6 +68,9 @@ function createClient(): AxiosInstance {
       if (!config) return Promise.reject(error);
 
       const status = error.response?.status;
+      if (status === 401 && !String(config.url || '').startsWith('/api/session')) {
+        emitAuthRequired();
+      }
       if (status !== 429) return Promise.reject(error);
 
       config._retryCount = (config._retryCount ?? 0) + 1;
@@ -1088,6 +1114,11 @@ export const api = {
 
   // SSE stream URL
   getStreamUrl: () => `${getBaseUrl()}/api/vehicle/stream`,
+
+  // Session (API key → HttpOnly cookie)
+  getSession: () => client().get<SessionStatus>('/api/session').then(r => r.data),
+  login: (key: string) => client().post<SessionStatus>('/api/session', { key }).then(r => r.data),
+  logout: () => client().delete<{ ok: boolean }>('/api/session').then(r => r.data),
 
   // Charge curves (TeslaMate)
   getChargingCurve: (processId: number, maxSamples = 500) =>

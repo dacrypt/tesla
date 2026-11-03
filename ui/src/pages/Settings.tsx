@@ -382,7 +382,7 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     const base = getBaseUrl();
-    fetch(`${base}/api/doctor`)
+    fetch(`${base}/api/doctor`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then((data: unknown) => setFeatures(Array.isArray(data) ? (data as FeatureHealth[]) : []))
       .catch(() => setFeatures([]));

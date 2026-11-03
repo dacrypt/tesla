@@ -248,11 +248,11 @@ class TestVehicleRoutes:
 
     def test_vehicle_command_lock(self, srv):
         client, backend, _ = srv
-        r = client.post("/api/vehicle/command", json={"command": "lock", "params": {}})
+        r = client.post("/api/vehicle/command", json={"command": "door_lock", "params": {}})
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "ok"
-        assert data["command"] == "lock"
+        assert data["command"] == "door_lock"
 
     def test_vehicle_command_with_params(self, srv):
         client, backend, _ = srv

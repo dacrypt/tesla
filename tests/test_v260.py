@@ -226,11 +226,11 @@ class TestAuthMiddleware:
         r = client.get("/api/status", headers={"X-API-Key": "test-secret-key"})
         assert r.status_code == 200
 
-    def test_valid_key_query_param_passes(self, srv_auth):
-        """Correct api_key query param allows request."""
+    def test_query_param_key_no_longer_accepted(self, srv_auth):
+        """Keys in the query string leak into logs/history and are rejected."""
         client, _ = srv_auth
         r = client.get("/api/status?api_key=test-secret-key")
-        assert r.status_code == 200
+        assert r.status_code == 401
 
     def test_missing_key_returns_401(self, srv_auth):
         """Missing API key returns 401."""

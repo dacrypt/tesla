@@ -426,3 +426,13 @@ class TestExceptions:
     def test_teslamate_stack_error(self):
         err = TeslaMateStackError("stack broken")
         assert "stack broken" in str(err)
+
+
+def test_compose_ports_bind_loopback_by_default():
+    """TeslaMate/Grafana/MQTT/Postgres have weak or no auth: never publish on 0.0.0.0."""
+    import re
+
+    port_lines = [ln.strip() for ln in COMPOSE_TEMPLATE.splitlines() if re.match(r'\s+- "\$\{', ln)]
+    assert len(port_lines) == 4
+    for line in port_lines:
+        assert line.startswith('- "${TM_BIND_ADDR:-127.0.0.1}:'), line

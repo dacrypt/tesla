@@ -1380,7 +1380,7 @@ class TestSecurityHardening:
             mock_cfg.return_value = cfg
             app = create_app()
         client = TestClient(app)
-        r = client.get("/api/health", headers={"X-API-Key": "wrong-key"})
+        r = client.get("/api/status", headers={"X-API-Key": "wrong-key"})
         assert r.status_code == 401
 
     def test_api_key_accepts_correct_key(self):

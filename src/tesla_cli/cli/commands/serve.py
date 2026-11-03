@@ -22,6 +22,48 @@ _DEFAULT_HOST = "127.0.0.1"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def _is_loopback_host(host: str) -> bool:
+    """True if binding to *host* keeps the server reachable only from this machine."""
+    import ipaddress
+
+    if host.strip().lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def _ensure_api_key() -> None:
+    """Make sure a full-control API key exists before exposing the server.
+
+    Generates and persists a random key on first run (printed once) so a
+    Docker/LAN deployment is never unauthenticated by accident.
+    """
+    import secrets
+
+    if os.environ.get("TESLA_API_KEY", "").strip():
+        return
+    from tesla_cli.core.config import load_config, save_config
+
+    cfg = load_config()
+    if cfg.server.api_key:
+        return
+    cfg.server.api_key = secrets.token_urlsafe(32)
+    try:
+        save_config(cfg)
+    except OSError as exc:
+        console.print(f"[red]Could not persist generated API key: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    console.print(
+        "\n  [bold yellow]API key generated[/bold yellow] — the server is reachable beyond "
+        "localhost, so every /api/* request now requires it.\n"
+        f"  Key: [bold]{cfg.server.api_key}[/bold]\n"
+        "  Sign in to the dashboard with it, or send it as the X-API-Key header.\n"
+        "  Show it again later with: [bold]tesla serve api-key[/bold]\n"
+    )
+
+
 def _pid_file_path() -> Path:
     """Return the PID file path from config (or default)."""
     try:
@@ -279,6 +321,15 @@ def serve(
     serve_ui: bool = typer.Option(
         True, "--serve-ui/--no-ui", help="Serve React dashboard (default: on)"
     ),
+    insecure_no_auth: bool = typer.Option(
+        False,
+        "--insecure-no-auth",
+        help=(
+            "Allow binding beyond localhost WITHOUT an API key (only behind an "
+            "authenticating reverse proxy). Anyone who can reach the port can "
+            "control the car."
+        ),
+    ),
 ) -> None:
     """Start the tesla-cli API server.
 
@@ -286,7 +337,7 @@ def serve(
     tesla serve                          # localhost:8080, serves ui/dist/ if built
     tesla serve --build-ui               # build React app first, then serve
     tesla serve --port 3000              # custom port
-    tesla serve --host 0.0.0.0           # LAN-accessible (add --api-key for security)
+    tesla serve --host 0.0.0.0           # LAN-accessible (API key auto-generated)
     tesla serve --no-open                # headless
     tesla serve --vin mycar              # specific vehicle
     tesla serve --daemon                 # run in background
@@ -334,6 +385,10 @@ def serve(
         except Exception as e:  # noqa: BLE001
             console.print(f"[yellow]Warning: could not save API key to config: {e}[/yellow]")
 
+    # ── Refuse to expose an unauthenticated API beyond localhost ─────────────
+    if not _is_loopback_host(host) and not insecure_no_auth:
+        _ensure_api_key()
+
     url = f"http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
 
     # ── Daemon mode: launch subprocess and detach ─────────────────────────────
@@ -364,8 +419,8 @@ def serve(
             argv.append("--reload")
         if vin:
             argv += ["--vin", vin]
-        if api_key:
-            argv += ["--api-key", api_key]
+        if insecure_no_auth:
+            argv.append("--insecure-no-auth")
 
         proc = subprocess.Popen(
             argv,
@@ -435,6 +490,52 @@ def serve(
         reload=reload,
         log_level="warning",
     )
+
+
+@serve_app.command("api-key")
+def serve_api_key(
+    rotate: bool = typer.Option(
+        False, "--rotate", help="Generate a new key (old one stops working)"
+    ),
+    read_only: bool = typer.Option(
+        False, "--read-only", help="Act on the read-only key (GET-only access) instead"
+    ),
+    disable: bool = typer.Option(
+        False, "--disable", help="Remove the key (only safe when serving on localhost)"
+    ),
+) -> None:
+    """Show, rotate or disable the server API keys.
+
+    \b
+    tesla serve api-key                    # show the full-control key
+    tesla serve api-key --rotate           # issue a new full-control key
+    tesla serve api-key --read-only --rotate   # create/rotate a read-only key
+    tesla serve api-key --read-only --disable  # drop the read-only key
+
+    Restart the server after rotating for the change to take effect.
+    """
+    import secrets
+
+    from tesla_cli.core.config import load_config, save_config
+
+    cfg = load_config()
+    field = "read_only_key" if read_only else "api_key"
+    label = "Read-only key" if read_only else "API key"
+    if rotate and disable:
+        console.print("[red]--rotate and --disable are mutually exclusive.[/red]")
+        raise typer.Exit(2)
+    if rotate or disable:
+        setattr(cfg.server, field, "" if disable else secrets.token_urlsafe(32))
+        save_config(cfg)
+        if disable:
+            console.print(f"[green]✓[/green] {label} removed. Restart the server to apply.")
+            return
+        console.print(f"[green]✓[/green] New {label.lower()} saved. Restart the server to apply.")
+    value = getattr(cfg.server, field)
+    if not value:
+        console.print(f"[dim]No {label.lower()} configured.[/dim] Create one with --rotate.")
+        raise typer.Exit(1)
+    console.print(f"{label}: [bold]{value}[/bold]")
 
 
 @serve_app.command("uninstall-service")

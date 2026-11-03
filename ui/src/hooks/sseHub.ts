@@ -17,7 +17,7 @@ const _listeners: Map<string, Set<Listener>> = new Map();
 function _connect() {
   if (_stopped || _es) return;
 
-  _es = new EventSource(api.getStreamUrl());
+  _es = new EventSource(api.getStreamUrl(), { withCredentials: true });
 
   _es.onopen = () => {
     _retryCount = 0;

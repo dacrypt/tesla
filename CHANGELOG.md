@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security — secure-by-default self-hosting (Phase 0 hardening)
+
+> ⚠️ **Breaking for LAN / Docker users**: the API now requires a key whenever it
+> is reachable beyond localhost. The key is generated automatically on first
+> start — read it from the logs or with `tesla serve api-key`.
+
+- **API key required off-localhost** — `tesla serve --host <non-loopback>` (and
+  the Docker image) auto-generates and persists `server.api_key` instead of
+  serving an open API that can unlock the car. Opt out only behind an
+  authenticating proxy with `--insecure-no-auth`.
+- **`tesla serve api-key`** — show / `--rotate` / `--disable` the full-control
+  key, or a new **read-only key** (`--read-only`) limited to GET requests.
+- **Dashboard sign-in** — `POST /api/session` exchanges the key for an HttpOnly,
+  SameSite=Strict cookie; the React app shows a sign-in screen on 401. SSE works
+  with the cookie.
+- **CSRF protection** — cross-site `POST/PUT/PATCH/DELETE` requests (foreign
+  `Origin`, `Origin: null`, `Sec-Fetch-Site: cross-site`) are rejected with 403,
+  even with no key configured.
+- **DNS-rebinding guard** — with no key, only loopback `Host` headers (plus
+  `server.allowed_hosts`) are served.
+- **Raw command allowlist** — `POST /api/vehicle/command` forwards only
+  allowlisted Tesla command names; `erase_user_data`, PIN-to-drive / valet PIN
+  resets and software-update scheduling are blocked unless added to
+  `server.extra_allowed_commands`. Also stops path segments being smuggled into
+  the upstream command URL.
+- **`/api/health` is public** so Docker's HEALTHCHECK works with a key set
+  (`?deep=true` still requires auth). `/api/docs` and `/api/openapi.json` now
+  require auth.
+- **`?api_key=` query parameter removed** — use the `X-API-Key` header or the
+  session cookie. The daemon no longer passes the key on the command line
+  (visible in `ps`).
+- **Config written owner-only** — `~/.tesla-cli/config.toml` (API keys, HA /
+  MQTT / ABRP tokens) is now written atomically with mode `0600`.
+- **Docker** — image runs as unprivileged `tesla` (uid 1000), pins `uv`, builds
+  the UI into the path the server actually serves (the previous `COPY` path did
+  not exist), installs with `--frozen`. Compose drops all capabilities and sets
+  `no-new-privileges`; config volume moved to `/home/tesla/.tesla-cli` (see
+  README for the one-time `chown` when upgrading).
+- **Full stack compose** — no default passwords (`DB_PASSWORD`,
+  `ENCRYPTION_KEY`, `GRAFANA_PASSWORD` are required), uses TeslaMate's
+  `DATABASE_*` variables, Mosquitto gets an explicit listener config, and
+  TeslaMate / Grafana / Mosquitto bind to `127.0.0.1` (`STACK_BIND` to change).
+- **Managed TeslaMate stack** (`tesla teslaMate install`) — Postgres, MQTT,
+  TeslaMate and Grafana ports bind to `127.0.0.1` by default (`TM_BIND_ADDR`).
+
 ## [5.0.0] - 2026-04-22
 
 ### Major — Native EV Route Planner Phases 2 + 3 (speculative, probe-deferred)

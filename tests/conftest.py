@@ -137,3 +137,17 @@ def mock_fleet_backend():
     backend.revoke_invitation.return_value = {"result": True}
     backend.wake_up.return_value = True
     return backend
+
+
+@pytest.fixture(autouse=True)
+def _testclient_host_is_loopback(monkeypatch):
+    """Starlette's TestClient sends ``Host: testserver``; treat it as loopback.
+
+    The API's DNS-rebinding guard only admits loopback Host headers when no API
+    key is configured. Tests that exercise that guard override the Host header.
+    """
+    try:
+        from tesla_cli.api import auth as _auth
+    except ImportError:  # serve extra not installed
+        return
+    monkeypatch.setattr(_auth, "_LOOPBACK_HOSTS", _auth._LOOPBACK_HOSTS | {"testserver"})

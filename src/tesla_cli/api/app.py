@@ -232,15 +232,23 @@ def _register_middleware(app: FastAPI) -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     from tesla_cli.api.audit import AuditMiddleware
-    from tesla_cli.api.auth import ApiKeyMiddleware
+    from tesla_cli.api.auth import ApiKeyMiddleware, effective_keys
 
-    cfg = load_config()
-    app.add_middleware(ApiKeyMiddleware, api_key=cfg.server.api_key)
+    # Session routes validate keys with the same (env-overridden) values.
+    app.state.auth_keys = effective_keys(cfg.server.api_key, cfg.server.read_only_key)
+    app.add_middleware(
+        ApiKeyMiddleware,
+        api_key=cfg.server.api_key,
+        read_only_key=cfg.server.read_only_key,
+        allowed_hosts=list(cfg.server.allowed_hosts),
+        allowed_origins=list(allowed_origins),
+    )
     app.add_middleware(AuditMiddleware)
 
 
@@ -270,6 +278,7 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.planner import router as planner_router
     from tesla_cli.api.routes.security import router as security_router
+    from tesla_cli.api.routes.session import router as session_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
     from tesla_cli.api.routes.vehicle import router as vehicle_router
@@ -277,6 +286,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(init_router, prefix="/api/init", tags=["Init"])
     app.include_router(drivers_router, prefix="/api/drivers", tags=["Drivers"])
     app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+    app.include_router(session_router, prefix="/api/session", tags=["Session"])
     app.include_router(events_router, prefix="/api/events", tags=["Events"])
     app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
     app.include_router(sources_router, prefix="/api/sources", tags=["Sources"])

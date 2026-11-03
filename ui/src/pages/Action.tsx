@@ -96,7 +96,7 @@ const Action: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const opts: RequestInit = { method: actionDef.method };
+      const opts: RequestInit = { method: actionDef.method, credentials: 'include' };
       if (actionDef.method === 'POST') {
         opts.headers = { 'Content-Type': 'application/json' };
         opts.body = JSON.stringify({});

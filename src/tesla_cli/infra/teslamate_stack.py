@@ -47,7 +47,7 @@ services:
       POSTGRES_PASSWORD: ${TM_DB_PASSWORD}
       POSTGRES_DB: teslamate
     ports:
-      - "${TM_DB_PORT:-5432}:5432"
+      - "${TM_BIND_ADDR:-127.0.0.1}:${TM_DB_PORT:-5432}:5432"
     volumes:
       - teslamate-db:/var/lib/postgresql/data
     healthcheck:
@@ -60,7 +60,7 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - "${TM_MQTT_PORT:-1883}:1883"
+      - "${TM_BIND_ADDR:-127.0.0.1}:${TM_MQTT_PORT:-1883}:1883"
     volumes:
       - teslamate-mosquitto-conf:/mosquitto/config
       - teslamate-mosquitto-data:/mosquitto/data
@@ -85,7 +85,7 @@ services:
       TESLA_AUTH_CLIENT_ID: ${TM_TESLA_CLIENT_ID:-}
       TZ: ${TM_TIMEZONE:-America/Bogota}
     ports:
-      - "${TM_PORT:-4000}:4000"
+      - "${TM_BIND_ADDR:-127.0.0.1}:${TM_PORT:-4000}:4000"
     cap_drop:
       - all
 
@@ -106,7 +106,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_SERVER_ROOT_URL: http://localhost:${TM_GRAFANA_PORT:-3000}
     ports:
-      - "${TM_GRAFANA_PORT:-3000}:3000"
+      - "${TM_BIND_ADDR:-127.0.0.1}:${TM_GRAFANA_PORT:-3000}:3000"
     volumes:
       - teslamate-grafana-data:/var/lib/grafana
 
