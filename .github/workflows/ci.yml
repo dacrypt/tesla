@@ -79,7 +79,7 @@ jobs:
       - name: Container serves health + requires API key
         run: |
           set -euo pipefail
-          docker run -d --name t -p 8080:8080 tesla-cli:ci
+          docker run -d --name tesla-ci -p 8080:8080 tesla-cli:ci
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/api/health && break
             sleep 2
@@ -87,7 +87,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/api/health
           code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/status)
           test "$code" = "401"
-          docker logs t 2>&1 | grep -q "API key generated"
-          test "$(docker exec t id -u)" = "1000"
+          docker logs tesla-ci 2>&1 | grep -q "API key generated"
+          test "$(docker exec tesla-ci id -u)" = "1000"
       - if: always()
-        run: docker logs t 2>&1 | tail -50 || true
+        run: docker logs tesla-ci 2>&1 | tail -50 || true
