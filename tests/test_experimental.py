@@ -28,9 +28,9 @@ def test_sources_exist_in_registry():
     """Every source an experimental feature watches is a real source id."""
     import re
 
-    from tesla_cli.core import sources
+    from tesla_cli.core import source_catalog
 
-    src = Path(sources.__file__).read_text()
+    src = Path(source_catalog.__file__).read_text()
     declared = set(re.findall(r'id="([a-z_.]+)"', src))
     for f in exp.FEATURES:
         for s in f.sources:

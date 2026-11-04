@@ -64,7 +64,7 @@ work takes priority over new features.
 - ✅ ESLint clean + in CI; dashboard bundle halved; compiled UI out of git
 
 ### S2 — Next
-- **God-modules** — ✅ `cli/commands/vehicle`, `teslaMate`, `dossier` split into packages; still to split: `core/sources.py`; `ui/src/pages/Settings.tsx`, `api/client.ts`.
+- **God-modules** — ✅ `cli/commands/vehicle`, `teslaMate`, `dossier` split into packages; `core/sources.py` engine/catalog split (`core/source_catalog.py`); still to split: `ui/src/pages/Settings.tsx`, `api/client.ts`.
 - **Tests** — ✅ version-named files (`test_v260.py` … `test_v340.py`) renamed by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; replace the 113 legacy `any` types in the dashboard.
 
 ## Remaining Gaps
