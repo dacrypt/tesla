@@ -112,11 +112,19 @@ def config_alias(
 @config_app.command("export")
 def config_export(
     output: str = typer.Option(None, "--output", "-o", help="Write to file instead of stdout"),
+    include_secrets: bool = typer.Option(
+        False,
+        "--include-secrets",
+        help="Keep API keys, passwords and notification URLs (for moving to your own machine)",
+    ),
 ) -> None:
-    """Export current configuration to TOML (safe to share — tokens not included).
+    """Export current configuration to TOML. Credentials are redacted by default.
 
-    tesla config export                    → print to stdout
-    tesla config export -o backup.toml    → write to file
+    The export still contains personal data (VIN, reservation number): never
+    commit or publish it. Files are written 0600 and never inside a git repo.
+
+    tesla config export                    → print to stdout (redacted)
+    tesla config export -o ~/cfg.toml     → write to file (redacted)
     """
 
     from tesla_cli.core.config import CONFIG_FILE
@@ -127,17 +135,28 @@ def config_export(
         )
         raise typer.Exit(1)
 
-    content = CONFIG_FILE.read_text()
+    import tomllib
+
+    import tomli_w
+
+    from tesla_cli.core.exceptions import ConfigurationError
+    from tesla_cli.core.private_files import redact_config, write_private_file
+
+    data = tomllib.loads(CONFIG_FILE.read_text())
+    if not include_secrets:
+        data = redact_config(data)
+    content = tomli_w.dumps(data)
 
     if output:
-        from pathlib import Path
-
-        Path(output).write_text(content)
-        render_success(
-            f"Config exported to {output}  (tokens NOT included — those live in keyring)"
-        )
+        try:
+            out = write_private_file(output, content)
+        except ConfigurationError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        note = "credentials INCLUDED — keep private" if include_secrets else "credentials redacted"
+        render_success(f"Config exported to {out} (mode 0600, {note})")
     else:
-        console.print(content)
+        console.print(content, markup=False, highlight=False)
 
 
 @config_app.command("import")
@@ -245,44 +264,44 @@ def config_decrypt_token(
 
 @config_app.command("backup")
 def config_backup(
-    output: str = typer.Option(
-        "tesla-config-backup.json", "--output", "-o", help="Output JSON file"
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output JSON file (default: ~/.tesla-cli/backups/tesla-config-backup-DATE.json)",
     ),
 ) -> None:
-    """Export current configuration to a JSON backup file (tokens omitted for security).
+    """Back up the configuration to JSON (credentials redacted, mode 0600).
+
+    The backup contains personal data (VIN, reservation number). It is written
+    outside any git repository: a backup created inside the project checkout
+    was committed and published in October 2026.
 
     tesla config backup
     tesla config backup --output ~/tesla-backup.json
     """
     import json as _json
-    from pathlib import Path
 
-    cfg = load_config()
-    data = cfg.model_dump()
+    from tesla_cli import __version__
+    from tesla_cli.core.exceptions import ConfigurationError
+    from tesla_cli.core.private_files import (
+        default_backup_path,
+        redact_config,
+        write_private_file,
+    )
 
-    # Redact any token-like values in config (security)
-    def _redact(obj: object) -> object:
-        if isinstance(obj, dict):
-            return {
-                k: "[REDACTED]"
-                if any(t in k.lower() for t in ("token", "secret", "key", "password"))
-                else _redact(v)
-                for k, v in obj.items()
-            }
-        if isinstance(obj, list):
-            return [_redact(i) for i in obj]
-        return obj
+    safe = redact_config(load_config().model_dump())
+    safe["_meta"] = {"backup_version": "1", "tesla_cli_version": __version__}
 
-    safe = _redact(data)
-    safe["_meta"] = {
-        "backup_version": "1",
-        "tesla_cli_version": "1.9.0",
-    }
-
-    out = Path(output).expanduser()
-    out.write_text(_json.dumps(safe, indent=2, default=str))
+    target = output or default_backup_path("tesla-config-backup", "json")
+    try:
+        out = write_private_file(target, _json.dumps(safe, indent=2, default=str))
+    except ConfigurationError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
     console.print(
-        f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] (tokens redacted)"
+        f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] "
+        "(credentials redacted, mode 0600)"
     )
 
 
@@ -329,7 +348,11 @@ def config_restore(
         for k, v in source.items():
             if isinstance(v, dict) and hasattr(target, k):
                 _apply(getattr(target, k), v)
-            elif v != "[REDACTED]" and hasattr(target, k):
+            elif (
+                v != "[REDACTED]"
+                and not (isinstance(v, list) and "[REDACTED]" in v)
+                and hasattr(target, k)
+            ):
                 try:
                     setattr(target, k, v)
                 except Exception:
@@ -1287,9 +1310,15 @@ def config_export_env(
         text = "\n".join(lines)
 
     if output:
-        from pathlib import Path
+        from tesla_cli.core.exceptions import ConfigurationError
+        from tesla_cli.core.private_files import write_private_file
 
-        Path(output).write_text(text + "\n", encoding="utf-8")
-        console.print(f"[green]Exported to {output}[/green]")
+        try:
+            # Holds the API key and integration credentials: 0600, never in a repo.
+            out = write_private_file(output, text + "\n")
+        except ConfigurationError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]Exported to {out} (mode 0600)[/green]")
     else:
         console.print(text)

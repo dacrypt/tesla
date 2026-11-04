@@ -42,6 +42,17 @@ production-readiness review. No new end-user features.
 
 ### Security
 
+- **Root cause of the October 2026 disclosure fixed.** `tesla config backup`
+  wrote `tesla-config-backup.json` into the current directory (the project
+  checkout, where it was committed) and its key-name redaction let Apprise
+  notification URLs (Telegram bot token), VIN and reservation through.
+  Backups, `config export -o` and `config export-env -o` now go through
+  `core/private_files.py`: default location `~/.tesla-cli/backups/`, mode
+  `0600`, and **refuse to write inside any git work tree**. Redaction covers
+  notification/webhook URLs. `config export` no longer claims to be "safe to
+  share" while printing every key: credentials are redacted unless
+  `--include-secrets`. `config restore` never writes `[REDACTED]`
+  placeholders back.
 - Single-flight guard on endpoints that spawn headless browsers (login,
   portal scrape, dossier refresh): concurrent calls get 429.
 - Audit log covers every mutating API call with recursive redaction (PINs,
