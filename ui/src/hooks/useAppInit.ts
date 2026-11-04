@@ -95,7 +95,7 @@ const EMPTY_COMPUTED = { real_status: null, specs: null };
 export function useAppInit(): AppInitData {
   const [data, setData] = useState<Omit<AppInitData, 'loading' | 'error'> | null>(_initData);
   const [loading, setLoading] = useState(!_initLoaded);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   const fetchInit = useCallback(async () => {
     if (_initLoaded && _initData) {

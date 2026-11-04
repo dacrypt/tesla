@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.4.0] - 2026-11-04
+
+Stabilization release: works through the remaining findings of the critical
+production-readiness review. No new end-user features.
+
+### Upgrading from 5.3.x
+
+- `POST /api/dossier/refresh` replaces `GET` (state-changing GETs are
+  triggerable cross-site). The bundled dashboard is updated.
+- `/api/auth/browser-login` ignores `email`/`password` (they were never used:
+  login happens in Tesla's own page in a browser window on the server).
+- Order tracking sends `deviceCountry`/`deviceLanguage` from the new
+  `[order] country` / `language` settings (default `US` / `en`; it used to
+  be hardcoded to `CO` / `es`). Colombian users: `tesla config set
+  order.country CO` and `order.language es`.
+- Tesla authentication failures surface as HTTP 424 (not 401, which the
+  dashboard reads as "wrong API key"); Tesla unreachable is 504.
+- Docker images: `ghcr.io/dacrypt/tesla-cli` (amd64 + arm64).
+
+### Reliability
+
+- **Central error mapping** (`api/errors.py`) replaces 19 copy-pasted blocks
+  that guessed the HTTP status by searching for "412"/"429" in error text;
+  typed errors escaping any route are mapped by a global handler.
+- **Network retries** for every backend: connection failures are retried for
+  any method, read timeouts only for GET — a command is never sent twice.
+  New typed `NetworkError`.
+- **Rate limits per Tesla quota class** (data 45/min, commands 25/min, wake
+  3/min) instead of one 5/min bucket shared with the dashboard poller, which
+  could block commands for up to 30 s.
+- Owner API backend moved onto the shared HTTP helper (429/503 backoff,
+  Retry-After, typed errors).
+- 31 silently swallowed exceptions now log with tracebacks; new global
+  `--debug` flag / `TESLA_LOG_LEVEL`; a test blocks new silent swallows.
+
+### Security
+
+- **Root cause of the October 2026 disclosure fixed.** `tesla config backup`
+  wrote `tesla-config-backup.json` into the current directory (the project
+  checkout, where it was committed) and its key-name redaction let Apprise
+  notification URLs (Telegram bot token), VIN and reservation through.
+  Backups, `config export -o` and `config export-env -o` now go through
+  `core/private_files.py`: default location `~/.tesla-cli/backups/`, mode
+  `0600`, and **refuse to write inside any git work tree**. Redaction covers
+  notification/webhook URLs. `config export` no longer claims to be "safe to
+  share" while printing every key: credentials are redacted unless
+  `--include-secrets`. `config restore` never writes `[REDACTED]`
+  placeholders back.
+- Single-flight guard on endpoints that spawn headless browsers (login,
+  portal scrape, dossier refresh): concurrent calls get 429.
+- Audit log covers every mutating API call with recursive redaction (PINs,
+  URLs, keys).
+- Static file serving uses `Path.is_relative_to` (prefix check matched
+  sibling directories).
+- Dashboard no longer sends the Tesla password to the server.
+
+### Architecture
+
+- `core/` no longer imports the CLI or Rich (interactive login moved to
+  `cli/auth_flow.py`; dossier progress via callback); the API no longer
+  imports private CLI helpers (`core/charging.py`, `core/config_checks.py`);
+  routes no longer call external APIs inline
+  (`core/backends/colombia_open_data.py`). `tests/test_layering.py`
+  enforces it.
+- **Config schema versioning**: `schema_version` + step-by-step migrations;
+  configs from a newer tesla-cli are refused. `tesla config migrate` now
+  actually detects missing keys (it diffed the loaded model before) and its
+  backup is `0600`.
+
+### Dashboard & release
+
+- ESLint errors fixed and lint runs in CI (legacy `any` capped as warnings);
+  one shared HTTP client; TeslaMate/Grafana links use the dashboard host.
+- Dropped `@vitejs/plugin-legacy`: bundle 4.6 MB → 2.3 MB.
+- The compiled dashboard is no longer committed; the release workflow builds
+  it and verifies the wheel ships it.
+- Multi-arch image published to GHCR on each release; new
+  [self-hosting guide](docs/self-hosting.md) (remote access, upgrades,
+  backups).
+- Docs: removed links to unpublished design notes; CLI translations marked
+  experimental (`--lang` does not translate output yet).
+
 ## [5.3.0] - 2026-11-04
 
 First stable 5.x release on PyPI (the previous published version is 4.9.0;
@@ -220,7 +302,7 @@ managed TeslaMate stack — and a verified release pipeline.
 ### CLI — Native EV Route Planner (Phase 1 MVP)
 
 First shippable phase of the native EV planner roadmap
-(`.omc/plans/native-ev-planner.md`). Suggests charging stops along a route
+(the `native-ev-planner` design notes (internal, not published)). Suggests charging stops along a route
 using open-source data — no ABRP Premium contract required.
 
 - **`tesla nav plan <origin> <destination>`** — computes a driving route via
@@ -311,7 +393,7 @@ using open-source data — no ABRP Premium contract required.
 ### Why
 
 Unblocks the phased native EV route planner roadmap
-(`.omc/plans/native-ev-planner.md`): Phase 1 `tesla nav plan <from> <to>`
+(the `native-ev-planner` design notes (internal, not published)): Phase 1 `tesla nav plan <from> <to>`
 will tag generated routes with `source="native-planner"` so that re-running
 a plan cannot clobber a route you created by hand with `tesla nav route
 create`. Ships standalone (no dependency on later phases).
@@ -369,7 +451,7 @@ create`. Ships standalone (no dependency on later phases).
 - `docs/user-guide.md` — new "Favorites Importer" section with command examples
   and dedupe semantics.
 - `docs/roadmap.md` — current state advanced to v4.9.3.
-- `.omc/plans/nav-favorites-importer.md` — ralplan consensus design record.
+- the `nav-favorites-importer` design notes (internal, not published) — ralplan consensus design record.
 
 ## [4.9.2] - 2026-04-20
 

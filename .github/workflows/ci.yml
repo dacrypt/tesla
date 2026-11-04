@@ -66,6 +66,7 @@ jobs:
         env:
           CYPRESS_INSTALL_BINARY: "0"
       - run: npx tsc --noEmit
+      - run: npm run lint
       - run: npx vitest run
       - run: npx vite build --outDir "$RUNNER_TEMP/ui-dist" --emptyOutDir
 

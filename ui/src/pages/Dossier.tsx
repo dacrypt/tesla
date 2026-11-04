@@ -120,11 +120,6 @@ const modalOverlayStyle: React.CSSProperties = {
   position: 'fixed', inset: 0, zIndex: 999,
   background: 'rgba(0,0,0,0.7)',
 };
-const modalSheetStyle: React.CSSProperties = {
-  width: '100%', maxHeight: '75vh', overflowY: 'auto',
-  background: '#18191f', borderRadius: '16px 16px 0 0',
-  padding: '20px 16px 32px',
-};
 
 /* ── Shared history timeline renderer ── */
 function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
@@ -222,70 +217,6 @@ function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle: st
       >
         <CloseIcon />
       </button>
-    </div>
-  );
-}
-
-function HistoryModal({ sourceId, sourceName, onClose }: {
-  sourceId: string;
-  sourceName: string;
-  onClose: () => void;
-}) {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getSourceHistory(sourceId, 10)
-      .then(data => setEntries([...data].reverse()))
-      .catch(e => setError(e?.message || 'Failed to load history'))
-      .finally(() => setLoading(false));
-  }, [sourceId]);
-
-  return (
-    <div className="flex-center" style={{ ...modalOverlayStyle, alignItems: 'flex-end' }} onClick={onClose}>
-      <div style={modalSheetStyle} onClick={e => e.stopPropagation()}>
-        <ModalHeader title="History" subtitle={sourceName} onClose={onClose} />
-
-        {loading && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
-        {error && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{error}</div>}
-        {!loading && !error && entries.length === 0 && (
-          <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No history yet</div>
-        )}
-        <HistoryTimeline entries={entries} />
-      </div>
-    </div>
-  );
-}
-
-function QueriesModal({ sourceId, sourceName, onClose }: {
-  sourceId: string;
-  sourceName: string;
-  onClose: () => void;
-}) {
-  const [entries, setEntries] = useState<QueryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getSourceQueries(sourceId, 10)
-      .then(data => setEntries([...data].reverse()))
-      .catch(e => setError(e?.message || 'Failed to load query audit'))
-      .finally(() => setLoading(false));
-  }, [sourceId]);
-
-  return (
-    <div className="flex-center" style={{ ...modalOverlayStyle, alignItems: 'flex-end' }} onClick={onClose}>
-      <div style={modalSheetStyle} onClick={e => e.stopPropagation()}>
-        <ModalHeader title="Query Audit" subtitle={sourceName} onClose={onClose} />
-
-        {loading && <div className="flex-center" style={{ padding: 24 }}><Spin /></div>}
-        {error && <div className="text-base" style={{ color: '#FF6B6B', textAlign: 'center', padding: 16 }}>{error}</div>}
-        {!loading && !error && entries.length === 0 && (
-          <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 16 }}>No query audit yet</div>
-        )}
-        <QueryList entries={entries} />
-      </div>
     </div>
   );
 }

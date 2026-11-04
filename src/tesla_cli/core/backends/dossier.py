@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -701,15 +702,35 @@ def fetch_tesla_account(token: str) -> TeslaAccount:
 # ── Dossier Builder ─────────────────────────────────────────────────────────
 
 
+class _ProgressSink:
+    """Minimal ``.print`` adapter: forwards to a callback or to the logger."""
+
+    _MARKUP = re.compile(r"\[/?[a-z ]+\]")
+
+    def __init__(self, callback: Callable[[str], None] | None) -> None:
+        self._callback = callback
+
+    def print(self, message: str) -> None:
+        if self._callback is not None:
+            self._callback(message)
+        else:
+            logging.getLogger("tesla-cli.dossier").info(self._MARKUP.sub("", message))
+
+
 class DossierBackend:
     """Build and maintain the comprehensive vehicle dossier."""
 
     def __init__(self) -> None:
         self._client = httpx.Client(timeout=30)
 
-    def build_dossier(self) -> VehicleDossier:
-        """Build the full dossier from all available sources."""
-        from tesla_cli.cli.output import console
+    def build_dossier(self, progress: Callable[[str], None] | None = None) -> VehicleDossier:
+        """Build the full dossier from all available sources.
+
+        ``progress`` receives human-readable (Rich-markup) status lines; the
+        CLI passes ``console.print``. Without it, lines go to the logger, so
+        ``core`` never depends on the CLI.
+        """
+        console = _ProgressSink(progress)
         from tesla_cli.core.backends.order import OrderBackend
 
         cfg = load_config()

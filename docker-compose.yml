@@ -1,5 +1,8 @@
 services:
   tesla-cli:
+    # Prebuilt multi-arch image (amd64 + arm64: Raspberry Pi, most NAS).
+    # Pin a release with TESLA_CLI_TAG=5.4.0; `docker compose build` builds locally.
+    image: ghcr.io/dacrypt/tesla-cli:${TESLA_CLI_TAG:-latest}
     build: .
     container_name: tesla-cli
     ports:

@@ -12,6 +12,7 @@ import urllib.parse
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from tesla_cli.api.guards import guarded
 from tesla_cli.core.auth.tokens import (
     FLEET_ACCESS_TOKEN,
     FLEET_REFRESH_TOKEN,
@@ -106,25 +107,14 @@ def auth_callback(req: CallbackRequest) -> dict:
     cfg = load_config()
     client_id = cfg.fleet.client_id
 
-    # Exchange code for tokens
-    import httpx
+    # Exchange code for tokens (core/auth/oauth.py owns the protocol)
+    from tesla_cli.core.auth.oauth import complete_pkce_login
+    from tesla_cli.core.exceptions import AuthenticationError
 
     try:
-        r = httpx.post(
-            TOKEN_URL,
-            data={
-                "grant_type": "authorization_code",
-                "client_id": client_id,
-                "code": req.code,
-                "code_verifier": verifier,
-                "redirect_uri": VOID_REDIRECT_URI,
-            },
-            timeout=30,
-        )
-        r.raise_for_status()
-        token_data = r.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Token exchange failed: {e.response.status_code}") from e
+        token_data = complete_pkce_login(req.code, client_id, verifier)
+    except AuthenticationError as e:
+        raise HTTPException(502, f"Token exchange failed: {e}") from e
     except Exception as e:
         raise HTTPException(502, f"Token exchange error: {e}") from e
 
@@ -167,16 +157,19 @@ def auth_tessie(req: TessieRequest) -> dict:
     return {"ok": True, "backend": "tessie"}
 
 
-# ── Browser login (email + password) ──────────────────────────────────────────
+# ── Browser login ─────────────────────────────────────────────────────────────
 
 
 class BrowserLoginRequest(BaseModel):
-    email: str | None = None
-    password: str | None = None
+    """The login runs in a visible browser on the server; Tesla credentials are
+    typed into Tesla's own page there and never pass through this API.
+    Unknown fields (older dashboards sent email/password) are ignored."""
+
     mfa_code: str | None = None
 
 
 @router.post("/browser-login")
+@guarded("browser login")
 def auth_browser_login(req: BrowserLoginRequest) -> dict:
     """Login with Tesla email + password via headless browser.
 
@@ -320,6 +313,7 @@ class PortalScrapeRequest(BaseModel):
 
 
 @router.post("/portal-scrape")
+@guarded("portal scrape")
 def auth_portal_scrape(req: PortalScrapeRequest) -> dict:
     """Scrape Tesla ownership portal for full order/delivery/registration data.
 

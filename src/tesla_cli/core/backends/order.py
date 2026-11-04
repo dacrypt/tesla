@@ -25,6 +25,7 @@ import jwt
 from tesla_cli import __version__
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.auth.oauth import refresh_access_token
+from tesla_cli.core.backends.http import send_with_retry
 from tesla_cli.core.exceptions import ApiError, AuthenticationError, OrderNotFoundError
 from tesla_cli.core.models.order import (
     DeliveryAppointment,
@@ -55,9 +56,22 @@ DELIVERY_CACHE_MAX_AGE_HOURS = 72
 class OrderBackend:
     """Backend for Tesla order tracking and delivery monitoring."""
 
-    def __init__(self) -> None:
+    def __init__(self, country: str | None = None, language: str | None = None) -> None:
         self._client = httpx.Client(timeout=30)
         self.last_query_meta: dict[str, Any] = {}
+        self._country = country
+        self._language = language
+
+    def _locale(self) -> tuple[str, str]:
+        """(deviceCountry, deviceLanguage) from args, else ``[order]`` config."""
+        if self._country and self._language:
+            return self._country.upper(), self._language.lower()
+        from tesla_cli.core.config import load_config
+
+        order_cfg = load_config().order
+        country = self._country or order_cfg.country or "US"
+        language = self._language or order_cfg.language or "en"
+        return country.upper(), language.lower()
 
     # ── Authentication ─────────────────────────────────────────
 
@@ -97,7 +111,7 @@ class OrderBackend:
 
     def get_orders(self) -> list[dict[str, Any]]:
         """List all orders for the authenticated user."""
-        resp = self._client.get(ORDERS_URL, headers=self._headers())
+        resp = send_with_retry(self._client, "GET", ORDERS_URL, headers=self._headers())
         self.last_query_meta = {
             "url": str(resp.request.url),
             "method": resp.request.method,
@@ -123,13 +137,16 @@ class OrderBackend:
 
     def get_order_tasks(self, reservation_number: str) -> list[OrderTask]:
         """Get order tasks/steps from Tesla, falling back to cached portal data."""
+        country, language = self._locale()
         params = {
             "referenceNumber": reservation_number,
-            "deviceLanguage": "es",
-            "deviceCountry": "CO",
+            "deviceLanguage": language,
+            "deviceCountry": country,
             "appVersion": "4.50.0",
         }
-        resp = self._client.get(
+        resp = send_with_retry(
+            self._client,
+            "GET",
             f"{TASKS_API_BASE}/tasks",
             params=params,
             headers=self._headers(),

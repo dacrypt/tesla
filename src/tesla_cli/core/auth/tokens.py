@@ -5,6 +5,7 @@ no keyring backend exists (Docker, headless Linux), or when
 ``TESLA_CLI_TOKEN_STORE=file`` is set. Tokens are never stored in plain text.
 """
 
+import logging
 import os
 
 import keyring
@@ -93,7 +94,7 @@ def delete_token(key: str) -> None:
         try:
             file_store.delete(key)
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
     except keyring.errors.PasswordDeleteError:
         pass
 

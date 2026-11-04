@@ -191,7 +191,7 @@ def _get_epa_data() -> dict:
         if epa and epa.get("ev_motor"):
             return epa
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     try:
         with httpx.Client(timeout=10) as client:
@@ -208,6 +208,6 @@ def _get_epa_data() -> dict:
                     "range_hwy_mi": raw.get("rangeHwy"),
                 }
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     return {}

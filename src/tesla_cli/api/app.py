@@ -205,6 +205,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     )
 
     _register_middleware(app)
+    from tesla_cli.api.errors import register_exception_handlers
+
+    register_exception_handlers(app)
     _register_routes(app)
     _register_system_endpoints(app)
     _register_metrics(app)
@@ -376,7 +379,7 @@ def _build_provider_capabilities() -> dict:
 
 def _build_config_validation(cfg) -> dict:
     """Run config checks and return a structured validation result."""
-    from tesla_cli.cli.commands.config_cmd import _run_config_checks
+    from tesla_cli.core.config_checks import run_config_checks as _run_config_checks
 
     checks = _run_config_checks(cfg)
     errors = sum(1 for c in checks if c["status"] == "error")
@@ -673,7 +676,7 @@ def _register_ui(app: FastAPI, serve_ui: bool) -> None:
 
                 # Try serving a static file from ui_dist.
                 file = (_ui_dist / path.lstrip("/")).resolve()
-                if file.is_file() and str(file).startswith(str(_ui_dist.resolve())):
+                if file.is_file() and file.is_relative_to(_ui_dist.resolve()):
                     return StarletteFileResponse(str(file))
 
                 # Fallback: serve index.html for client-side routing.

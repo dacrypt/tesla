@@ -57,7 +57,7 @@ def login(
     console.print()
 
     try:
-        from tesla_cli.core.auth.oauth import run_tesla_oauth_flow
+        from tesla_cli.cli.auth_flow import run_tesla_oauth_flow
 
         token_data = run_tesla_oauth_flow()
         tokens.set_token(tokens.ORDER_ACCESS_TOKEN, token_data["access_token"])

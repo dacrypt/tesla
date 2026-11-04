@@ -23,13 +23,6 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-function chargingColor(state: string): string {
-  if (state === 'Charging') return '#0BE881';
-  if (state === 'Complete') return '#0FBCF9';
-  if (state === 'Stopped') return '#F99716';
-  return '#86888f';
-}
-
 function formatTime(minutes: number): string {
   if (!minutes) return '--';
   const h = Math.floor(minutes / 60);
@@ -62,7 +55,6 @@ export default function ChargeContent() {
   const energyAdded = state?.charge_energy_added ?? charge?.charge_energy_added ?? 0;
   const portOpen = state?.charge_port_door_open ?? charge?.charge_port_door_open ?? false;
   const range = state?.battery_range;
-  const stateColor = chargingColor(chargingState);
   const scheduledMode = state?.scheduled_charging_mode ?? charge?.scheduled_charging_mode ?? 'Off';
   const scheduledStart = state?.scheduled_charging_start_time ?? charge?.scheduled_charging_start_time;
 

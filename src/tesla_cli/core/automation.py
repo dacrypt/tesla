@@ -6,6 +6,7 @@ Config file: ~/.tesla-cli/automations.json
 from __future__ import annotations
 
 import json
+import logging
 import shlex
 import subprocess
 import time
@@ -349,7 +350,7 @@ class AutomationEngine:
                 follow_redirects=False,
             )
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     def _send_notification(self, action: AutomationAction, data: dict) -> None:
         try:

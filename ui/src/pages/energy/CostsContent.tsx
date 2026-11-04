@@ -203,7 +203,6 @@ function CityComparisonChart() {
             <Tooltip
               contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11 }}
               labelStyle={{ color: C.text }}
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
               formatter={((value: unknown) => [
                 typeof value === 'number' ? formatCOP(value) : String(value ?? ''),
               ]) as never}

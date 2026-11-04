@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import typer
 from rich.prompt import Prompt
 
@@ -110,11 +112,19 @@ def config_alias(
 @config_app.command("export")
 def config_export(
     output: str = typer.Option(None, "--output", "-o", help="Write to file instead of stdout"),
+    include_secrets: bool = typer.Option(
+        False,
+        "--include-secrets",
+        help="Keep API keys, passwords and notification URLs (for moving to your own machine)",
+    ),
 ) -> None:
-    """Export current configuration to TOML (safe to share — tokens not included).
+    """Export current configuration to TOML. Credentials are redacted by default.
 
-    tesla config export                    → print to stdout
-    tesla config export -o backup.toml    → write to file
+    The export still contains personal data (VIN, reservation number): never
+    commit or publish it. Files are written 0600 and never inside a git repo.
+
+    tesla config export                    → print to stdout (redacted)
+    tesla config export -o ~/cfg.toml     → write to file (redacted)
     """
 
     from tesla_cli.core.config import CONFIG_FILE
@@ -125,17 +135,28 @@ def config_export(
         )
         raise typer.Exit(1)
 
-    content = CONFIG_FILE.read_text()
+    import tomllib
+
+    import tomli_w
+
+    from tesla_cli.core.exceptions import ConfigurationError
+    from tesla_cli.core.private_files import redact_config, write_private_file
+
+    data = tomllib.loads(CONFIG_FILE.read_text())
+    if not include_secrets:
+        data = redact_config(data)
+    content = tomli_w.dumps(data)
 
     if output:
-        from pathlib import Path
-
-        Path(output).write_text(content)
-        render_success(
-            f"Config exported to {output}  (tokens NOT included — those live in keyring)"
-        )
+        try:
+            out = write_private_file(output, content)
+        except ConfigurationError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        note = "credentials INCLUDED — keep private" if include_secrets else "credentials redacted"
+        render_success(f"Config exported to {out} (mode 0600, {note})")
     else:
-        console.print(content)
+        console.print(content, markup=False, highlight=False)
 
 
 @config_app.command("import")
@@ -243,44 +264,44 @@ def config_decrypt_token(
 
 @config_app.command("backup")
 def config_backup(
-    output: str = typer.Option(
-        "tesla-config-backup.json", "--output", "-o", help="Output JSON file"
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output JSON file (default: ~/.tesla-cli/backups/tesla-config-backup-DATE.json)",
     ),
 ) -> None:
-    """Export current configuration to a JSON backup file (tokens omitted for security).
+    """Back up the configuration to JSON (credentials redacted, mode 0600).
+
+    The backup contains personal data (VIN, reservation number). It is written
+    outside any git repository: a backup created inside the project checkout
+    was committed and published in October 2026.
 
     tesla config backup
     tesla config backup --output ~/tesla-backup.json
     """
     import json as _json
-    from pathlib import Path
 
-    cfg = load_config()
-    data = cfg.model_dump()
+    from tesla_cli import __version__
+    from tesla_cli.core.exceptions import ConfigurationError
+    from tesla_cli.core.private_files import (
+        default_backup_path,
+        redact_config,
+        write_private_file,
+    )
 
-    # Redact any token-like values in config (security)
-    def _redact(obj: object) -> object:
-        if isinstance(obj, dict):
-            return {
-                k: "[REDACTED]"
-                if any(t in k.lower() for t in ("token", "secret", "key", "password"))
-                else _redact(v)
-                for k, v in obj.items()
-            }
-        if isinstance(obj, list):
-            return [_redact(i) for i in obj]
-        return obj
+    safe = redact_config(load_config().model_dump())
+    safe["_meta"] = {"backup_version": "1", "tesla_cli_version": __version__}
 
-    safe = _redact(data)
-    safe["_meta"] = {
-        "backup_version": "1",
-        "tesla_cli_version": "1.9.0",
-    }
-
-    out = Path(output).expanduser()
-    out.write_text(_json.dumps(safe, indent=2, default=str))
+    target = output or default_backup_path("tesla-config-backup", "json")
+    try:
+        out = write_private_file(target, _json.dumps(safe, indent=2, default=str))
+    except ConfigurationError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
     console.print(
-        f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] (tokens redacted)"
+        f"  [green]\u2713[/green] Config backed up to [bold]{out}[/bold] "
+        "(credentials redacted, mode 0600)"
     )
 
 
@@ -327,11 +348,15 @@ def config_restore(
         for k, v in source.items():
             if isinstance(v, dict) and hasattr(target, k):
                 _apply(getattr(target, k), v)
-            elif v != "[REDACTED]" and hasattr(target, k):
+            elif (
+                v != "[REDACTED]"
+                and not (isinstance(v, list) and "[REDACTED]" in v)
+                and hasattr(target, k)
+            ):
                 try:
                     setattr(target, k, v)
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     _apply(cfg, data)
     save_config(cfg)
@@ -744,11 +769,17 @@ def config_migrate(
     import datetime as _dt
     import json as _json
     import shutil
+    import tomllib
 
     from tesla_cli.core.config import CONFIG_FILE, Config
+    from tesla_cli.core.config_migrations import CURRENT_SCHEMA_VERSION, migrate
 
     cfg_old = load_config()
-    old_dict = cfg_old.model_dump()
+    # Compare against what is actually on disk: the loaded model always has
+    # every field filled with defaults, so diffing it found nothing to add.
+    raw = tomllib.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
+    _, applied_migrations = migrate(dict(raw))
+    old_dict = raw
 
     # Create a fresh config with all current defaults
     cfg_new = Config()
@@ -774,13 +805,17 @@ def config_migrate(
                 {
                     "dry_run": dry_run,
                     "additions": additions,
+                    "schema_migrations": applied_migrations,
+                    "schema_version": CURRENT_SCHEMA_VERSION,
                     "version": tesla_cli.__version__,
                 }
             )
         )
         return
 
-    if not additions:
+    for v in applied_migrations:
+        console.print(f"  [dim]schema[/dim] v{v} → v{v + 1}")
+    if not additions and not applied_migrations:
         console.print(
             "[green]\u2713[/green] Config is already up to date \u2014 no new fields needed."
         )
@@ -800,6 +835,7 @@ def config_migrate(
     if CONFIG_FILE.exists():
         backup_path = CONFIG_FILE.with_suffix(f".bak.{_dt.date.today().isoformat()}")
         shutil.copy2(CONFIG_FILE, backup_path)
+        backup_path.chmod(0o600)  # holds the same secrets as config.toml
         console.print(f"[dim]Backup saved to {backup_path}[/dim]")
 
     cfg_merged = cfg_old.model_copy(deep=True)
@@ -953,93 +989,15 @@ def config_validate() -> None:
 
 
 def _run_config_checks(cfg) -> list[dict]:
-    """Run all config validation checks and return list of {field, status, message}."""
-    import string
+    """CLI alias of :func:`tesla_cli.core.config_checks.run_config_checks`."""
+    from tesla_cli.core.config_checks import run_config_checks
 
-    checks: list[dict] = []
-
-    def _ok(field: str, msg: str) -> None:
-        checks.append({"field": field, "status": "ok", "message": msg})
-
-    def _warn(field: str, msg: str) -> None:
-        checks.append({"field": field, "status": "warn", "message": msg})
-
-    def _err(field: str, msg: str) -> None:
-        checks.append({"field": field, "status": "error", "message": msg})
-
-    valid_backends = {"fleet", "fleet-signed", "tessie", "owner"}
-    if cfg.general.default_vin:
-        _ok("general.default_vin", f"Set: {cfg.general.default_vin}")
-    else:
-        _warn("general.default_vin", "Not set — most vehicle commands will fail")
-
-    if cfg.general.backend in valid_backends:
-        _ok("general.backend", f"Valid: {cfg.general.backend}")
-    else:
-        _err(
-            "general.backend",
-            f"Unknown backend '{cfg.general.backend}' — must be one of: {', '.join(sorted(valid_backends))}",
-        )
-
-    if 0.0 <= cfg.general.cost_per_kwh <= 5.0:
-        _ok("general.cost_per_kwh", str(cfg.general.cost_per_kwh))
-    else:
-        _warn(
-            "general.cost_per_kwh", f"Unusual value {cfg.general.cost_per_kwh} — expected 0.0–5.0"
-        )
-
-    if cfg.mqtt.broker:
-        if not 1 <= cfg.mqtt.port <= 65535:
-            _err("mqtt.port", f"Port {cfg.mqtt.port} out of range (1–65535)")
-        else:
-            _ok("mqtt.port", str(cfg.mqtt.port))
-        if cfg.mqtt.qos not in (0, 1, 2):
-            _err("mqtt.qos", f"QoS {cfg.mqtt.qos} invalid — must be 0, 1, or 2")
-        else:
-            _ok("mqtt.qos", str(cfg.mqtt.qos))
-    else:
-        _ok("mqtt", "Not configured (optional)")
-
-    if cfg.home_assistant.url:
-        if cfg.home_assistant.url.startswith(("http://", "https://")):
-            _ok("home_assistant.url", cfg.home_assistant.url)
-        else:
-            _err("home_assistant.url", "Must start with http:// or https://")
-
-    if cfg.teslaMate.database_url:
-        if cfg.teslaMate.database_url.startswith("postgresql"):
-            _ok("teslaMate.database_url", "Valid PostgreSQL URL")
-        else:
-            _err("teslaMate.database_url", "Must be a postgresql:// URL")
-        if cfg.teslaMate.car_id < 1:
-            _err("teslaMate.car_id", f"car_id {cfg.teslaMate.car_id} must be ≥ 1")
-        else:
-            _ok("teslaMate.car_id", str(cfg.teslaMate.car_id))
-
-    if cfg.server.api_key and len(cfg.server.api_key) < 8:
-        _warn("server.api_key", "API key < 8 chars — consider a longer key")
-
-    tmpl = cfg.notifications.message_template
-    known = {"{event}", "{vehicle}", "{detail}", "{ts}"}
-    try:
-        used = {f"{{{f}}}" for _, f, _, _ in string.Formatter().parse(tmpl) if f}
-        unknown_keys = used - known
-        if unknown_keys:
-            _warn(
-                "notifications.message_template",
-                f"Unknown placeholder(s): {', '.join(sorted(unknown_keys))}",
-            )
-        else:
-            _ok("notifications.message_template", tmpl[:60])
-    except Exception:
-        _warn("notifications.message_template", "Could not parse template")
-
-    return checks
+    return run_config_checks(cfg)
 
 
 def _auth_order() -> None:
     """Run Tesla OAuth2+PKCE flow for order tracking."""
-    from tesla_cli.core.auth.oauth import run_tesla_oauth_flow
+    from tesla_cli.cli.auth_flow import run_tesla_oauth_flow
 
     console.print("[bold]Authenticating with Tesla for order tracking...[/bold]")
     token_data = run_tesla_oauth_flow()
@@ -1096,7 +1054,8 @@ def _auth_fleet() -> None:
     save_config(cfg)
     tokens.set_token(tokens.FLEET_CLIENT_SECRET, client_secret.strip())
 
-    from tesla_cli.core.auth.oauth import FLEET_SCOPES, register_fleet_partner, run_tesla_oauth_flow
+    from tesla_cli.cli.auth_flow import run_tesla_oauth_flow
+    from tesla_cli.core.auth.oauth import FLEET_SCOPES, register_fleet_partner
 
     # Step 1: Register partner account (one-time, uses client_credentials)
     console.print("[dim]Registering partner account in Fleet API (region NA)...[/dim]")
@@ -1351,9 +1310,15 @@ def config_export_env(
         text = "\n".join(lines)
 
     if output:
-        from pathlib import Path
+        from tesla_cli.core.exceptions import ConfigurationError
+        from tesla_cli.core.private_files import write_private_file
 
-        Path(output).write_text(text + "\n", encoding="utf-8")
-        console.print(f"[green]Exported to {output}[/green]")
+        try:
+            # Holds the API key and integration credentials: 0600, never in a repo.
+            out = write_private_file(output, text + "\n")
+        except ConfigurationError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]Exported to {out} (mode 0600)[/green]")
     else:
         console.print(text)

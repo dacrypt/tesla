@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 import typer
@@ -2442,7 +2443,7 @@ def vehicle_stream(
                         if mp.available():
                             mp.push(data)
                     except Exception:
-                        pass
+                        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
                 iteration += 1
                 if count and iteration >= count:

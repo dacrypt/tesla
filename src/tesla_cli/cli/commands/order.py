@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 import typer
@@ -491,7 +492,7 @@ def order_timeline() -> None:
 
             snap = _json.loads(Path(snap_file).read_text()) if snap_file else {}
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
         # Flatten relevant fields from nested snapshot
         def _extract(data: dict) -> dict:
@@ -1116,7 +1117,7 @@ def order_eta() -> None:
                 phase = rs.get("phase") or "ordered"
                 phase_since = rs.get("phase_since") or rs.get("last_updated") or None
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     # Fallback: load from live Tesla API
     if phase == "ordered":
@@ -1140,7 +1141,7 @@ def order_eta() -> None:
                 elif "produc" in raw_phase or "manufactur" in raw_phase:
                     phase = "produced"
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     today = date.today()
     phase_norm = phase.lower().replace(" ", "_")

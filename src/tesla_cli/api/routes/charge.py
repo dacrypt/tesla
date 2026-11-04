@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from tesla_cli.api.errors import upstream_http_error
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.exceptions import BackendNotSupportedError, VehicleAsleepError
@@ -27,12 +28,7 @@ def charge_status(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 class SetLimitRequest(BaseModel):
@@ -51,9 +47,7 @@ def set_charge_limit(body: SetLimitRequest, request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 class SetAmpsRequest(BaseModel):
@@ -72,9 +66,7 @@ def set_charge_amps(body: SetAmpsRequest, request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/start")
@@ -87,9 +79,7 @@ def charge_start(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/stop")
@@ -102,9 +92,7 @@ def charge_stop(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.get("/history")
@@ -135,7 +123,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
     Applies cost_per_kwh estimation when actual cost is missing.
     """
     limit = min(limit, 500)
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)
 
@@ -148,7 +136,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
 @router.get("/last")
 def charge_last() -> dict:
     """Most recent charging session with cost details."""
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=1)
     if not sessions:
@@ -164,7 +152,7 @@ def charge_weekly(weeks: int = 4) -> dict:
     from collections import defaultdict
     from datetime import datetime
 
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=500)
     if not sessions:
@@ -275,7 +263,7 @@ def remove_charge_schedule(schedule_id: int) -> dict:
 def charge_sessions_api(limit: int = 20) -> list[dict]:
     """Recent charging sessions from the best available source."""
     limit = min(limit, 500)
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)
     if not sessions:
@@ -289,7 +277,7 @@ def charge_cost_summary_api() -> dict:
     from collections import defaultdict
     from datetime import datetime
 
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=1000)
     if not sessions:

@@ -11,7 +11,7 @@ src/tesla_cli/
 ├── app.py                # Entry point — registers all Typer sub-apps
 ├── config.py             # Pydantic-Settings config model (~/.tesla-cli/config.toml)
 ├── output.py             # Rich rendering + JSON mode + --anon anonymizer
-├── i18n.py               # Lightweight i18n: t(key) — en/es/pt/fr/de/it
+├── i18n.py               # Translation catalog t(key) (experimental: commands not yet translated)
 ├── exceptions.py         # AuthenticationError, ApiError, BackendError, etc.
 │
 ├── core/

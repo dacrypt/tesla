@@ -94,8 +94,18 @@ function createClient(): AxiosInstance {
   return instance;
 }
 
+// One shared instance (re-created only when the API base URL changes) instead
+// of a new axios instance + interceptor on every call.
+let _client: AxiosInstance | null = null;
+let _clientBase: string | null = null;
+
 function client(): AxiosInstance {
-  return createClient();
+  const base = getBaseUrl();
+  if (!_client || _clientBase !== base) {
+    _client = createClient();
+    _clientBase = base;
+  }
+  return _client;
 }
 
 // Types
@@ -970,7 +980,7 @@ export const api = {
 
   // Dossier
   getDossier: () => client().get<VehicleDossier>('/api/dossier', { timeout: 5000 }).then(r => r.data),
-  refreshDossier: () => client().get<VehicleDossier>('/api/dossier/refresh', { timeout: 30000 }).then(r => r.data),
+  refreshDossier: () => client().post<VehicleDossier>('/api/dossier/refresh', undefined, { timeout: 120000 }).then(r => r.data),
   getDossierRunt: () => client().get<RuntData>('/api/dossier/runt', { timeout: 15000 }).then(r => r.data),
   getDossierSimit: () => client().get<SimitData>('/api/dossier/simit', { timeout: 15000 }).then(r => r.data),
 
@@ -1013,8 +1023,10 @@ export const api = {
     client().post<{ ok: boolean; expires_in?: number }>('/api/auth/callback', { code, state }).then(r => r.data),
   postAuthTessie: (token: string) =>
     client().post<{ ok: boolean }>('/api/auth/tessie', { token }).then(r => r.data),
-  browserLogin: (email?: string, password?: string, mfa_code?: string) =>
-    client().post<any>('/api/auth/browser-login', { email, password, mfa_code }, { timeout: 300000 }).then(r => r.data),
+  // The server opens Tesla's own login page in a browser window on its machine;
+  // credentials are typed there, never sent through this API.
+  browserLogin: (mfa_code?: string) =>
+    client().post<any>('/api/auth/browser-login', { mfa_code }, { timeout: 300000 }).then(r => r.data),
   portalScrape: (mfa_code?: string) =>
     client().post<any>('/api/auth/portal-scrape', { mfa_code }, { timeout: 420000 }).then(r => r.data),
   getAuthStatus: () =>

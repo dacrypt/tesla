@@ -26,10 +26,10 @@ from tesla_cli import __version__
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.auth.oauth import refresh_access_token
 from tesla_cli.core.backends.base import VehicleBackend
+from tesla_cli.core.backends.http import HttpBackendMixin
 from tesla_cli.core.exceptions import (
     ApiError,
     AuthenticationError,
-    EndpointDeprecatedError,
     VehicleAsleepError,
 )
 
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 OWNER_API_BASE = "https://owner-api.teslamotors.com"
 
 
-class OwnerApiVehicleBackend(VehicleBackend):
+class OwnerApiVehicleBackend(HttpBackendMixin, VehicleBackend):
     """Vehicle backend using the Tesla Owner API with the order-tracking token.
 
     No extra setup needed — uses the same credentials as `tesla config auth order`.
@@ -90,16 +90,7 @@ class OwnerApiVehicleBackend(VehicleBackend):
         if vin in self._id_cache:
             return self._id_cache[vin]
 
-        resp = self._client.get("/api/1/vehicles", headers=self._headers())
-        if resp.status_code == 401:
-            raise AuthenticationError("Token expired. Run: tesla config auth order")
-        if resp.status_code == 412:
-            raise EndpointDeprecatedError()
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, f"Failed to list vehicles: {resp.text}")
-
-        data = resp.json()
-        vehicles = data.get("response", data) if isinstance(data, dict) else data
+        vehicles = self._get("/api/1/vehicles")
 
         for v in vehicles if isinstance(vehicles, list) else []:
             v_vin = v.get("vin", "")
@@ -114,31 +105,14 @@ class OwnerApiVehicleBackend(VehicleBackend):
 
     # ── HTTP helpers ─────────────────────────────────────────────────────────
 
-    def _get(self, path: str) -> dict[str, Any]:
-        resp = self._client.get(path, headers=self._headers())
-        if resp.status_code == 401:
-            raise AuthenticationError("Token expired. Run: tesla config auth order")
-        if resp.status_code == 408:
-            raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
-        if resp.status_code == 412:
-            raise EndpointDeprecatedError()
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
+    _auth_error_message = "Token expired. Run: tesla config auth order"
 
-    def _post(self, path: str, body: dict | None = None) -> dict[str, Any]:
-        resp = self._client.post(path, json=body or {}, headers=self._headers())
-        if resp.status_code == 401:
-            raise AuthenticationError("Token expired. Run: tesla config auth order")
-        if resp.status_code == 408:
-            raise VehicleAsleepError("Vehicle is asleep. Run: tesla vehicle wake")
-        if resp.status_code == 412:
-            raise EndpointDeprecatedError()
-        if resp.status_code != 200:
-            raise ApiError(resp.status_code, resp.text)
-        data = resp.json()
-        return data.get("response", data) if isinstance(data, dict) else data
+    def _get(self, path: str, **kwargs) -> dict[str, Any]:
+        # Headers are built per request: the access token may be refreshed.
+        return self._request("GET", path, headers=self._headers(), **kwargs)
+
+    def _post(self, path: str, body: dict | None = None, **kwargs) -> dict[str, Any]:
+        return self._request("POST", path, json=body or {}, headers=self._headers(), **kwargs)
 
     # ── VehicleBackend interface ─────────────────────────────────────────────
 

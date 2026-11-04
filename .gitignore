@@ -88,3 +88,6 @@ audit/
 /tesla-config*.bak
 /tesla-config*.backup
 coverage.xml
+
+# Built dashboard (make build / release workflow); shipped via hatch artifacts
+src/tesla_cli/api/ui_dist/

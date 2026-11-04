@@ -1470,15 +1470,10 @@ class TestSecurityHardening:
     def test_peajes_sanitizes_injection(self, srv):
         """SoQL injection chars stripped from peajes route param (behavioral)."""
         client, _, _ = srv
-        with patch("httpx.get") as mock_get:
-            mock_resp = MagicMock()
-            mock_resp.json.return_value = []
-            mock_resp.raise_for_status = MagicMock()
-            mock_get.return_value = mock_resp
+        with patch("tesla_cli.core.backends.colombia_open_data._get", return_value=[]) as mock_get:
             client.get("/api/co/peajes?ruta=' OR 1=1 --")
             assert mock_get.called
-            call_params = mock_get.call_args
-            where_clause = call_params.kwargs.get("params", {}).get("$where", "")
+            where_clause = mock_get.call_args.args[1].get("$where", "")
             # Injected single quote and = must NOT appear between the like '%..%' delimiters
             # Extract the user-controlled part from: like '%USER_INPUT%'
             import re

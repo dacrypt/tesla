@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -364,7 +365,7 @@ def _read_jsonl(path, limit: int | None) -> list[dict[str, Any]]:
         try:
             entries.append(json.loads(line))
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
     return entries
 
 
@@ -391,7 +392,7 @@ def _rotate_jsonl(path) -> None:
         if len(lines) > _MAX_JSONL_ENTRIES:
             path.write_text("\n".join(lines[-_MAX_JSONL_ENTRIES:]) + "\n")
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
 
 def _write_jsonl(path, entries: list[dict[str, Any]]) -> None:

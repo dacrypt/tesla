@@ -53,7 +53,6 @@ const PendingIcon = () => (
 
 function OrderHeader({
   reservationNumber,
-  phase,
   phaseLabel,
   phaseColor,
   model,

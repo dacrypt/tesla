@@ -166,7 +166,7 @@ const Settings: React.FC = () => {
   // Auth
   const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; backend: string; has_fleet: boolean; has_tessie: boolean } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  const [authUrl, setAuthUrl] = useState('');
+  const [, setAuthUrl] = useState('');
   const [authState, setAuthState] = useState('');
   const [showAuthInput, setShowAuthInput] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState('');
@@ -649,11 +649,11 @@ const Settings: React.FC = () => {
                       {/* Quick links */}
                       {stack.ports && (
                         <div className="flex-center gap-md" style={{ marginBottom: 12 }}>
-                          <a href={`http://localhost:${stack.ports.teslamate}`} target="_blank" rel="noreferrer"
+                          <a href={`${window.location.protocol}//${window.location.hostname}:${stack.ports.teslamate}`} target="_blank" rel="noreferrer"
                             style={{ color: '#0FBCF9', fontSize: 13, textDecoration: 'none' }}>
                             TeslaMate UI ↗
                           </a>
-                          <a href={`http://localhost:${stack.ports.grafana}`} target="_blank" rel="noreferrer"
+                          <a href={`${window.location.protocol}//${window.location.hostname}:${stack.ports.grafana}`} target="_blank" rel="noreferrer"
                             style={{ color: '#0FBCF9', fontSize: 13, textDecoration: 'none' }}>
                             Grafana ↗
                           </a>

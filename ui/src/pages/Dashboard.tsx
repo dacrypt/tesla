@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   IonContent,
   IonHeader,
@@ -40,11 +40,6 @@ const AcIcon = () => (
 const FlashLightsIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
     <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/>
-  </svg>
-);
-const HornIcon = () => (
-  <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
   </svg>
 );
 const WakeIcon = () => (
@@ -594,7 +589,7 @@ const Dashboard: React.FC = () => {
   const [cmdError, setCmdError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
-  const [fleetLoading, setFleetLoading] = useState(false);
+  const [fleetLoading] = useState(false);
   const [loginMfa, setLoginMfa] = useState('');
   const [loginError, setLoginError] = useState('');
   const [autoStatus, setAutoStatus] = useState<AutomationsStatus | null>(null);
@@ -624,7 +619,7 @@ const Dashboard: React.FC = () => {
     setAuthLoading(true);
     setLoginError('');
     try {
-      const result = await api.browserLogin(undefined, undefined, loginMfa || undefined);
+      const result = await api.browserLogin(loginMfa || undefined);
       if (result.ok) {
         setAuthOverride(true);
         refresh();

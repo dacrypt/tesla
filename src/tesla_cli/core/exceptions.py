@@ -53,6 +53,10 @@ class RateLimitError(ApiError):
         super().__init__(429, message)
 
 
+class NetworkError(TeslaCliError):
+    """Tesla could not be reached (DNS, connection refused, timeout) after retries."""
+
+
 class OrderNotFoundError(TeslaCliError):
     """Order RN not found or API endpoint broken."""
 
