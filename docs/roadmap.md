@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (v5.3.0)
+## Current State (v5.4.0)
 
 180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
 
@@ -53,16 +53,21 @@ work takes priority over new features.
 - ✅ Encrypted file token store for Docker / headless hosts (Docker-secret master key)
 - ✅ Release pipeline: version consistency, tests before publish, UI + Docker jobs in CI, coverage floor
 
-### S1 — Next stabilization release
-- **Typed error handling** — global FastAPI exception handlers keyed on `core/exceptions.py`; replace 32 `"429" in str(exc)` checks and `detail=str(exc)` leaks; log instead of `except Exception: pass`.
-- **Uniform HTTP resilience** — retries on transport errors/timeouts for every backend (Owner and Order backends bypass the shared helper); per-vehicle rate budget instead of a global 5 req/min bucket shared with the hub poller.
-- **Layering** — move `_fetch_sessions` / config checks out of `cli/` into `core/`; remove `rich`/CLI imports from `core/`.
-- **Rate limiting** on login/scrape endpoints that spawn headless browsers.
-- **Multi-arch image on GHCR** (amd64 + arm64 for Pi/NAS) built by the release workflow.
-- **Config schema versioning** with real migrations (rename/remove keys).
-- **Backups** — `tesla backup` / `restore` for config, events DB and TeslaMate.
-- Raise coverage floor toward 70% for `core/` + `api/`; fix the 128 ESLint errors and add ESLint to CI.
-- Mark unofficial-API features (order tracking, portal scraping, RUNT/SIMIT, speculative planner) as **experimental** with health alerts when they break.
+### Done in 5.4.0
+- ✅ Typed error handling: central mapping + global handlers; silent `except: pass` now logged; `--debug`
+- ✅ HTTP resilience: safe transport retries everywhere; rate limits per Tesla quota class
+- ✅ Layering enforced by test (core ↛ cli/rich/fastapi, api ↛ cli); no HTTP calls inside routes
+- ✅ Single-flight guard on headless-browser endpoints; full audit log; dossier refresh is POST
+- ✅ Multi-arch image on GHCR; self-hosting guide (remote access, upgrades, manual backups)
+- ✅ Config `schema_version` with step-by-step migrations
+- ✅ ESLint clean + in CI; dashboard bundle halved; compiled UI out of git
+
+### S2 — Next
+- **Backups as a command** — `tesla backup` / `restore` (today: documented `tar` + `pg_dump`).
+- **Experimental features** — flag unofficial-API features (order tracking, portal scraping, RUNT/SIMIT, speculative planner) in CLI help and dashboard; raise an alert when they start failing.
+- **CLI translations** — decide: wire `cli/i18n.py` into commands or drop `--lang`.
+- **God-modules** — split `cli/commands/vehicle.py` (3.2k lines), `teslaMate.py`, `dossier.py`, `core/sources.py`; `ui/src/pages/Settings.tsx`, `api/client.ts`.
+- **Tests** — regroup the version-named files (`test_v260.py` … `test_v340.py`) by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; replace the 113 legacy `any` types in the dashboard.
 
 ## Remaining Gaps
 
