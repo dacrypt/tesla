@@ -42,7 +42,7 @@ Full architecture: [docs/architecture.md](docs/architecture.md)
 ## Development commands
 
 ```bash
-uv sync --extra dev --extra serve --extra teslaMate --extra fleet --extra pdf
+uv sync --extra dev --extra serve --extra teslaMate --extra fleet --extra pdf --extra query
 uv run pytest -m "not integration" -x    # unit tests (fast)
 uv run pytest                            # all tests including integration
 uv run ruff check src/ tests/            # lint

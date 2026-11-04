@@ -37,8 +37,8 @@ data_app = typer.Typer(
 
 _NOT_INSTALLED = (
     "[red]✗[/red] [bold]openquery[/bold] is not installed.\n"
-    "  Install: [bold cyan]pip install 'tesla-cli[query]'[/bold cyan]"
-    "  or:      [bold cyan]uv add openquery[/bold cyan]"
+    "  Install: [bold cyan]pip install 'tesla-cli\\[query]'[/bold cyan]\n"
+    "  or:      [bold cyan]uv tool install 'tesla-cli\\[serve,query]'[/bold cyan]"
 )
 
 # ─── Common options ───────────────────────────────────────────────────────────
