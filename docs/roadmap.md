@@ -65,7 +65,7 @@ work takes priority over new features.
 
 ### S2 — Next
 - **God-modules** — ✅ `cli/commands/vehicle`, `teslaMate`, `dossier` split into packages; still to split: `core/sources.py`; `ui/src/pages/Settings.tsx`, `api/client.ts`.
-- **Tests** — regroup the version-named files (`test_v260.py` … `test_v340.py`) by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; replace the 113 legacy `any` types in the dashboard.
+- **Tests** — ✅ version-named files (`test_v260.py` … `test_v340.py`) renamed by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; replace the 113 legacy `any` types in the dashboard.
 
 ## Remaining Gaps
 
