@@ -178,6 +178,8 @@ class PlannerConfig(BaseModel):
 
 
 class Config(BaseModel):
+    # See core/config_migrations.py — bumped together with a migration.
+    schema_version: int = 1
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     order: OrderConfig = Field(default_factory=OrderConfig)
     tessie: TessieConfig = Field(default_factory=TessieConfig)
@@ -200,7 +202,9 @@ class Config(BaseModel):
 def load_config() -> Config:
     """Load config from TOML file, or return defaults."""
     if CONFIG_FILE.exists():
-        data = tomllib.loads(CONFIG_FILE.read_text())
+        from tesla_cli.core.config_migrations import migrate
+
+        data, _applied = migrate(tomllib.loads(CONFIG_FILE.read_text()))
         return Config.model_validate(data)
     return Config()
 

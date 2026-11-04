@@ -374,11 +374,18 @@ class TestNotificationTemplates:
 
 
 class TestConfigMigrate:
-    def test_migrate_up_to_date(self):
+    def test_migrate_up_to_date(self, tmp_path):
+        import tomli_w
+
+        from tesla_cli.core.config import Config
+
         cfg = _make_cfg()
+        current = tmp_path / "config.toml"
+        current.write_text(tomli_w.dumps(Config().model_dump()))
         with (
             patch("tesla_cli.cli.commands.config_cmd.load_config", return_value=cfg),
             patch("tesla_cli.cli.commands.config_cmd.save_config"),
+            patch("tesla_cli.core.config.CONFIG_FILE", current),
         ):
             result = _run("config", "migrate")
             assert result.exit_code == 0

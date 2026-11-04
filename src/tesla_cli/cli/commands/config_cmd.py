@@ -746,11 +746,17 @@ def config_migrate(
     import datetime as _dt
     import json as _json
     import shutil
+    import tomllib
 
     from tesla_cli.core.config import CONFIG_FILE, Config
+    from tesla_cli.core.config_migrations import CURRENT_SCHEMA_VERSION, migrate
 
     cfg_old = load_config()
-    old_dict = cfg_old.model_dump()
+    # Compare against what is actually on disk: the loaded model always has
+    # every field filled with defaults, so diffing it found nothing to add.
+    raw = tomllib.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
+    _, applied_migrations = migrate(dict(raw))
+    old_dict = raw
 
     # Create a fresh config with all current defaults
     cfg_new = Config()
@@ -776,13 +782,17 @@ def config_migrate(
                 {
                     "dry_run": dry_run,
                     "additions": additions,
+                    "schema_migrations": applied_migrations,
+                    "schema_version": CURRENT_SCHEMA_VERSION,
                     "version": tesla_cli.__version__,
                 }
             )
         )
         return
 
-    if not additions:
+    for v in applied_migrations:
+        console.print(f"  [dim]schema[/dim] v{v} → v{v + 1}")
+    if not additions and not applied_migrations:
         console.print(
             "[green]\u2713[/green] Config is already up to date \u2014 no new fields needed."
         )
@@ -802,6 +812,7 @@ def config_migrate(
     if CONFIG_FILE.exists():
         backup_path = CONFIG_FILE.with_suffix(f".bak.{_dt.date.today().isoformat()}")
         shutil.copy2(CONFIG_FILE, backup_path)
+        backup_path.chmod(0o600)  # holds the same secrets as config.toml
         console.print(f"[dim]Backup saved to {backup_path}[/dim]")
 
     cfg_merged = cfg_old.model_copy(deep=True)
