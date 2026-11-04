@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (v5.4.0)
+## Current State (v5.5.0)
 
 180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
 
@@ -63,7 +63,7 @@ work takes priority over new features.
 - ✅ (Unreleased) `tesla backup create/list/restore`; `--lang` output translations; experimental features labelled + monitored
 - ✅ ESLint clean + in CI; dashboard bundle halved; compiled UI out of git
 
-### Done (unreleased, after 5.4.0)
+### Done in 5.5.0
 - ✅ `--lang` output translations (es/pt/fr/de/it); `tesla backup create/list/restore`; `--json` output no longer wrapped/markup-parsed
 - ✅ Experimental features labelled + monitored (`tesla doctor` tier X, `/api/doctor/experimental`, alerts)
 - ✅ God-modules split: `cli/commands/vehicle`, `teslaMate`, `dossier` packages; `core/source_catalog.py`; dashboard `ui/src/api/*` and `pages/settings/*`

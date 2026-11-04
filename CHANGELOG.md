@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.5.0] - 2026-11-04
+
+Completes the S2 stabilization track: CLI translations, full backups,
+experimental-feature monitoring, large-module splits and broader tests, plus
+the bugs those tests surfaced. No breaking changes for CLI users; API
+clients see `/api/charge/last` return 404 (instead of a 500) when there are no
+sessions, and three previously unreachable routers (`/api/scenes`,
+`/api/service`, `/api/energy/mgmt`) are now mounted.
 
 ### Changed
 
