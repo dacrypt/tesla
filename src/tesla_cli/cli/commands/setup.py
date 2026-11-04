@@ -539,7 +539,7 @@ def setup_wizard(
                 p.add_task("Querying all data sources...", total=None)
                 from tesla_cli.core.backends.dossier import DossierBackend
 
-                DossierBackend().build_dossier()
+                DossierBackend().build_dossier(progress=console.print)
 
             console.print("[green]✓ Dossier built successfully.[/green]\n")
 

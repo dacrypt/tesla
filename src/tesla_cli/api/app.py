@@ -379,7 +379,7 @@ def _build_provider_capabilities() -> dict:
 
 def _build_config_validation(cfg) -> dict:
     """Run config checks and return a structured validation result."""
-    from tesla_cli.cli.commands.config_cmd import _run_config_checks
+    from tesla_cli.core.config_checks import run_config_checks as _run_config_checks
 
     checks = _run_config_checks(cfg)
     errors = sum(1 for c in checks if c["status"] == "error")

@@ -29,7 +29,7 @@ def dossier_build() -> None:
         disable=is_json_mode(),
     ) as progress:
         progress.add_task("Building dossier from all sources...", total=None)
-        dossier = backend.build_dossier()
+        dossier = backend.build_dossier(progress=console.print)
 
     if is_json_mode():
         console.print_json(dossier.model_dump_json(indent=2, exclude_none=True))

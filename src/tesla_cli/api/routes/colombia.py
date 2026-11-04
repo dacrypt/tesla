@@ -50,17 +50,9 @@ def pico_y_placa(placa: str = "") -> dict:
 def estaciones_ev(ciudad: str = "", limit: int = 50) -> dict:
     """EV charging stations in Colombia from datos.gov.co."""
     try:
-        import re as _re
+        from tesla_cli.core.backends.colombia_open_data import ev_stations
 
-        import httpx
-
-        limit = min(limit, 500)
-        params: dict = {"$limit": limit}
-        if ciudad:
-            params["$q"] = _re.sub(r"[^a-zA-Z0-9\s\-áéíóúñÁÉÍÓÚÑ]", "", ciudad)
-        r = httpx.get("https://www.datos.gov.co/resource/qqm3-dw2u.json", params=params, timeout=10)
-        r.raise_for_status()
-        stations = r.json()
+        stations = ev_stations(ciudad, limit)
         return {
             "total": len(stations),
             "ciudad": ciudad or "all",
@@ -126,18 +118,9 @@ def recalls_sic(marca: str = "TESLA") -> dict:
 def peajes(ruta: str = "") -> dict:
     """Toll booth tariffs from datos.gov.co."""
     try:
-        import re as _re
+        from tesla_cli.core.backends.colombia_open_data import toll_rates
 
-        import httpx
-
-        params: dict = {"$limit": 100}
-        if ruta:
-            safe = _re.sub(r"[^a-zA-Z0-9\s\-]", "", ruta.upper())
-            params["$where"] = (
-                f"upper(nombre_estacion_peaje) like '%{safe}%' OR upper(sector) like '%{safe}%'"
-            )
-        r = httpx.get("https://www.datos.gov.co/resource/7gj8-j6i3.json", params=params, timeout=10)
-        r.raise_for_status()
-        return {"total": len(r.json()), "peajes": r.json()}
+        rows = toll_rates(ruta)
+        return {"total": len(rows), "peajes": rows}
     except Exception as exc:
         raise HTTPException(502, f"Peajes query failed: {exc}") from exc

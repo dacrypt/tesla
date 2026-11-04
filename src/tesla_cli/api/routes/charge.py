@@ -123,7 +123,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
     Applies cost_per_kwh estimation when actual cost is missing.
     """
     limit = min(limit, 500)
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)
 
@@ -136,7 +136,7 @@ def charge_sessions(request: Request, limit: int = 20) -> list[dict]:
 @router.get("/last")
 def charge_last() -> dict:
     """Most recent charging session with cost details."""
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=1)
     if not sessions:
@@ -152,7 +152,7 @@ def charge_weekly(weeks: int = 4) -> dict:
     from collections import defaultdict
     from datetime import datetime
 
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=500)
     if not sessions:
@@ -263,7 +263,7 @@ def remove_charge_schedule(schedule_id: int) -> dict:
 def charge_sessions_api(limit: int = 20) -> list[dict]:
     """Recent charging sessions from the best available source."""
     limit = min(limit, 500)
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, _source = _fetch_sessions(limit=limit)
     if not sessions:
@@ -277,7 +277,7 @@ def charge_cost_summary_api() -> dict:
     from collections import defaultdict
     from datetime import datetime
 
-    from tesla_cli.cli.commands.charge import _fetch_sessions
+    from tesla_cli.core.charging import fetch_charging_sessions as _fetch_sessions
 
     sessions, source = _fetch_sessions(limit=1000)
     if not sessions:
