@@ -67,18 +67,32 @@ def test_debug_flag_enables_debug_logging(monkeypatch):
     logging.getLogger("tesla-cli").setLevel(logging.NOTSET)
 
 
-def test_vehicle_submodules_resolve_patchable_names_through_package():
-    """Tests patch tesla_cli.cli.commands.vehicle.<name>; submodules must look
-    those names up as `_v.<name>` at call time or the patches silently miss."""
-    patched = {"get_vehicle_backend", "load_config", "resolve_vin", "time", "_backend", "_vin"}
-    patched.add("_with_wake")
-    for path in sorted((SRC / "cli" / "commands" / "vehicle").glob("_*.py")):
+# Names tests patch on each split command package; submodules must reach them
+# through the package (`_v.<name>` / `_m.<name>`) or those patches silently miss.
+_PATCHABLE = {
+    "vehicle": {
+        "get_vehicle_backend",
+        "load_config",
+        "resolve_vin",
+        "time",
+        "_backend",
+        "_vin",
+        "_with_wake",
+    },
+    "teslaMate": {"_backend", "load_config"},
+    "dossier": {"DossierBackend", "build_legacy_mission_control_payload"},
+}
+
+
+@pytest.mark.parametrize("package", sorted(_PATCHABLE))
+def test_split_packages_resolve_patchable_names_through_package(package):
+    for path in sorted((SRC / "cli" / "commands" / package).glob("_*.py")):
         if path.name == "__init__.py":  # defines them
             continue
         tree = ast.parse(path.read_text())
         bare = [
             f"{path.name}:{n.lineno} {n.id}"
             for n in ast.walk(tree)
-            if isinstance(n, ast.Name) and n.id in patched
+            if isinstance(n, ast.Name) and n.id in _PATCHABLE[package]
         ]
         assert not bare, bare

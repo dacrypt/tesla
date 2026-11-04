@@ -6,7 +6,7 @@ consumed by those submodules and by callers/tests that patch
 ``tesla_cli.cli.commands.vehicle.<name>`` — keep them here.
 """
 
-# ruff: noqa: F401
+# ruff: noqa: F401, I001
 
 from __future__ import annotations
 
