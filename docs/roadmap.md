@@ -63,9 +63,17 @@ work takes priority over new features.
 - ✅ (Unreleased) `tesla backup create/list/restore`; `--lang` output translations; experimental features labelled + monitored
 - ✅ ESLint clean + in CI; dashboard bundle halved; compiled UI out of git
 
-### S2 — Next
-- **God-modules** — ✅ `cli/commands/vehicle`, `teslaMate`, `dossier` split into packages; `core/sources.py` engine/catalog split (`core/source_catalog.py`); dashboard `api/client.ts` → `ui/src/api/*` modules, `Settings.tsx` → `pages/settings/*` cards. ✅
-- **Tests** — ✅ version-named files (`test_v260.py` … `test_v340.py`) renamed by feature; ✅ coverage `core/`+`api/` 65% → 75% (CI floors: 72% core+api, 62% overall); ✅ dashboard `any` types 113 → 0 (ESLint `--max-warnings 0`).
+### Done (unreleased, after 5.4.0)
+- ✅ `--lang` output translations (es/pt/fr/de/it); `tesla backup create/list/restore`; `--json` output no longer wrapped/markup-parsed
+- ✅ Experimental features labelled + monitored (`tesla doctor` tier X, `/api/doctor/experimental`, alerts)
+- ✅ God-modules split: `cli/commands/vehicle`, `teslaMate`, `dossier` packages; `core/source_catalog.py`; dashboard `ui/src/api/*` and `pages/settings/*`
+- ✅ Tests renamed by feature; `core/`+`api/` coverage 65% → 75% (CI floors 72% / 62%); dashboard `any` 113 → 0
+- ✅ Bugs found on the way: empty charge summaries 500, `/api/init` automations, service appointments TypeError, unmounted routers, dossier PDF link
+
+### S3 — Needs a product decision
+- **Service reminders** — `/api/service/reminders` cannot know when a service was last done, so "overdue" never triggers; needs a way to record completed services.
+- **Order phases** — `core/computed.py` derives shipped/in-country/registered from the same RUNT flag, so the intermediate phases never show; needs real signals per phase.
+- **Order summary** — the "waiting for VIN" hints in `generate_summary` are unreachable (tasks default to `{}`).
 
 ## Remaining Gaps
 
