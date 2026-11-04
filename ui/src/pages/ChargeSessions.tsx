@@ -19,12 +19,14 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts';
+import type { TooltipValueType } from 'recharts';
 import {
   api,
   ChargingSession,
   ChargeCurve,
   ChargeCurveStats,
   ChargeEnrichment,
+  errorStatusOf,
 } from '../api/client';
 
 // ── Shared chart palette (matches Analytics.tsx) ──────────────────────────────
@@ -516,12 +518,12 @@ function ChargeSessionDetail({ session, onClose }: DetailProps) {
                 />
                 <Tooltip
                   {...tooltipStyle}
-                  formatter={(value: any, name: any) => {
+                  formatter={(value?: TooltipValueType, name?: string | number) => {
                     if (name === 'power_kw') return [value != null ? `${Number(value).toFixed(1)} kW` : '--', 'Potencia'];
                     if (name === 'range_km') return [value != null ? `${Number(value).toFixed(0)} km` : '--', 'Rango ideal'];
                     return [value, name];
                   }}
-                  labelFormatter={(soc: any) => `SoC: ${soc}%`}
+                  labelFormatter={(soc: React.ReactNode) => `SoC: ${soc}%`}
                 />
                 <Line
                   yAxisId="left"
@@ -679,8 +681,8 @@ const ChargeSessions: React.FC = () => {
     api
       .getChargeSessions(50)
       .then(data => setSessions(Array.isArray(data) ? data : []))
-      .catch((err: any) => {
-        const status = err?.response?.status;
+      .catch((err: unknown) => {
+        const status = errorStatusOf(err);
         if (status === 503 || status === 502) {
           setUnavailable(true);
         } else {

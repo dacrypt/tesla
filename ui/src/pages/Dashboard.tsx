@@ -19,7 +19,14 @@ import { useVehicleData } from '../hooks/useVehicleData';
 import { useDashboardTiles } from '../hooks/useDashboardTiles';
 import { useAppInit } from '../hooks/useAppInit';
 import { useMissionControl, MissionControlState } from '../hooks/useMissionControl';
-import { api, FleetVehicle, AutomationsStatus } from '../api/client';
+import {
+  api,
+  FleetVehicle,
+  AutomationsStatus,
+  PicoYPlaca,
+  errorDetailOf,
+  errorMessageOf,
+} from '../api/client';
 
 // ---- SVG Icons ----
 const LockIcon = () => (
@@ -94,7 +101,7 @@ function DeliveryCountdown({ deliveryDate }: { deliveryDate?: Date | null }) {
 
 function PreDeliveryDashboard({ missionControl, loading }: { missionControl: MissionControlState; loading: boolean }) {
   const history = useHistory();
-  const [picoYPlaca, setPicoYPlaca] = React.useState<any>(null);
+  const [picoYPlaca, setPicoYPlaca] = React.useState<PicoYPlaca | null>(null);
   const [refreshingSources, setRefreshingSources] = React.useState(false);
   const [refreshNote, setRefreshNote] = React.useState<string | null>(null);
   const [portalSyncing, setPortalSyncing] = React.useState(false);
@@ -141,8 +148,8 @@ function PreDeliveryDashboard({ missionControl, loading }: { missionControl: Mis
       } else {
         setRefreshNote('No stale sources to refresh');
       }
-    } catch (e: any) {
-      setRefreshNote(e?.message || 'Failed to refresh sources');
+    } catch (e: unknown) {
+      setRefreshNote(errorMessageOf(e) || 'Failed to refresh sources');
     } finally {
       setRefreshingSources(false);
     }
@@ -205,8 +212,8 @@ function PreDeliveryDashboard({ missionControl, loading }: { missionControl: Mis
       }
       await missionControl.refresh();
       setRefreshNote('Tesla portal synced');
-    } catch (e: any) {
-      setRefreshNote(e?.response?.data?.detail || e?.message || 'Portal sync failed');
+    } catch (e: unknown) {
+      setRefreshNote(errorDetailOf(e) || errorMessageOf(e) || 'Portal sync failed');
     } finally {
       setPortalSyncing(false);
     }
@@ -626,8 +633,8 @@ const Dashboard: React.FC = () => {
       } else {
         setLoginError(result.error || 'Login failed');
       }
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || e.message || 'Login failed';
+    } catch (e: unknown) {
+      const msg = errorDetailOf(e) || errorMessageOf(e) || 'Login failed';
       setLoginError(msg);
     } finally {
       setAuthLoading(false);
@@ -641,8 +648,8 @@ const Dashboard: React.FC = () => {
     try {
       await api.sendCommand({ command, params });
       setTimeout(refresh, 1500);
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || e?.message || 'Command failed';
+    } catch (e: unknown) {
+      const msg = errorDetailOf(e) || errorMessageOf(e) || 'Command failed';
       setCmdError(msg);
     } finally {
       setCmdLoading(null);
@@ -697,7 +704,14 @@ const Dashboard: React.FC = () => {
     : batteryPct > 20 ? '#F99716'
     : '#FF6B6B';
 
-  const actions = [
+  const actions: Array<{
+    key: string;
+    icon: React.ReactNode;
+    label: string;
+    cmd: string;
+    cmdParams?: Record<string, unknown>;
+    iconBg: string;
+  }> = [
     {
       key: 'lock',
       icon: isLocked ? <LockIcon /> : <UnlockIcon />,
@@ -888,7 +902,7 @@ const Dashboard: React.FC = () => {
                   {actions.map((a) => (
                     <button
                       key={a.key}
-                      onClick={() => handleCommand(a.cmd, (a as any).cmdParams, a.key)}
+                      onClick={() => handleCommand(a.cmd, a.cmdParams, a.key)}
                       disabled={!!cmdLoading}
                       style={{
                         background: 'rgba(255,255,255,0.04)',

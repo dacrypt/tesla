@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, MissionControlData } from '../api/client';
+import { api, errorMessageOf, MissionControlData } from '../api/client';
 import { subscribe } from './sseHub';
 
 export interface MissionControlState {
@@ -21,8 +21,8 @@ export function useMissionControl(enabled = true): MissionControlState {
     try {
       const result = await api.getMissionControl();
       setData(result);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load Mission Control');
+    } catch (e: unknown) {
+      setError(errorMessageOf(e) || 'Failed to load Mission Control');
     } finally {
       setLoading(false);
     }
