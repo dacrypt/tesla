@@ -17,3 +17,14 @@ def get_doctor() -> list[dict]:
     Offline-safe — never contacts Tesla and never wakes the vehicle.
     """
     return probe_all()
+
+
+@router.get("/experimental")
+def doctor_experimental() -> list[dict]:
+    """Experimental features (unofficial/fragile upstreams) and their status.
+
+    Offline: computed from each feature's cached source results.
+    """
+    from tesla_cli.core.experimental import status_all
+
+    return status_all()

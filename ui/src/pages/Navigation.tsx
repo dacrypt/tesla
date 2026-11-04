@@ -8,7 +8,7 @@ import {
   IonRange,
   IonToast,
 } from '@ionic/react';
-import { api, GeofenceZone } from '../api/client';
+import { api, describeError, GeofenceZone } from '../api/client';
 import { useVehicleData } from '../hooks/useVehicleData';
 import Spinner from '../components/icons/Spinner';
 import {
@@ -58,8 +58,8 @@ const Navigation: React.FC = () => {
       const updated = await api.getGeofences();
       setGeofences(updated);
       setToast({ message: `Geofence "${geoName.trim()}" saved`, color: 'success' });
-    } catch (e: any) {
-      setToast({ message: 'Failed: ' + (e.message || e), color: 'danger' });
+    } catch (e: unknown) {
+      setToast({ message: 'Failed: ' + describeError(e), color: 'danger' });
     } finally {
       setGeoLoading(false);
     }
@@ -70,8 +70,8 @@ const Navigation: React.FC = () => {
       await api.removeGeofence(name);
       setGeofences((prev) => prev.filter((g) => g.name !== name));
       setToast({ message: `Removed "${name}"`, color: 'success' });
-    } catch (e: any) {
-      setToast({ message: 'Remove failed: ' + (e.message || e), color: 'danger' });
+    } catch (e: unknown) {
+      setToast({ message: 'Remove failed: ' + describeError(e), color: 'danger' });
     }
   };
 

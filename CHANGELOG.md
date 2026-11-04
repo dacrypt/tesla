@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Large modules split** (behaviour unchanged, imports and test patch
+  points preserved): `cli/commands/vehicle`, `teslaMate`, `dossier` are now
+  packages; `core/sources.py` keeps the engine and `core/source_catalog.py`
+  holds the source definitions; the dashboard API client is split into
+  `ui/src/api/*` domain modules and the Settings page into
+  `ui/src/pages/settings/*` cards. Version-named test files were renamed
+  after what they test.
+- Tests: 286 new unit tests (vehicle hub, energy, scenes/service, init,
+  charge/order routes, dashcam/MQTT, db, cached/Tessie backends) — `core/` +
+  `api/` coverage 65% → 75%. CI floors: 72% for `core/`+`api/`, 62% overall.
+- Dashboard TypeScript: all 113 `any` types replaced with real types or
+  `unknown` (ESLint now runs with `--max-warnings 0`).
+
+### Fixed
+
+- `/api/charge/last`, `/weekly` and `/analytics/cost-summary` returned HTTP
+  500 when there were no charging sessions (`[]` from a `-> dict` route);
+  now 404 / empty summaries.
+- `/api/init` always reported `automations: null` (imported a module that
+  does not exist).
+- `/api/service/appointments` passed a VIN the backends do not accept
+  (TypeError → 502).
+- The `scenes`, `service` and Powerwall (`/api/energy/mgmt`) routers were
+  implemented but never mounted; they are now reachable.
+- Dossier "evidence PDF" link ignored a configured API base URL.
+- `--json` output could be invalid: Rich wrapped long lines at 80 columns
+  when output was piped and parsed text such as `[REDACTED]` as markup. In
+  JSON mode, JSON strings now print verbatim (no wrapping, no markup).
+
+### Added
+
+- **Experimental features are labelled and monitored** (`core/experimental.py`):
+  order tracking, ownership-portal scraping, Colombian registries and the EV
+  planner model. `tesla doctor` lists them (tier `X`: ok / failing / unused /
+  not-installed), `GET /api/doctor/experimental` exposes them, `order` and
+  `data` help say so, and when one of their sources starts failing the
+  alert title marks it experimental ("upstream may have changed").
+- **`tesla backup create / list / restore`** — full backup of `~/.tesla-cli`
+  (config, encrypted tokens, events, dossier, caches) as a 0600 `.tar.gz`
+  under `~/.tesla-cli/backups/`, never inside a git repository. SQLite files
+  are copied with the online-backup API (safe while `tesla serve` runs).
+  `--no-secrets` drops tokens/keys/master key and redacts `config.toml`.
+  Restore validates the manifest, rejects links, absolute paths and `..`,
+  and saves the current data to a safety backup first.
+- **`--lang` now translates CLI output** (es, pt, fr, de, it; also
+  `TESLA_LANG`, accepting values like `es_CO.UTF-8`). The output layer
+  (`cli/output.py`) passes every message through `i18n.translate()`, which
+  recognises catalog templates including placeholders, a Rich markup wrapper,
+  surrounding whitespace and trailing suffixes (emoji). Multi-part messages
+  use `i18n_t()` explicitly. Errors raised in `core` are localized when
+  rendered. JSON output stays English. Unsupported languages warn and fall
+  back to English. The catalog is complete in all six languages (83 keys);
+  a test guards against it drifting from what commands print.
+
 ## [5.4.0] - 2026-11-04
 
 Stabilization release: works through the remaining findings of the critical

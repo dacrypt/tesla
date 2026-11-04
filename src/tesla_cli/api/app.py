@@ -270,6 +270,7 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.domains import router as domains_router
     from tesla_cli.api.routes.dossier import router as dossier_router
     from tesla_cli.api.routes.drivers import router as drivers_router
+    from tesla_cli.api.routes.energy_mgmt import router as energy_mgmt_router
     from tesla_cli.api.routes.energy_prices import router as energy_prices_router
     from tesla_cli.api.routes.events import router as events_router
     from tesla_cli.api.routes.fleet import router as fleet_router
@@ -280,7 +281,9 @@ def _register_routes(app: FastAPI) -> None:
     from tesla_cli.api.routes.notify import router as notify_router
     from tesla_cli.api.routes.order import router as order_router
     from tesla_cli.api.routes.planner import router as planner_router
+    from tesla_cli.api.routes.scenes import router as scenes_router
     from tesla_cli.api.routes.security import router as security_router
+    from tesla_cli.api.routes.service import router as service_router
     from tesla_cli.api.routes.session import router as session_router
     from tesla_cli.api.routes.sources import router as sources_router
     from tesla_cli.api.routes.teslaMate import router as teslaMate_router
@@ -299,6 +302,10 @@ def _register_routes(app: FastAPI) -> None:
     )
     app.include_router(colombia_router, prefix="/api/co", tags=["Colombia"])
     app.include_router(energy_prices_router, prefix="/api/energy", tags=["Energy"])
+    # Implemented and tested but previously never mounted (unreachable).
+    app.include_router(energy_mgmt_router, prefix="/api/energy/mgmt", tags=["Energy"])
+    app.include_router(scenes_router, prefix="/api/scenes", tags=["Scenes"])
+    app.include_router(service_router, prefix="/api/service", tags=["Service"])
     app.include_router(vehicle_router, prefix="/api/vehicle", tags=["Vehicle"])
     app.include_router(charge_router, prefix="/api/charge", tags=["Charge"])
     app.include_router(climate_router, prefix="/api/climate", tags=["Climate"])

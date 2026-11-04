@@ -20,7 +20,7 @@ import {
   IonSpinner,
   IonList,
 } from '@ionic/react';
-import { getBaseUrl } from '../api/client';
+import { describeError, getBaseUrl } from '../api/client';
 
 interface ChargerSuggestion {
   ocm_id: number;
@@ -118,8 +118,8 @@ const Planner: React.FC = () => {
       const data = (await res.json()) as PlanResponse;
       setResult(data);
       setToast({ message: 'Plan computed', color: 'success' });
-    } catch (e: any) {
-      setToast({ message: `Plan failed: ${e.message || e}`, color: 'danger' });
+    } catch (e: unknown) {
+      setToast({ message: `Plan failed: ${describeError(e)}`, color: 'danger' });
     } finally {
       setLoading(false);
     }
@@ -142,8 +142,8 @@ const Planner: React.FC = () => {
         throw new Error(`HTTP ${res.status}: ${body.slice(0, 200)}`);
       }
       setToast({ message: `Saved as '${saveAs.trim()}'`, color: 'success' });
-    } catch (e: any) {
-      setToast({ message: `Save failed: ${e.message || e}`, color: 'danger' });
+    } catch (e: unknown) {
+      setToast({ message: `Save failed: ${describeError(e)}`, color: 'danger' });
     }
   };
 

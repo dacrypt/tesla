@@ -4,6 +4,12 @@ import { subscribe, isConnected } from './sseHub';
 
 const CACHE_KEY = 'tesla_vehicle_data_cache';
 
+/** Flat vehicle state; SSE/full payloads may also nest the charge and climate blocks. */
+type VehiclePayload = VehicleState & {
+  charge_state?: ChargeState | null;
+  climate_state?: ClimateState | null;
+};
+
 export interface VehicleData {
   state: VehicleState | null;
   charge: ChargeState | null;
@@ -42,7 +48,7 @@ export function useVehicleData(): VehicleData {
     }
   }, []);
 
-  const applyData = useCallback((data: any) => {
+  const applyData = useCallback((data: VehiclePayload) => {
     const chargeState = data.charge_state || null;
     const climateState = data.climate_state || null;
 
@@ -67,7 +73,7 @@ export function useVehicleData(): VehicleData {
     try {
       const data = await api.getVehicleState();
       applyData(data);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (String(e).includes('412')) {
         setError('Vehicle not accessible (pre-delivery)');
         preDeliveryRef.current = true;

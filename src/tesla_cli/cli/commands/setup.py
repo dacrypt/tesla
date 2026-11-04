@@ -22,6 +22,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 
+from tesla_cli.cli.i18n import t as i18n_t
 from tesla_cli.cli.output import console
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
@@ -55,7 +56,7 @@ def setup_wizard(
         console.print()
         console.print(
             Panel.fit(
-                "[bold cyan]Tesla CLI — Setup Wizard[/bold cyan]\n\n"
+                f"[bold cyan]{i18n_t('setup.welcome')}[/bold cyan]\n\n"
                 "This wizard will:\n"
                 "  [dim]1.[/dim] Connect your Tesla account (OAuth2)\n"
                 "  [dim]2.[/dim] Auto-discover your VIN and order number\n"
@@ -685,7 +686,7 @@ def _print_done_panel(tier_selected: str) -> None:
         )
 
     body = (
-        f"[bold green]✓ Setup complete![/bold green]\n\n"
+        f"[bold green]✓ {i18n_t('setup.done')}[/bold green]\n\n"
         f"  {tier_line}\n"
         f"  {features_line}"
         f"{upgrade_line}\n\n"

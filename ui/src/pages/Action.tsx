@@ -7,7 +7,7 @@ import {
   IonTitle,
 } from '@ionic/react';
 import { useLocation } from 'react-router-dom';
-import { getBaseUrl } from '../api/client';
+import { errorMessageOf, getBaseUrl } from '../api/client';
 
 interface ActionDef {
   method: 'GET' | 'POST';
@@ -51,7 +51,8 @@ const Action: React.FC = () => {
   const [cmd, setCmd] = useState<string | null>(null);
   const [actionDef, setActionDef] = useState<ActionDef | null>(null);
   const [execState, setExecState] = useState<ExecState>('idle');
-  const [result, setResult] = useState<any>(null);
+  // JSON body or plain text, depending on the response content type.
+  const [result, setResult] = useState<unknown>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   useEffect(() => {
@@ -110,8 +111,8 @@ const Action: React.FC = () => {
       const data = contentType.includes('application/json') ? await res.json() : await res.text();
       setResult(data);
       setExecState('done');
-    } catch (err: any) {
-      setErrorMsg(err?.message ?? 'Unknown error');
+    } catch (err: unknown) {
+      setErrorMsg(errorMessageOf(err) ?? 'Unknown error');
       setExecState('error');
     }
   }, [actionDef]);
@@ -123,7 +124,7 @@ const Action: React.FC = () => {
     }
   }, [execState, actionDef, execute]);
 
-  const renderResult = (data: any): React.ReactNode => {
+  const renderResult = (data: unknown): React.ReactNode => {
     if (data === null || data === undefined) return null;
     if (typeof data === 'string') return <pre style={preStyle}>{data}</pre>;
     return <pre style={preStyle}>{JSON.stringify(data, null, 2)}</pre>;

@@ -7,78 +7,35 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
+import type {
+  GeoLocation,
+  InitAuth,
+  InitAutomations,
+  InitComputed,
+  InitRealStatus,
+  InitVehicleSpecs,
+  SourcesMap,
+} from '../api/client';
 import { subscribe } from './sseHub';
 
-export interface RealStatus {
-  phase: string;
-  phase_description: string;
-  tesla_api_status: string;
-  runt_status: string;
-  vin_assigned: boolean;
-  in_runt: boolean;
-  has_placa: boolean;
-  has_soat: boolean;
-  delivery_date: string;
-  delivery_location: string;
-  delivery_appointment: string;
-  is_produced: boolean;
-  is_shipped: boolean;
-  is_in_country: boolean;
-  is_customs_cleared: boolean;
-  is_registered: boolean;
-  is_delivery_scheduled: boolean;
-  is_delivered: boolean;
-}
-
-export interface VehicleSpecs {
-  model: string;
-  variant: string;
-  generation: string;
-  model_year: number;
-  exterior_color: string;
-  interior: string;
-  wheels: string;
-  battery_type: string;
-  range_km: number;
-  horsepower: number;
-  [key: string]: unknown;
-}
-
-export interface GeoLocation {
-  lat: number;
-  lon: number;
-  city: string;
-  source: 'vehicle_gps' | 'delivery_cache' | 'config' | 'default';
-}
-
-/** All source data keyed by source ID (e.g., "tesla.order", "co.runt", "co.simit") */
-export type SourcesMap = Record<string, any>;
+// Shapes live in api/types/init.ts; re-exported under their historical names.
+export type RealStatus = InitRealStatus;
+export type VehicleSpecs = InitVehicleSpecs;
+export type { GeoLocation, SourcesMap };
 
 export interface AppInitData {
   sources: SourcesMap;
-  computed: {
-    real_status: RealStatus | null;
-    specs: VehicleSpecs | null;
-  };
+  computed: InitComputed;
   location: GeoLocation | null;
-  auth: {
-    authenticated: boolean;
-    backend: string;
-    has_fleet: boolean;
-    has_order: boolean;
-    has_tessie: boolean;
-  } | null;
-  automations: {
-    total: number;
-    enabled: number;
-  } | null;
+  auth: InitAuth | null;
+  automations: InitAutomations | null;
   vehicle: Record<string, unknown> | null;
   loading: boolean;
   error: string | null;
 }
 
 // Convenience accessors for common sources
-export function getSource(init: AppInitData, sourceId: string): any {
+export function getSource(init: AppInitData, sourceId: string): unknown {
   return init.sources[sourceId] ?? null;
 }
 
@@ -142,8 +99,9 @@ export function useAppInit(): AppInitData {
             'co.runt': dossier?.runt || null,
           },
           computed: {
-            real_status: (dossier?.real_status as any) || null,
-            specs: (dossier?.specs as any) || null,
+            // Dossier fields are all-optional; /api/init's computed shape is the target.
+            real_status: (dossier?.real_status as InitRealStatus | undefined) || null,
+            specs: (dossier?.specs as InitVehicleSpecs | undefined) || null,
           },
           location: null,
           auth,

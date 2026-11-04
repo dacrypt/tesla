@@ -140,7 +140,8 @@ def charge_last() -> dict:
 
     sessions, source = _fetch_sessions(limit=1)
     if not sessions:
-        return []
+        # Was `return []` on a `-> dict` route, which FastAPI turned into a 500.
+        raise HTTPException(status_code=404, detail="No charging sessions found.")
 
     s = sessions[0]
     return {**s.model_dump(), "source_name": source}
@@ -156,7 +157,7 @@ def charge_weekly(weeks: int = 4) -> dict:
 
     sessions, source = _fetch_sessions(limit=500)
     if not sessions:
-        return []
+        return {"source": source, "weeks": []}
 
     weekly: dict[str, dict] = defaultdict(lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0})
     for s in sessions:
@@ -281,7 +282,7 @@ def charge_cost_summary_api() -> dict:
 
     sessions, source = _fetch_sessions(limit=1000)
     if not sessions:
-        return []
+        return {"source": source, "total_kwh": 0.0, "total_cost": 0.0, "months": []}
 
     monthly: dict[str, dict] = defaultdict(
         lambda: {"kwh": 0.0, "cost": 0.0, "sessions": 0, "cost_estimated": False}

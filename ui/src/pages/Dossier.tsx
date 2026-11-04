@@ -3,7 +3,18 @@ import {
   IonContent, IonHeader, IonPage, IonToolbar, IonTitle,
   IonRefresher, IonRefresherContent,
 } from '@ionic/react';
-import { api } from '../api/client';
+import {
+  api,
+  errorMessageOf,
+  MissingAuthEntry,
+  SourceConfig,
+  SourceHistoryEntry,
+  SourceInfo,
+  SourceQueryEntry,
+  SourceSnapshot,
+  VinDecode,
+  getBaseUrl,
+} from '../api/client';
 import { useHistory, useLocation } from 'react-router-dom';
 import Analytics from './Analytics';
 import VinDecoder from '../components/dossier/VinDecoder';
@@ -87,30 +98,24 @@ const CATEGORIES: Record<string, string> = {
 const CAT_ORDER = ['vehiculo', 'registro', 'infracciones', 'seguridad', 'financiero', 'servicios'];
 
 /* ── History Modal ── */
-interface HistoryEntry {
-  timestamp?: string;
-  data_hash?: string;
-  changes?: { field: string; old?: string; new?: string }[];
+type HistoryEntry = SourceHistoryEntry;
+type QueryEntry = SourceQueryEntry;
+
+/** A source's cached snapshot, as kept in page state. */
+type SourceDataEntry = SourceSnapshot;
+
+interface RecallItem {
+  component?: string;
+  summary?: string;
 }
 
-interface QueryEntry {
-  queried_at?: string;
-  status?: string;
-  request?: {
-    mode?: string;
-    source_name?: string;
-    url?: string;
-    method?: string;
-    status_code?: number | null;
-    openquery_source?: string;
-  };
-  response?: {
-    error?: string | null;
-    normalized_data?: any;
-    response_text_excerpt?: string;
-    raw_output_excerpt?: string;
-    raw_error_excerpt?: string;
-  };
+interface StationItem {
+  estaci_n?: string;
+  nombre?: string;
+  tipo_de_estacion?: string;
+  ciudad?: string;
+  tipo?: string;
+  horario?: string;
 }
 
 type SourceDetailTab = 'current' | 'history' | 'queries';
@@ -230,7 +235,7 @@ function SourceDetailModal({
 }: {
   sourceId: string;
   sourceName: string;
-  sourceData: any;
+  sourceData: SourceDataEntry | undefined;
   initialTab: SourceDetailTab;
   onClose: () => void;
 }) {
@@ -245,11 +250,11 @@ function SourceDetailModal({
   useEffect(() => {
     api.getSourceHistory(sourceId, 10)
       .then(data => setHistoryEntries([...data].reverse()))
-      .catch(e => setHistoryError(e?.message || 'Failed to load history'))
+      .catch((e: unknown) => setHistoryError(errorMessageOf(e) || 'Failed to load history'))
       .finally(() => setLoadingHistory(false));
     api.getSourceQueries(sourceId, 10)
       .then(data => setQueryEntries([...data].reverse()))
-      .catch(e => setQueryError(e?.message || 'Failed to load query audit'))
+      .catch((e: unknown) => setQueryError(errorMessageOf(e) || 'Failed to load query audit'))
       .finally(() => setLoadingQueries(false));
   }, [sourceId]);
 
@@ -337,21 +342,24 @@ function SourceDetailModal({
 }
 
 /* ── Source data renderer ── */
-function SourceData({ data }: { data: any }) {
-  if (!data) return (
+function SourceData({ data: raw }: { data: unknown }) {
+  if (!raw) return (
     <div className="text-base text-secondary" style={{ textAlign: 'center', padding: 8 }}>No data</div>
   );
-  if (typeof data === 'string') return <div className="text-base" style={{ color: '#fff' }}>{data}</div>;
+  if (typeof raw === 'string') return <div className="text-base" style={{ color: '#fff' }}>{raw}</div>;
+  // Source payloads are open-ended JSON objects.
+  const data = raw as Record<string, unknown>;
 
   // Special: recalls array
   if (Array.isArray(data.recalls)) {
+    const recalls = data.recalls as RecallItem[];
     return (
       <>
-        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{data.recalls.length} recalls found</div>
-        {data.recalls.slice(0, 5).map((r: any, i: number) => (
+        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{recalls.length} recalls found</div>
+        {recalls.slice(0, 5).map((r, i) => (
           <div key={i} style={{
             marginBottom: 8, paddingBottom: 8,
-            borderBottom: i < Math.min(data.recalls.length, 5) - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+            borderBottom: i < Math.min(recalls.length, 5) - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
           }}>
             <div className="text-base fw-medium" style={{ color: '#fff' }}>{r.component || r.summary?.slice(0, 60)}</div>
             <div className="text-xs text-secondary" style={{ marginTop: 2 }}>
@@ -365,10 +373,11 @@ function SourceData({ data }: { data: any }) {
 
   // Special: estaciones array
   if (Array.isArray(data.estaciones)) {
+    const estaciones = data.estaciones as StationItem[];
     return (
       <>
-        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{data.total || data.estaciones.length} estaciones</div>
-        {data.estaciones.slice(0, 8).map((s: any, i: number) => (
+        <div className="text-base text-secondary" style={{ marginBottom: 6 }}>{String(data.total || estaciones.length)} estaciones</div>
+        {estaciones.slice(0, 8).map((s, i) => (
           <div key={i} style={{ marginBottom: 6, fontSize: 11 }}>
             <div className="fw-medium" style={{ color: '#fff' }}>{s.estaci_n || s.nombre || s.tipo_de_estacion}</div>
             <div className="text-secondary">{s.ciudad} · {s.tipo || ''} · {s.horario || ''}</div>
@@ -401,8 +410,8 @@ function SourceData({ data }: { data: any }) {
 
 /* ── Source Card ── */
 function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, onCurrent }: {
-  src: any;
-  sd: any;
+  src: SourceInfo;
+  sd: SourceDataEntry | undefined;
   isRefreshing: boolean;
   onRefresh: () => void;
   onHistory: () => void;
@@ -479,7 +488,7 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, on
       )}
 
       {/* Data */}
-      {!hasError && sd?.data && (
+      {!hasError && !!sd?.data && (
         <div style={{ marginTop: 4 }}>
           <SourceData data={sd.data} />
         </div>
@@ -492,7 +501,7 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, on
           background: 'rgba(249,151,22,0.08)', border: '1px solid rgba(249,151,22,0.15)', borderRadius: 8,
         }}>
           <div className="text-xs fw-semi" style={{ color: '#F99716', marginBottom: 4 }}>Cambios detectados</div>
-          {sd.changes.map((ch: any, ci: number) => (
+          {sd.changes.map((ch, ci) => (
             <div key={ci} className="text-xs text-secondary" style={{ marginBottom: 2 }}>
               <span style={{ color: '#fff' }}>{ch.field}</span>
               {': '}
@@ -505,13 +514,14 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, on
       )}
 
       {/* Audit PDF link */}
-      {src.uses_playwright && sd?.data && (
+      {src.uses_playwright && !!sd?.data && (
         <button
           onClick={async () => {
             try {
               const audits = await api.getSourceAudits(src.id);
               if (audits.length > 0) {
-                const baseUrl = (api as any).getBaseUrl?.() || '';
+                // Honour a configured API base URL (dashboard served from elsewhere).
+                const baseUrl = getBaseUrl();
                 window.open(`${baseUrl}/api/sources/${src.id}/audit/${audits[0].filename}`, '_blank');
               }
             } catch { /* */ }
@@ -531,12 +541,12 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, on
 
 /* ── Main Page ── */
 const Dossier: React.FC = () => {
-  const [sources, setSources] = useState<any[]>([]);
-  const [sourceData, setSourceData] = useState<Record<string, any>>({});
-  const [missingAuth, setMissingAuth] = useState<any[]>([]);
+  const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [sourceData, setSourceData] = useState<Record<string, SourceDataEntry>>({});
+  const [missingAuth, setMissingAuth] = useState<MissingAuthEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState<string | null>(null);
-  const [sourceConfig, setSourceConfig] = useState<any>({});
+  const [sourceConfig, setSourceConfig] = useState<Partial<SourceConfig>>({});
   const [cedula, setCedula] = useState('');
   const [cedulaDirty, setCedulaDirty] = useState(false);
   const [sourceModal, setSourceModal] = useState<{ id: string; name: string; tab: SourceDetailTab } | null>(null);
@@ -561,10 +571,10 @@ const Dossier: React.FC = () => {
 
       // Fetch cached data for all sources that have data
       const dataPromises = list
-        .filter((s: any) => s.has_data)
-        .map((s: any) => api.getSource(s.id).then(d => ({ id: s.id, ...d })).catch(() => null));
+        .filter((s) => s.has_data)
+        .map((s) => api.getSource(s.id).then(d => ({ ...d, id: d.id ?? s.id })).catch(() => null));
       const results = await Promise.all(dataPromises);
-      const dataMap: Record<string, any> = {};
+      const dataMap: Record<string, SourceDataEntry> = {};
       for (const r of results) {
         if (r) dataMap[r.id] = r;
       }
@@ -583,7 +593,7 @@ const Dossier: React.FC = () => {
     const wantsHistory = params.get('history') === '1';
     const wantsQueries = params.get('queries') === '1';
     if (!sourceId) return;
-    const source = sources.find((item: any) => item.id === sourceId);
+    const source = sources.find((item) => item.id === sourceId);
     if (source && wantsHistory && !sourceModal) {
       setSourceModal({ id: source.id, name: source.name, tab: 'history' });
     }
@@ -600,7 +610,7 @@ const Dossier: React.FC = () => {
         api.getSource(sourceId),
         api.getSources(),
       ]);
-      setSourceData(prev => ({ ...prev, [sourceId]: { id: sourceId, ...fresh } }));
+      setSourceData(prev => ({ ...prev, [sourceId]: { ...fresh, id: fresh.id ?? sourceId } }));
       setSources(newList);
     } catch { /* */ } finally {
       setRefreshing(null);
@@ -613,7 +623,7 @@ const Dossier: React.FC = () => {
   };
 
   // Group sources by category
-  const grouped: Record<string, any[]> = {};
+  const grouped: Record<string, SourceInfo[]> = {};
   for (const src of sources) {
     const cat = src.category || 'other';
     if (!grouped[cat]) grouped[cat] = [];
@@ -698,7 +708,7 @@ const Dossier: React.FC = () => {
             <>
               {/* ── VIN Decoder (visual) ── */}
               {sourceData['vin.decode']?.data && (
-                <VinDecoder data={sourceData['vin.decode'].data} />
+                <VinDecoder data={sourceData['vin.decode'].data as VinDecode} />
               )}
 
               {/* ── Sources by category ── */}
@@ -714,7 +724,7 @@ const Dossier: React.FC = () => {
                   </div>
 
                   {/* Source cards */}
-                  {grouped[cat].map((src: any) => (
+                  {grouped[cat].map((src) => (
                     <SourceCard
                       key={src.id}
                       src={src}

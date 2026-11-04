@@ -28,7 +28,10 @@ from tesla_cli.cli.output import console, is_json_mode
 
 data_app = typer.Typer(
     name="data",
-    help="Data sources, exports, and Colombian public data via [bold]openquery[/bold].",
+    help=(
+        "Data sources, exports, and Colombian public data via [bold]openquery[/bold] "
+        "(experimental: scraped government sites)."
+    ),
     rich_markup_mode="rich",
     no_args_is_help=True,
 )

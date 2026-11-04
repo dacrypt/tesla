@@ -19,7 +19,22 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts';
-import { api, TripStat, ChargeStat, Stats, ChargingSession, ChargeCostSummary, ChargeForecast } from '../api/client';
+import {
+  api,
+  TripStat,
+  ChargeStat,
+  Stats,
+  ChargingSession,
+  ChargeCostSummary,
+  ChargeForecast,
+  CostReport,
+  DailyEnergyEntry,
+  EfficiencyEntry,
+  HeatmapDay,
+  TeslaMateTimelineEvent,
+  TripStatsReport,
+  VampireReport,
+} from '../api/client';
 import VehicleMap from '../components/VehicleMap';
 
 // ---- Icons ----
@@ -143,19 +158,19 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [trips, setTrips] = useState<TripStat[]>([]);
   const [charges, setCharges] = useState<ChargeStat[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [efficiency, setEfficiency] = useState<any[]>([]);
-  const [timeline, setTimeline] = useState<any[]>([]);
-  const [dailyEnergy, setDailyEnergy] = useState<any[]>([]);
-  const [costReport, setCostReport] = useState<any>(null);
-  const [vampire, setVampire] = useState<any>(null);
-  const [tripStats, setTripStats] = useState<any>(null);
-  const [heatmap, setHeatmap] = useState<any[]>([]);
+  const [efficiency, setEfficiency] = useState<EfficiencyEntry[]>([]);
+  const [timeline, setTimeline] = useState<TeslaMateTimelineEvent[]>([]);
+  const [dailyEnergy, setDailyEnergy] = useState<DailyEnergyEntry[]>([]);
+  const [costReport, setCostReport] = useState<CostReport | null>(null);
+  const [vampire, setVampire] = useState<VampireReport | null>(null);
+  const [tripStats, setTripStats] = useState<TripStatsReport | null>(null);
+  const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
   const [chargeSessions, setChargeSessions] = useState<ChargingSession[]>([]);
   const [chargeCostSummary, setChargeCostSummary] = useState<ChargeCostSummary | null>(null);
   const [chargeForecast, setChargeForecast] = useState<ChargeForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
-  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<number | string | null>(null);
   const [tripPath, setTripPath] = useState<[number, number][]>([]);
   const [tripPathLoading, setTripPathLoading] = useState(false);
   const fetchedTabs = React.useRef<Set<Tab>>(new Set());
@@ -230,14 +245,14 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   // Charging cost trend from costReport.months
   const costTrendData = React.useMemo(() => {
     if (!costReport?.months) return [];
-    return Object.entries(costReport.months as Record<string, any>)
-      .map(([month, d]: [string, any]) => ({ month, cost: Number(d.cost ?? 0) }))
+    return Object.entries(costReport.months)
+      .map(([month, d]) => ({ month, cost: Number(d.cost ?? 0) }))
       .slice(-12);
   }, [costReport]);
 
   // Daily energy bar chart data
   const energyBarData = React.useMemo(() => {
-    return dailyEnergy.slice(-30).map((d: any) => ({
+    return dailyEnergy.slice(-30).map((d) => ({
       date: shortDate(d.date),
       kwh: Number(d.kwh ?? 0),
     }));
@@ -245,7 +260,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
 
   // Efficiency per trip line chart
   const efficiencyLineData = React.useMemo(() => {
-    return efficiency.slice(-30).map((e: any, i: number) => ({
+    return efficiency.slice(-30).map((e, i) => ({
       trip: i + 1,
       whKm: Number(e.wh_per_km ?? e.efficiency ?? 0),
     }));
@@ -253,7 +268,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
 
   // Battery level history from charges (start/end battery level)
   const batteryAreaData = React.useMemo(() => {
-    return charges.slice(-30).map((c: any) => ({
+    return charges.slice(-30).map((c) => ({
       date: shortDate(c.start_date),
       start: Number(c.battery_level_start ?? c.start_battery_level ?? 0),
       end: Number(c.battery_level_end ?? c.end_battery_level ?? 0),
@@ -262,8 +277,8 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
 
   // Vampire drain daily
   const vampireDrainData = React.useMemo(() => {
-    if (!Array.isArray(vampire?.days)) return [];
-    return vampire.days.slice(-30).map((d: any) => ({
+    if (!vampire || !Array.isArray(vampire.days)) return [];
+    return vampire.days.slice(-30).map((d) => ({
       date: shortDate(d.date),
       pct: Number(d.loss_pct ?? d.drain_pct ?? 0),
     }));
@@ -310,8 +325,8 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                   {tripStats?.top_routes && Array.isArray(tripStats.top_routes) && tripStats.top_routes.length > 0 && (
                     <div className="tesla-card" style={{ marginTop: 12, padding: 16 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Top Routes</div>
-                      {tripStats.top_routes.slice(0, 5).map((route: any, i: number) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < Math.min(tripStats.top_routes.length, 5) - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                      {tripStats.top_routes.slice(0, 5).map((route, i, routes) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < Math.min(routes.length, 5) - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ color: '#fff', fontSize: 13 }}>{route.route || route.start_address || 'Unknown'}</div>
                             {route.end_address && <div style={{ color: '#86888f', fontSize: 11 }}>to {route.end_address}</div>}
@@ -332,7 +347,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                 trips.length === 0 ? <NotConfigured /> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {trips.slice(0, 50).map((trip, i) => {
-                      const driveId = (trip as any).drive_id ?? (trip as any).id;
+                      const driveId = trip.drive_id ?? trip.id;
                       const isSelected = selectedTripId != null && selectedTripId === driveId;
                       return (
                         <div key={trip.id || i} className="tesla-card" style={{ padding: '14px' }}>
@@ -460,13 +475,13 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
                             <XAxis dataKey="trip" stroke={CHART_COLORS.subtext} fontSize={11} label={{ value: 'Trip #', position: 'insideBottomRight', offset: -5, fill: CHART_COLORS.subtext, fontSize: 10 }} />
                             <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit=" Wh/km" width={65} />
-                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(0)} Wh/km` : '--', 'Efficiency']} />
+                            <Tooltip {...tooltipStyle} formatter={(v: unknown) => [v != null ? `${Number(v).toFixed(0)} Wh/km` : '--', 'Efficiency']} />
                             <Line type="monotone" dataKey="whKm" stroke={CHART_COLORS.green} strokeWidth={2} dot={false} />
                           </LineChart>
                         </ResponsiveContainer>
                       </ChartCard>
                     )}
-                    {efficiency.slice(0, 50).map((e: any, i: number) => (
+                    {efficiency.slice(0, 50).map((e, i) => (
                       <div key={i} className="tesla-card" style={{ padding: '14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                           <div>
@@ -494,7 +509,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
               {activeTab === 'timeline' && (
                 timeline.length === 0 ? <NotConfigured /> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {timeline.slice(0, 60).map((event: any, i: number) => {
+                    {timeline.slice(0, 60).map((event, i) => {
                       const type = event.type || 'unknown';
                       const color = type === 'drive' ? '#0BE881' : type === 'charge' ? '#0FBCF9' : type === 'update' ? '#F99716' : '#86888f';
                       const icon = type === 'drive' ? 'D' : type === 'charge' ? 'C' : type === 'update' ? 'U' : '?';
@@ -537,7 +552,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                           <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
                           <XAxis dataKey="date" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
                           <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit=" kWh" width={52} />
-                          <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(1)} kWh` : '--', 'Energy']} />
+                          <Tooltip {...tooltipStyle} formatter={(v: unknown) => [v != null ? `${Number(v).toFixed(1)} kWh` : '--', 'Energy']} />
                           <Bar dataKey="kwh" fill={CHART_COLORS.blue} radius={[2, 2, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -546,13 +561,13 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
                       <StatCard
                         label="Total kWh"
-                        value={`${dailyEnergy.reduce((s: number, d: any) => s + (Number(d.kwh) || 0), 0).toFixed(1)}`}
+                        value={`${dailyEnergy.reduce((s: number, d) => s + (Number(d.kwh) || 0), 0).toFixed(1)}`}
                         color="#0FBCF9"
                         icon={<EnergyIcon />}
                       />
                       <StatCard
                         label="Avg/Day"
-                        value={`${(dailyEnergy.reduce((s: number, d: any) => s + (Number(d.kwh) || 0), 0) / (dailyEnergy.length || 1)).toFixed(1)}`}
+                        value={`${(dailyEnergy.reduce((s: number, d) => s + (Number(d.kwh) || 0), 0) / (dailyEnergy.length || 1)).toFixed(1)}`}
                         color="#0BE881"
                         icon={<TrendIcon />}
                       />
@@ -565,7 +580,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                           Driving Activity — Last 12 Months
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                          {heatmap.slice(-365).map((day: any, i: number) => {
+                          {heatmap.slice(-365).map((day, i) => {
                             const km = Number(day.km || day.distance_km || 0);
                             const opacity = km === 0 ? 0.08 : Math.min(0.2 + (km / 200) * 0.8, 1);
                             return (
@@ -614,7 +629,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
                             <XAxis dataKey="month" stroke={CHART_COLORS.subtext} fontSize={11} />
                             <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="$" />
-                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
+                            <Tooltip {...tooltipStyle} formatter={(v: unknown) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
                             <Line type="monotone" dataKey="cost" stroke={CHART_COLORS.green} strokeWidth={2} dot={false} />
                           </LineChart>
                         </ResponsiveContainer>
@@ -623,7 +638,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
 
                     {costReport.months && Object.keys(costReport.months).length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {Object.entries(costReport.months as Record<string, any>).map(([month, data]: [string, any]) => (
+                        {Object.entries(costReport.months).map(([month, data]) => (
                           <div key={month} className="tesla-card" style={{ padding: '14px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <span style={{ color: '#ffffff', fontSize: 15, fontWeight: 600 }}>{month}</span>
@@ -709,7 +724,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                               <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
                               <XAxis dataKey="month" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
                               <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="$" width={40} />
-                              <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
+                              <Tooltip {...tooltipStyle} formatter={(v: unknown) => [v != null ? `$${Number(v).toFixed(2)}` : '--', 'Cost']} />
                               <Bar dataKey="cost" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
@@ -797,7 +812,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
                             <XAxis dataKey="date" stroke={CHART_COLORS.subtext} fontSize={10} interval="preserveStartEnd" />
                             <YAxis stroke={CHART_COLORS.subtext} fontSize={11} unit="%" width={36} />
-                            <Tooltip {...tooltipStyle} formatter={(v: any) => [v != null ? `${Number(v).toFixed(2)}%` : '--', 'Drain']} />
+                            <Tooltip {...tooltipStyle} formatter={(v: unknown) => [v != null ? `${Number(v).toFixed(2)}%` : '--', 'Drain']} />
                             <Bar dataKey="pct" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -807,7 +822,7 @@ const Analytics: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                     {/* Fallback: entries list */}
                     {Array.isArray(vampire.entries) && vampire.entries.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-                        {vampire.entries.slice(0, 30).map((e: any, i: number) => (
+                        {vampire.entries.slice(0, 30).map((e, i) => (
                           <div key={i} className="tesla-card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                               <div style={{ color: '#fff', fontSize: 13 }}>{formatDate(e.date || e.start_date)}</div>

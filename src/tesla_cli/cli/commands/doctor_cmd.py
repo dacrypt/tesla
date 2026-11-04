@@ -29,6 +29,10 @@ _STATUS_STYLES = {
     "missing-scope": ("yellow", "missing-scope"),
     "external-blocker": ("red", "external-blocker"),
     "not-configured": ("yellow", "not-configured"),
+    # experimental features (tier X)
+    "failing": ("red", "failing"),
+    "unused": ("dim", "unused"),
+    "not-installed": ("dim", "not-installed"),
 }
 
 
@@ -109,8 +113,19 @@ def doctor(
         help="Also verify `default_vin` matches a VIN on the Fleet account (1 API call).",
     ),
 ) -> None:
-    """Show per-feature health status (offline-safe, never wakes the car)."""
+    """Show per-feature health status (offline-safe, never wakes the car).
+
+    Rows with tier "X" are experimental features built on unofficial or
+    fragile upstreams (see core/experimental.py).
+    """
+    from tesla_cli.core.experimental import status_all
+
     rows = probe_all()
+    for exp in status_all():
+        row = {"name": exp["id"], "tier": "X", "status": exp["status"]}
+        if exp.get("remediation"):
+            row["remediation"] = exp["remediation"]
+        rows.append(row)
 
     if check_vin:
         ok, detail = _check_vin_reachable()

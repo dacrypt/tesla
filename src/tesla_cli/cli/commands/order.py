@@ -8,6 +8,7 @@ import time
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from tesla_cli.cli.i18n import t as i18n_t
 from tesla_cli.cli.output import (
     console,
     is_json_mode,
@@ -20,17 +21,17 @@ from tesla_cli.cli.output import (
 from tesla_cli.core.backends.order import OrderBackend
 from tesla_cli.core.config import load_config
 
-order_app = typer.Typer(name="order", help="Tesla order tracking.")
+order_app = typer.Typer(
+    name="order",
+    help="Tesla order tracking (experimental: undocumented Tesla endpoints).",
+)
 
 
 def _get_rn() -> str:
     cfg = load_config()
     rn = cfg.order.reservation_number
     if not rn:
-        console.print(
-            "[red]No reservation number configured.[/red]\n"
-            "Run: tesla config set reservation-number RNXXXXXXXXX"
-        )
+        console.print(f"[red]{i18n_t('order.no_rn')}[/red]", markup=True)
         raise typer.Exit(1)
     return rn
 
@@ -323,7 +324,7 @@ def order_watch(
     rn = _get_rn()
     backend = OrderBackend()
 
-    console.print(f"[bold]Watching order {rn}[/bold] (every {interval} min, Ctrl+C to stop)\n")
+    console.print(f"[bold]{i18n_t('order.watching', rn=rn, interval=str(interval))}[/bold]\n")
 
     # Initial fetch
     changes = backend.detect_changes(rn)
@@ -369,7 +370,9 @@ def _show_changes(changes: list, notify: bool) -> None:
 
     from tesla_cli.core.models.order import OrderChange
 
-    console.print(f"\n[bold yellow]● Changes detected at {time.strftime('%H:%M:%S')}[/bold yellow]")
+    console.print(
+        f"\n[bold yellow]{i18n_t('order.changes_at', time=time.strftime('%H:%M:%S'))}[/bold yellow]"
+    )
 
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("sym", width=3, no_wrap=True)

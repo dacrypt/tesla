@@ -60,14 +60,20 @@ work takes priority over new features.
 - ✅ Single-flight guard on headless-browser endpoints; full audit log; dossier refresh is POST
 - ✅ Multi-arch image on GHCR; self-hosting guide (remote access, upgrades, manual backups)
 - ✅ Config `schema_version` with step-by-step migrations
+- ✅ (Unreleased) `tesla backup create/list/restore`; `--lang` output translations; experimental features labelled + monitored
 - ✅ ESLint clean + in CI; dashboard bundle halved; compiled UI out of git
 
-### S2 — Next
-- **Backups as a command** — `tesla backup` / `restore` (today: documented `tar` + `pg_dump`).
-- **Experimental features** — flag unofficial-API features (order tracking, portal scraping, RUNT/SIMIT, speculative planner) in CLI help and dashboard; raise an alert when they start failing.
-- **CLI translations** — decide: wire `cli/i18n.py` into commands or drop `--lang`.
-- **God-modules** — split `cli/commands/vehicle.py` (3.2k lines), `teslaMate.py`, `dossier.py`, `core/sources.py`; `ui/src/pages/Settings.tsx`, `api/client.ts`.
-- **Tests** — regroup the version-named files (`test_v260.py` … `test_v340.py`) by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; replace the 113 legacy `any` types in the dashboard.
+### Done (unreleased, after 5.4.0)
+- ✅ `--lang` output translations (es/pt/fr/de/it); `tesla backup create/list/restore`; `--json` output no longer wrapped/markup-parsed
+- ✅ Experimental features labelled + monitored (`tesla doctor` tier X, `/api/doctor/experimental`, alerts)
+- ✅ God-modules split: `cli/commands/vehicle`, `teslaMate`, `dossier` packages; `core/source_catalog.py`; dashboard `ui/src/api/*` and `pages/settings/*`
+- ✅ Tests renamed by feature; `core/`+`api/` coverage 65% → 75% (CI floors 72% / 62%); dashboard `any` 113 → 0
+- ✅ Bugs found on the way: empty charge summaries 500, `/api/init` automations, service appointments TypeError, unmounted routers, dossier PDF link
+
+### S3 — Needs a product decision
+- **Service reminders** — `/api/service/reminders` cannot know when a service was last done, so "overdue" never triggers; needs a way to record completed services.
+- **Order phases** — `core/computed.py` derives shipped/in-country/registered from the same RUNT flag, so the intermediate phases never show; needs real signals per phase.
+- **Order summary** — the "waiting for VIN" hints in `generate_summary` are unreachable (tasks default to `{}`).
 
 ## Remaining Gaps
 

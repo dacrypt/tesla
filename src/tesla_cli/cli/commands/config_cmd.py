@@ -7,6 +7,7 @@ import logging
 import typer
 from rich.prompt import Prompt
 
+from tesla_cli.cli.i18n import t as i18n_t
 from tesla_cli.cli.output import console, is_json_mode, render_dict, render_success
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, save_config
@@ -84,7 +85,8 @@ def config_set(
     }
     if key not in key_map:
         valid = ", ".join(list(key_map.keys()) + list(keyring_map.keys()))
-        console.print(f"[red]Unknown key:[/red] {key}\nValid keys: {valid}")
+        console.print(f"[red]{i18n_t('config.unknown_key', key=key)}[/red]")
+        console.print(f"Valid keys: {valid}", markup=False)
         raise typer.Exit(1)
     section, field = key_map[key]
     section_obj = getattr(cfg, section)
