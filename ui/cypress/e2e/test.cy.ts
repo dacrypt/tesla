@@ -1,6 +1,8 @@
-describe('My First Test', () => {
-  it('Visits the app root url', () => {
+// Smoke test against the running app (cypress.config.ts baseUrl, `make dev`).
+// The app either renders the dashboard tabs (no API key) or the sign-in screen.
+describe('dashboard smoke', () => {
+  it('loads the app shell', () => {
     cy.visit('/')
-    cy.contains('#container', 'Ready to create an app?')
+    cy.get('ion-tab-bar, input[aria-label="API key"]', { timeout: 15000 }).should('exist')
   })
 })

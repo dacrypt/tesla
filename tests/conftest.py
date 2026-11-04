@@ -137,3 +137,28 @@ def mock_fleet_backend():
     backend.revoke_invitation.return_value = {"result": True}
     backend.wake_up.return_value = True
     return backend
+
+
+@pytest.fixture(autouse=True)
+def _testclient_host_is_loopback(monkeypatch):
+    """Starlette's TestClient sends ``Host: testserver``; treat it as loopback.
+
+    The API's DNS-rebinding guard only admits loopback Host headers when no API
+    key is configured. Tests that exercise that guard override the Host header.
+    """
+    try:
+        from tesla_cli.api import auth as _auth
+    except ImportError:  # serve extra not installed
+        return
+    monkeypatch.setattr(_auth, "_LOOPBACK_HOSTS", _auth._LOOPBACK_HOSTS | {"testserver"})
+
+
+@pytest.fixture(autouse=True)
+def _isolated_token_file_store(tmp_path, monkeypatch):
+    """Never let the encrypted token fallback touch the real ~/.tesla-cli."""
+    from tesla_cli.core.auth import file_store
+
+    store_dir = tmp_path / "token-store"
+    monkeypatch.setattr(file_store, "_config_dir", lambda: store_dir)
+    monkeypatch.delenv("TESLA_CLI_TOKEN_STORE", raising=False)
+    monkeypatch.delenv("TESLA_CLI_MASTER_KEY_FILE", raising=False)

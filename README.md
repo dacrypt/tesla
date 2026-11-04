@@ -20,12 +20,12 @@ tesla serve                      → start REST API + web dashboard
 ## Quick Start
 
 ```bash
-# Requirements: Python 3.12+, uv
-git clone https://github.com/dacrypt/tesla.git
-cd tesla
-uv tool install -e .
+# Requirements: Python 3.12+
+uv tool install "tesla-cli[serve,fleet]"   # or: pipx install "tesla-cli[serve,fleet]"
 tesla setup
 ```
+
+From source: `git clone https://github.com/dacrypt/tesla.git && cd tesla && uv tool install -e .`
 
 `tesla setup` is an interactive wizard: email + password is all you need. It handles OAuth2 authentication, VIN auto-discovery, optional vehicle control backend selection, and first data build — tiered so basic features work immediately.
 
@@ -245,7 +245,7 @@ tesla/
 ├── ui/                    # React 19 + Ionic web dashboard (10 pages)
 ├── plugins/
 │   └── claude-code/       # Claude Code plugin (12 skills)
-├── tests/                 # pytest suite (1682 tests)
+├── tests/                 # pytest suite (2100+ tests)
 ├── docs/                  # Architecture, API ref, user guide, roadmap
 └── docker/                # TeslaMate stack configs
 ```
@@ -265,7 +265,7 @@ tesla/
 | **[Data Sources](docs/data-sources.md)** | Tesla API catalog, third-party services, registered sources |
 | **[Roadmap](docs/roadmap.md)** | Upcoming features and remaining gaps |
 | **[Competitive Analysis](docs/research/competitive-analysis.md)** | 20-tool ecosystem deep dive |
-| **[Changelog](CHANGELOG.md)** | Version history (v0.1.0 → v4.9.0) |
+| **[Changelog](CHANGELOG.md)** | Version history (v0.1.0 → v5.3.0) |
 | **[Contributing](CONTRIBUTING.md)** | Development setup, testing, pull requests |
 
 ---
@@ -276,9 +276,35 @@ tesla/
 
 ```bash
 docker compose up -d
+docker compose logs tesla-cli | grep -A1 "API key generated"   # first start only
 ```
 
-Dashboard at `http://localhost:8080`.
+Dashboard at `http://<host>:8080` — sign in with the API key. Show it again any
+time with `docker compose exec tesla-cli tesla serve api-key`.
+
+The container runs as an unprivileged user (`uid 1000`) and keeps its config in
+the `tesla-config` volume at `/home/tesla/.tesla-cli`. Set `TESLA_BIND=127.0.0.1`
+to publish the port on the host's loopback only. See
+[API authentication](docs/api-reference.md#authentication--request-security).
+
+Tesla tokens are stored encrypted (AES-256-GCM) in the volume, since containers
+have no system keyring. For defence in depth keep the master key outside the
+volume with a Docker secret:
+
+```yaml
+services:
+  tesla-cli:
+    environment:
+      - TESLA_CLI_MASTER_KEY_FILE=/run/secrets/tesla_master_key
+    secrets: [tesla_master_key]
+secrets:
+  tesla_master_key:
+    file: ./tesla_master_key.txt   # e.g. `openssl rand -hex 32 > tesla_master_key.txt`
+```
+
+> **Upgrading from an older image** (config used to live in `/root/.tesla-cli`
+> and the container ran as root): fix the volume ownership once with
+> `docker compose run --rm --user root tesla-cli chown -R 1000:1000 /home/tesla/.tesla-cli`.
 
 ## Development
 
@@ -311,11 +337,17 @@ Notes:
 
 ### Full Stack (with TeslaMate + Grafana)
 
+Requires `DB_PASSWORD`, `ENCRYPTION_KEY` and `GRAFANA_PASSWORD` in `.env` (no
+insecure defaults). TeslaMate, Grafana and Mosquitto bind to `127.0.0.1` unless
+you set `STACK_BIND`.
+
 ```bash
+printf 'DB_PASSWORD=%s\nENCRYPTION_KEY=%s\nGRAFANA_PASSWORD=%s\n' \
+  "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" "$(openssl rand -hex 12)" > .env
 docker compose -f docker-compose.full.yml up -d
 ```
 
-- Dashboard: `http://localhost:8080`
+- Dashboard: `http://localhost:8080` (sign in with the key from `docker compose logs tesla-cli`)
 - TeslaMate: `http://localhost:4000`
 - Grafana: `http://localhost:3000`
 
@@ -325,7 +357,7 @@ docker compose -f docker-compose.full.yml up -d
 
 ```bash
 uv sync --extra dev --extra serve --extra teslaMate --extra fleet --extra pdf
-uv run pytest -m "not integration"         # unit tests (1682 tests)
+uv run pytest -m "not integration"         # unit tests (2100+ tests)
 uv run ruff check src/ tests/              # lint
 ```
 

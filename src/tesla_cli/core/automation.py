@@ -6,6 +6,7 @@ Config file: ~/.tesla-cli/automations.json
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import time
 from datetime import UTC, datetime
@@ -233,14 +234,37 @@ class AutomationEngine:
         except (KeyError, ValueError):
             return template
 
+    def _command_argv(self, action: AutomationAction, data: dict) -> list[str]:
+        """Split the command template into argv, then fill each argument.
+
+        Splitting happens *before* substitution so template values can never
+        introduce extra arguments or shell syntax.
+        """
+        template = action.message or action.command or ""
+        try:
+            tokens = shlex.split(template)
+        except ValueError:
+            return []
+        context = _build_template_context(data)
+        argv: list[str] = []
+        for tok in tokens:
+            try:
+                argv.append(tok.format(**context))
+            except (KeyError, ValueError, IndexError):
+                argv.append(tok)
+        return argv
+
     def _execute_action(self, action: AutomationAction, data: dict) -> None:
         """Execute the action (notify, shell command, or webhook)."""
         if action.type == "notify":
             self._send_notification(action, data)
         elif action.type in ("command", "exec"):
-            cmd = self._format_action(action, data)
-            if cmd:
-                subprocess.run(cmd, shell=True, check=False)  # noqa: S602
+            argv = self._command_argv(action, data)
+            if argv:
+                # No shell: vehicle data is substituted per-argument, so values
+                # such as a vehicle name containing `; rm -rf ~` stay inert.
+                # Pipes/redirects need a wrapper script.
+                subprocess.run(argv, shell=False, check=False, timeout=300)
         elif action.type == "webhook":
             self._send_webhook(action, data)
 
@@ -304,6 +328,13 @@ class AutomationEngine:
 
         import httpx
 
+        from tesla_cli.core.url_safety import UnsafeUrlError, check_outbound_url
+
+        try:
+            check_outbound_url(action.webhook_url)
+        except UnsafeUrlError:
+            return
+
         context = _build_template_context(data)
         payload = action.webhook_payload or json.dumps(context)
         for k, v in context.items():
@@ -315,6 +346,7 @@ class AutomationEngine:
                 content=payload,
                 headers={"Content-Type": "application/json"},
                 timeout=10,
+                follow_redirects=False,
             )
         except Exception:  # noqa: BLE001
             pass

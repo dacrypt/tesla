@@ -13,15 +13,67 @@ Requires the `serve` extra: `uv tool install -e ".[serve]"`
 
 ---
 
-## Authentication
+## Authentication & request security
+
+The server is built to be **self-hosted**: it is secure by default and refuses
+to expose an unauthenticated API beyond the local machine.
+
+| Mode | When | Behaviour |
+|------|------|-----------|
+| Localhost, no key | `tesla serve` (default `--host 127.0.0.1`) | Open, but only for `Host: localhost/127.0.0.1/[::1]` (DNS-rebinding guard) |
+| Key required | `server.api_key` set, **or** any non-loopback `--host` | Every `/api/*` request needs a credential |
+| No auth off-localhost | `--insecure-no-auth` | Only behind a reverse proxy that authenticates for you |
+
+Binding beyond localhost (`--host 0.0.0.0`, Docker) without a key makes
+`tesla serve` **generate one on first start** and print it once. Manage keys
+with:
 
 ```bash
-tesla config set server.api_key MY_SECRET_KEY
+tesla serve api-key                         # show the full-control key
+tesla serve api-key --rotate                # issue a new one (restart server)
+tesla serve api-key --read-only --rotate    # create a GET-only key
+tesla serve api-key --read-only --disable   # remove the read-only key
 ```
 
-Once set, all `/api/` requests require `X-Api-Key: MY_SECRET_KEY` header.
+### Credentials
 
-Also supports: `?api_key=` query param, `TESLA_API_KEY` env var.
+- **Header** — `X-API-Key: <key>` (scripts, Home Assistant, curl).
+- **Session cookie** — `POST /api/session {"key": "..."}` validates the key and
+  sets an HttpOnly, `SameSite=Strict` cookie (derived from the key, never the
+  raw key). The dashboard and SSE (`EventSource`) use this. `GET /api/session`
+  reports `{auth_required, authenticated, role}`; `DELETE /api/session` signs out.
+- `?api_key=` query parameters are **not accepted** (they leak into logs and history).
+- `TESLA_API_KEY` / `TESLA_READ_ONLY_KEY` env vars override the config values.
+
+### Roles
+
+| Key | Allowed |
+|-----|---------|
+| `server.api_key` | Everything |
+| `server.read_only_key` | `GET` / `HEAD` / `OPTIONS` only — writes return `403` |
+
+### Always public
+
+`GET /api/health` (Docker `HEALTHCHECK`; `?deep=true` requires auth) and `/api/session`.
+
+### Cross-site protection
+
+`POST/PUT/PATCH/DELETE` requests whose `Origin` is not the server itself (or one
+of `server.cors_origins`), or that carry `Sec-Fetch-Site: cross-site`, are
+rejected with `403` — even with no key configured. A web page you visit cannot
+fire `POST /api/security/unlock` at your server.
+
+### Raw command allowlist
+
+`POST /api/vehicle/command` only forwards allowlisted Tesla command names
+(locks, trunks, windows, charging, climate, media, navigation, sentry/valet,
+speed limit…). Account-altering commands such as `erase_user_data`,
+`set_pin_to_drive`, `reset_valet_pin` or `schedule_software_update` return
+`403`. Add names deliberately with:
+
+```bash
+tesla config set server.extra_allowed_commands '["set_vehicle_name"]'
+```
 
 ---
 

@@ -1,26 +1,41 @@
-version: '3.8'
+# Full self-hosted stack: tesla-cli + TeslaMate + Grafana + Postgres + Mosquitto.
+#
+# Required secrets — put them in a `.env` file next to this compose file:
+#   DB_PASSWORD=<random>        e.g. `openssl rand -hex 24`
+#   ENCRYPTION_KEY=<random>     encrypts Tesla tokens inside TeslaMate
+#   GRAFANA_PASSWORD=<random>
+# `docker compose up` refuses to start while any of them is missing.
+#
+# TeslaMate, Grafana and Mosquitto have no (or weak) auth of their own, so they
+# bind to 127.0.0.1 by default. Reach them through a VPN / reverse proxy with
+# auth, or set STACK_BIND=0.0.0.0 if you understand the exposure.
 
 services:
   tesla-cli:
     build: .
     container_name: tesla-cli
     ports:
-      - "${TESLA_PORT:-8080}:8080"
+      # API key auto-generated on first start (`docker compose logs tesla-cli`).
+      - "${TESLA_BIND:-0.0.0.0}:${TESLA_PORT:-8080}:8080"
     volumes:
-      - tesla-config:/root/.tesla-cli
+      - tesla-config:/home/tesla/.tesla-cli
     depends_on:
       - postgres
       - mosquitto
     environment:
       - TESLA_VIN=${TESLA_VIN:-}
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   postgres:
     image: postgres:16-alpine
     container_name: tesla-postgres
     environment:
       - POSTGRES_USER=teslamate
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-teslamate}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
       - POSTGRES_DB=teslamate
     volumes:
       - tesla-db:/var/lib/postgresql/data
@@ -30,24 +45,32 @@ services:
     image: teslamate/teslamate:latest
     container_name: teslamate
     environment:
-      - DATABASE_URL=postgresql://teslamate:${DB_PASSWORD:-teslamate}@postgres/teslamate
+      - DATABASE_USER=teslamate
+      - DATABASE_PASS=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - DATABASE_NAME=teslamate
+      - DATABASE_HOST=postgres
       - MQTT_HOST=mosquitto
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-supersecretkey}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
     ports:
-      - "${TM_PORT:-4000}:4000"
+      - "${STACK_BIND:-127.0.0.1}:${TM_PORT:-4000}:4000"
     depends_on:
       - postgres
       - mosquitto
     restart: unless-stopped
+    cap_drop:
+      - ALL
 
   grafana:
     image: teslamate/grafana:latest
     container_name: tesla-grafana
     environment:
-      - DATABASE_URL=postgresql://teslamate:${DB_PASSWORD:-teslamate}@postgres/teslamate
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - DATABASE_USER=teslamate
+      - DATABASE_PASS=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - DATABASE_NAME=teslamate
+      - DATABASE_HOST=postgres
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in .env}
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${STACK_BIND:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - postgres
     restart: unless-stopped
@@ -55,8 +78,10 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: tesla-mosquitto
+    # Anonymous access is limited to the compose network + loopback port below.
+    command: mosquitto -c /mosquitto-no-auth.conf
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "${STACK_BIND:-127.0.0.1}:${MQTT_PORT:-1883}:1883"
     volumes:
       - mosquitto-data:/mosquitto/data
     restart: unless-stopped

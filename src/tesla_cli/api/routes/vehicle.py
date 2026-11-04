@@ -139,11 +139,23 @@ def vehicle_odometer(request: Request) -> dict:
 
 @router.post("/command")
 def vehicle_command(body: CommandRequest, request: Request) -> dict:
-    """Send a command to the vehicle.
+    """Send a raw Tesla command to the vehicle.
 
-    Commands: lock, unlock, honk_horn, flash_lights, charge_start,
-              charge_stop, climate_on, climate_off, wake_up, ...
+    Only allowlisted command names are forwarded (see
+    ``tesla_cli.api.command_policy``); extend with
+    ``server.extra_allowed_commands``. Examples: door_lock, door_unlock,
+    honk_horn, flash_lights, charge_start, set_charge_limit, set_temps.
     """
+    from tesla_cli.api.command_policy import is_command_allowed
+
+    if not is_command_allowed(body.command, load_config().server.extra_allowed_commands):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Command {body.command!r} is not allowed via the API. "
+                "Add it to server.extra_allowed_commands to enable it."
+            ),
+        )
     backend, v = _backend_and_vin(request)
     try:
         result = backend.command(v, body.command, **body.params)

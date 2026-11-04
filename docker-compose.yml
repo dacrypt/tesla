@@ -1,19 +1,25 @@
-version: '3.8'
-
 services:
   tesla-cli:
     build: .
     container_name: tesla-cli
     ports:
-      - "${TESLA_PORT:-8080}:8080"
+      # Reachable from your LAN. The API key is auto-generated on first start
+      # (see `docker compose logs tesla-cli`, or run
+      # `docker compose exec tesla-cli tesla serve api-key`).
+      # Set TESLA_BIND=127.0.0.1 to keep it local to this host only.
+      - "${TESLA_BIND:-0.0.0.0}:${TESLA_PORT:-8080}:8080"
     volumes:
-      - tesla-config:/root/.tesla-cli
+      - tesla-config:/home/tesla/.tesla-cli
     environment:
       - TESLA_VIN=${TESLA_VIN:-}
       - TESLA_RN=${TESLA_RN:-}
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/api/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/api/health').raise_for_status()"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -6,6 +6,7 @@ Tokens: stored in system keyring (never in config file)
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -121,10 +122,13 @@ class MqttConfig(BaseModel):
 class ServerConfig(BaseModel):
     """Local API server settings."""
 
-    api_key: str = ""  # If set, require X-API-Key header on all /api/* requests
+    api_key: str = ""  # Full-control key; required on /api/* when set (auto-set off-localhost)
+    read_only_key: str = ""  # Optional second key limited to GET/HEAD (dashboards, HA)
+    allowed_hosts: list[str] = []  # Extra Host headers allowed when no api_key ("*" = any)
     pid_file: str = str(Path.home() / ".tesla-cli" / "server.pid")
     cors_origins: list[str] = []  # Custom CORS origins; defaults to localhost if empty
     allow_shell_automations: bool = False  # Allow command/exec automation actions via API
+    extra_allowed_commands: list[str] = []  # Raw commands beyond the API allowlist
 
 
 class FleetTelemetryConfig(BaseModel):
@@ -200,7 +204,14 @@ def save_config(config: Config) -> None:
     """Save config to TOML file."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     data = config.model_dump(exclude_defaults=False)
-    CONFIG_FILE.write_text(tomli_w.dumps(data))
+    # The file holds API keys and integration tokens: write it owner-only (0600)
+    # atomically, so it is never briefly world-readable.
+    tmp = CONFIG_FILE.with_name(CONFIG_FILE.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(tomli_w.dumps(data))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, CONFIG_FILE)
 
 
 def resolve_vin(config: Config, vin: str | None) -> str:

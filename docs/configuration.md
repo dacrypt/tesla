@@ -33,7 +33,11 @@ retain = false
 tls = false
 
 [server]
-api_key = ""                     # optional; protects all /api/* routes
+api_key = ""                     # full-control key; auto-generated when serving off-localhost
+read_only_key = ""               # optional GET-only key (wall dashboards, Home Assistant)
+allowed_hosts = []               # extra Host names allowed when no api_key ("*" = any)
+cors_origins = []                # extra origins for a dashboard hosted elsewhere
+extra_allowed_commands = []      # raw vehicle commands beyond the API allowlist
 pid_file = "~/.tesla-cli/tesla-serve.pid"
 
 [home_assistant]
@@ -88,7 +92,10 @@ tesla config decrypt-token                 # reverse token encryption
 | `client-id` | Fleet API client ID | app ID string |
 | `notifications-enabled` | Enable Apprise notifications | `true`, `false` |
 | `cost-per-kwh` | kWh cost for charging reports | decimal (e.g. `0.22`) |
-| `server.api_key` | API server auth key | any string |
+| `server.api_key` | API full-control key (see `tesla serve api-key`) | any string |
+| `server.read_only_key` | API GET-only key | any string |
+| `server.allowed_hosts` | Host headers allowed without a key | list of hostnames |
+| `server.extra_allowed_commands` | Raw commands beyond the allowlist | list of command names |
 
 ---
 
@@ -149,4 +156,7 @@ tesla config auth fleet          # Fleet API OAuth2 flow
 | Variable | Description |
 |----------|-------------|
 | `TESLA_LANG` | UI language (`en`, `es`, `pt`, `fr`, `de`, `it`) |
-| `TESLA_API_KEY` | API server authentication key (alternative to config) |
+| `TESLA_API_KEY` | API server full-control key (overrides config) |
+| `TESLA_READ_ONLY_KEY` | API server read-only key (overrides config) |
+| `TESLA_CLI_TOKEN_STORE` | `file` forces the encrypted file token store (default in Docker; automatic when no keyring exists) |
+| `TESLA_CLI_MASTER_KEY_FILE` | Path to the master key for the file token store (e.g. a Docker secret); default `~/.tesla-cli/master.key` |

@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (v5.0.0)
+## Current State (v5.3.0)
 
 180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, 6 i18n languages, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
 
@@ -40,6 +40,29 @@
 - ⚠️ **Native EV Route Planner — Phases 2 + 3 (v5.0.0, speculative)** — ships probe-deferred. Phase 2: TeslaMate-calibrated consumption model with `tesla nav consumption calibrate`, SoC prediction along route, elevation + weather integration, `--soc-start/--soc-target/--min-arrival-soc/--battery-kwh` flags. Phase 3: A\* alternatives (`--alternatives N`), GPX/KML export (`tesla nav route export`), REST API (`POST /api/nav/plan`), React Planner dashboard page. **Accuracy caveat**: shipped with published Tesla baseline coefficients; per-vehicle calibration requires running the Jupyter probe notebook (`notebooks/consumption-model-probe.ipynb`) against real TeslaMate data. Full design: [.omc/plans/native-ev-planner.md](../.omc/plans/native-ev-planner.md).
 
 ---
+
+## Stabilization Track (self-hosted production)
+
+The project is **self-hosted only** (no SaaS / multi-tenant plans). Stability
+work takes priority over new features.
+
+### Done in 5.3.0
+- ✅ Secure-by-default API: key required off-localhost (auto-generated), read-only key, cookie sessions for the dashboard, CSRF + DNS-rebinding guards, raw-command allowlist
+- ✅ No shell for automation commands; webhook SSRF guard; masked notification secrets; config written `0600`
+- ✅ Docker: non-root, pinned tooling, working UI build, hardened compose files, no default passwords, auxiliary services on loopback
+- ✅ Encrypted file token store for Docker / headless hosts (Docker-secret master key)
+- ✅ Release pipeline: version consistency, tests before publish, UI + Docker jobs in CI, coverage floor
+
+### S1 — Next stabilization release
+- **Typed error handling** — global FastAPI exception handlers keyed on `core/exceptions.py`; replace 32 `"429" in str(exc)` checks and `detail=str(exc)` leaks; log instead of `except Exception: pass`.
+- **Uniform HTTP resilience** — retries on transport errors/timeouts for every backend (Owner and Order backends bypass the shared helper); per-vehicle rate budget instead of a global 5 req/min bucket shared with the hub poller.
+- **Layering** — move `_fetch_sessions` / config checks out of `cli/` into `core/`; remove `rich`/CLI imports from `core/`.
+- **Rate limiting** on login/scrape endpoints that spawn headless browsers.
+- **Multi-arch image on GHCR** (amd64 + arm64 for Pi/NAS) built by the release workflow.
+- **Config schema versioning** with real migrations (rename/remove keys).
+- **Backups** — `tesla backup` / `restore` for config, events DB and TeslaMate.
+- Raise coverage floor toward 70% for `core/` + `api/`; fix the 128 ESLint errors and add ESLint to CI.
+- Mark unofficial-API features (order tracking, portal scraping, RUNT/SIMIT, speculative planner) as **experimental** with health alerts when they break.
 
 ## Remaining Gaps
 
