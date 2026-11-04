@@ -205,6 +205,9 @@ def create_app(vin: str | None = None, serve_ui: bool = False) -> FastAPI:
     )
 
     _register_middleware(app)
+    from tesla_cli.api.errors import register_exception_handlers
+
+    register_exception_handlers(app)
     _register_routes(app)
     _register_system_endpoints(app)
     _register_metrics(app)

@@ -121,13 +121,20 @@ class VehicleStateHub:
                 self._error = err_str
                 self._consecutive_errors += 1
 
-                if "412" in err_str:
+                from tesla_cli.core.exceptions import (
+                    ApiError,
+                    EndpointDeprecatedError,
+                    VehicleAsleepError,
+                )
+
+                status = exc.status_code if isinstance(exc, ApiError) else None
+                if isinstance(exc, EndpointDeprecatedError) or status == 412:
                     self._pre_delivery = True
                     self._interval = DEGRADED_INTERVAL
                     log.info("Hub got 412 (pre-delivery) — slowing to %ds", self._interval)
                     # Broadcast error event so frontend knows
                     self._broadcast_error("pre_delivery", "Vehicle not accessible (pre-delivery)")
-                elif "asleep" in err_str.lower() or "408" in err_str:
+                elif isinstance(exc, VehicleAsleepError) or status == 408:
                     self._interval = DEGRADED_INTERVAL
                     log.debug("Vehicle asleep — slowing to %ds", self._interval)
                     self._broadcast_error("asleep", "Vehicle is asleep")

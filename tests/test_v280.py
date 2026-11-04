@@ -426,7 +426,9 @@ class TestSSEHubArchitecture:
     def test_hub_smart_interval_on_412(self):
         src = self._hub_src()
         assert "DEGRADED_INTERVAL" in src
-        assert '"412"' in src
+        # 412 is detected from the typed error, not by sniffing the message text
+        assert "EndpointDeprecatedError" in src
+        assert "status == 412" in src
 
     def test_hub_invalidate_method(self):
         src = self._hub_src()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
+from tesla_cli.api.errors import upstream_http_error
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.exceptions import VehicleAsleepError
@@ -27,14 +28,7 @@ def security_lock(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/unlock")
@@ -47,14 +41,7 @@ def security_unlock(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.get("/sentry")
@@ -70,14 +57,7 @@ def security_sentry_status(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/sentry/on")
@@ -90,14 +70,7 @@ def security_sentry_on(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/sentry/off")
@@ -110,14 +83,7 @@ def security_sentry_off(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/trunk/front")
@@ -130,14 +96,7 @@ def security_frunk(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/trunk/rear")
@@ -150,14 +109,7 @@ def security_trunk(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/horn")
@@ -170,14 +122,7 @@ def security_horn(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
 
 
 @router.post("/flash")
@@ -190,11 +135,4 @@ def security_flash(request: Request) -> dict:
     except VehicleAsleepError:
         raise HTTPException(status_code=503, detail="Vehicle is asleep.")
     except Exception as exc:
-        if "412" in str(exc):
-            raise HTTPException(
-                status_code=412,
-                detail="Vehicle not accessible. May be pre-delivery or require Fleet API.",
-            )
-        if "429" in str(exc):
-            raise HTTPException(status_code=429, detail="Rate limited. Try again in a few seconds.")
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise upstream_http_error(exc) from exc
