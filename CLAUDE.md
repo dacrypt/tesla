@@ -75,7 +75,7 @@ make api                                 # FastAPI dev server (port 8080)
 
 | Task | Key files |
 |------|-----------|
-| Add vehicle command | `core/backends/fleet.py`, `cli/commands/vehicle.py`, `tests/test_commands.py` |
+| Add vehicle command | `core/backends/fleet.py`, `cli/commands/vehicle/_control.py` (actions) / `_info.py` (queries) / `_monitor.py` (live), `tests/test_commands.py` — call `_v.load_config()`, `_v._backend()` etc. so test patches apply |
 | Add TeslaMate analytics | `core/backends/teslaMate.py`, `cli/commands/teslaMate.py`, `api/routes/teslaMate.py` |
 | Add data source | `core/sources.py`, `cli/commands/dossier.py` |
 | Add provider | `core/providers/impl/`, `core/providers/loader.py` |

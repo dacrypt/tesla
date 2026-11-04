@@ -83,10 +83,10 @@ class TestWatchAllNotify:
         assert "--notify" in result.output
 
     def test_notify_title_source(self):
-        """vehicle.py source contains 'Tesla Watch —' string."""
+        """vehicle watch source contains 'Tesla Watch —' string."""
         import inspect
 
-        import tesla_cli.cli.commands.vehicle as vmod
+        import tesla_cli.cli.commands.vehicle._monitor as vmod
 
         src = inspect.getsource(vmod)
         assert "Tesla Watch —" in src

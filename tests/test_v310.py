@@ -144,7 +144,7 @@ class TestVehicleWatchAll:
 
     def test_watch_all_uses_threading(self):
         """Source code contains threading.Thread."""
-        src = Path("src/tesla_cli/cli/commands/vehicle.py").read_text()
+        src = Path("src/tesla_cli/cli/commands/vehicle/_monitor.py").read_text()
         assert "threading.Thread" in src
 
 

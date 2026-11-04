@@ -65,3 +65,18 @@ def test_debug_flag_enables_debug_logging(monkeypatch):
     assert logging.getLogger("tesla_cli").level == logging.INFO
     logging.getLogger("tesla_cli").setLevel(logging.NOTSET)
     logging.getLogger("tesla-cli").setLevel(logging.NOTSET)
+
+
+def test_vehicle_submodules_resolve_patchable_names_through_package():
+    """Tests patch tesla_cli.cli.commands.vehicle.<name>; submodules must look
+    those names up as `_v.<name>` at call time or the patches silently miss."""
+    patched = {"get_vehicle_backend", "load_config", "resolve_vin", "time", "_backend", "_vin"}
+    patched.add("_with_wake")
+    for path in sorted((SRC / "cli" / "commands" / "vehicle").glob("_*.py")):
+        tree = ast.parse(path.read_text())
+        bare = [
+            f"{path.name}:{n.lineno} {n.id}"
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Name) and n.id in patched
+        ]
+        assert not bare, bare
