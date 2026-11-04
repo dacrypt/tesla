@@ -29,9 +29,13 @@ RUN uv sync --frozen --extra serve --extra fleet --extra teslaMate --extra pdf -
 COPY --from=ui-build /app/src/tesla_cli/api/ui_dist src/tesla_cli/api/ui_dist/
 
 RUN mkdir -p /home/tesla/.tesla-cli && chown -R tesla:tesla /home/tesla/.tesla-cli
+# No system keyring in a container: OAuth tokens go to an AES-256-GCM encrypted
+# file in the config volume. Mount a Docker secret and point
+# TESLA_CLI_MASTER_KEY_FILE at it to keep the key out of that volume.
 ENV PATH="/app/.venv/bin:${PATH}" \
     HOME=/home/tesla \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    TESLA_CLI_TOKEN_STORE=file
 USER tesla
 
 EXPOSE 8080

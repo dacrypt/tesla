@@ -57,6 +57,13 @@ def create_rule(rule: dict) -> dict:
                 detail="Shell command automations disabled via API. "
                 "Create them via CLI or set server.allow_shell_automations = true.",
             )
+    if new_rule.action.type == "webhook" and new_rule.action.webhook_url:
+        from tesla_cli.core.url_safety import UnsafeUrlError, check_outbound_url
+
+        try:
+            check_outbound_url(new_rule.action.webhook_url)
+        except UnsafeUrlError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     # Reject duplicate names
     if any(r.name == new_rule.name for r in engine.rules):
         raise HTTPException(status_code=409, detail=f"Rule '{new_rule.name}' already exists")

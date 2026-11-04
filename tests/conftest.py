@@ -151,3 +151,14 @@ def _testclient_host_is_loopback(monkeypatch):
     except ImportError:  # serve extra not installed
         return
     monkeypatch.setattr(_auth, "_LOOPBACK_HOSTS", _auth._LOOPBACK_HOSTS | {"testserver"})
+
+
+@pytest.fixture(autouse=True)
+def _isolated_token_file_store(tmp_path, monkeypatch):
+    """Never let the encrypted token fallback touch the real ~/.tesla-cli."""
+    from tesla_cli.core.auth import file_store
+
+    store_dir = tmp_path / "token-store"
+    monkeypatch.setattr(file_store, "_config_dir", lambda: store_dir)
+    monkeypatch.delenv("TESLA_CLI_TOKEN_STORE", raising=False)
+    monkeypatch.delenv("TESLA_CLI_MASTER_KEY_FILE", raising=False)

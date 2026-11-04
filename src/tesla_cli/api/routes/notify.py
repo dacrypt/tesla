@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from tesla_cli.core.config import load_config, save_config
+from tesla_cli.core.url_safety import mask_secret_url
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ def notify_list() -> dict:
     cfg = load_config()
     return {
         "enabled": cfg.notifications.enabled,
-        "channels": cfg.notifications.apprise_urls,
+        # Apprise URLs embed bot tokens / passwords: never echo them back.
+        "channels": [mask_secret_url(u) for u in cfg.notifications.apprise_urls],
         "template": cfg.notifications.message_template,
     }
 

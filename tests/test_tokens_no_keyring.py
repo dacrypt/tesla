@@ -39,14 +39,25 @@ class TestGetTokenWithoutBackend:
 
 
 class TestSetTokenWithoutBackend:
-    def test_raises_with_actionable_hint(self):
+    def test_falls_back_to_encrypted_file_store(self):
+        """Docker / headless: the token is persisted encrypted, not lost."""
+        no_backend = keyring.errors.NoKeyringError("no backend")
+        with (
+            patch("keyring.set_password", side_effect=no_backend),
+            patch("keyring.get_password", side_effect=no_backend),
+        ):
+            tokens.set_token(tokens.TESSIE_TOKEN, "abc123")
+            assert tokens.get_token(tokens.TESSIE_TOKEN) == "abc123"
+
+    def test_raises_with_actionable_hint_when_store_unusable(self):
         """A failed write must never be silent -- the credential would be lost."""
         with (
             patch("keyring.set_password", side_effect=keyring.errors.NoKeyringError("no backend")),
+            patch("tesla_cli.core.auth.file_store.set", side_effect=PermissionError("ro fs")),
             pytest.raises(keyring.errors.NoKeyringError) as exc,
         ):
             tokens.set_token(tokens.TESSIE_TOKEN, "abc123")
-        assert "PYTHON_KEYRING_BACKEND" in str(exc.value)
+        assert "encrypted file store" in str(exc.value)
 
 
 class TestDeleteTokenWithoutBackend:
