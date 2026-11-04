@@ -9,9 +9,6 @@ import {
   IonItem,
   IonLabel,
   IonModal,
-  IonButton,
-  IonButtons,
-  IonSpinner,
 } from '@ionic/react';
 import {
   ResponsiveContainer,

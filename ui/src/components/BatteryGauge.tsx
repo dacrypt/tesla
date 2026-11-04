@@ -25,7 +25,6 @@ const BatteryGauge: React.FC<BatteryGaugeProps> = ({
   // Arc spans 220 degrees: from 160° to 20° (clockwise, going through bottom)
   const startAngle = 160;
   const totalAngle = 220;
-  const endAngle = startAngle + totalAngle; // 380 = wrap to 20°
 
   function polarToXY(angleDeg: number) {
     const rad = ((angleDeg - 90) * Math.PI) / 180;

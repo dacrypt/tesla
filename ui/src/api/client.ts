@@ -94,8 +94,18 @@ function createClient(): AxiosInstance {
   return instance;
 }
 
+// One shared instance (re-created only when the API base URL changes) instead
+// of a new axios instance + interceptor on every call.
+let _client: AxiosInstance | null = null;
+let _clientBase: string | null = null;
+
 function client(): AxiosInstance {
-  return createClient();
+  const base = getBaseUrl();
+  if (!_client || _clientBase !== base) {
+    _client = createClient();
+    _clientBase = base;
+  }
+  return _client;
 }
 
 // Types
