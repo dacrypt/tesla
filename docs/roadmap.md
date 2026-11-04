@@ -65,7 +65,7 @@ work takes priority over new features.
 
 ### S2 — Next
 - **God-modules** — ✅ `cli/commands/vehicle`, `teslaMate`, `dossier` split into packages; `core/sources.py` engine/catalog split (`core/source_catalog.py`); dashboard `api/client.ts` → `ui/src/api/*` modules, `Settings.tsx` → `pages/settings/*` cards. ✅
-- **Tests** — ✅ version-named files (`test_v260.py` … `test_v340.py`) renamed by feature; raise the coverage floor (58% today) toward 70% for `core/` + `api/`; ✅ dashboard `any` types 113 → 0 (ESLint `--max-warnings 0`).
+- **Tests** — ✅ version-named files (`test_v260.py` … `test_v340.py`) renamed by feature; ✅ coverage `core/`+`api/` 65% → 75% (CI floors: 72% core+api, 62% overall); ✅ dashboard `any` types 113 → 0 (ESLint `--max-warnings 0`).
 
 ## Remaining Gaps
 

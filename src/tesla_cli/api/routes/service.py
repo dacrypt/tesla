@@ -34,8 +34,8 @@ def service_appointments() -> list:
     try:
         cfg = load_config()
         backend = get_vehicle_backend(cfg)
-        vin = resolve_vin(cfg, None)
-        result = backend.get_service_appointments(vin)
+        # Backends expose get_service_appointments() without a VIN (account-level).
+        result = backend.get_service_appointments()
         if isinstance(result, list):
             return result
         return result.get("appointments", [])

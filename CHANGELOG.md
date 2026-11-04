@@ -16,11 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ui/src/api/*` domain modules and the Settings page into
   `ui/src/pages/settings/*` cards. Version-named test files were renamed
   after what they test.
+- Tests: 286 new unit tests (vehicle hub, energy, scenes/service, init,
+  charge/order routes, dashcam/MQTT, db, cached/Tessie backends) — `core/` +
+  `api/` coverage 65% → 75%. CI floors: 72% for `core/`+`api/`, 62% overall.
 - Dashboard TypeScript: all 113 `any` types replaced with real types or
   `unknown` (ESLint now runs with `--max-warnings 0`).
 
 ### Fixed
 
+- `/api/charge/last`, `/weekly` and `/analytics/cost-summary` returned HTTP
+  500 when there were no charging sessions (`[]` from a `-> dict` route);
+  now 404 / empty summaries.
+- `/api/init` always reported `automations: null` (imported a module that
+  does not exist).
+- `/api/service/appointments` passed a VIN the backends do not accept
+  (TypeError → 502).
+- The `scenes`, `service` and Powerwall (`/api/energy/mgmt`) routers were
+  implemented but never mounted; they are now reachable.
 - Dossier "evidence PDF" link ignored a configured API base URL.
 - `--json` output could be invalid: Rich wrapped long lines at 80 columns
   when output was piped and parsed text such as `[REDACTED]` as markup. In

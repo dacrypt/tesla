@@ -144,10 +144,10 @@ def app_init(request: Request) -> dict:
     # ── Automations status ──
 
     try:
-        from tesla_cli.core.automations import AutomationEngine
+        # Module is core/automation.py; the engine loads its rules on init.
+        from tesla_cli.core.automation import AutomationEngine
 
         engine = AutomationEngine()
-        engine.load()
         enabled = sum(1 for r in engine.rules if r.enabled)
         result["automations"] = {
             "total": len(engine.rules),
