@@ -38,13 +38,22 @@ function providerLabel(available: boolean): string {
 interface FeatureHealth {
   name: string;
   tier: string;
-  status: 'ok' | 'missing-scope' | 'external-blocker' | 'not-configured';
+  // tier "X" = experimental (unofficial/fragile upstream): failing | unused | not-installed
+  status:
+    | 'ok'
+    | 'missing-scope'
+    | 'external-blocker'
+    | 'not-configured'
+    | 'failing'
+    | 'unused'
+    | 'not-installed';
   remediation?: string;
 }
 
 function featureStatusColor(status: FeatureHealth['status']): string {
   if (status === 'ok') return '#0BE881';
-  if (status === 'external-blocker') return '#FF6B6B';
+  if (status === 'external-blocker' || status === 'failing') return '#FF6B6B';
+  if (status === 'unused' || status === 'not-installed') return '#86888f';
   return '#F99716'; // missing-scope / not-configured
 }
 

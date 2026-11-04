@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Experimental features are labelled and monitored** (`core/experimental.py`):
+  order tracking, ownership-portal scraping, Colombian registries and the EV
+  planner model. `tesla doctor` lists them (tier `X`: ok / failing / unused /
+  not-installed), `GET /api/doctor/experimental` exposes them, `order` and
+  `data` help say so, and when one of their sources starts failing the
+  alert title marks it experimental ("upstream may have changed").
 - **`tesla backup create / list / restore`** — full backup of `~/.tesla-cli`
   (config, encrypted tokens, events, dossier, caches) as a 0600 `.tar.gz`
   under `~/.tesla-cli/backups/`, never inside a git repository. SQLite files

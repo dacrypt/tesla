@@ -121,8 +121,11 @@ def test_cli_doctor_exits_zero_with_json():
     assert isinstance(rows, list)
     assert len(rows) >= 22
     allowed_statuses = {"ok", "missing-scope", "external-blocker", "not-configured"}
+    # Tier "X" rows are experimental features (core/experimental.py).
+    experimental_statuses = {"ok", "failing", "unused", "not-installed"}
     for r in rows:
-        assert r["status"] in allowed_statuses
+        allowed = experimental_statuses if r["tier"] == "X" else allowed_statuses
+        assert r["status"] in allowed
         assert "name" in r
         assert "tier" in r
 

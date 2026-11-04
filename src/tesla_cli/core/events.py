@@ -186,6 +186,16 @@ def emit_source_health(
 ) -> None:
     """Emit source health degradation or recovery events."""
     timestamp = refreshed_at or _now()
+    title = source_id
+    if error:
+        from tesla_cli.core.experimental import feature_for_source
+
+        feature = feature_for_source(source_id)
+        if feature is not None:
+            # Experimental upstreams break when the remote site/API changes —
+            # say so instead of a bare source id.
+            # (message stays the raw error: reconcile_source_alerts compares it)
+            title = f"{feature.title} (experimental, upstream may have changed): {source_id}"
     if error and not previous_error:
         event = {
             "event_id": _id("evt"),
@@ -193,7 +203,7 @@ def emit_source_health(
             "source_id": source_id,
             "domain_id": None,
             "severity": "warning",
-            "title": source_id,
+            "title": title,
             "message": error,
             "created_at": timestamp,
         }
@@ -203,7 +213,7 @@ def emit_source_health(
             source_id=source_id,
             domain_id=None,
             severity="warning",
-            title=source_id,
+            title=title,
             message=error,
             created_at=timestamp,
         )

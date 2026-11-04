@@ -119,7 +119,9 @@ TeslaMate data lives in Postgres: `docker exec tesla-postgres pg_dump -U teslama
   errors with tracebacks.
 - Features built on unofficial Tesla endpoints (order tracking, ownership
   portal scraping) and Colombian registry scrapers (RUNT, SIMIT) can break
-  without notice when the upstream site changes.
+  without notice when the upstream site changes. `tesla doctor` lists them
+  as tier `X` with their last status; a failing one raises an alert marked
+  "experimental".
 
 ## Maintainer note: GHCR visibility
 

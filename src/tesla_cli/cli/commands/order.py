@@ -21,7 +21,10 @@ from tesla_cli.cli.output import (
 from tesla_cli.core.backends.order import OrderBackend
 from tesla_cli.core.config import load_config
 
-order_app = typer.Typer(name="order", help="Tesla order tracking.")
+order_app = typer.Typer(
+    name="order",
+    help="Tesla order tracking (experimental: undocumented Tesla endpoints).",
+)
 
 
 def _get_rn() -> str:
