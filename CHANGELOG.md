@@ -12,6 +12,13 @@ production-readiness review. No new end-user features.
 
 ### Upgrading from 5.3.x
 
+- **`openquery` is now optional** (`tesla-cli[query]`). It was a hard
+  dependency that pulled paddlepaddle, torch and CUDA libraries (gigabytes)
+  into every install and has no Linux arm64 wheels. A base install with the
+  dashboard is now ~84 MB. Colombian registry features (RUNT, SIMIT, …) need
+  `pip install 'tesla-cli[query]'`; the Docker image omits it (build with
+  `--build-arg UV_EXTRAS=...` to include it, amd64 only).
+
 - `POST /api/dossier/refresh` replaces `GET` (state-changing GETs are
   triggerable cross-site). The bundled dashboard is updated.
 - `/api/auth/browser-login` ignores `email`/`password` (they were never used:
@@ -53,6 +60,10 @@ production-readiness review. No new end-user features.
   share" while printing every key: credentials are redacted unless
   `--include-secrets`. `config restore` never writes `[REDACTED]`
   placeholders back.
+- Secret-scanner allowlist for compiled dashboard bundles also accepts
+  20–40-char prefixes of Stencil vnode SHA1 keys (gitleaks captured a 27-char
+  prefix of one after the legacy bundle was dropped). Still restricted to
+  `ui_dist/assets/*.js` and the `key:"<hex>` shape.
 - Single-flight guard on endpoints that spawn headless browsers (login,
   portal scrape, dossier refresh): concurrent calls get 429.
 - Audit log covers every mutating API call with recursive redaction (PINs,

@@ -28,7 +28,6 @@ dependencies = [
     "pyjwt>=2.10",
     "tomli-w>=1.1",
     "cryptography>=46.0.5",
-    "openquery~=1.4.0",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +35,9 @@ fleet = ["tesla-fleet-api>=1.0"]
 teslaMate = ["psycopg2-binary>=2.9"]
 pdf = ["fpdf2>=2.7"]
 serve = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
-query = ["openquery"]
+# Colombian registries (RUNT, SIMIT, …) via headless browser + OCR. Heavy:
+# pulls paddlepaddle/torch, which have no Linux arm64 wheels.
+query = ["openquery~=1.4.0"]
 dev = ["pytest>=8", "pytest-httpx>=0.35", "ruff>=0.9"]
 
 [project.scripts]

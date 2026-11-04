@@ -23,8 +23,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 
-# Install with serve extra
-RUN uv sync --frozen --extra serve --extra fleet --extra teslaMate --extra pdf --no-dev
+# Extras baked into the image. Colombian registry lookups (RUNT/SIMIT) need
+# `--build-arg UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf --extra query"`
+# — amd64 only: openquery pulls paddlepaddle/torch, which ship no arm64 wheels.
+ARG UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf"
+RUN uv sync --frozen $UV_EXTRAS --no-dev
 
 # Copy freshly built UI into the location the API serves from
 COPY --from=ui-build /app/src/tesla_cli/api/ui_dist src/tesla_cli/api/ui_dist/

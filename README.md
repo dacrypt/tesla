@@ -22,6 +22,7 @@ tesla serve                      → start REST API + web dashboard
 ```bash
 # Requirements: Python 3.12+
 uv tool install "tesla-cli[serve,fleet]"   # or: pipx install "tesla-cli[serve,fleet]"
+# Colombian registries (RUNT, SIMIT…): add the heavy `query` extra → "tesla-cli[serve,fleet,query]"
 tesla setup
 ```
 
