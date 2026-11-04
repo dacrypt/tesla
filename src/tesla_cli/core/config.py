@@ -35,6 +35,11 @@ class GeneralConfig(BaseModel):
 
 class OrderConfig(BaseModel):
     reservation_number: str = ""
+    # Sent to Tesla's order-tasks API as deviceCountry / deviceLanguage; it
+    # localizes task texts and some markets only return tasks for their own
+    # country. ISO 3166 alpha-2 / ISO 639-1.
+    country: str = "US"
+    language: str = "en"
 
 
 class TessieConfig(BaseModel):

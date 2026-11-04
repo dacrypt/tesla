@@ -16,6 +16,7 @@ EndpointDeprecatedError / HTTP 412    412     endpoint gone / pre-delivery
 BackendNotSupportedError              501     switch backend
 AuthenticationError (Tesla tokens)    424     re-authenticate with Tesla
 ConfigurationError                    400     fix configuration
+NetworkError                          504     Tesla unreachable (retried)
 anything else from upstream           502     upstream failure
 ====================================  ======  ============================
 
@@ -36,6 +37,7 @@ from tesla_cli.core.exceptions import (
     BackendNotSupportedError,
     ConfigurationError,
     EndpointDeprecatedError,
+    NetworkError,
     RateLimitError,
     TeslaCliError,
     VehicleAsleepError,
@@ -84,6 +86,8 @@ def upstream_http_error(exc: BaseException, default_status: int = 502) -> HTTPEx
         return HTTPException(status_code=424, detail=_detail(exc))
     if isinstance(exc, ConfigurationError):
         return HTTPException(status_code=400, detail=_detail(exc))
+    if isinstance(exc, NetworkError):
+        return HTTPException(status_code=504, detail=f"Could not reach Tesla: {_detail(exc)}")
     status = _status_of(exc)
     if status == 429:
         return HTTPException(

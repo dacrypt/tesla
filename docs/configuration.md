@@ -32,6 +32,11 @@ qos = 0
 retain = false
 tls = false
 
+[order]
+reservation_number = ""
+country = "US"                   # deviceCountry sent to Tesla's order-tasks API (e.g. "CO")
+language = "en"                  # deviceLanguage (e.g. "es")
+
 [server]
 api_key = ""                     # full-control key; auto-generated when serving off-localhost
 read_only_key = ""               # optional GET-only key (wall dashboards, Home Assistant)

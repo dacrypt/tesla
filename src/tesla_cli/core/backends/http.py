@@ -12,6 +12,7 @@ from tesla_cli.core.exceptions import (
     ApiError,
     AuthenticationError,
     EndpointDeprecatedError,
+    NetworkError,
     RateLimitError,
     VehicleAsleepError,
 )
@@ -44,8 +45,68 @@ class _TokenBucket:
             time.sleep(0.5)
 
 
-# Shared across all backend instances
-_tesla_rate_limiter = _TokenBucket(max_tokens=5, refill_rate=5 / 60)
+# Shared across all backend instances, split by Tesla's own quota classes
+# (Fleet API: ~60 data req/min, ~30 commands/min, 3 wakes/min per vehicle).
+# A single 5-per-minute bucket used to be shared by everything, so the 30 s
+# dashboard poller starved interactive commands for up to 30 s.
+_data_limiter = _TokenBucket(max_tokens=10, refill_rate=45 / 60)
+_command_limiter = _TokenBucket(max_tokens=5, refill_rate=25 / 60)
+_wake_limiter = _TokenBucket(max_tokens=2, refill_rate=3 / 60)
+_tesla_rate_limiter = _data_limiter  # backwards-compatible name
+
+
+def _limiter_for(method: str, path: str) -> _TokenBucket:
+    if path.rstrip("/").endswith("/wake_up"):
+        return _wake_limiter
+    return _data_limiter if method.upper() == "GET" else _command_limiter
+
+
+# Errors where the request provably never reached Tesla: safe to retry for
+# any method. Read timeouts / dropped connections may mean a command already
+# executed, so those are retried for GET only (never re-honk, never toggle a
+# trunk twice).
+_SAFE_TRANSPORT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+_IDEMPOTENT_TRANSPORT_ERRORS = (httpx.ReadTimeout, httpx.RemoteProtocolError, httpx.ReadError)
+
+
+def _retryable_transport_error(method: str, exc: Exception) -> bool:
+    if isinstance(exc, _SAFE_TRANSPORT_ERRORS):
+        return True
+    return method.upper() == "GET" and isinstance(exc, _IDEMPOTENT_TRANSPORT_ERRORS)
+
+
+def send_with_retry(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    *,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    **kwargs,
+) -> httpx.Response:
+    """Send a request, retrying transport failures that are safe to repeat.
+
+    Used directly by backends that do their own status handling (Order API);
+    :class:`HttpBackendMixin` builds on it.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return client.request(method, url, **kwargs)
+        except httpx.TransportError as exc:
+            if attempt >= max_retries or not _retryable_transport_error(method, exc):
+                raise NetworkError(f"{type(exc).__name__}: {exc}") from exc
+            delay = base_delay * (2**attempt)
+            logger.warning(
+                "Network error on %s %s (%s), retrying in %.1fs (attempt %d/%d)",
+                method,
+                url,
+                type(exc).__name__,
+                delay,
+                attempt + 1,
+                max_retries,
+            )
+            time.sleep(delay)
+    raise NetworkError("unreachable")  # pragma: no cover
 
 
 class HttpBackendMixin:
@@ -69,10 +130,17 @@ class HttpBackendMixin:
     _base_delay: float = 1.0
 
     def _request(self, method: str, path: str, **kwargs) -> dict:
-        if not _tesla_rate_limiter.acquire(timeout=30):
+        if not _limiter_for(method, path).acquire(timeout=30):
             raise RateLimitError("Local rate limit exceeded")
         for attempt in range(self._max_retries + 1):
-            resp = self._client.request(method, path, **kwargs)
+            resp = send_with_retry(
+                self._client,
+                method,
+                path,
+                max_retries=self._max_retries,
+                base_delay=self._base_delay,
+                **kwargs,
+            )
 
             if resp.status_code == 401:
                 raise AuthenticationError(self._auth_error_message)
@@ -107,8 +175,8 @@ class HttpBackendMixin:
 
         raise RateLimitError(f"Rate limited after {self._max_retries} retries")
 
-    def _get(self, path: str) -> dict:
-        return self._request("GET", path)
+    def _get(self, path: str, **kwargs) -> dict:
+        return self._request("GET", path, **kwargs)
 
-    def _post(self, path: str, body: dict | None = None) -> dict:
-        return self._request("POST", path, json=body or {})
+    def _post(self, path: str, body: dict | None = None, **kwargs) -> dict:
+        return self._request("POST", path, json=body or {}, **kwargs)
