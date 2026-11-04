@@ -8,6 +8,7 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from tesla_cli.cli.i18n import t as i18n_t
 from tesla_cli.cli.output import console, is_json_mode, render_success, render_table
 from tesla_cli.core.config import load_config, save_config
 
@@ -23,11 +24,8 @@ def _backend():
     cfg = load_config()
     url = cfg.teslaMate.database_url
     if not url:
-        console.print(
-            "[red]TeslaMate not configured.[/red]\n"
-            "Run: [bold]tesla teslaMate install[/bold] to set up a managed stack,\n"
-            "  or [bold]tesla teslaMate connect postgresql://user:pass@host:5432/teslaMate[/bold] for an external DB."
-        )
+        console.print(f"[red]{i18n_t('teslaMate.not_configured')}[/red]")
+        console.print("  [dim]Managed stack: tesla teslaMate install[/dim]")
         raise typer.Exit(1)
     # Warn if managed stack is installed but not running
     if cfg.teslaMate.managed:
@@ -2388,10 +2386,8 @@ def teslamate_import(
     car_id = cfg.teslaMate.car_id
 
     if not database_url:
-        console.print(
-            "[red]TeslaMate not configured.[/red]\n"
-            "Run: [bold]tesla teslaMate connect postgresql://...[/bold]"
-        )
+        console.print(f"[red]{i18n_t('teslaMate.not_configured')}[/red]")
+        console.print("  [dim]Managed stack: tesla teslaMate install[/dim]")
         raise typer.Exit(1)
 
     console.print(f"\n  Inserting {total_rows:,} rows into TeslaMate DB (car_id={car_id})...")

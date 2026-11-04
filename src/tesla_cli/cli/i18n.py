@@ -1,39 +1,123 @@
-"""Internationalization — minimal i18n for tesla-cli.
+"""Internationalization — CLI output translations.
 
 Usage:
     from tesla_cli.cli.i18n import t
     console.print(t("order.watching", rn="RN123"))
 
+Commands mostly print English text directly. Instead of threading ``t()``
+through every command, the output layer (``cli/output.py``) runs each message
+through :func:`translate`, which recognises any English catalog template —
+including its ``{placeholders}``, a Rich markup wrapper such as
+``[yellow]…[/yellow]`` and a trailing suffix such as an emoji — and returns
+the localized text. Unknown messages are printed unchanged (English).
+
 Supported languages: en (default), es, pt, fr, de, it
-Set via `tesla --lang es <command>` or TESLA_LANG env var.
+Set via ``tesla --lang es <command>`` or the TESLA_LANG env var.
 """
 
 from __future__ import annotations
 
 import os
+import re
+import string
+from functools import lru_cache
+
+SUPPORTED_LANGS = ("en", "es", "pt", "fr", "de", "it")
+
+
+def normalize_lang(lang: str | None) -> str | None:
+    """``es_CO.UTF-8`` / ``es-CO`` / ``ES`` → ``es``; None if unsupported."""
+    if not lang:
+        return None
+    code = re.split(r"[-_.@]", lang.strip().lower(), maxsplit=1)[0]
+    return code if code in SUPPORTED_LANGS else None
+
 
 # Global language, changed by --lang flag
-_lang: str = os.environ.get("TESLA_LANG", "en").lower()
+_lang: str = normalize_lang(os.environ.get("TESLA_LANG")) or "en"
 
 
-def set_lang(lang: str) -> None:
+def set_lang(lang: str) -> bool:
+    """Set the output language. Returns False (and keeps English) if unsupported."""
     global _lang
-    _lang = lang.lower()
+    code = normalize_lang(lang)
+    _lang = code or "en"
+    return code is not None
 
 
 def get_lang() -> str:
     return _lang
 
 
-def t(key: str, **kwargs: str) -> str:
+def t(key: str, /, **kwargs: str) -> str:
     """Return translated string for key. Falls back to English if not found."""
     strings = _STRINGS.get(_lang, _STRINGS["en"])
     text = strings.get(key) or _STRINGS["en"].get(key) or key
     if kwargs:
         try:
             text = text.format(**kwargs)
-        except KeyError:
+        except (KeyError, IndexError, ValueError):
             pass
+    return text
+
+
+@lru_cache(maxsize=1)
+def _template_patterns() -> list[tuple[str, re.Pattern[str]]]:
+    """Compile every English template into a regex; longest literal text first."""
+    patterns: list[tuple[int, str, re.Pattern[str]]] = []
+    for key, template in _STRINGS["en"].items():
+        parts: list[str] = []
+        literal_len = 0
+        seen: set[str] = set()
+        tokens = list(string.Formatter().parse(template))
+        ends_with_field = bool(tokens) and tokens[-1][1] is not None
+        for i, (literal, field, _spec, _conv) in enumerate(tokens):
+            parts.append(re.escape(literal))
+            literal_len += len(literal)
+            if field is not None:
+                name = field or f"_{len(seen)}"
+                if name in seen:
+                    parts.append(f"(?P={name})")
+                else:
+                    last = i == len(tokens) - 1
+                    # A trailing placeholder takes the rest of the line.
+                    parts.append(f"(?P<{name}>.+)" if last else f"(?P<{name}>.+?)")
+                    seen.add(name)
+        if ends_with_field:
+            regex = "^" + "".join(parts) + r"(?P<_rest>)$"
+        else:
+            # The rest must not continue a word ("Climate ON" ≠ "Climate ONLINE").
+            regex = "^" + "".join(parts) + r"(?P<_rest>(?![\w])[\s\S]*)$"
+        patterns.append((literal_len, key, re.compile(regex)))
+    patterns.sort(key=lambda item: -item[0])
+    return [(key, rx) for _len, key, rx in patterns]
+
+
+_WRAPPED = re.compile(r"^(?P<open>\[[^\]/][^\]]*\])(?P<inner>.*)(?P<close>\[/[^\]]*\])$", re.S)
+
+
+_EDGE_WS = re.compile(r"^(?P<lead>\s*)(?P<body>.*?)(?P<trail>\s*)$", re.S)
+
+
+def translate(text: str) -> str:
+    """Translate a whole English output message if it matches a catalog template."""
+    if _lang == "en" or not text or not isinstance(text, str):
+        return text
+    edges = _EDGE_WS.match(text)
+    if edges and (edges["lead"] or edges["trail"]) and edges["body"]:
+        return edges["lead"] + translate(edges["body"]) + edges["trail"]
+    if "..." in text:  # catalog uses the ellipsis character
+        out = translate(text.replace("...", "…"))
+        return text if out == text.replace("...", "…") else out
+    wrapped = _WRAPPED.match(text)
+    if wrapped and "[" not in wrapped["inner"]:
+        inner = translate(wrapped["inner"])
+        return f"{wrapped['open']}{inner}{wrapped['close']}"
+    for key, rx in _template_patterns():
+        m = rx.match(text)
+        if m:
+            params = {k: v for k, v in m.groupdict().items() if k != "_rest"}
+            return t(key, **params) + m["_rest"]
     return text
 
 
@@ -129,6 +213,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.token_expired": "Token expired. Run: tesla config auth order",
         "error.vehicle_not_found": "Vehicle {vin} not found on this account",
         "error.api": "API error {code}: {message}",
+        # added in 5.5: keys present in other languages / new errors
+        "errors.backend_unavailable": "Backend {backend} unavailable: {reason}",
+        "errors.not_configured": "{feature} not configured. Run: tesla config set {key} <value>",
+        "errors.vin_required": "VIN required. Run: tesla config set default-vin <VIN>",
+        "setup.found_order": "Order found: {model} — {status}",
+        "setup.multiple_orders": "Multiple orders found — choose one:",
+        "setup.step": "Step {n} / {total} — {label}",
+        "setup.vin_not_assigned": "VIN not assigned yet — only the reservation number was saved.",
+        "vehicle.asleep_error": "Vehicle is asleep. Run: tesla vehicle wake",
+        "lang.unsupported": "Unsupported language {lang}; using English. Supported: {supported}",
     },
     "es": {
         # orden
@@ -219,6 +313,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error.token_expired": "Token expirado. Ejecuta: tesla config auth order",
         "error.vehicle_not_found": "Vehículo {vin} no encontrado en esta cuenta",
         "error.api": "Error de API {code}: {message}",
+        # added in 5.5: keys present in other languages / new errors
+        "errors.backend_unavailable": "Backend {backend} no disponible: {reason}",
+        "errors.not_configured": "{feature} no configurado. Ejecuta: tesla config set {key} <valor>",
+        "errors.vin_required": "VIN requerido. Ejecuta: tesla config set default-vin <VIN>",
+        "setup.found_order": "Orden encontrada: {model} — {status}",
+        "setup.multiple_orders": "Se encontraron varias órdenes — elige una:",
+        "setup.step": "Paso {n} / {total} — {label}",
+        "setup.vin_not_assigned": "VIN aún no asignado — solo se guardó el número de reserva.",
+        "vehicle.asleep_error": "El vehículo está dormido. Ejecuta: tesla vehicle wake",
+        "lang.unsupported": "Idioma no soportado {lang}; se usa inglés. Soportados: {supported}",
     },
     "pt": {
         # pedido
@@ -309,6 +413,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.welcome": "Assistente de Configuração do Tesla CLI",
         "setup.done": "Configuração concluída!",
         "setup.skip": "Já configurado. Use --force para reconfigurar.",
+        # added in 5.5: keys present in other languages / new errors
+        "errors.backend_unavailable": "Backend {backend} indisponível: {reason}",
+        "errors.not_configured": "{feature} não configurado. Execute: tesla config set {key} <valor>",
+        "errors.vin_required": "VIN obrigatório. Execute: tesla config set default-vin <VIN>",
+        "setup.found_order": "Pedido encontrado: {model} — {status}",
+        "setup.multiple_orders": "Vários pedidos encontrados — escolha um:",
+        "setup.step": "Passo {n} / {total} — {label}",
+        "setup.vin_not_assigned": "VIN ainda não atribuído — apenas o número de reserva foi salvo.",
+        "vehicle.asleep_error": "O veículo está dormindo. Execute: tesla vehicle wake",
+        "lang.unsupported": "Idioma não suportado {lang}; usando inglês. Suportados: {supported}",
     },
     "fr": {
         # commande
@@ -406,6 +520,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.found_order": "Commande trouvée : {model} — {status}",
         "setup.vin_not_assigned": "VIN pas encore attribué — uniquement le numéro de réservation enregistré.",
         "setup.multiple_orders": "Plusieurs commandes trouvées — choisissez-en une :",
+        # added in 5.5: keys present in other languages / new errors
+        "vehicle.asleep_error": "Le véhicule est en veille. Exécutez : tesla vehicle wake",
+        "lang.unsupported": "Langue non prise en charge {lang} ; anglais utilisé. Langues : {supported}",
     },
     "de": {
         # Bestellung
@@ -503,6 +620,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.found_order": "Bestellung gefunden: {model} — {status}",
         "setup.vin_not_assigned": "VIN noch nicht zugewiesen — nur Reservierungsnummer gespeichert.",
         "setup.multiple_orders": "Mehrere Bestellungen gefunden — bitte eine auswählen:",
+        # added in 5.5: keys present in other languages / new errors
+        "vehicle.asleep_error": "Das Fahrzeug schläft. Ausführen: tesla vehicle wake",
+        "lang.unsupported": "Nicht unterstützte Sprache {lang}; Englisch wird verwendet. Unterstützt: {supported}",
     },
     "it": {
         # Ordine
@@ -600,5 +720,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setup.found_order": "Ordine trovato: {model} — {status}",
         "setup.vin_not_assigned": "VIN non ancora assegnato — solo il numero di prenotazione salvato.",
         "setup.multiple_orders": "Più ordini trovati — selezionarne uno:",
+        # added in 5.5: keys present in other languages / new errors
+        "vehicle.asleep_error": "Il veicolo è in standby. Esegui: tesla vehicle wake",
+        "lang.unsupported": "Lingua non supportata {lang}; uso l'inglese. Supportate: {supported}",
     },
 }

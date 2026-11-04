@@ -8,6 +8,7 @@ from pathlib import Path
 
 import typer
 
+from tesla_cli.cli.i18n import t as i18n_t
 from tesla_cli.cli.output import console, is_json_mode, render_success, render_warning
 from tesla_cli.core.automation import AUTOMATIONS_FILE, AutomationEngine
 from tesla_cli.core.models.automation import (
@@ -268,7 +269,7 @@ def automations_add(
         raise typer.Exit(1)
 
     engine.add_rule(rule)
-    render_success(f"Automation rule '{name}' added.")
+    render_success(i18n_t("automations.rule_added", name=name))
 
 
 @automations_app.command("remove")

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`--lang` now translates CLI output** (es, pt, fr, de, it; also
+  `TESLA_LANG`, accepting values like `es_CO.UTF-8`). The output layer
+  (`cli/output.py`) passes every message through `i18n.translate()`, which
+  recognises catalog templates including placeholders, a Rich markup wrapper,
+  surrounding whitespace and trailing suffixes (emoji). Multi-part messages
+  use `i18n_t()` explicitly. Errors raised in `core` are localized when
+  rendered. JSON output stays English. Unsupported languages warn and fall
+  back to English. The catalog is complete in all six languages (83 keys);
+  a test guards against it drifting from what commands print.
+
 ## [5.4.0] - 2026-11-04
 
 Stabilization release: works through the remaining findings of the critical

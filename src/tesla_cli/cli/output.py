@@ -11,8 +11,18 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-console = Console()
-error_console = Console(stderr=True)
+
+class _I18nConsole(Console):
+    """Console that localizes whole English messages (see cli/i18n.translate)."""
+
+    def print(self, *objects: Any, **kwargs: Any) -> None:  # noqa: A003
+        from tesla_cli.cli.i18n import translate
+
+        super().print(*(translate(o) if isinstance(o, str) else o for o in objects), **kwargs)
+
+
+console = _I18nConsole()
+error_console = _I18nConsole(stderr=True)
 
 # Global flag toggled by --json
 _json_mode = False
@@ -116,11 +126,17 @@ def render_table(rows: list[dict[str, Any]], columns: list[str], title: str = ""
     console.print(table)
 
 
+def _tr(message: str) -> str:
+    from tesla_cli.cli.i18n import translate
+
+    return translate(message)
+
+
 def render_success(message: str) -> None:
     if _json_mode:
         console.print(json.dumps({"status": "ok", "message": message}))
     else:
-        console.print(f"[bold green]OK[/bold green] {message}")
+        console.print(f"[bold green]OK[/bold green] {_tr(message)}")
 
 
 def render_error(message: str, error_type: str = "Error") -> None:
@@ -128,14 +144,14 @@ def render_error(message: str, error_type: str = "Error") -> None:
         error_console.print(json.dumps({"error": message, "type": error_type}))
     else:
         error_console.print(
-            Panel(message, title=f"[bold red]{error_type}[/bold red]", border_style="red")
+            Panel(_tr(message), title=f"[bold red]{error_type}[/bold red]", border_style="red")
         )
 
 
 def render_warning(message: str) -> None:
     if _json_mode:
         return
-    console.print(f"[bold yellow]WARNING[/bold yellow] {message}")
+    console.print(f"[bold yellow]WARNING[/bold yellow] {_tr(message)}")
 
 
 def _format_value(value: Any) -> str:

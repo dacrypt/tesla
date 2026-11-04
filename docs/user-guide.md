@@ -11,7 +11,7 @@ tesla -j <command>         # JSON output (pipe to jq)
 tesla --json <command>     # same
 tesla --vin modely <cmd>   # target specific vehicle (VIN or alias)
 tesla --anon <command>     # anonymize PII (VIN, RN, email masked)
-tesla --lang es <command>  # experimental: translation catalog only; output is English today
+tesla --lang es <command>  # translated status/error messages (es, pt, fr, de, it); JSON stays English
 tesla --debug <command>   # verbose logs to stderr, incl. errors that are otherwise suppressed
 tesla --verbose <command>  # debug logging
 ```

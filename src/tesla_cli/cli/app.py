@@ -10,7 +10,7 @@ import typer
 from tesla_cli import __version__
 from tesla_cli.cli.commands.config_cmd import config_app
 from tesla_cli.cli.commands.login import login
-from tesla_cli.cli.output import render_error, set_json_mode
+from tesla_cli.cli.output import error_console, render_error, set_json_mode
 from tesla_cli.core.exceptions import TeslaCliError
 
 app = typer.Typer(
@@ -49,7 +49,9 @@ def _configure_logging(debug: bool) -> None:
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     anon: bool = typer.Option(False, "--anon", help="Anonymize PII (VIN, email, name) in output"),
-    lang: str = typer.Option("", "--lang", help="Language: en (default), es, pt, fr, de, it"),
+    lang: str = typer.Option(
+        "", "--lang", help="Output language: en (default), es, pt, fr, de, it (also: TESLA_LANG)"
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Verbose logging to stderr (also: TESLA_LOG_LEVEL=DEBUG)"
     ),
@@ -61,9 +63,14 @@ def global_options(
     _configure_logging(debug)
     set_json_mode(json_output)
     if lang:
-        from tesla_cli.cli.i18n import set_lang
+        from tesla_cli.cli.i18n import SUPPORTED_LANGS, set_lang, t
 
-        set_lang(lang)
+        if not set_lang(lang):
+            error_console.print(
+                "[yellow]"
+                + t("lang.unsupported", lang=lang, supported=", ".join(SUPPORTED_LANGS))
+                + "[/yellow]"
+            )
     if anon:
         from tesla_cli.cli.output import set_anon_mode
         from tesla_cli.core.config import load_config
