@@ -624,7 +624,7 @@ const Dashboard: React.FC = () => {
     setAuthLoading(true);
     setLoginError('');
     try {
-      const result = await api.browserLogin(undefined, undefined, loginMfa || undefined);
+      const result = await api.browserLogin(loginMfa || undefined);
       if (result.ok) {
         setAuthOverride(true);
         refresh();

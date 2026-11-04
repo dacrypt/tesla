@@ -676,7 +676,7 @@ def _register_ui(app: FastAPI, serve_ui: bool) -> None:
 
                 # Try serving a static file from ui_dist.
                 file = (_ui_dist / path.lstrip("/")).resolve()
-                if file.is_file() and str(file).startswith(str(_ui_dist.resolve())):
+                if file.is_file() and file.is_relative_to(_ui_dist.resolve()):
                     return StarletteFileResponse(str(file))
 
                 # Fallback: serve index.html for client-side routing.

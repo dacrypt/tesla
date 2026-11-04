@@ -12,6 +12,7 @@ import urllib.parse
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from tesla_cli.api.guards import guarded
 from tesla_cli.core.auth.tokens import (
     FLEET_ACCESS_TOKEN,
     FLEET_REFRESH_TOKEN,
@@ -167,16 +168,19 @@ def auth_tessie(req: TessieRequest) -> dict:
     return {"ok": True, "backend": "tessie"}
 
 
-# ── Browser login (email + password) ──────────────────────────────────────────
+# ── Browser login ─────────────────────────────────────────────────────────────
 
 
 class BrowserLoginRequest(BaseModel):
-    email: str | None = None
-    password: str | None = None
+    """The login runs in a visible browser on the server; Tesla credentials are
+    typed into Tesla's own page there and never pass through this API.
+    Unknown fields (older dashboards sent email/password) are ignored."""
+
     mfa_code: str | None = None
 
 
 @router.post("/browser-login")
+@guarded("browser login")
 def auth_browser_login(req: BrowserLoginRequest) -> dict:
     """Login with Tesla email + password via headless browser.
 
@@ -320,6 +324,7 @@ class PortalScrapeRequest(BaseModel):
 
 
 @router.post("/portal-scrape")
+@guarded("portal scrape")
 def auth_portal_scrape(req: PortalScrapeRequest) -> dict:
     """Scrape Tesla ownership portal for full order/delivery/registration data.
 

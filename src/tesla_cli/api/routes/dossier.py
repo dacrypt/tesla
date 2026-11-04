@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from tesla_cli.api.guards import guarded
 from tesla_cli.core.config import load_config, resolve_vin
 
 router = APIRouter()
@@ -28,7 +29,8 @@ def dossier_cached() -> dict:
     return dossier.model_dump(mode="json")
 
 
-@router.get("/refresh")
+@router.post("/refresh")
+@guarded("dossier refresh")
 def dossier_refresh() -> dict:
     """Rebuild the full dossier from all sources (slow, 30-60s).
 

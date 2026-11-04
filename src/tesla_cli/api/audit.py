@@ -13,28 +13,50 @@ from tesla_cli.core.events import EVENTS_DIR, _append_jsonl, _read_jsonl
 
 AUDIT_FILE = EVENTS_DIR / "audit.jsonl"
 
-_AUDITED_PREFIXES = ("/api/vehicle", "/api/security", "/api/climate", "/api/charge")
-_REDACT_KEYS = {"token", "password", "secret", "code", "api_key", "refresh_token", "access_token"}
+# Every state-changing /api call is audited except sign-in flows (which carry
+# credentials and are not vehicle/config actions).
+_UNAUDITED_PREFIXES = ("/api/auth", "/api/session")
+_REDACT_KEYS = {
+    "token",
+    "password",
+    "secret",
+    "code",
+    "key",
+    "api_key",
+    "refresh_token",
+    "access_token",
+    "pin",
+    "url",
+    "webhook_url",
+    "urls",
+}
 
 
 def _key_hint(request: Request) -> str:
-    key = request.headers.get("X-API-Key") or request.query_params.get("api_key") or ""
-    return f"**{key[-4:]}" if len(key) >= 4 else "none"
+    key = request.headers.get("X-API-Key") or ""
+    if len(key) >= 4:
+        return f"**{key[-4:]}"
+    return "session" if request.cookies.get("tesla_cli_session") else "none"
 
 
-def _redact(params: dict[str, Any]) -> dict[str, Any]:
-    return {k: "***" if k.lower() in _REDACT_KEYS else v for k, v in params.items()}
+def _redact(params: Any) -> Any:
+    if isinstance(params, dict):
+        return {
+            k: "***" if str(k).lower() in _REDACT_KEYS else _redact(v) for k, v in params.items()
+        }
+    if isinstance(params, list):
+        return [_redact(v) for v in params]
+    return params
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
-    """Log mutating API calls on vehicle-control routes."""
+    """Log every mutating /api call (vehicle commands, config, automations, …)."""
 
     async def dispatch(self, request: Request, call_next):
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return await call_next(request)
-        if request.url.path.startswith("/api/auth"):
-            return await call_next(request)
-        if not any(request.url.path.startswith(p) for p in _AUDITED_PREFIXES):
+        path = request.url.path
+        if not path.startswith("/api/") or path.startswith(_UNAUDITED_PREFIXES):
             return await call_next(request)
 
         # Capture request body for logging

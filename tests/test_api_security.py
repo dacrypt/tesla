@@ -450,3 +450,84 @@ def test_save_config_writes_owner_only(tmp_path, monkeypatch):
     assert mode == 0o600
     assert CONTROL in cfg_file.read_text()
     assert not (tmp_path / "config.toml.tmp").exists()
+
+
+# ── Review follow-ups: guards, audit, static files ───────────────────────────
+
+
+def test_single_flight_rejects_concurrent_run():
+    from fastapi import HTTPException
+
+    from tesla_cli.api.guards import single_flight
+
+    with (
+        single_flight("unit-test-op"),
+        pytest.raises(HTTPException) as exc,
+        single_flight("unit-test-op"),
+    ):
+        pass
+    assert exc.value.status_code == 429
+    with single_flight("unit-test-op"):  # released afterwards
+        pass
+
+
+def test_dossier_refresh_is_post_only(make_client):
+    client, _ = make_client(_cfg())
+    assert client.get("/api/dossier/refresh").status_code == 405
+
+
+def test_audit_covers_config_routes_and_redacts(make_client, tmp_path):
+    import json
+
+    from tesla_cli.api import audit
+
+    client, _ = make_client(_cfg())
+    with (
+        patch("tesla_cli.api.routes.notify.load_config", return_value=_cfg()),
+        patch("tesla_cli.api.routes.notify.save_config"),
+    ):
+        client.post("/api/notify/add", json={"url": "tgram://SECRETTOKEN/123"})
+    lines = audit.AUDIT_FILE.read_text().splitlines()
+    entry = json.loads(lines[-1])
+    assert entry["path"] == "/api/notify/add"
+    assert entry["params"]["url"] == "***"
+    assert "SECRETTOKEN" not in audit.AUDIT_FILE.read_text()
+
+
+def test_audit_redacts_nested_pin(make_client):
+    import json
+
+    from tesla_cli.api import audit
+
+    client, _ = make_client(_cfg())
+    client.post(
+        "/api/vehicle/command",
+        json={"command": "speed_limit_activate", "params": {"pin": "1234"}},
+    )
+    entry = json.loads(audit.AUDIT_FILE.read_text().splitlines()[-1])
+    assert entry["params"]["params"]["pin"] == "***"
+
+
+def test_audit_skips_session_login(make_client):
+    from tesla_cli.api import audit
+
+    client, _ = make_client(_cfg(CONTROL))
+    client.post("/api/session", json={"key": CONTROL})
+    assert not audit.AUDIT_FILE.exists() or CONTROL not in audit.AUDIT_FILE.read_text()
+
+
+def test_static_files_cannot_escape_ui_dist(tmp_path):
+    """A sibling directory sharing the ui_dist prefix must not be served."""
+    from tesla_cli.api import app as app_mod
+
+    src = (app_mod.Path(app_mod.__file__).parent / "app.py").read_text()
+    assert "is_relative_to(_ui_dist.resolve())" in src
+    assert "startswith(str(_ui_dist" not in src
+
+
+def test_browser_login_ignores_password_field(make_client):
+    from tesla_cli.api.routes.auth import BrowserLoginRequest
+
+    req = BrowserLoginRequest(email="a@b.c", password="hunter2", mfa_code="123456")
+    assert not hasattr(req, "password")
+    assert req.mfa_code == "123456"

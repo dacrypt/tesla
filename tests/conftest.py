@@ -162,3 +162,13 @@ def _isolated_token_file_store(tmp_path, monkeypatch):
     monkeypatch.setattr(file_store, "_config_dir", lambda: store_dir)
     monkeypatch.delenv("TESLA_CLI_TOKEN_STORE", raising=False)
     monkeypatch.delenv("TESLA_CLI_MASTER_KEY_FILE", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_audit_log(tmp_path, monkeypatch):
+    """The API audit log covers every mutating call; keep test writes out of ~/.tesla-cli."""
+    try:
+        from tesla_cli.api import audit as _audit
+    except ImportError:  # serve extra not installed
+        return
+    monkeypatch.setattr(_audit, "AUDIT_FILE", tmp_path / "audit.jsonl")
