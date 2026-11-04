@@ -50,7 +50,7 @@ _OPENQUERY_AVAILABLE: set[str] | None = None
 
 def register_source(source: SourceDef) -> None:
     if source.openquery_source and not _openquery_source_exists(source.openquery_source):
-        log.warning(
+        log.debug(
             "Skipping source %s: openquery source %s is not available",
             source.id,
             source.openquery_source,

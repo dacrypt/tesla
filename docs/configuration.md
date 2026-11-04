@@ -158,3 +158,5 @@ tesla config auth fleet          # Fleet API OAuth2 flow
 | `TESLA_LANG` | UI language (`en`, `es`, `pt`, `fr`, `de`, `it`) |
 | `TESLA_API_KEY` | API server full-control key (overrides config) |
 | `TESLA_READ_ONLY_KEY` | API server read-only key (overrides config) |
+| `TESLA_CLI_TOKEN_STORE` | `file` forces the encrypted file token store (default in Docker; automatic when no keyring exists) |
+| `TESLA_CLI_MASTER_KEY_FILE` | Path to the master key for the file token store (e.g. a Docker secret); default `~/.tesla-cli/master.key` |

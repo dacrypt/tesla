@@ -31,6 +31,63 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf --extra query
-      - run: uv run pytest -m "not integration" -v --cov=tesla_cli --cov-report=xml
+      - run: uv run pytest -m "not integration" -v --cov=tesla_cli --cov-report=xml --cov-report=term --cov-fail-under=55
         env:
           NO_COLOR: "1"
+
+  version:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pyproject, __init__ and CHANGELOG agree
+        run: |
+          set -euo pipefail
+          py=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          init=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/tesla_cli/__init__.py)
+          echo "pyproject=$py __init__=$init"
+          test "$py" = "$init"
+          grep -Eq "^## \[(Unreleased|$py)\]" CHANGELOG.md
+
+  ui:
+    name: UI (typecheck, unit tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        env:
+          CYPRESS_INSTALL_BINARY: "0"
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npx vite build --outDir "$RUNNER_TEMP/ui-dist" --emptyOutDir
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t tesla-cli:ci .
+      - name: Container serves health + requires API key
+        run: |
+          set -euo pipefail
+          docker run -d --name t -p 8080:8080 tesla-cli:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/health && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/api/health
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/status)
+          test "$code" = "401"
+          docker logs t 2>&1 | grep -q "API key generated"
+          test "$(docker exec t id -u)" = "1000"
+      - if: always()
+        run: docker logs t 2>&1 | tail -50 || true

@@ -6,8 +6,34 @@ on:
       - "v*"
 
 jobs:
+  verify:
+    name: Verify release (tag, lint, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches package version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          py=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          init=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/tesla_cli/__init__.py)
+          echo "tag=$tag pyproject=$py __init__=$init"
+          test "$tag" = "$py"
+          test "$tag" = "$init"
+          grep -q "^## \[$tag\]" CHANGELOG.md
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf --extra query
+      - run: uv run ruff check src/ tests/
+      - run: uv run ruff format --check src/ tests/
+      - run: uv run pytest -m "not integration" -q
+        env:
+          NO_COLOR: "1"
+
   build-and-publish:
     name: Build and publish to PyPI
+    needs: verify
     runs-on: ubuntu-latest
     environment:
       name: pypi

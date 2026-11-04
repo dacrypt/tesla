@@ -4,7 +4,7 @@
 
 Full-stack Tesla management platform: CLI (Typer) + REST API (FastAPI) + Web Dashboard (React/Ionic). Tracks orders, controls vehicles, aggregates data from 15+ sources, integrates with TeslaMate/MQTT/HA/ABRP.
 
-**Version**: v4.9.0 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 1682
+**Version**: v5.3.0 | **Python**: 3.12+ | **Package manager**: uv | **Tests**: 2100+
 
 ## Architecture (quick reference)
 
@@ -21,7 +21,7 @@ src/tesla_cli/
 └── infra/         # Docker Compose lifecycle (TeslaMate stack)
 
 ui/                # React 19 + Ionic + Vite + TypeScript frontend
-tests/             # 22 test files, pytest
+tests/             # 70+ test files, pytest
 ```
 
 Full architecture: [docs/architecture.md](docs/architecture.md)
@@ -31,6 +31,10 @@ Full architecture: [docs/architecture.md](docs/architecture.md)
 - **Type hints everywhere** — Python 3.12+ syntax
 - **Pydantic models** for all API data structures
 - **Credentials in system keyring** — never plain text, never env vars
+- **API is secure by default** — off-localhost requires `server.api_key`; new
+  state-changing routes are covered by the CSRF/role middleware (`api/auth.py`);
+  raw vehicle commands must be in `api/command_policy.py`; never `shell=True` with
+  interpolated data; outbound URLs go through `core/url_safety.py`
 - **Line length**: 100 chars (ruff)
 - **core/ is framework-independent** — no CLI or API framework imports
 - **Backends are the API boundary** — commands never call APIs directly

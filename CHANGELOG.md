@@ -5,7 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.3.0] - 2026-11-04
+
+First stable 5.x release on PyPI (the previous published version is 4.9.0;
+5.0.0–5.2.0 were never published, so their changes below ship here too).
+Focus: **safe self-hosting** — secure defaults for the API, Docker and the
+managed TeslaMate stack — and a verified release pipeline.
+
+### Upgrading from 4.9.x
+
+- If you run `tesla serve --host 0.0.0.0` or the Docker image, an API key is
+  now generated on first start. Sign in to the dashboard with it
+  (`tesla serve api-key` shows it). Scripts must send `X-API-Key`.
+- `?api_key=` in URLs is no longer accepted.
+- Docker: the container runs as uid 1000 and the config volume moved to
+  `/home/tesla/.tesla-cli` — run the one-time `chown` from the README.
+- `docker-compose.full.yml` needs `DB_PASSWORD`, `ENCRYPTION_KEY` and
+  `GRAFANA_PASSWORD` in `.env`.
+- Automation `command`/`exec` actions no longer run through a shell: pipes and
+  redirects need a wrapper script.
+
+### Fixed — Docker could not store Tesla tokens
+
+- Containers and headless Linux have no system keyring, so `tesla setup` /
+  `tesla config auth` failed to save OAuth tokens there. Tokens now fall back
+  to an **AES-256-GCM encrypted file** (`~/.tesla-cli/tokens.enc.json`, 0600,
+  entry name bound as AAD). The master key is generated at
+  `~/.tesla-cli/master.key` or read from `TESLA_CLI_MASTER_KEY_FILE` (Docker
+  secret). The image sets `TESLA_CLI_TOKEN_STORE=file`. Tokens are never
+  stored in plain text.
+
+### Security — automations & secrets
+
+- **No shell for automation commands** — the template is split into arguments
+  first and vehicle data is substituted per argument, so a value such as a
+  vehicle name or MQTT payload containing `; rm -rf ~` cannot inject commands.
+  Commands time out after 300 s.
+- **Webhook SSRF guard** — automation webhooks must be `http(s)` and may not
+  target link-local / cloud-metadata / reserved addresses (LAN targets like
+  Home Assistant stay allowed); redirects are not followed. Unsafe rules are
+  rejected by `POST /api/automations/` with 422.
+- **`GET /api/notify/list` masks Apprise URLs** — bot tokens and passwords are
+  no longer returned to the dashboard.
+
+### Release engineering
+
+- Version consistency enforced in CI (`pyproject.toml`, `__version__`,
+  CHANGELOG) and at publish time (tag must match).
+- `publish.yml` runs lint + the full unit suite before uploading to PyPI.
+- CI now type-checks, unit-tests (Vitest) and builds the React dashboard, builds
+  the Docker image and smoke-tests it (health public, API 401 without key,
+  non-root uid), and enforces a 55% coverage floor.
+- Dashboard: `AuthGate` unit tests; Cypress boilerplate replaced with a real
+  smoke test.
+- Removed the broken Homebrew formula (pointed at 4.4.1 with no checksum) —
+  install with `uv tool install tesla-cli` or `pipx install tesla-cli`.
+- Removed `cron-runt-check.sh` (personal script referencing missing files).
 
 ### Security — secure-by-default self-hosting (Phase 0 hardening)
 
