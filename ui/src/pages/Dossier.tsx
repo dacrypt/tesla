@@ -13,6 +13,7 @@ import {
   SourceQueryEntry,
   SourceSnapshot,
   VinDecode,
+  getBaseUrl,
 } from '../api/client';
 import { useHistory, useLocation } from 'react-router-dom';
 import Analytics from './Analytics';
@@ -519,9 +520,8 @@ function SourceCard({ src, sd, isRefreshing, onRefresh, onHistory, onQueries, on
             try {
               const audits = await api.getSourceAudits(src.id);
               if (audits.length > 0) {
-                // NOTE: `api` has no getBaseUrl, so this is always '' (same-origin);
-                // kept as-is to preserve existing behaviour.
-                const baseUrl = (api as { getBaseUrl?: () => string }).getBaseUrl?.() || '';
+                // Honour a configured API base URL (dashboard served from elsewhere).
+                const baseUrl = getBaseUrl();
                 window.open(`${baseUrl}/api/sources/${src.id}/audit/${audits[0].filename}`, '_blank');
               }
             } catch { /* */ }

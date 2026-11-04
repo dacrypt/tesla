@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Large modules split** (behaviour unchanged, imports and test patch
+  points preserved): `cli/commands/vehicle`, `teslaMate`, `dossier` are now
+  packages; `core/sources.py` keeps the engine and `core/source_catalog.py`
+  holds the source definitions; the dashboard API client is split into
+  `ui/src/api/*` domain modules and the Settings page into
+  `ui/src/pages/settings/*` cards. Version-named test files were renamed
+  after what they test.
+- Dashboard TypeScript: all 113 `any` types replaced with real types or
+  `unknown` (ESLint now runs with `--max-warnings 0`).
+
 ### Fixed
 
+- Dossier "evidence PDF" link ignored a configured API base URL.
 - `--json` output could be invalid: Rich wrapped long lines at 80 columns
   when output was piped and parsed text such as `[REDACTED]` as markup. In
   JSON mode, JSON strings now print verbatim (no wrapping, no markup).
