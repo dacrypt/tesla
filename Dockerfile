@@ -1,5 +1,6 @@
-# Stage 1: Build UI
-FROM node:20-alpine AS ui-build
+# Stage 1: Build UI (on the build host's native platform: the bundle is
+# platform-independent, so arm64 images do not pay for emulated npm builds)
+FROM --platform=$BUILDPLATFORM node:20-alpine AS ui-build
 WORKDIR /app/ui
 COPY ui/package*.json ./
 # Cypress (e2e only) is not needed to build the bundle

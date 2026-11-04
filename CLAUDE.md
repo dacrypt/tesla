@@ -91,4 +91,5 @@ make api                                 # FastAPI dev server (port 8080)
 | [docs/configuration.md](docs/configuration.md) | Config keys, auth, tokens |
 | [docs/api-reference.md](docs/api-reference.md) | REST endpoints, SSE, Prometheus |
 | [docs/data-sources.md](docs/data-sources.md) | Tesla APIs, 15 registered sources |
+| [docs/self-hosting.md](docs/self-hosting.md) | Production install, remote access, upgrades, backups |
 | [docs/roadmap.md](docs/roadmap.md) | Remaining gaps, priorities |

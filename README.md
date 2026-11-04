@@ -335,6 +335,10 @@ Notes:
 - You do not need to set `localStorage.tesla_api_url` for local dev.
 - For a non-default API target, set `VITE_TESLA_API_URL` before `make ui`.
 
+Prebuilt multi-arch images (amd64 + arm64) are published to
+`ghcr.io/dacrypt/tesla-cli`; see the [self-hosting guide](docs/self-hosting.md)
+for remote access (Tailscale / reverse proxy), upgrades and backups.
+
 ### Full Stack (with TeslaMate + Grafana)
 
 Requires `DB_PASSWORD`, `ENCRYPTION_KEY` and `GRAFANA_PASSWORD` in `.env` (no
