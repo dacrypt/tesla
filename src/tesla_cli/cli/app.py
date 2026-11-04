@@ -192,6 +192,9 @@ def _register_commands() -> None:
     app.add_typer(ha_app, name="ha")
     app.add_typer(mqtt_app, name="mqtt")
     app.add_typer(serve_app, name="serve")
+    from tesla_cli.cli.commands.backup import backup_app
+
+    app.add_typer(backup_app, name="backup")
     app.add_typer(providers_app, name="providers")
 
     # Dashcam clip management

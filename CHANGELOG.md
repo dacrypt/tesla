@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `--json` output could be invalid: Rich wrapped long lines at 80 columns
+  when output was piped and parsed text such as `[REDACTED]` as markup. In
+  JSON mode, JSON strings now print verbatim (no wrapping, no markup).
+
 ### Added
 
+- **`tesla backup create / list / restore`** — full backup of `~/.tesla-cli`
+  (config, encrypted tokens, events, dossier, caches) as a 0600 `.tar.gz`
+  under `~/.tesla-cli/backups/`, never inside a git repository. SQLite files
+  are copied with the online-backup API (safe while `tesla serve` runs).
+  `--no-secrets` drops tokens/keys/master key and redacts `config.toml`.
+  Restore validates the manifest, rejects links, absolute paths and `..`,
+  and saves the current data to a safety backup first.
 - **`--lang` now translates CLI output** (es, pt, fr, de, it; also
   `TESLA_LANG`, accepting values like `es_CO.UTF-8`). The output layer
   (`cli/output.py`) passes every message through `i18n.translate()`, which

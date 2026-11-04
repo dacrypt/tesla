@@ -96,10 +96,15 @@ Everything tesla-cli owns lives in one directory (`~/.tesla-cli`, or the
 | `dossier/`, source caches | vehicle dossier and data-source history |
 
 ```bash
-# Docker volume → encrypted-at-rest location of your choice
-docker run --rm -v tesla-config:/data -v "$PWD":/backup alpine \
-  tar czf /backup/tesla-cli-$(date +%F).tgz -C /data .
-chmod 600 tesla-cli-*.tgz
+tesla backup create                       # ~/.tesla-cli/backups/tesla-cli-backup-<date>.tar.gz (0600)
+tesla backup create -o /mnt/nas/tesla.tgz # anywhere outside a git repository
+tesla backup create --no-secrets          # shareable: no tokens/keys, redacted config
+tesla backup list
+tesla backup restore <archive>            # keeps a safety backup of the current data
+
+# Docker
+docker compose exec tesla-cli tesla backup create
+docker compose cp tesla-cli:/home/tesla/.tesla-cli/backups ./tesla-backups
 ```
 
 Treat backups as secrets. If you keep `master.key` outside the volume (Docker

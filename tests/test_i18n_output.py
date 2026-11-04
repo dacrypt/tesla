@@ -153,3 +153,16 @@ def test_majority_of_catalog_reaches_output():
                         reached.add(key)
                         break
     assert len(reached) >= 40, len(reached)
+
+
+def test_json_mode_output_is_never_wrapped_or_markup_parsed(capsys):
+    """Rich wrapped JSON at 80 columns when piped and ate "[REDACTED]"-like text."""
+    from tesla_cli.cli.output import console, set_json_mode
+
+    payload = {"k": "[bold]x[/bold] [REDACTED]", "long": "x" * 300}
+    set_json_mode(True)
+    try:
+        console.print(json.dumps(payload))
+    finally:
+        set_json_mode(False)
+    assert json.loads(capsys.readouterr().out) == payload
