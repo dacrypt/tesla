@@ -73,6 +73,8 @@ def test_vehicle_submodules_resolve_patchable_names_through_package():
     patched = {"get_vehicle_backend", "load_config", "resolve_vin", "time", "_backend", "_vin"}
     patched.add("_with_wake")
     for path in sorted((SRC / "cli" / "commands" / "vehicle").glob("_*.py")):
+        if path.name == "__init__.py":  # defines them
+            continue
         tree = ast.parse(path.read_text())
         bare = [
             f"{path.name}:{n.lineno} {n.id}"
