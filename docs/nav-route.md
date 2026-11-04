@@ -135,7 +135,7 @@ the real path. Single-user CLI — no lockfile.
 
 - `docs/fleet-signed-setup.md` — how to get `share` working (VCP pairing).
 - `docs/roadmap.md` — v4.9.2.1 plan (real `TelemetryArrivalSource`).
-- `.omc/plans/nav-route-telemetry.md` — full design + ADR-012.
+- the `nav-route-telemetry` design notes (internal, not published) — full design + ADR-012.
 
 ## ADR-012 — Why the split?
 
@@ -154,4 +154,4 @@ ABRP-Premium UX minus one keypress.
 - `ArrivalSource` protocol lets v4.9.2.1 plug in a real subscriber with zero
   changes to the detector, dispatcher, or CLI.
 
-Full rationale: `.omc/plans/nav-route-telemetry.md` §7.
+Full rationale: the `nav-route-telemetry` design notes (internal, not published) §7.

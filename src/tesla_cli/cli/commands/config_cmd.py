@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import typer
 from rich.prompt import Prompt
 
@@ -331,7 +333,7 @@ def config_restore(
                 try:
                     setattr(target, k, v)
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     _apply(cfg, data)
     save_config(cfg)

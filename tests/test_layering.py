@@ -37,3 +37,31 @@ def test_layer_imports(layer):
             if any(name == f or name.startswith(f + ".") for f in FORBIDDEN[layer]):
                 violations.append(f"{path.relative_to(SRC)} imports {name}")
     assert not violations, "\n".join(violations)
+
+
+def test_no_silently_swallowed_exceptions():
+    """`except Exception: pass` hides real failures; log them at debug instead."""
+    import re
+
+    pattern = re.compile(r"except Exception(?: as \w+)?:[^\n]*\n\s+pass\s*\n")
+    offenders = [
+        str(p.relative_to(SRC)) for p in sorted(SRC.rglob("*.py")) if pattern.search(p.read_text())
+    ]
+    assert not offenders, offenders
+
+
+def test_debug_flag_enables_debug_logging(monkeypatch):
+    import logging
+
+    from tesla_cli.cli.app import _configure_logging
+
+    monkeypatch.delenv("TESLA_LOG_LEVEL", raising=False)
+    _configure_logging(True)
+    assert logging.getLogger("tesla_cli.core").isEnabledFor(logging.DEBUG)
+    _configure_logging(False)
+    assert not logging.getLogger("tesla_cli.core").isEnabledFor(logging.DEBUG)
+    monkeypatch.setenv("TESLA_LOG_LEVEL", "info")
+    _configure_logging(False)
+    assert logging.getLogger("tesla_cli").level == logging.INFO
+    logging.getLogger("tesla_cli").setLevel(logging.NOTSET)
+    logging.getLogger("tesla-cli").setLevel(logging.NOTSET)

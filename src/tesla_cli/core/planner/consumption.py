@@ -18,6 +18,7 @@ Baseline coefficients (published Tesla telemetry analyses, conservative highway)
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -123,7 +124,7 @@ def get_model(car_model: str | None) -> ConsumptionModel:
             if entry:
                 return ConsumptionModel.model_validate(entry)
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
     # Baseline
     if car_model and car_model in BASELINES:
         return BASELINES[car_model]

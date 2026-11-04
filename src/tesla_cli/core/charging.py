@@ -5,6 +5,7 @@ Framework-independent: used by both ``tesla charge sessions`` and the REST API.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -47,7 +48,7 @@ def fetch_charging_sessions(
             if tm_sessions:
                 sources.append("TeslaMate")
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     # Try Fleet API
     try:
@@ -60,7 +61,7 @@ def fetch_charging_sessions(
         if fleet_sessions:
             sources.append("Fleet API")
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     # Merge: TeslaMate is primary, add Fleet API sessions that don't overlap
     if tm_sessions and fleet_sessions:

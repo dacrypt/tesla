@@ -7,6 +7,8 @@ vehicle state and commands when internet is available.
 
 from __future__ import annotations
 
+import logging
+
 from tesla_cli.core.config import Config
 from tesla_cli.core.providers.base import (
     Capability,
@@ -67,7 +69,7 @@ class VehicleApiProvider(Provider):
             elif backend_name == "fleet":
                 return bool(get_token(FLEET_ACCESS_TOKEN))
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
         return False
 
     def health_check(self) -> dict:

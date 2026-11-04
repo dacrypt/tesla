@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import typer
 
 from tesla_cli.cli.commands.vehicle import _with_wake
@@ -1242,7 +1244,7 @@ def _calculate_savings(
             if total_km > 0:
                 total_miles = total_km * 0.621371
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     miles_estimated = False
     if not total_miles:
@@ -1492,7 +1494,7 @@ def _show_budget_status(cfg) -> None:  # noqa: ANN001
             if len(s.date) >= 10 and s.date[:7] == now.strftime("%Y-%m"):
                 month_sessions.append(s)
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     spent = sum(s.cost for s in month_sessions if s.cost)
     kwh_total = sum(s.kwh for s in month_sessions if s.kwh)

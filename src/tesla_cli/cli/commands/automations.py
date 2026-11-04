@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 
@@ -565,7 +566,7 @@ def _service_pid() -> int | None:
                     if pid.isdigit() and int(pid) > 0:
                         return int(pid)
     except Exception:  # noqa: BLE001
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
     return None
 
 
@@ -707,7 +708,7 @@ def automations_uninstall() -> None:
                 timeout=10,
             )
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
         _LAUNCHD_PLIST.unlink(missing_ok=True)
         render_success("Automations service uninstalled.")
     else:
@@ -718,7 +719,7 @@ def automations_uninstall() -> None:
                 timeout=10,
             )
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
         _SYSTEMD_UNIT.unlink(missing_ok=True)
         render_success("Automations service uninstalled.")
 

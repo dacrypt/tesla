@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -68,7 +69,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
                 body = _redact(json.loads(raw))
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
         t0 = time.monotonic()
         response = await call_next(request)

@@ -220,7 +220,7 @@ managed TeslaMate stack — and a verified release pipeline.
 ### CLI — Native EV Route Planner (Phase 1 MVP)
 
 First shippable phase of the native EV planner roadmap
-(`.omc/plans/native-ev-planner.md`). Suggests charging stops along a route
+(the `native-ev-planner` design notes (internal, not published)). Suggests charging stops along a route
 using open-source data — no ABRP Premium contract required.
 
 - **`tesla nav plan <origin> <destination>`** — computes a driving route via
@@ -311,7 +311,7 @@ using open-source data — no ABRP Premium contract required.
 ### Why
 
 Unblocks the phased native EV route planner roadmap
-(`.omc/plans/native-ev-planner.md`): Phase 1 `tesla nav plan <from> <to>`
+(the `native-ev-planner` design notes (internal, not published)): Phase 1 `tesla nav plan <from> <to>`
 will tag generated routes with `source="native-planner"` so that re-running
 a plan cannot clobber a route you created by hand with `tesla nav route
 create`. Ships standalone (no dependency on later phases).
@@ -369,7 +369,7 @@ create`. Ships standalone (no dependency on later phases).
 - `docs/user-guide.md` — new "Favorites Importer" section with command examples
   and dedupe semantics.
 - `docs/roadmap.md` — current state advanced to v4.9.3.
-- `.omc/plans/nav-favorites-importer.md` — ralplan consensus design record.
+- the `nav-favorites-importer` design notes (internal, not published) — ralplan consensus design record.
 
 ## [4.9.2] - 2026-04-20
 

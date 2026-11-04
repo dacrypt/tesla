@@ -9,6 +9,7 @@ Requires a Long-Lived Access Token from HA:
 
 from __future__ import annotations
 
+import logging
 import time
 
 import typer
@@ -304,7 +305,7 @@ def ha_sync(
                     try:
                         notifier.notify(title="HA sync error", body=str(exc))
                     except Exception:  # noqa: BLE001
-                        pass
+                        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
             time.sleep(interval)
 

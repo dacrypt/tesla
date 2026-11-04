@@ -129,7 +129,7 @@ def interactive_login_and_capture(
             try:
                 browser.close()
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
 
 def browser_login(
@@ -159,7 +159,7 @@ def browser_login(
             try:
                 browser.close()
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
 
 def full_login(

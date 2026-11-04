@@ -124,4 +124,4 @@ def scrape_portal_with_session(
             try:
                 browser.close()
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored error", exc_info=True)

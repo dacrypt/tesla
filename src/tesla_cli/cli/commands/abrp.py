@@ -7,6 +7,7 @@ so it can give accurate range predictions while driving.
 
 from __future__ import annotations
 
+import logging
 import time
 
 import typer
@@ -202,7 +203,7 @@ def abrp_stream(
                         a.add(notify)
                         a.notify(title="ABRP stream error", body=str(exc))
                     except Exception:  # noqa: BLE001
-                        pass
+                        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
             time.sleep(interval)
 

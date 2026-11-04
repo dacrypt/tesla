@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
@@ -25,7 +27,7 @@ def pico_y_placa(placa: str = "") -> dict:
                 d = json.loads(dossier_path.read_text())
                 placa = (d.get("runt") or {}).get("placa", "")
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     if not placa:
         return {

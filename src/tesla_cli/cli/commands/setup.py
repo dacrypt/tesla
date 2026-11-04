@@ -13,6 +13,7 @@ Guides the user from zero to a fully configured CLI with their first data built:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 
@@ -617,7 +618,7 @@ def _check_owner_api_and_maybe_upgrade(cfg: object, tier_selected: str, force: b
                 if order_st in ("BOOKED", "PENDING", "CONFIRMED", "IN_TRANSIT"):
                     is_pre_delivery = True
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
         if is_pre_delivery:
             console.print(

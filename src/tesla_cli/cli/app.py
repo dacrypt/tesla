@@ -33,16 +33,32 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _configure_logging(debug: bool) -> None:
+    """WARNING by default; DEBUG with --debug or TESLA_LOG_LEVEL (shows suppressed errors)."""
+    import logging
+    import os
+
+    level_name = "DEBUG" if debug else os.environ.get("TESLA_LOG_LEVEL", "WARNING").upper()
+    level = getattr(logging, level_name, logging.WARNING)
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger("tesla_cli").setLevel(level)
+    logging.getLogger("tesla-cli").setLevel(level)
+
+
 @app.callback()
 def global_options(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     anon: bool = typer.Option(False, "--anon", help="Anonymize PII (VIN, email, name) in output"),
     lang: str = typer.Option("", "--lang", help="Language: en (default), es, pt, fr, de, it"),
+    debug: bool = typer.Option(
+        False, "--debug", help="Verbose logging to stderr (also: TESLA_LOG_LEVEL=DEBUG)"
+    ),
     version: bool | None = typer.Option(
         None, "--version", "-V", callback=_version_callback, is_eager=True
     ),
 ) -> None:
     """Tesla CLI - Order tracking and vehicle control."""
+    _configure_logging(debug)
     set_json_mode(json_output)
     if lang:
         from tesla_cli.cli.i18n import set_lang

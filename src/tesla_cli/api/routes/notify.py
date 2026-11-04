@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -201,4 +202,4 @@ def _log_notification(title: str, message: str, channel: str, success: bool) -> 
             if len(lines) > 5000:
                 history_file.write_text("\n".join(lines[-5000:]) + "\n")
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)

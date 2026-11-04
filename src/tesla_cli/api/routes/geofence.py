@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
 from fastapi import APIRouter, HTTPException, Request
@@ -44,7 +45,7 @@ def geofence_list(request: Request) -> list[dict]:
         vehicle_lat = drive.get("latitude")
         vehicle_lon = drive.get("longitude")
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored error", exc_info=True)
 
     result = []
     for name, zone in zones.items():

@@ -8,6 +8,8 @@ anything time-series or aggregated.
 
 from __future__ import annotations
 
+import logging
+
 from tesla_cli.core.config import Config
 from tesla_cli.core.providers.base import (
     Capability,
@@ -81,7 +83,7 @@ class TeslaMateProvider(Provider):
                 )
                 stack_health = stack.health_check()
             except Exception:  # noqa: BLE001
-                pass
+                logging.getLogger(__name__).debug("Ignored error", exc_info=True)
         try:
             backend = self._backend()
             ok, ms = self._timed(backend.ping)

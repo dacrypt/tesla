@@ -160,7 +160,7 @@ tesla config auth fleet          # Fleet API OAuth2 flow
 
 | Variable | Description |
 |----------|-------------|
-| `TESLA_LANG` | UI language (`en`, `es`, `pt`, `fr`, `de`, `it`) |
+| `TESLA_LANG` | Reserved for CLI translations (experimental — output is English today) |
 | `TESLA_API_KEY` | API server full-control key (overrides config) |
 | `TESLA_READ_ONLY_KEY` | API server read-only key (overrides config) |
 | `TESLA_CLI_TOKEN_STORE` | `file` forces the encrypted file token store (default in Docker; automatic when no keyring exists) |
