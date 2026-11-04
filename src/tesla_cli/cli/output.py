@@ -16,17 +16,21 @@ class _I18nConsole(Console):
     """Console that localizes whole English messages (see cli/i18n.translate)."""
 
     def print(self, *objects: Any, **kwargs: Any) -> None:  # noqa: A003
-        if _json_mode and len(objects) == 1 and isinstance(objects[0], str):
-            if objects[0].lstrip().startswith(("{", "[")):
-                # Machine output: never wrap at the terminal width (it would
-                # split values across lines) and never parse Rich markup
-                # (it would eat strings like "[REDACTED]").
-                kwargs.setdefault("soft_wrap", True)
-                kwargs.setdefault("markup", False)
-                kwargs.setdefault("highlight", False)
-                kwargs.setdefault("emoji", False)
-                super().print(objects[0], **kwargs)
-                return
+        if (
+            _json_mode
+            and len(objects) == 1
+            and isinstance(objects[0], str)
+            and objects[0].lstrip().startswith(("{", "["))
+        ):
+            # Machine output: never wrap at the terminal width (it would
+            # split values across lines) and never parse Rich markup
+            # (it would eat strings like "[REDACTED]").
+            kwargs.setdefault("soft_wrap", True)
+            kwargs.setdefault("markup", False)
+            kwargs.setdefault("highlight", False)
+            kwargs.setdefault("emoji", False)
+            super().print(objects[0], **kwargs)
+            return
         from tesla_cli.cli.i18n import translate
 
         super().print(*(translate(o) if isinstance(o, str) else o for o in objects), **kwargs)
