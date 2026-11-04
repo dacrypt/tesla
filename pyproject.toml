@@ -52,6 +52,11 @@ Changelog = "https://github.com/dacrypt/tesla/blob/main/CHANGELOG.md"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# The dashboard bundle is built by `make build` / the release workflow and is
+# gitignored; artifacts makes hatch ship it anyway.
+artifacts = ["src/tesla_cli/api/ui_dist/**"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/tesla_cli"]
 
