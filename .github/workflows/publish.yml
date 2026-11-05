@@ -1,9 +1,17 @@
 name: Publish to PyPI
 
+# Normally started by .github/workflows/release.yml (workflow_dispatch on the
+# new vX.Y.Z tag) after a version-bump PR is merged. A manually pushed v* tag
+# still works, and a maintainer can re-run it from the Actions tab.
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify:
@@ -14,6 +22,10 @@ jobs:
       - name: Tag matches package version
         run: |
           set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "::error::publish must run on a vX.Y.Z tag (got $GITHUB_REF)"; exit 1 ;;
+          esac
           tag="${GITHUB_REF_NAME#v}"
           py=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
           init=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/tesla_cli/__init__.py)
@@ -99,6 +111,10 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-running a partially failed release must not fail on files
+          # already uploaded (PyPI never accepts the same file twice).
+          skip-existing: true
 
   docker:
     name: Publish multi-arch image to GHCR
@@ -133,3 +149,36 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  github-release:
+    name: GitHub Release
+    needs: [build-and-publish, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes from CHANGELOG
+        run: |
+          set -euo pipefail
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '
+            $0 ~ "^## \\[" v "\\]" {on=1; next}
+            on && /^## \[/ {exit}
+            on {print}
+          ' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "**Install:** \`uv tool install \"tesla-cli[serve,fleet]==$v\"\` · **Docker:** \`ghcr.io/${{ github.repository_owner }}/tesla-cli:$v\`"
+          } >> notes.md
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "tesla-cli ${GITHUB_REF_NAME#v}" \
+              --notes-file notes.md --verify-tag
+          fi
