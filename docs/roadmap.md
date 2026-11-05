@@ -71,9 +71,9 @@ work takes priority over new features.
 - ✅ Bugs found on the way: empty charge summaries 500, `/api/init` automations, service appointments TypeError, unmounted routers, dossier PDF link
 
 ### S3 — Needs a product decision
-- **Service reminders** — `/api/service/reminders` cannot know when a service was last done, so "overdue" never triggers; needs a way to record completed services.
+- ✅ **Service reminders** — completed services are logged (`tesla service done`, `POST /api/service/log`); reminders compute due km/date and real overdue from the log.
 - **Order phases** — `core/computed.py` derives shipped/in-country/registered from the same RUNT flag, so the intermediate phases never show; needs real signals per phase.
-- **Order summary** — the "waiting for VIN" hints in `generate_summary` are unreachable (tasks default to `{}`).
+- ✅ **Order summary** — status-based "next step" hints now show when there are no pending Tesla tasks.
 
 ## Remaining Gaps
 

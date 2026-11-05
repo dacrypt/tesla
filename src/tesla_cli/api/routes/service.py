@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from tesla_cli.core.backends import get_vehicle_backend
 from tesla_cli.core.config import load_config, resolve_vin
@@ -47,81 +48,51 @@ def service_appointments() -> list:
 
 @router.get("/reminders")
 def service_reminders() -> list:
-    """Service reminders calculated from odometer and maintenance intervals."""
+    """Maintenance reminders from the odometer and the log of completed services.
+
+    Items with a logged service report ``basis: "logged"`` and a real
+    ``overdue``; others are estimates (next multiple of the interval).
+    """
+    from tesla_cli.core.service_log import reminders
+
     try:
         cfg = load_config()
         backend = get_vehicle_backend(cfg)
         vin = resolve_vin(cfg, None)
-
-        # Get current odometer from vehicle state
         try:
-            vs = backend.get_vehicle_state(vin)
-            odometer_mi = vs.get("odometer") or 0
+            odometer_mi = backend.get_vehicle_state(vin).get("odometer") or 0
             odometer_km = round(odometer_mi * 1.60934)
-        except Exception:
+        except Exception:  # noqa: BLE001 — car asleep / offline: reminders still useful
             odometer_km = 0
-
-        # Standard Tesla maintenance intervals (km)
-        intervals = [
-            {
-                "id": "tires",
-                "name": "Tire Rotation",
-                "interval_km": 10_000,
-                "description": "Rotate tires every 10,000 km",
-            },
-            {
-                "id": "cabin_air",
-                "name": "Cabin Air Filter",
-                "interval_km": 24_000,
-                "description": "Replace cabin air filter every 2 years / 24,000 km",
-            },
-            {
-                "id": "brake_fluid",
-                "name": "Brake Fluid Test",
-                "interval_km": 40_000,
-                "description": "Test brake fluid every 2 years / 40,000 km",
-            },
-            {
-                "id": "hepa_filter",
-                "name": "HEPA Filter",
-                "interval_km": 48_000,
-                "description": "Replace HEPA filter every 3 years / 48,000 km",
-            },
-            {
-                "id": "ac_desiccant",
-                "name": "A/C Desiccant Bag",
-                "interval_km": 96_000,
-                "description": "Replace A/C desiccant bag every 6 years / 96,000 km",
-            },
-        ]
-
-        reminders = []
-        for item in intervals:
-            if odometer_km > 0:
-                cycles_done = odometer_km // item["interval_km"]
-                next_service_km = (cycles_done + 1) * item["interval_km"]
-                km_until = next_service_km - odometer_km
-                pct = round((odometer_km % item["interval_km"]) / item["interval_km"] * 100)
-            else:
-                next_service_km = item["interval_km"]
-                km_until = item["interval_km"]
-                pct = 0
-
-            reminders.append(
-                {
-                    "id": item["id"],
-                    "name": item["name"],
-                    "description": item["description"],
-                    "interval_km": item["interval_km"],
-                    "current_odometer_km": odometer_km,
-                    "next_service_km": next_service_km,
-                    "km_until_service": km_until,
-                    "progress_pct": pct,
-                    "due_soon": km_until <= 2_000,
-                    "overdue": km_until <= 0,
-                }
-            )
-
-        return reminders
+        return reminders(odometer_km)
     except Exception as exc:
         raise HTTPException(502, f"Service reminders unavailable: {exc}") from exc
+
+
+class ServiceLogEntry(BaseModel):
+    item: str
+    km: float | None = None
+    date: str | None = None  # YYYY-MM-DD, default today
+    note: str = ""
+
+
+@router.get("/log")
+def service_log() -> list:
+    """Completed maintenance services, oldest first."""
+    from tesla_cli.core.service_log import load_log
+
+    return load_log()
+
+
+@router.post("/log")
+def service_log_add(body: ServiceLogEntry) -> dict:
+    """Record a completed maintenance service."""
+    from datetime import date as _date
+
+    from tesla_cli.core.service_log import record
+
+    try:
+        on = _date.fromisoformat(body.date) if body.date else None
+        return record(body.item, km=body.km, on=on, note=body.note)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

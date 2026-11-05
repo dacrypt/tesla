@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.5.0] - 2026-11-04
+## [5.5.0] - 2026-11-05
 
 Completes the S2 stabilization track: CLI translations, full backups,
 experimental-feature monitoring, large-module splits and broader tests, plus
@@ -31,6 +31,8 @@ sessions, and three previously unreachable routers (`/api/scenes`,
 
 ### Fixed
 
+- Order summary "next step" hints from the order status (e.g. "wait for VIN
+  assignment") never appeared.
 - `/api/charge/last`, `/weekly` and `/analytics/cost-summary` returned HTTP
   500 when there were no charging sessions (`[]` from a `-> dict` route);
   now 404 / empty summaries.
@@ -47,6 +49,12 @@ sessions, and three previously unreachable routers (`/api/scenes`,
 
 ### Added
 
+- **Maintenance log**: `tesla service done <item> [--km N] [--date D] [--note]`,
+  `tesla service log`, `GET/POST /api/service/log`. `GET /api/service/reminders`
+  and `tesla service reminders` now use the last logged service of each item
+  (distance and/or time intervals) and report a real `overdue`; items with no
+  record are marked `basis: "estimated"`. Brake-fluid interval aligned to 4
+  years in API and CLI.
 - **Experimental features are labelled and monitored** (`core/experimental.py`):
   order tracking, ownership-portal scraping, Colombian registries and the EV
   planner model. `tesla doctor` lists them (tier `X`: ok / failing / unused /

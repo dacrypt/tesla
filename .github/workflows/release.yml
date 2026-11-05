@@ -1,0 +1,98 @@
+name: Release
+
+# Release-on-merge: merging a PR that bumps the version in pyproject.toml (with a
+# matching "## [X.Y.Z]" CHANGELOG section) is the release. Nobody pushes tags.
+#
+#   1. detect  — is pyproject's version untagged and ready (CHANGELOG section)?
+#   2. verify  — lint + unit tests on the exact commit being released.
+#   3. tag     — create the annotated vX.Y.Z tag and start publish.yml on it.
+#
+# Tags pushed with GITHUB_TOKEN do not trigger other workflows, so publish.yml
+# is started explicitly with workflow_dispatch on the tag ref. It therefore runs
+# exactly as it would for a manually pushed tag (same PyPI trusted publisher,
+# environment rules, GHCR tags and GitHub Release).
+#
+# Pushes to main that do not change the version are no-ops.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Detect unreleased version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          init=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/tesla_cli/__init__.py)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v already tagged — nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [ "$v" != "$init" ]; then
+            echo "::error::pyproject ($v) and __version__ ($init) disagree"
+            exit 1
+          elif ! grep -q "^## \[$v\]" CHANGELOG.md; then
+            echo "::notice::v$v has no '## [$v]' CHANGELOG section yet — not releasing."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$v"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  verify:
+    name: Verify (lint, tests)
+    needs: detect
+    if: needs.detect.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev --extra serve --extra fleet --extra teslaMate --extra pdf --extra query
+      - run: uv run ruff check src/ tests/
+      - run: uv run ruff format --check src/ tests/
+      - run: uv run pytest -m "not integration" -q
+        env:
+          NO_COLOR: "1"
+
+  tag:
+    name: Tag and start publish
+    needs: [detect, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag
+      actions: write # dispatch publish.yml
+    env:
+      TAG: v${{ needs.detect.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create tag
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "tesla-cli ${TAG#v}" "$GITHUB_SHA"
+          git push origin "$TAG"
+      - name: Start publish on the tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run publish.yml --ref "$TAG"

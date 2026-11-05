@@ -14,6 +14,7 @@ tesla --anon <command>     # anonymize PII (VIN, RN, email masked)
 tesla --lang es <command>  # translated status/error messages (es, pt, fr, de, it); JSON stays English
 tesla --debug <command>   # verbose logs to stderr, incl. errors that are otherwise suppressed
 tesla backup create        # full backup of ~/.tesla-cli (0600; --no-secrets to share)
+tesla service done tires --km 30500   # log maintenance; reminders use it
 tesla --verbose <command>  # debug logging
 ```
 

@@ -169,3 +169,32 @@ Test patterns to follow:
 4. Open a PR with a clear description of what and why
 
 For full system design, provider layers, and data flow: [docs/architecture.md](docs/architecture.md).
+
+## Releasing
+
+Releases are **release-on-merge**: nobody pushes tags by hand.
+
+1. Open a PR that:
+   - bumps `version` in `pyproject.toml`, `__version__` in
+     `src/tesla_cli/__init__.py` and the `tesla-cli` entry in `uv.lock`;
+   - turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD`
+     (with an "Upgrading" note for anything breaking).
+2. CI must be green (the *Version consistency* job checks the three versions
+   and the CHANGELOG).
+3. Merge it. `.github/workflows/release.yml` then, on `main`:
+   - sees that `vX.Y.Z` is not tagged and the CHANGELOG section exists,
+   - runs lint + unit tests on the merged commit,
+   - creates the annotated tag `vX.Y.Z` and starts `publish.yml` on it.
+4. `publish.yml` (on the tag) verifies again, builds the dashboard and the
+   package, scans the artifacts for secrets, uploads to PyPI (trusted
+   publishing), pushes the multi-arch image to GHCR, and creates the GitHub
+   Release with the CHANGELOG section as notes.
+
+Pushes to `main` that don't change the version do nothing. To retry a failed
+publish, re-run `publish.yml` from the Actions tab on the tag (uploads are
+idempotent). Pushing a `v*` tag manually still works as a fallback.
+
+One-time repository settings this relies on: the PyPI trusted publisher for
+`publish.yml` / environment `pypi`; if that environment restricts deployment
+refs, it must allow `v*` tags; tag rulesets (if any) must let
+`github-actions[bot]` create `v*` tags.

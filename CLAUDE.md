@@ -52,6 +52,15 @@ make ui                                  # Vite dev server (port 5173)
 make api                                 # FastAPI dev server (port 8080)
 ```
 
+## Releasing (all sessions, incl. cloud)
+
+Release-on-merge — never ask the maintainer to push a tag. To release:
+open a PR that bumps the version (pyproject, `__version__`, `uv.lock`) and
+renames `## [Unreleased]` to `## [X.Y.Z] - date` in CHANGELOG.md; once CI is
+green and the maintainer approves, merge it. `release.yml` tags `vX.Y.Z` and
+dispatches `publish.yml` (PyPI + GHCR + GitHub Release). Follow the run and
+confirm the version on PyPI. Details: CONTRIBUTING.md → Releasing.
+
 ## Testing patterns
 
 - **Version assertions**: `>= Version("X.Y.Z")` — never exact, survives bumps

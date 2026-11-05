@@ -724,34 +724,27 @@ def generate_summary(
         else:
             parts.append("Your vehicle does not have a license plate yet.")
 
-    # Next action hints based on tasks
-    if isinstance(tasks, dict):
-        pending = [
-            t_id
-            for t_id, t_data in tasks.items()
-            if isinstance(t_data, dict) and not t_data.get("complete") and t_data.get("enabled")
-        ]
-        if pending:
-            # Map task IDs to friendly names
-            task_names = {
-                "finalPayment": "complete final payment",
-                "FinalPayment": "complete final payment",
-                "deliveryAcceptance": "accept delivery",
-                "DeliveryAcceptance": "accept delivery",
-                "registration": "complete registration",
-                "Registration": "complete registration",
-                "agreements": "sign agreements",
-                "Agreements": "sign agreements",
-                "financing": "confirm financing",
-                "Financing": "confirm financing",
-                "scheduling": "schedule delivery",
-                "Scheduling": "schedule delivery",
-            }
-            next_task = pending[0]
-            friendly = task_names.get(next_task, next_task.replace("_", " ").lower())
-            parts.append(f"Next step: {friendly}.")
+    # Next action hints: pending Tesla tasks first, else hints from order status.
+    # (`tasks` always defaults to a dict, so the status fallback must key off
+    # "no pending tasks", not off the type of `tasks` — it was unreachable.)
+    pending = [
+        t_id
+        for t_id, t_data in (tasks.items() if isinstance(tasks, dict) else [])
+        if isinstance(t_data, dict) and not t_data.get("complete") and t_data.get("enabled")
+    ]
+    task_names = {
+        "finalpayment": "complete final payment",
+        "deliveryacceptance": "accept delivery",
+        "registration": "complete registration",
+        "agreements": "sign agreements",
+        "financing": "confirm financing",
+        "scheduling": "schedule delivery",
+    }
+    if pending:
+        next_task = pending[0]
+        friendly = task_names.get(next_task.lower(), next_task.replace("_", " ").lower())
+        parts.append(f"Next step: {friendly}.")
     else:
-        # Fallback hints from order status
         status_lower = (status.order_status or "").lower()
         if "reserved" in status_lower and not status.vin:
             parts.append("Next: wait for VIN assignment.")
