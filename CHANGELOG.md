@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Maintenance log**: `tesla service done <item> [--km N] [--date D] [--note]`,
+  `tesla service log`, `GET/POST /api/service/log`. `GET /api/service/reminders`
+  and `tesla service reminders` now use the last logged service of each item
+  (distance and/or time intervals) and report a real `overdue`; items with no
+  record are marked `basis: "estimated"`. Brake-fluid interval aligned to 4
+  years in API and CLI.
+
+### Fixed
+
+- Order summary "next step" hints from the order status (e.g. "wait for VIN
+  assignment") never appeared.
+
 ## [5.5.0] - 2026-11-04
 
 Completes the S2 stabilization track: CLI translations, full backups,

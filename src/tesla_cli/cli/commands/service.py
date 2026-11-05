@@ -213,10 +213,17 @@ def service_reminders(
             console.print(f"[yellow]Could not parse date '{s}' — ignoring.[/yellow]")
             return None
 
-    last_tire_date = _parse_date(last_tire)
-    last_cabin_date = _parse_date(last_cabin)
-    last_brake_date = _parse_date(last_brake)
-    last_ac_date = _parse_date(last_ac)
+    # Flags win; otherwise use the log written by `tesla service done`.
+    from tesla_cli.core.service_log import last_service
+
+    def _logged(item_id: str) -> str | None:
+        entry = last_service(item_id)
+        return entry.get("date") if entry else None
+
+    last_tire_date = _parse_date(last_tire or _logged("tires"))
+    last_cabin_date = _parse_date(last_cabin or _logged("cabin_air"))
+    last_brake_date = _parse_date(last_brake or _logged("brake_fluid"))
+    last_ac_date = _parse_date(last_ac or _logged("ac_desiccant"))
 
     if is_json_mode():
         reminders: list[dict] = []
@@ -308,6 +315,54 @@ def service_reminders(
         "for accurate reminders.[/dim]"
     )
     console.print()
+
+
+@service_app.command("done")
+def service_done(
+    item: str = typer.Argument(
+        ...,
+        help="tires, cabin_air, brake_fluid, hepa_filter or ac_desiccant",
+    ),
+    km: float | None = typer.Option(None, "--km", help="Odometer (km) when it was done"),
+    on: str | None = typer.Option(None, "--date", help="YYYY-MM-DD (default: today)"),
+    note: str = typer.Option("", "--note", help="Free text, e.g. the shop"),
+) -> None:
+    """Record a completed maintenance service (used by `tesla service reminders`).
+
+    \b
+    tesla service done tires --km 30500
+    tesla service done cabin_air --date 2026-03-01 --note "Service center Bogotá"
+    """
+    from tesla_cli.core.service_log import record
+
+    try:
+        entry = record(item, km=km, on=date.fromisoformat(on) if on else None, note=note)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if is_json_mode():
+        console.print(_json.dumps(entry))
+        return
+    render_success(
+        f"Logged {item} on {entry['date']}" + (f" at {entry['km']:,} km" if "km" in entry else "")
+    )
+
+
+@service_app.command("log")
+def service_log_cmd() -> None:
+    """Show the log of completed maintenance services."""
+    from tesla_cli.core.service_log import load_log
+
+    entries = load_log()
+    if is_json_mode():
+        console.print(_json.dumps(entries))
+        return
+    if not entries:
+        console.print("[dim]No services logged yet. Add one: tesla service done <item>[/dim]")
+        return
+    for e in sorted(entries, key=lambda e: e.get("date", "")):
+        km = f"{e['km']:,} km" if e.get("km") is not None else "—"
+        console.print(f"  {e.get('date')}  {e.get('item'):<15} {km:>12}  {e.get('note', '')}")
 
 
 @service_app.command("setup-reminders")
