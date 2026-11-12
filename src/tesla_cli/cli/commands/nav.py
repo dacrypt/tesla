@@ -1,4 +1,4 @@
-"""Multi-stop navigation — `tesla nav` sub-app (v4.9.2, manual-advance).
+"""Multi-stop navigation — `tesla nav` sub-app.
 
 See: .omc/plans/nav-route-telemetry.md
 
@@ -6,9 +6,9 @@ Design notes:
 - CRUD for routes + places, stored in `~/.tesla-cli/nav.toml`.
 - `route go` blocks until trip complete or Ctrl-C; exit codes:
     0 = trip complete, 130 = SIGINT, 1 = API error, 2 = auto-advance unavailable.
-- Auto-advance via real telemetry deferred to v4.9.2.1 (see ArrivalSource
-  protocol in `core/nav/arrival.py`). v4.9.2 ships `NullArrivalSource` and a
-  guaranteed-shipping `nav route next` manual-advance command.
+- Auto-advance uses the self-hosted fleet-telemetry MQTT stream
+  (`MqttTelemetryArrivalSource` in `core/nav/arrival.py`); without it,
+  `nav route next` advances manually.
 """
 
 from __future__ import annotations
@@ -23,7 +23,12 @@ from tesla_cli.cli.commands.vehicle import _with_wake
 from tesla_cli.cli.output import console, render_success
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, resolve_vin
-from tesla_cli.core.nav.arrival import ArrivalDetector, NullArrivalSource
+from tesla_cli.core.nav.arrival import (
+    ArrivalDetector,
+    ArrivalSource,
+    MqttTelemetryArrivalSource,
+    NullArrivalSource,
+)
 from tesla_cli.core.nav.geocode import GeocodeError, batch_geocode, geocode
 from tesla_cli.core.nav.importers import (
     detect_and_parse,
@@ -227,6 +232,37 @@ def route_verify(
     console.print(f"wrote {len(stale_idx)} waypoint(s)")
 
 
+def _telemetry_arrival_source(vin: str | None) -> MqttTelemetryArrivalSource | None:
+    """Live arrival source from the fleet-telemetry MQTT stream, or None (with
+    an explanation printed) when that stream is not set up."""
+    import importlib.util
+
+    cfg = load_config()
+    if not cfg.telemetry.enabled:
+        console.print(
+            "[yellow]Auto-advance needs Fleet Telemetry streaming to MQTT.[/yellow] "
+            "Set it up with 'tesla telemetry install' (see docs/nav-route.md), "
+            "use 'tesla nav route next <name>' between legs, "
+            "or re-run with --simulate-arrival-after <seconds> for testing."
+        )
+        return None
+    if importlib.util.find_spec("paho") is None:
+        console.print(
+            "[yellow]Auto-advance needs paho-mqtt.[/yellow] "
+            "Install it with: pip install 'tesla-cli\\[mqtt]'"
+        )
+        return None
+    mc = cfg.mqtt
+    return MqttTelemetryArrivalSource(
+        _vin(vin),
+        host=mc.broker or "localhost",
+        port=mc.port,
+        username=mc.username,
+        password=mc.password,
+        tls=mc.tls,
+    )
+
+
 @route_app.command(
     "go",
     help="Dispatch waypoints of a route in order; blocks until trip complete or Ctrl-C.",
@@ -268,15 +304,14 @@ def route_go(
         console.print("[green]Trip complete (dry-run)[/green]")
         return
 
+    telemetry_source = None
     if simulate_arrival_after is None:
-        console.print(
-            "[yellow]Auto-advance not available in v4.9.2.[/yellow] "
-            "Use 'tesla nav route next <name>' between legs, "
-            "or re-run with --simulate-arrival-after <seconds> for testing."
-        )
-        raise typer.Exit(2)
-
+        telemetry_source = _telemetry_arrival_source(vin)
+        if telemetry_source is None:
+            raise typer.Exit(2)
     v = _vin(vin)
+    if telemetry_source is not None:
+        console.print(f"Waiting for arrivals on MQTT topic {telemetry_source.topic}")
     for idx, wp in enumerate(route.waypoints[start_from - 1 :], start=start_from):
         console.print(f"[wp {idx}/{total}] dispatching → {wp.raw_address}")
         try:
@@ -285,7 +320,11 @@ def route_go(
             console.print(f"[red]dispatch failed: {exc}[/red]", markup=True)
             raise typer.Exit(1) from exc
 
-        source = NullArrivalSource(simulate_after_seconds=simulate_arrival_after, target=wp)
+        source: ArrivalSource
+        if telemetry_source is not None:
+            source = telemetry_source
+        else:
+            source = NullArrivalSource(simulate_after_seconds=simulate_arrival_after, target=wp)
         detector = ArrivalDetector(
             waypoint=wp,
             tolerance_meters=float(tolerance),

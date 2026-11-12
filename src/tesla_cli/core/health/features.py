@@ -101,10 +101,8 @@ FEATURES: list[FeatureSpec] = [
         None,
         "Send the next waypoint of a multi-stop route",
     ),
-    # nav_route_auto_advance: auto-advance on arrival requires a live
-    # telemetry subscriber. That subscriber ships in v4.9.2.1 (tracked in
-    # ADR follow-ups of .omc/plans/nav-route-telemetry.md). For v4.9.2 the
-    # probe is HARDCODED to external-blocker — not a runtime check.
+    # nav_route_auto_advance: needs fleet-signed commands (to send each waypoint)
+    # plus the fleet-telemetry MQTT stream for arrivals — probed below.
     FeatureSpec(
         "nav_route_auto_advance",
         "T2",
@@ -202,6 +200,21 @@ def _load_scopes_safe() -> list[str]:
         return []
 
 
+def _probe_auto_advance(cfg: Any) -> tuple[str, str | None]:
+    """Route auto-advance listens for arrivals on the fleet-telemetry MQTT stream."""
+    import importlib.util
+
+    telemetry = getattr(cfg, "telemetry", None)
+    if not getattr(telemetry, "enabled", False):
+        return "not-configured", (
+            "Needs Fleet Telemetry: tesla telemetry install (see docs/nav-route.md). "
+            "Meanwhile use 'tesla nav route next <name>' between legs."
+        )
+    if importlib.util.find_spec("paho") is None:
+        return "not-configured", "Install paho-mqtt: pip install 'tesla-cli[mqtt]'"
+    return "ok", None
+
+
 def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | None = None) -> dict:
     """Classify one feature's availability — pure function, no I/O.
 
@@ -236,16 +249,8 @@ def probe(feature: FeatureSpec, *, cfg: Any = None, token_scopes: list[str] | No
                 "and re-auth: tesla config auth fleet"
             )
     elif tier == "T2":
-        # Hardcoded in v4.9.2: auto-advance needs a live telemetry subscriber
-        # that ships in v4.9.2.1. Report external-blocker regardless of
-        # backend state — see docs/nav-route.md / ADR follow-ups.
         if name == "nav_route_auto_advance":
-            status = "external-blocker"
-            remediation = (
-                "Ships in v4.9.2.1 — deferred pending receiver design spike. "
-                "For v4.9.2, use 'tesla nav route next <name>' between legs, "
-                "or 'tesla nav route go <name> --simulate-arrival-after 120' for testing."
-            )
+            status, remediation = _probe_auto_advance(cfg)
         else:
             current_backend = getattr(cfg.general, "backend", "")
             fleet_domain = (getattr(getattr(cfg, "fleet", None), "domain", "") or "").strip()

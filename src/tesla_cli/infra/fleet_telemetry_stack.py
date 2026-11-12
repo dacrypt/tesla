@@ -18,6 +18,7 @@ from typing import Any
 
 from tesla_cli.core.config import CONFIG_DIR
 from tesla_cli.core.exceptions import DockerNotFoundError, TeslaMateStackError
+from tesla_cli.core.nav.arrival import TELEMETRY_TOPIC_BASE
 
 DEFAULT_STACK_DIR = CONFIG_DIR / "fleet-telemetry"
 
@@ -85,10 +86,15 @@ CONFIG_TEMPLATE = {
     "logger": {
         "verbose": True,
     },
+    # Official fleet-telemetry MQTT dispatcher schema. Records are published to
+    # <topic_base>/<VIN>/v/<field> (one JSON-encoded value per field), which
+    # core/nav/arrival.py subscribes to for route auto-advance.
     "mqtt": {
-        "host": "localhost",
-        "port": 1883,
-        "topic": "tesla/telemetry/{vin}",
+        "broker": "localhost:1883",
+        "client_id": "tesla-cli-fleet-telemetry",
+        "topic_base": TELEMETRY_TOPIC_BASE,
+        "qos": 1,
+        "retained": False,
     },
 }
 
@@ -239,8 +245,7 @@ class FleetTelemetryStack:
         # Write config.json with correct port and MQTT dispatcher
         cfg = copy.deepcopy(CONFIG_TEMPLATE)
         cfg["port"] = port
-        cfg["mqtt"]["host"] = resolved_mqtt_host
-        cfg["mqtt"]["port"] = mqtt_port
+        cfg["mqtt"]["broker"] = f"{resolved_mqtt_host}:{mqtt_port}"
         self.config_file.write_text(json.dumps(cfg, indent=2) + "\n")
 
         # Write .env

@@ -114,7 +114,71 @@ def test_route_go_without_simulate_exits_2(isolated_nav):
     )
     r = run_cli("nav", "route", "go", "blocked")
     assert r.exit_code == 2
-    assert "Auto-advance not available" in r.output
+    assert "Fleet Telemetry" in r.output
+    assert "telemetry install" in " ".join(r.output.split())
+
+
+def test_route_go_auto_advances_on_telemetry(isolated_nav, monkeypatch):
+    """With telemetry enabled, each leg waits for a Location fix near the waypoint."""
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.config import Config
+    from tesla_cli.core.nav.arrival import LocationEvent
+
+    cfg = Config()
+    cfg.telemetry.enabled = True
+    cfg.mqtt.broker = "mqtt.local"
+    monkeypatch.setattr(nav_cmd, "load_config", lambda: cfg)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    calls: list[str] = []
+    monkeypatch.setattr(nav_cmd, "_dispatch_share", lambda vin, addr: calls.append(addr))
+    monkeypatch.setattr(nav_cmd, "_vin", lambda v: "5YJ3E1EA1PF000001")
+
+    built: dict = {}
+
+    class FakeSource:
+        def __init__(self, vin, **kw):
+            built.update(vin=vin, **kw)
+            self.topic = f"tesla/telemetry/{vin}/v/Location"
+            self.legs = iter([(4.6, -74.0), (4.7, -74.1)])
+
+        def events(self):
+            lat, lon = next(self.legs)
+            yield None  # heartbeat
+            yield LocationEvent(lat=lat, lon=lon, at="2026-11-12T00:00:00Z")
+
+    monkeypatch.setattr(nav_cmd, "MqttTelemetryArrivalSource", FakeSource)
+    wp2 = Waypoint(
+        raw_address="4.7,-74.1",
+        lat=4.7,
+        lon=-74.1,
+        geocode_provider="user",
+        geocode_at="2026-04-22T00:00:00Z",
+    )
+    isolated_nav.save_route(
+        Route(name="live", waypoints=[_wp(), wp2], created_at="2026-04-22T00:00:00Z")
+    )
+    r = run_cli("nav", "route", "go", "live", "--max-wait", "1")
+    assert r.exit_code == 0, r.output
+    assert calls == ["4.6,-74.0", "4.7,-74.1"]
+    assert "Trip complete" in r.output
+    assert built["host"] == "mqtt.local" and built["port"] == 1883
+    assert "tesla/telemetry/5YJ3E1EA1PF000001/v/Location" in r.output
+
+
+def test_route_go_telemetry_without_paho_exits_2(isolated_nav, monkeypatch):
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.config import Config
+
+    cfg = Config()
+    cfg.telemetry.enabled = True
+    monkeypatch.setattr(nav_cmd, "load_config", lambda: cfg)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
+    isolated_nav.save_route(
+        Route(name="nopaho", waypoints=[_wp()], created_at="2026-04-22T00:00:00Z")
+    )
+    r = run_cli("nav", "route", "go", "nopaho")
+    assert r.exit_code == 2
+    assert "tesla-cli[mqtt]" in r.output
 
 
 def test_route_verify_no_stale(isolated_nav):

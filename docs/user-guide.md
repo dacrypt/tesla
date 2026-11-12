@@ -242,7 +242,8 @@ tesla nav place save home "Calle 100 #19-54, Bogota"
 tesla nav route create daily home work
 ```
 
-Real auto-advance (consume Fleet Telemetry arrival events) ships in **v4.9.2.1**.
+With Fleet Telemetry set up (`tesla telemetry install`) and `pip install
+'tesla-cli[mqtt]'`, `tesla nav route go commute` advances on real arrivals.
 Full walkthrough: [docs/nav-route.md](./nav-route.md).
 
 ### Native EV Route Planner (`tesla nav plan`, v4.10.0)

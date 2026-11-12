@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Route auto-advance on real arrivals.** `tesla nav route go <name>` now
+  listens for the car's `Location` on the self-hosted fleet-telemetry MQTT
+  stream (`tesla/telemetry/<VIN>/v/Location`) and sends the next waypoint on
+  arrival. `tesla doctor` probes it (`nav_route_auto_advance`) instead of
+  reporting a hardcoded blocker. See docs/nav-route.md.
+- **`mqtt` extra** (`pip install 'tesla-cli[mqtt]'`) — the install hint
+  printed by `tesla mqtt` and automations referenced it, but it did not exist.
+
+### Fixed
+
+- **Fleet-telemetry stack never published to MQTT**: `tesla telemetry install`
+  wrote `host`/`port`/`topic` keys the server does not read. It now writes the
+  official dispatcher schema (`broker`, `client_id`, `topic_base`, `qos`).
+  Re-run `tesla telemetry install --force` to regenerate `config.json`.
+
 ## [5.5.0] - 2026-11-05
 
 Completes the S2 stabilization track: CLI translations, full backups,
