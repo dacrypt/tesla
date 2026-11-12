@@ -1,11 +1,10 @@
-# Multi-stop navigation (`tesla nav route`) — v4.9.2
+# Multi-stop navigation (`tesla nav route`)
 
 `tesla nav route` is the free alternative to ABRP Premium's multi-waypoint
-driver. v4.9.2 ships **CRUD + dispatch + manual advance + simulated
-auto-advance**. Real auto-advance via Fleet Telemetry is deferred to **v4.9.2.1**
-(see the ADR at the bottom of this page).
+driver: CRUD, dispatch, manual advance, and **real auto-advance** driven by
+your self-hosted Fleet Telemetry server.
 
-## What works in v4.9.2
+## What works
 
 | Feature | Command | Status |
 |---|---|---|
@@ -15,7 +14,7 @@ auto-advance**. Real auto-advance via Fleet Telemetry is deferred to **v4.9.2.1*
 | Dispatch one waypoint at a time (manual) | `tesla nav route next <name>` | ✅ |
 | Dispatch all waypoints with synthetic arrivals (tests) | `tesla nav route go <name> --simulate-arrival-after <s>` | ✅ |
 | Named address book (reusable in routes) | `tesla nav place save / list / delete` | ✅ |
-| Real auto-advance on a driving car | `tesla nav route go <name>` *(no `--simulate-arrival-after`)* | 🕓 **v4.9.2.1** |
+| Real auto-advance on a driving car | `tesla nav route go <name>` *(needs Fleet Telemetry, below)* | ✅ |
 
 ## Prerequisites
 
@@ -74,9 +73,22 @@ for arrival before advancing.
 | `--start-from <idx>` | 1 | Resume from waypoint `<idx>` (1-based). |
 | `--max-wait <min>` | 45 | Per-waypoint max wait before giving up. |
 
-**Without `--simulate-arrival-after`, `go` exits 2** with a yellow hint pointing
-at `tesla nav route next <name>`. Real auto-advance ships in v4.9.2.1 —
-see ADR-012 below.
+**Auto-advance on a real car** listens for the vehicle's `Location` field on
+the MQTT stream of your self-hosted fleet-telemetry server
+(`tesla telemetry install`), topic `tesla/telemetry/<VIN>/v/Location`. When a
+fix lands within `--tolerance` metres of the current waypoint, the next one is
+sent. It needs:
+
+1. Fleet Telemetry set up and enabled (`tesla telemetry install`, then
+   `tesla telemetry configure` with `Location` in the field list — a short
+   interval such as 30 s advances promptly).
+2. The MQTT broker the stack publishes to, reachable from where you run
+   `go`: `mqtt.broker` / `mqtt.port` in config (defaults to `localhost:1883`,
+   the managed Mosquitto).
+3. `paho-mqtt`: `pip install 'tesla-cli[mqtt]'`.
+
+`tesla doctor` reports `nav_route_auto_advance` as `ok` once 1 and 3 hold.
+Without them, `go` exits 2 with a hint pointing at `tesla nav route next <name>`.
 
 **Exit codes:**
 - `0` — trip complete (all waypoints dispatched + arrived)
@@ -128,16 +140,19 @@ the real path. Single-user CLI — no lockfile.
 | `route create: address '...' could not be geocoded by Nominatim (404).` | Try a different spelling, or use `"lat,lon"` syntax. |
 | `route create: Nominatim rate limit (429).` | Wait 60s; or pre-geocode offline and pass `"lat,lon"`. |
 | `route create: too many unresolved addresses (N > 10).` | Split the route or provide some waypoints as `"lat,lon"`. |
-| `Auto-advance not available in v4.9.2.` | Expected — use `nav route next <name>` between legs, or `--simulate-arrival-after` for testing. Real auto-advance ships in v4.9.2.1. |
+| `Auto-advance needs Fleet Telemetry streaming to MQTT.` | Set up `tesla telemetry install`, or use `nav route next <name>` between legs. |
+| `arrival source lost at waypoint N/M` (exit 2) | No `Location` fix near the waypoint within `--max-wait`. Check the car streams `Location` (`tesla telemetry configure`) and the broker is reachable; resume with `--start-from N`. |
 | `cancelled at waypoint N/M` (exit 130) | You pressed Ctrl-C. State is preserved; re-run with `--start-from N`. |
 
 ## Related docs
 
 - `docs/fleet-signed-setup.md` — how to get `share` working (VCP pairing).
-- `docs/roadmap.md` — v4.9.2.1 plan (real `TelemetryArrivalSource`).
 - the `nav-route-telemetry` design notes (internal, not published) — full design + ADR-012.
 
-## ADR-012 — Why the split?
+## ADR-012 — Why the split? (historical)
+
+> Superseded: auto-advance now subscribes to the fleet-telemetry server's
+> MQTT dispatcher, which turned out to be the missing "publish sink".
 
 **Decision:** Ship manual-advance now (v4.9.2). Defer real `TelemetryArrivalSource`
 to v4.9.2.1.
