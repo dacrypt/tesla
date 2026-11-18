@@ -67,6 +67,9 @@ Only if the proxy itself authenticates every request may you run
 `tesla serve --insecure-no-auth`; add the public hostname to
 `server.allowed_hosts`.
 
+To control the car from Home Assistant, HomeKit, Google Home, Alexa, Apple
+Shortcuts or IFTTT, see [smart-home.md](smart-home.md).
+
 TeslaMate, Grafana and Mosquitto bind to `127.0.0.1` by default
 (`STACK_BIND` / `TM_BIND_ADDR` to change) — they have weak or no auth of their
 own, so reach them through the same VPN/proxy.

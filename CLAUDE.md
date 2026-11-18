@@ -101,4 +101,5 @@ confirm the version on PyPI. Details: CONTRIBUTING.md → Releasing.
 | [docs/api-reference.md](docs/api-reference.md) | REST endpoints, SSE, Prometheus |
 | [docs/data-sources.md](docs/data-sources.md) | Tesla APIs, 15 registered sources |
 | [docs/self-hosting.md](docs/self-hosting.md) | Production install, remote access, upgrades, backups |
+| [docs/smart-home.md](docs/smart-home.md) | HA / HomeKit / Google / Alexa / Shortcuts / IFTTT via the API |
 | [docs/roadmap.md](docs/roadmap.md) | Remaining gaps, priorities |
