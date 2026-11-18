@@ -83,26 +83,28 @@ _Nothing open — real telemetry arrival source shipped (see CHANGELOG)._
 
 ### P3 — Lower Priority
 
-#### 1. Dashcam Video Processing
-- Wrap `tesla_dashcam` for clip download and processing
-- `tesla vehicle dashcam-export` — pull clips from USB drive
+Shipped (removed from the open list): dashcam export/processing
+(`tesla dashcam list|export|process`, wraps `tesla_dashcam`), customizable
+dashboard tiles (Settings → Dashboard Layout: show/hide + reorder), and smart
+home control through the REST API ([smart-home.md](smart-home.md): Home
+Assistant → HomeKit/Google/Alexa, Apple Shortcuts, IFTTT).
 
-#### 2. Fleet Battery Benchmarking
-- Community opt-in degradation dataset
-- Compare your pack against fleet percentile by age/mileage
+#### 1. Fleet Battery Benchmarking — needs a decision
+- Comparing against a fleet percentile needs a shared dataset, i.e. a central
+  service someone runs, which conflicts with the self-hosted-only model.
+- Options: (a) import a published open dataset periodically, read-only; (b) an
+  opt-in, anonymised export users can contribute to a community repo by hand.
+  Nothing is sent anywhere by default.
 
-#### 3. TezLab Data Import
-- Import historical data from TezLab app export
-- Migration path for users switching from TezLab
+#### 2. TezLab Data Import — needs a sample export
+- Import historical drives/charges from a TezLab export for users switching over.
+- Blocked on a real export file (schema is undocumented); a redacted sample
+  is enough to write and test the importer.
 
-#### 4. Smart Home Integrations
-- HomeKit via HomeBridge plugin
-- Google Home / IFTTT webhooks
-- Alexa skill for voice control
-
-#### 5. Customizable Dashboard Tiles
-- User-configurable widget layout in React dashboard
-- Drag-and-drop tile ordering, show/hide per preference
+#### 3. Native HomeKit / Alexa skill (optional)
+- A Homebridge plugin or Alexa skill would avoid Home Assistant, but an Alexa
+  skill needs a public endpoint and an Amazon developer account. HA covers it
+  today.
 
 ---
 

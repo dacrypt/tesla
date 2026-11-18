@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stream (`tesla/telemetry/<VIN>/v/Location`) and sends the next waypoint on
   arrival. `tesla doctor` probes it (`nav_route_auto_advance`) instead of
   reporting a hardcoded blocker. See docs/nav-route.md.
+- **Smart-home guide** (docs/smart-home.md): control the car from Home
+  Assistant (and through it HomeKit, Google Home, Alexa), Apple Shortcuts or
+  IFTTT with the existing REST API and keys; a test keeps its endpoint list
+  in sync with the API.
 - **`mqtt` extra** (`pip install 'tesla-cli[mqtt]'`) — the install hint
   printed by `tesla mqtt` and automations referenced it, but it did not exist.
 
