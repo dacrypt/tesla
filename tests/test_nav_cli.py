@@ -160,9 +160,41 @@ def test_route_go_auto_advances_on_telemetry(isolated_nav, monkeypatch):
     r = run_cli("nav", "route", "go", "live", "--max-wait", "1")
     assert r.exit_code == 0, r.output
     assert calls == ["4.6,-74.0", "4.7,-74.1"]
+    assert "[wp 1/2] dispatching" in r.output  # not swallowed as Rich markup
     assert "Trip complete" in r.output
     assert built["host"] == "mqtt.local" and built["port"] == 1883
     assert "tesla/telemetry/5YJ3E1EA1PF000001/v/Location" in r.output
+
+
+def test_route_go_broker_unreachable_exits_2(isolated_nav, monkeypatch):
+    from tesla_cli.cli.commands import nav as nav_cmd
+    from tesla_cli.core.config import Config
+
+    cfg = Config()
+    cfg.telemetry.enabled = True
+    monkeypatch.setattr(nav_cmd, "load_config", lambda: cfg)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr(nav_cmd, "_dispatch_share", lambda vin, addr: None)
+    monkeypatch.setattr(nav_cmd, "_vin", lambda v: "5YJ3E1EA1PF000001")
+
+    class DownSource:
+        topic = "tesla/telemetry/5YJ3E1EA1PF000001/v/Location"
+
+        def __init__(self, vin, **kw):
+            pass
+
+        def events(self):
+            raise ConnectionRefusedError(111, "Connection refused")
+            yield  # pragma: no cover
+
+    monkeypatch.setattr(nav_cmd, "MqttTelemetryArrivalSource", DownSource)
+    isolated_nav.save_route(
+        Route(name="down", waypoints=[_wp()], created_at="2026-04-22T00:00:00Z")
+    )
+    r = run_cli("nav", "route", "go", "down", "--max-wait", "1")
+    assert r.exit_code == 2
+    assert "Connection refused" in r.output
+    assert "--start-from 1" in " ".join(r.output.split())
 
 
 def test_route_go_telemetry_without_paho_exits_2(isolated_nav, monkeypatch):

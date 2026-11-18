@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrote `host`/`port`/`topic` keys the server does not read. It now writes the
   official dispatcher schema (`broker`, `client_id`, `topic_base`, `qos`).
   Re-run `tesla telemetry install --force` to regenerate `config.json`.
+- **`tesla nav route go` crashed on Ctrl-C and on timeout** (invalid
+  `err=` argument to the console) instead of exiting 130 / 2; an unreachable
+  MQTT broker now exits 2 with a `--start-from` hint. `[wp N/M]` prefixes are
+  no longer swallowed as markup.
 
 ## [5.5.0] - 2026-11-05
 

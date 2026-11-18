@@ -18,9 +18,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from rich.markup import escape
 
 from tesla_cli.cli.commands.vehicle import _with_wake
-from tesla_cli.cli.output import console, render_success
+from tesla_cli.cli.output import console, error_console, render_success
 from tesla_cli.core.auth import tokens
 from tesla_cli.core.config import load_config, resolve_vin
 from tesla_cli.core.nav.arrival import (
@@ -300,7 +301,7 @@ def route_go(
 
     if dry_run:
         for idx, wp in enumerate(route.waypoints[start_from - 1 :], start=start_from):
-            console.print(f"Would send: [wp {idx}/{total}] {wp.raw_address}")
+            console.print(f"Would send: \\[wp {idx}/{total}] {wp.raw_address}")
         console.print("[green]Trip complete (dry-run)[/green]")
         return
 
@@ -313,7 +314,7 @@ def route_go(
     if telemetry_source is not None:
         console.print(f"Waiting for arrivals on MQTT topic {telemetry_source.topic}")
     for idx, wp in enumerate(route.waypoints[start_from - 1 :], start=start_from):
-        console.print(f"[wp {idx}/{total}] dispatching → {wp.raw_address}")
+        console.print(f"\\[wp {idx}/{total}] dispatching → {wp.raw_address}")
         try:
             _dispatch_share(v, wp.raw_address)
         except Exception as exc:  # noqa: BLE001
@@ -334,15 +335,21 @@ def route_go(
         try:
             arrived = detector.wait()
         except KeyboardInterrupt:
-            console.print(
+            error_console.print(
                 f"[yellow]cancelled at waypoint {idx}/{total}[/yellow]",
-                err=True,
             )
             raise typer.Exit(130) from None
+        except (OSError, RuntimeError) as exc:  # broker unreachable / paho missing
+            error_console.print(
+                f"[red]arrival source unavailable at waypoint {idx}/{total}: "
+                f"{escape(str(exc))}[/red] "
+                f"— resume with --start-from {idx}",
+                markup=True,
+            )
+            raise typer.Exit(2) from None
         if not arrived:
-            console.print(
+            error_console.print(
                 f"[red]arrival source lost at waypoint {idx}/{total}[/red]",
-                err=True,
             )
             raise typer.Exit(2)
 
@@ -379,12 +386,12 @@ def route_next(
     if new_index > total:
         store.write_state(name, 1, _now_iso())
         console.print(
-            f"[wp {next_index}/{total}] dispatched → {wp.raw_address}\n[green]Trip complete[/green]"
+            f"\\[wp {next_index}/{total}] dispatched → {wp.raw_address}\n[green]Trip complete[/green]"
         )
     else:
         store.write_state(name, new_index, _now_iso())
         console.print(
-            f"[wp {next_index}/{total}] dispatched → {wp.raw_address} "
+            f"\\[wp {next_index}/{total}] dispatched → {wp.raw_address} "
             f"(next: tesla nav route next {name})"
         )
 
