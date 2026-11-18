@@ -7,7 +7,7 @@
 
 ## Current State (v5.5.0)
 
-180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + simulated auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
+180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + Fleet-Telemetry auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
 
 ---
 
@@ -79,11 +79,7 @@ work takes priority over new features.
 
 ### P1 — Next Release
 
-#### 0. Real Telemetry Arrival Source (v4.9.2.1)
-- Wire a concrete `TelemetryArrivalSource` into `tesla nav route go` (currently `NullArrivalSource` only).
-- Requires a publish-sink decision (SSE / Kafka / NATS) for the in-tree Fleet Telemetry receiver.
-- Removes the hardcoded `external-blocker` on the `nav_route_auto_advance` doctor row.
-- Trigger: open the v4.9.2.1 spike PR within 7 days of v4.9.2 merge. See ADR-012 in the `nav-route-telemetry` design notes (internal, not published).
+_Nothing open — real telemetry arrival source shipped (see CHANGELOG)._
 
 ### P3 — Lower Priority
 
