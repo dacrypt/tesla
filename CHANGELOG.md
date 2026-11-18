@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-18
+
+Multi-stop routes now advance on their own when the car arrives, driven by
+the self-hosted Fleet Telemetry server, which also gets a fix: it never
+published to MQTT before. No breaking changes.
+
+### Upgrading from 5.5.x
+
+- If you set up Fleet Telemetry with `tesla telemetry install`, run
+  `tesla telemetry restart` once. It rewrites the MQTT block of the stack's
+  `config.json` in place (certificates untouched) so the server starts
+  publishing. Do not use `install --force` for this: it issues new
+  certificates and the car would need to be reconfigured.
+- For route auto-advance: `pip install 'tesla-cli[mqtt]'` and make sure
+  `Location` is in `tesla telemetry configure --fields`.
+
 ### Added
 
 - **Route auto-advance on real arrivals.** `tesla nav route go <name>` now
@@ -19,14 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   IFTTT with the existing REST API and keys; a test keeps its endpoint list
   in sync with the API.
 - **`mqtt` extra** (`pip install 'tesla-cli[mqtt]'`) — the install hint
-  printed by `tesla mqtt` and automations referenced it, but it did not exist.
+  printed by `tesla mqtt` and automations referenced it, but it did not exist. The Docker
+  image now includes it.
 
 ### Fixed
 
 - **Fleet-telemetry stack never published to MQTT**: `tesla telemetry install`
   wrote `host`/`port`/`topic` keys the server does not read. It now writes the
   official dispatcher schema (`broker`, `client_id`, `topic_base`, `qos`).
-  Re-run `tesla telemetry install --force` to regenerate `config.json`.
+  Existing installs are migrated in place by `tesla telemetry start|restart`.
 - **`tesla nav route go` crashed on Ctrl-C and on timeout** (invalid
   `err=` argument to the console) instead of exiting 130 / 2; an unreachable
   MQTT broker now exits 2 with a `--start-from` hint. `[wp N/M]` prefixes are
