@@ -89,7 +89,9 @@ def telemetry_start() -> None:
         SpinnerColumn(), TextColumn("{task.description}"), transient=True, disable=is_json_mode()
     ) as p:
         p.add_task("Starting fleet-telemetry...", total=None)
-        stack.start()
+        migrated = stack.start()
+    if migrated:
+        render_success("Updated config.json to publish to MQTT (pre-5.6 format).")
     render_success("Fleet-telemetry started.")
 
 
@@ -111,7 +113,8 @@ def telemetry_restart() -> None:
     tesla telemetry restart
     """
     stack = _stack()
-    stack.restart()
+    if stack.restart():
+        render_success("Updated config.json to publish to MQTT (pre-5.6 format).")
     render_success("Fleet-telemetry restarted.")
 
 

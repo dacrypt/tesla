@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (v5.5.0)
+## Current State (v5.6.0)
 
 180+ commands across 26 groups, 1970+ tests, 86 API endpoints, 27 Prometheus gauges, React dashboard with live map + Recharts analytics + Planner page, 7 providers, managed TeslaMate + Fleet Telemetry stacks, 15 data sources, Claude Code plugin (11 skills), automation engine, Powerwall/Solar support, **VCP signed commands (fleet-signed backend)**, **multi-stop navigation with manual advance + Fleet-Telemetry auto-advance**, **favorites importer for Google Takeout / KML / GPX**, **native EV route planner (Phases 1 + 2 + 3) with OpenRouteService + OpenChargeMap + open-elevation + OpenWeatherMap + ABRP deep-link, TeslaMate-calibrated consumption model, A\* alternatives, GPX/KML export, REST API + dashboard page**.
 
@@ -72,39 +72,41 @@ work takes priority over new features.
 
 ### S3 — Needs a product decision
 - ✅ **Service reminders** — completed services are logged (`tesla service done`, `POST /api/service/log`); reminders compute due km/date and real overdue from the log.
-- **Order phases** — `core/computed.py` derives shipped/in-country/registered from the same RUNT flag, so the intermediate phases never show; needs real signals per phase.
+- ✖ **Order phases** — no per-phase signal exists; see "Decided against" below.
 - ✅ **Order summary** — status-based "next step" hints now show when there are no pending Tesla tasks.
 
 ## Remaining Gaps
 
-### P1 — Next Release
+### Done in 5.6.0
+- ✅ Route auto-advance on real arrivals (Fleet Telemetry → MQTT `Location`); `tesla doctor` probes it
+- ✅ Fleet-telemetry stack writes the official MQTT dispatcher config (it never published before)
+- ✅ Smart-home guide ([smart-home.md](smart-home.md)); dashcam export and dashboard tiles confirmed shipped
 
-_Nothing open — real telemetry arrival source shipped (see CHANGELOG)._
+### Open
+Nothing scheduled. New work comes from bug reports and user requests.
 
-### P3 — Lower Priority
+### Decided against (and why)
 
-Shipped (removed from the open list): dashcam export/processing
-(`tesla dashcam list|export|process`, wraps `tesla_dashcam`), customizable
-dashboard tiles (Settings → Dashboard Layout: show/hide + reorder), and smart
-home control through the REST API ([smart-home.md](smart-home.md): Home
-Assistant → HomeKit/Google/Alexa, Apple Shortcuts, IFTTT).
+Judged against what the project is: self-hosted, private by default, and
+only shipping what can be tested.
 
-#### 1. Fleet Battery Benchmarking — needs a decision
-- Comparing against a fleet percentile needs a shared dataset, i.e. a central
-  service someone runs, which conflicts with the self-hosted-only model.
-- Options: (a) import a published open dataset periodically, read-only; (b) an
-  opt-in, anonymised export users can contribute to a community repo by hand.
-  Nothing is sent anywhere by default.
-
-#### 2. TezLab Data Import — needs a sample export
-- Import historical drives/charges from a TezLab export for users switching over.
-- Blocked on a real export file (schema is undocumented); a redacted sample
-  is enough to write and test the importer.
-
-#### 3. Native HomeKit / Alexa skill (optional)
-- A Homebridge plugin or Alexa skill would avoid Home Assistant, but an Alexa
-  skill needs a public endpoint and an Amazon developer account. HA covers it
-  today.
+- **Fleet battery benchmarking (percentile vs other owners).** A percentile
+  needs many owners' battery data in one place, which means someone runs a
+  central service that holds it. That contradicts self-hosted and private by
+  default. There is no maintained open dataset with per-model/age detail to
+  import instead, and stale numbers would mislead. What an owner can act on is
+  their own pack's trend, which `tesla` already tracks (battery degradation,
+  TeslaMate analytics).
+- **TezLab import.** The export format is undocumented and we have no sample,
+  so an importer could not be tested and would break silently. Reopen if a
+  user provides a redacted export.
+- **Native HomeKit plugin / Alexa skill.** Home Assistant already bridges to
+  HomeKit, Google and Alexa ([smart-home.md](smart-home.md)), and an Alexa
+  skill needs a public cloud endpoint and an Amazon developer account.
+- **Separate order phases (shipped / in country / customs).** No source
+  reports them separately: RUNT "REGISTRADO" implies all three, and the ship
+  tracking is a hardcoded best guess. The order view keeps the phases it can
+  actually observe. Reopen if a reliable per-phase signal appears.
 
 ---
 

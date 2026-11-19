@@ -24,9 +24,9 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 
 # Extras baked into the image. Colombian registry lookups (RUNT/SIMIT) need
-# `--build-arg UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf --extra query"`
+# `--build-arg UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf --extra mqtt --extra query"`
 # — amd64 only: openquery pulls paddlepaddle/torch, which ship no arm64 wheels.
-ARG UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf"
+ARG UV_EXTRAS="--extra serve --extra fleet --extra teslaMate --extra pdf --extra mqtt"
 RUN uv sync --frozen $UV_EXTRAS --no-dev
 
 # Copy freshly built UI into the location the API serves from

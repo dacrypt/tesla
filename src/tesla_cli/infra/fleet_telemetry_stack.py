@@ -378,22 +378,54 @@ class FleetTelemetryStack:
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
+    def migrate_config(self) -> bool:
+        """Rewrite a pre-5.6 ``config.json`` MQTT block to the official schema.
+
+        Installs before 5.6.0 wrote ``host``/``port``/``topic``, which the
+        server ignores, so nothing reached MQTT. Only the ``mqtt`` block is
+        touched — certificates and everything else stay as they are (unlike
+        ``install --force``, which would issue new certs). Returns True when
+        the file was changed.
+        """
+        if not self.config_file.exists():
+            return False
+        try:
+            cfg = json.loads(self.config_file.read_text())
+        except (OSError, ValueError):
+            return False
+        mqtt = cfg.get("mqtt") if isinstance(cfg, dict) else None
+        if not isinstance(mqtt, dict) or "broker" in mqtt:
+            return False
+        new = copy.deepcopy(CONFIG_TEMPLATE["mqtt"])
+        new["broker"] = f"{mqtt.get('host') or 'localhost'}:{mqtt.get('port') or 1883}"
+        cfg["mqtt"] = new
+        self.config_file.write_text(json.dumps(cfg, indent=2) + "\n")
+        return True
+
+    def start(self) -> bool:
+        """Start the stack. Returns True if a legacy config was migrated."""
         self._require_installed()
+        migrated = self.migrate_config()
         self._docker_compose("up", "-d")
+        if migrated:
+            self._docker_compose("restart")  # a running container keeps the old config
         if not self._wait_healthy(timeout=30):
             raise FleetTelemetryStackError(
                 "Stack started but fleet-telemetry did not become healthy.\n"
                 "Check logs: tesla telemetry logs"
             )
+        return migrated
 
     def stop(self) -> None:
         self._require_installed()
         self._docker_compose("stop")
 
-    def restart(self) -> None:
+    def restart(self) -> bool:
+        """Restart the stack. Returns True if a legacy config was migrated."""
         self._require_installed()
+        migrated = self.migrate_config()
         self._docker_compose("restart")
+        return migrated
 
     def logs(
         self,
